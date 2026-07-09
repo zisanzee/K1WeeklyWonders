@@ -364,13 +364,13 @@ function ReferenceBasket({ category, target }) {
       <span className="font-body rounded-full bg-white/90 px-3 py-0.5 text-xs font-extrabold text-slate-600 shadow sm:text-sm">
         🧸 Teddy's basket
       </span>
-      <div className="relative flex min-h-[4.5rem] w-40 flex-wrap content-start items-start justify-center gap-1 rounded-b-[1.75rem] rounded-t-lg border-4 border-amber-800/70 bg-gradient-to-b from-amber-200 to-amber-400 p-2.5 shadow-inner sm:w-48">
-        <span className="absolute -top-2.5 left-1/2 h-3 w-8 -translate-x-1/2 rounded-t-full border-4 border-b-0 border-amber-800/70" />
+      <div className="relative flex min-h-[4.5rem] w-40 flex-wrap content-start items-start justify-center gap-1 rounded-b-[1.75rem] rounded-t-lg border-4 border-cyan-800/70 bg-gradient-to-b from-cyan-200 to-cyan-400 p-2.5 shadow-inner sm:w-48">
+        <span className="absolute -top-2.5 left-1/2 h-3 w-8 -translate-x-1/2 rounded-t-full border-4 border-b-0 border-cyan-800/70" />
         {items.map((it) => (
           <span
             key={it.id}
             style={{ rotate: `${it.rotation}deg` }}
-            className="flex h-6 w-6 items-center justify-center text-lg sm:h-7 sm:w-7 sm:text-xl"
+            className="flex h-8 w-8 items-center justify-center text-xl sm:h-9 sm:w-9 sm:text-2xl"
           >
             {category.emoji}
           </span>

@@ -125,8 +125,8 @@ export default function Home() {
               emoji="🧸"
               title="Week 2"
               subtitle="Compare quantity!"
-              color="from-purple-400 to-pink-400"
-              ring="ring-purple-200"
+              color="from-cyan-400 to-blue-400"
+              ring="ring-cyan-200"
               delay="0s"
               open={true}
             />
