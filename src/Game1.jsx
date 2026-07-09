@@ -11,7 +11,12 @@ import {
 } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
 
-const TOTAL_ROUNDS = 5;
+const TOTAL_ROUNDS = 10;
+const NUMBER_WORDS = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
+
+function capitalize(s) {
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
 
 const CATEGORIES = [
   {
@@ -55,8 +60,10 @@ function shuffle(arr) {
   return a;
 }
 
-function generateTargetSequence() {
-  return shuffle(Array.from({ length: 10 }, (_, i) => i + 1)).slice(0, TOTAL_ROUNDS);
+function generateRoundPlan() {
+  const numbers = shuffle(Array.from({ length: 10 }, (_, i) => i + 1));
+  const formats = shuffle([...Array(5).fill('numeral'), ...Array(5).fill('word')]);
+  return numbers.map((target, i) => ({ target, format: formats[i] }));
 }
 
 function speak(text, muted) {
@@ -68,7 +75,7 @@ function speak(text, muted) {
   window.speechSynthesis.speak(utterance);
 }
 
-function generateRound(roundIndex, prevCategoryKey, target) {
+function generateRound(roundIndex, prevCategoryKey, target, format) {
   const pool = CATEGORIES.length > 1 ? CATEGORIES.filter((c) => c.key !== prevCategoryKey) : CATEGORIES;
   const category = pool[Math.floor(Math.random() * pool.length)];
   const item = category.items[Math.floor(Math.random() * category.items.length)];
@@ -79,13 +86,13 @@ function generateRound(roundIndex, prevCategoryKey, target) {
     location: 'pool',
     rotation: (Math.random() * 20 - 10).toFixed(1),
   }));
-  return { category, item, target, items };
+  return { category, item, target, format, items };
 }
 
 export default function Game1() {
-  const [targetSequence, setTargetSequence] = useState(() => generateTargetSequence());
+  const [roundPlan, setRoundPlan] = useState(() => generateRoundPlan());
   const [roundIndex, setRoundIndex] = useState(0);
-  const [round, setRound] = useState(() => generateRound(0, null, targetSequence[0]));
+  const [round, setRound] = useState(() => generateRound(0, null, roundPlan[0].target, roundPlan[0].format));
   const [phase, setPhase] = useState('playing');
   const [feedback, setFeedback] = useState(null);
   const [activeId, setActiveId] = useState(null);
@@ -107,6 +114,12 @@ export default function Game1() {
         window.speechSynthesis.cancel();
       }
     };
+  }, []);
+
+  useEffect(() => {
+    speak(`Fill the basket with ${round.target} ${round.item.name}!`, muted);
+    // Runs once, on mount, to announce the very first round.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -168,7 +181,7 @@ export default function Game1() {
       speak("Amazing job! You're a counting champion!", muted);
       return;
     }
-    const newRound = generateRound(next, round.category.key, targetSequence[next]);
+    const newRound = generateRound(next, round.category.key, roundPlan[next].target, roundPlan[next].format);
     setRoundIndex(next);
     setRound(newRound);
     prevBasketCountRef.current = 0;
@@ -178,9 +191,9 @@ export default function Game1() {
   };
 
   const playAgain = () => {
-    const newSequence = generateTargetSequence();
-    const newRound = generateRound(0, null, newSequence[0]);
-    setTargetSequence(newSequence);
+    const newPlan = generateRoundPlan();
+    const newRound = generateRound(0, null, newPlan[0].target, newPlan[0].format);
+    setRoundPlan(newPlan);
     setRoundIndex(0);
     setRound(newRound);
     prevBasketCountRef.current = 0;
@@ -241,8 +254,9 @@ export default function Game1() {
             <p className="font-body text-sm font-bold text-white/80 sm:text-base">
               Round {roundIndex + 1} of {TOTAL_ROUNDS}
             </p>
+            <RoundDots total={TOTAL_ROUNDS} current={roundIndex} />
 
-            <TargetCard target={round.target} item={round.item} />
+            <TargetCard target={round.target} item={round.item} format={round.format} />
 
             <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
               <div className="relative mt-4 flex w-full flex-1 flex-col gap-5 md:flex-row md:items-start md:justify-center md:gap-6">
@@ -290,6 +304,7 @@ export default function Game1() {
               <SuccessOverlay
                 target={round.target}
                 item={round.item}
+                format={round.format}
                 isLastRound={roundIndex + 1 >= TOTAL_ROUNDS}
                 onNext={nextRound}
               />
@@ -312,11 +327,7 @@ function TopBar({ totalRounds, stars, muted, onToggleMute }) {
       </Link>
 
       <div className="flex items-center gap-3">
-        <div className="flex gap-1" aria-label={`${stars} out of ${totalRounds} stars earned`}>
-          {Array.from({ length: totalRounds }).map((_, i) => (
-            <span key={i} className={`text-xl sm:text-2xl ${i < stars ? '' : 'opacity-30 grayscale'}`}>⭐</span>
-          ))}
-        </div>
+        <StarMeter stars={stars} total={totalRounds} />
         <button
           onClick={onToggleMute}
           aria-label={muted ? 'Unmute sound' : 'Mute sound'}
@@ -329,13 +340,65 @@ function TopBar({ totalRounds, stars, muted, onToggleMute }) {
   );
 }
 
-function TargetCard({ target, item }) {
+function StarMeter({ stars, total, dark }) {
+  const pct = total > 0 ? Math.round((stars / total) * 100) : 0;
+  return (
+    <div className="flex items-center gap-2" aria-label={`${stars} out of ${total} stars earned`}>
+      <span className="text-xl sm:text-2xl">⭐</span>
+      <div className={`h-2.5 w-16 overflow-hidden rounded-full sm:w-24 ${dark ? 'bg-slate-200' : 'bg-white/40'}`}>
+        <div
+          className="h-full rounded-full bg-gradient-to-r from-yellow-300 to-orange-400 transition-all duration-500"
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+      <span
+        className={`font-body text-xs font-extrabold sm:text-sm ${dark ? 'text-slate-700' : 'text-white drop-shadow'}`}
+      >
+        {stars}/{total}
+      </span>
+    </div>
+  );
+}
+
+function RoundDots({ total, current }) {
+  return (
+    <div className="mt-1.5 flex flex-wrap justify-center gap-1">
+      {Array.from({ length: total }).map((_, i) => (
+        <span
+          key={i}
+          className={`h-1.5 w-1.5 rounded-full transition-colors sm:h-2 sm:w-2 ${
+            i < current ? 'bg-white' : i === current ? 'animate-sparkle bg-yellow-300' : 'bg-white/30'
+          }`}
+        />
+      ))}
+    </div>
+  );
+}
+
+function TargetCard({ target, item, format }) {
   const dots = Array.from({ length: 10 }, (_, i) => i < target);
   const rows = [dots.slice(0, 5), dots.slice(5, 10)];
+  const isWord = format === 'word';
+  const label = isWord ? capitalize(NUMBER_WORDS[target]) : String(target);
   return (
     <div className="animate-pop-in mt-4 flex flex-col items-center gap-3 rounded-[2rem] bg-white/80 px-6 py-4 shadow-[0_8px_0_rgba(0,0,0,0.1)] sm:flex-row sm:gap-5 sm:px-8">
       <div className="flex items-center gap-3">
-        <span className="font-heading text-5xl font-bold text-pink-500 sm:text-6xl">{target}</span>
+        <div className="flex flex-col items-center gap-1">
+          <span
+            className={`font-heading whitespace-nowrap font-bold leading-none text-pink-500 ${
+              isWord ? 'text-[clamp(1.75rem,5vw,3rem)]' : 'text-5xl sm:text-6xl'
+            }`}
+          >
+            {label}
+          </span>
+          <span
+            className={`font-body rounded-full px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wide sm:text-xs ${
+              isWord ? 'bg-purple-50 text-purple-500' : 'bg-pink-50 text-pink-400'
+            }`}
+          >
+            {isWord ? '🔤 Spelled' : '🔢 Numeral'}
+          </span>
+        </div>
         <div className="flex flex-col gap-1">
           {rows.map((row, ri) => (
             <div key={ri} className="flex gap-1">
@@ -350,7 +413,7 @@ function TargetCard({ target, item }) {
         </div>
       </div>
       <p className="font-body text-center text-base font-bold text-slate-700 sm:text-left sm:text-lg">
-        Fill the basket with {target} {item.name}! {item.emoji}
+        Fill the basket with {label} {item.name}! {item.emoji}
       </p>
     </div>
   );
@@ -421,7 +484,8 @@ function DraggableFruit({ id, emoji, rotation, disabled }) {
   );
 }
 
-function SuccessOverlay({ target, item, isLastRound, onNext }) {
+function SuccessOverlay({ target, item, format, isLastRound, onNext }) {
+  const label = format === 'word' ? capitalize(NUMBER_WORDS[target]) : String(target);
   return (
     <div className="fixed inset-0 z-30 flex items-center justify-center bg-black/30 p-4">
       <Confetti pieces={30} />
@@ -429,7 +493,7 @@ function SuccessOverlay({ target, item, isLastRound, onNext }) {
         <div className="text-6xl">🎉</div>
         <h2 className="font-heading mt-2 text-2xl font-bold text-slate-800 sm:text-3xl">Perfect!</h2>
         <p className="font-body mt-2 text-base font-semibold text-slate-500 sm:text-lg">
-          You counted {target} {item.name} {item.emoji}
+          You counted {label} {item.name} {item.emoji}
         </p>
         <button
           onClick={onNext}
@@ -451,10 +515,8 @@ function CompletionScreen({ stars, total, onPlayAgain }) {
       <p className="font-body mt-2 text-lg font-semibold text-slate-500">
         You earned {stars} out of {total} stars
       </p>
-      <div className="mt-3 flex gap-1">
-        {Array.from({ length: total }).map((_, i) => (
-          <span key={i} className={`text-3xl ${i < stars ? 'animate-pop-in' : 'opacity-20 grayscale'}`}>⭐</span>
-        ))}
+      <div className="mt-3">
+        <StarMeter stars={stars} total={total} dark />
       </div>
       <div className="mt-8 flex flex-col gap-3 sm:flex-row">
         <button

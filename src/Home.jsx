@@ -112,7 +112,7 @@ export default function Home() {
           <div className="relative z-10 flex flex-col items-center gap-6 sm:flex-row sm:flex-wrap sm:justify-center sm:gap-8 md:gap-10 lg:gap-14">
             <GameCard
               to="/Game1"
-              emoji="🔢"
+              emoji="🧺"
               title="Week 1"
               subtitle="Count & win!"
               color="from-green-400 to-teal-400"
@@ -122,13 +122,13 @@ export default function Home() {
             />
             <GameCard
               to="/Game2"
-              emoji="🍎"
+              emoji="🧸"
               title="Week 2"
               subtitle="Compare quantity!"
               color="from-purple-400 to-pink-400"
               ring="ring-purple-200"
               delay="0s"
-              open={false}
+              open={true}
             />
           </div>
         </div>
