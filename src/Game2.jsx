@@ -383,21 +383,41 @@ function ReferenceBasket({ category, target }) {
 function BasketCard({ basket, category, onTap, disabled, isWrong, isCorrectChosen, isDimmed, showHintGlow }) {
   return (
     <button
+    style={{
+        backgroundColor: '#d3f395',
+        backgroundImage: `
+          linear-gradient(to bottom, rgba(255,255,255,0.12), rgba(0,0,0,0.12)),
+          repeating-linear-gradient(
+            0deg,
+            rgba(255,255,255,0.12) 0px,
+            rgba(255,255,255,0.12) 4px,
+            transparent 4px,
+            transparent 14px
+          ),
+          repeating-linear-gradient(
+            90deg,
+            rgba(110,65,20,0.09) 0px,
+            rgba(110,65,20,0.09) 4px,
+            transparent 4px,
+            transparent 14px
+          )
+        `,
+      }}
       type="button"
       onClick={onTap}
       disabled={disabled}
-      className={`group relative flex min-h-[8rem] w-36 flex-wrap content-start items-start justify-center gap-1.5 rounded-b-[2.25rem] rounded-t-xl border-4 border-amber-800/70 bg-gradient-to-b from-amber-300 to-amber-500 p-3 shadow-[0_8px_0_rgba(0,0,0,0.18)] transition-all duration-200 ease-out sm:min-h-[9rem] sm:w-44 sm:p-4 ${
+      className={`group relative flex min-h-[10rem] w-40 flex-wrap content-start items-start justify-center gap-1.5 rounded-b-[2.25rem] rounded-t-xl border-4 border-lime-700/70 bg-gradient-to-b from-violet-200 to-lime-200 p-3 shadow-[0_8px_0_rgba(0,0,0,0.18)] transition-all duration-200 ease-out sm:min-h-[11rem] sm:w-48 sm:p-4 ${
         disabled ? 'cursor-default' : 'cursor-pointer hover:-translate-y-1 active:translate-y-1 active:shadow-[0_3px_0_rgba(0,0,0,0.18)]'
       } ${isWrong ? 'animate-shake' : ''} ${isCorrectChosen ? 'animate-wobble ring-8 ring-green-300' : ''} ${
         isDimmed ? 'opacity-40 grayscale-[30%]' : ''
       } ${showHintGlow ? 'animate-glow-pulse ring-4 ring-yellow-300' : ''}`}
     >
-      <span className="absolute -top-3 left-1/2 h-4 w-10 -translate-x-1/2 rounded-t-full border-4 border-b-0 border-amber-800/70" />
+      <span className="absolute -top-3 left-1/2 h-4 w-10 -translate-x-1/2 rounded-t-full border-4 border-b-0 border-cyan-800/70" />
       {basket.items.map((it) => (
         <span
           key={it.id}
           style={{ rotate: `${it.rotation}deg` }}
-          className="flex h-8 w-8 items-center justify-center text-2xl sm:h-9 sm:w-9 sm:text-3xl"
+          className="flex h-8 w-8 items-center justify-center text-3xl sm:h-9 sm:w-10 sm:text-4xl"
         >
           {category.emoji}
         </span>
@@ -471,9 +491,9 @@ function SuccessOverlay({ message, isLastRound, streak, onNext }) {
       <Confetti pieces={streak >= 3 ? 50 : 30} />
       <div className="animate-pop-in relative flex max-w-sm flex-col items-center rounded-[2.5rem] bg-white px-8 py-8 text-center shadow-2xl">
         <div className="text-6xl">{streak >= 3 ? '🌟' : '🎉'}</div>
-        <h2 className="font-heading mt-2 text-2xl font-bold text-slate-800 sm:text-3xl">
+        <p className="font-heading mt-2 text-2xl font-bold text-amber-500 sm:text-3xl">
           {streak >= 3 ? 'On a streak!' : 'Well done!'}
-        </h2>
+        </p>
         <p className="font-body mt-2 text-base font-semibold text-slate-500 sm:text-lg">{message}</p>
         <button
           onClick={onNext}

@@ -424,7 +424,7 @@ function PoolZone({ items, item, disabled, pulse }) {
   return (
     <div
       ref={setNodeRef}
-      className={`relative flex min-h-[9rem] flex-1 flex-wrap content-start items-start justify-center gap-2 rounded-[2rem] border-4 border-dashed border-white/60 bg-white/25 p-4 shadow-inner backdrop-blur-sm transition-shadow sm:min-h-[11rem] sm:gap-3 sm:p-6 ${
+      className={`relative flex min-h-[11rem] flex-1 flex-wrap content-start items-start justify-center gap-2 rounded-[2rem] border-4 border-dashed border-white/60 bg-white/25 p-4 shadow-inner backdrop-blur-sm transition-shadow sm:min-h-[13rem] sm:gap-3 sm:p-6 ${
         isOver ? 'border-yellow-300 bg-white/40' : ''
       } ${pulse ? 'animate-glow-pulse' : ''}`}
     >
@@ -445,8 +445,28 @@ function BasketZone({ items, item, count, disabled, pulse, shake }) {
   const { isOver, setNodeRef } = useDroppable({ id: 'basket' });
   return (
     <div
+      style={{
+        backgroundColor: '#d3f395',
+        backgroundImage: `
+          linear-gradient(to bottom, rgba(255,255,255,0.12), rgba(0,0,0,0.12)),
+          repeating-linear-gradient(
+            0deg,
+            rgba(255,255,255,0.12) 0px,
+            rgba(255,255,255,0.12) 4px,
+            transparent 4px,
+            transparent 14px
+          ),
+          repeating-linear-gradient(
+            90deg,
+            rgba(110,65,20,0.09) 0px,
+            rgba(110,65,20,0.09) 4px,
+            transparent 4px,
+            transparent 14px
+          )
+        `,
+      }}
       ref={setNodeRef}
-      className={`relative flex min-h-[9rem] flex-1 flex-wrap content-start items-start justify-center gap-2 rounded-b-[3rem] rounded-t-2xl border-4 border-amber-700/70 bg-gradient-to-b from-amber-300 to-amber-500 p-4 shadow-inner transition-shadow sm:min-h-[11rem] sm:gap-3 sm:p-6 ${
+      className={`relative flex min-h-[11rem] flex-1 flex-wrap content-start items-start justify-center gap-2 rounded-b-[3rem] rounded-t-2xl border-4 border-amber-700/70 bg-gradient-to-b from-amber-300 to-amber-500 p-4 shadow-inner transition-shadow sm:min-h-[13rem] sm:gap-3 sm:p-6 ${
         isOver ? 'ring-4 ring-yellow-200' : ''
       } ${pulse ? 'animate-wobble' : ''} ${shake ? 'animate-shake' : ''}`}
     >
@@ -454,7 +474,7 @@ function BasketZone({ items, item, count, disabled, pulse, shake }) {
         🧺 Basket: {count}
       </span>
       {items.length === 0 && (
-        <span className="font-body mt-6 text-sm font-bold text-amber-900/60">Drag {item.name} here!</span>
+        <span className="font-body mt-6 text-lg font-bold text-amber-900/60">Drag {item.name} here!</span>
       )}
       {items.map((it) => (
         <DraggableFruit key={it.id} id={it.id} emoji={item.emoji} rotation={it.rotation} disabled={disabled} />
@@ -490,8 +510,8 @@ function SuccessOverlay({ target, item, format, isLastRound, onNext }) {
     <div className="fixed inset-0 z-30 flex items-center justify-center bg-black/30 p-4">
       <Confetti pieces={30} />
       <div className="animate-pop-in relative flex max-w-sm flex-col items-center rounded-[2.5rem] bg-white px-8 py-8 text-center shadow-2xl">
-        <div className="text-6xl">🎉</div>
-        <h2 className="font-heading mt-2 text-2xl font-bold text-slate-800 sm:text-3xl">Perfect!</h2>
+        <div className="text-6xl text-center">🎉</div>
+        <p className="font-heading mt-2 text-2xl font-bold text-amber-500 sm:text-3xl">Perfect! </p>
         <p className="font-body mt-2 text-base font-semibold text-slate-500 sm:text-lg">
           You counted {label} {item.name} {item.emoji}
         </p>
