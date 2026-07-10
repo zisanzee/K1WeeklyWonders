@@ -128,7 +128,7 @@ export default function Home() {
               color="from-cyan-400 to-blue-400"
               ring="ring-cyan-200"
               delay="0s"
-              open={true}
+              open={false}
             />
           </div>
         </div>

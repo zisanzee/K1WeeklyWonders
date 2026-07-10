@@ -379,7 +379,7 @@ function TargetCard({ target, item, format }) {
   const dots = Array.from({ length: 10 }, (_, i) => i < target);
   const rows = [dots.slice(0, 5), dots.slice(5, 10)];
   const isWord = format === 'word';
-  const label = isWord ? capitalize(NUMBER_WORDS[target]) : String(target);
+  const label = isWord ? NUMBER_WORDS[target] : String(target);
   return (
     <div className="animate-pop-in mt-4 flex flex-col items-center gap-3 rounded-[2rem] bg-white/80 px-6 py-4 shadow-[0_8px_0_rgba(0,0,0,0.1)] sm:flex-row sm:gap-5 sm:px-8">
       <div className="flex items-center gap-3">
@@ -391,13 +391,7 @@ function TargetCard({ target, item, format }) {
           >
             {label}
           </span>
-          <span
-            className={`font-body rounded-full px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wide sm:text-xs ${
-              isWord ? 'bg-purple-50 text-purple-500' : 'bg-pink-50 text-pink-400'
-            }`}
-          >
-            {isWord ? '🔤 Spelled' : '🔢 Numeral'}
-          </span>
+          
         </div>
         <div className="flex flex-col gap-1">
           {rows.map((row, ri) => (
@@ -429,7 +423,7 @@ function PoolZone({ items, item, disabled, pulse }) {
       } ${pulse ? 'animate-glow-pulse' : ''}`}
     >
       <span className="font-body absolute -top-3 left-4 rounded-full bg-white/90 px-3 py-0.5 text-xs font-extrabold text-slate-600 shadow sm:text-sm">
-        🌳 Orchard
+         Orchard
       </span>
       {items.length === 0 && (
         <span className="font-body mt-6 text-sm font-bold text-white/80">All picked!</span>
@@ -471,7 +465,7 @@ function BasketZone({ items, item, count, disabled, pulse, shake }) {
       } ${pulse ? 'animate-wobble' : ''} ${shake ? 'animate-shake' : ''}`}
     >
       <span className="font-body absolute -top-3 left-4 flex items-center gap-1 rounded-full bg-white/90 px-3 py-0.5 text-xs font-extrabold text-slate-600 shadow sm:text-sm">
-        🧺 Basket: {count}
+         Basket: {count}
       </span>
       {items.length === 0 && (
         <span className="font-body mt-6 text-lg font-bold text-amber-900/60">Drag {item.name} here!</span>
