@@ -128,7 +128,19 @@ export default function Home() {
               color="from-cyan-400 to-blue-400"
               ring="ring-cyan-200"
               delay="0s"
-              open={false}
+              open={true
+              }
+            />
+            <GameCard
+              to="/Game3"
+              emoji="🐙"
+              title="Week 3"
+              subtitle="Around the Number!"
+              color="from-purple-500 to-indigo-400 "
+              ring="ring-purple-200"
+              delay="0s"
+              open={true
+              }
             />
           </div>
         </div>

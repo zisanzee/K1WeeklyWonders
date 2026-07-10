@@ -1,7 +1,7 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 
-const TOTAL_ROUNDS = 10;
+const TOTAL_ROUNDS = 12;
 
 const CATEGORIES = [
   { key: 'apple', emoji: '🍎', name: 'apples' },
@@ -14,9 +14,12 @@ const CATEGORIES = [
   { key: 'juice', emoji: '🧃', name: 'juice boxes' },
 ];
 
-// Round type mix: comparisons appear most often, "same" and three-basket
-// rounds are rarer so they read as a fun twist rather than the norm.
-const ROUND_TYPE_DECK = ['more', 'more', 'more', 'fewer', 'fewer', 'fewer', 'same', 'same', 'three', 'three'];
+// First 6 rounds: the original "compare baskets of objects" game.
+// Comparisons appear most; "same" and three-basket rounds are rarer twists.
+const OBJECT_ROUND_TYPES = ['more', 'more', 'fewer', 'fewer', 'same', 'three'];
+
+// Last 6 rounds: numeral comparisons — bigger or smaller only, no "same".
+const NUMERAL_ROUND_TYPES = ['more', 'more', 'more', 'fewer', 'fewer', 'fewer'];
 
 function shuffle(arr) {
   const a = [...arr];
@@ -60,6 +63,14 @@ function withItems(basket) {
     rotation: (Math.random() * 16 - 8).toFixed(1),
   }));
   return { ...basket, items };
+}
+
+// Builds the two 6-round decks (objects, then numerals), each shuffled
+// internally, and tags every entry with which "half" it belongs to.
+function generateRoundPlan() {
+  const objectHalf = shuffle(OBJECT_ROUND_TYPES).map((type) => ({ type, mode: 'objects' }));
+  const numeralHalf = shuffle(NUMERAL_ROUND_TYPES).map((type) => ({ type, mode: 'numerals' }));
+  return [...objectHalf, ...numeralHalf];
 }
 
 function generateRound(index, prevCategoryKey, type) {
@@ -108,8 +119,20 @@ function generateRound(index, prevCategoryKey, type) {
   return { index, type, category, baskets, correctId };
 }
 
+// Wraps generateRound and stamps the round with which "half" (object
+// baskets vs bare numerals) it belongs to, per the round plan.
+function buildRound(index, prevCategoryKey, planEntry) {
+  const round = generateRound(index, prevCategoryKey, planEntry.type);
+  return { ...round, mode: planEntry.mode };
+}
+
 function getPromptParts(round) {
   const name = round.category.name;
+  if (round.mode === 'numerals') {
+    return round.type === 'more'
+      ? { before: 'Which number is', keyword: 'bigger', after: '?' }
+      : { before: 'Which number is', keyword: 'smaller', after: '?' };
+  }
   switch (round.type) {
     case 'more':
       return { before: 'Which basket has', keyword: 'more', after: `${name}?` };
@@ -126,6 +149,9 @@ function getPromptParts(round) {
 
 function getSpeechPrompt(round) {
   const name = round.category.name;
+  if (round.mode === 'numerals') {
+    return round.type === 'more' ? 'Which number is bigger?' : 'Which number is smaller?';
+  }
   switch (round.type) {
     case 'more':
       return `Can you find the basket with more ${name}?`;
@@ -142,6 +168,12 @@ function getSpeechPrompt(round) {
 
 function getResultMessage(round) {
   const name = round.category.name;
+  if (round.mode === 'numerals') {
+    const counts = round.baskets.map((b) => b.count);
+    return round.type === 'more'
+      ? `${Math.max(...counts)} is bigger than ${Math.min(...counts)}!`
+      : `${Math.min(...counts)} is smaller than ${Math.max(...counts)}!`;
+  }
   switch (round.type) {
     case 'more':
       return `You spotted the basket with more ${name}!`;
@@ -157,9 +189,9 @@ function getResultMessage(round) {
 }
 
 export default function Game2() {
-  const planRef = useRef(shuffle(ROUND_TYPE_DECK));
+  const planRef = useRef(generateRoundPlan());
   const [roundIndex, setRoundIndex] = useState(0);
-  const [round, setRound] = useState(() => generateRound(0, null, planRef.current[0]));
+  const [round, setRound] = useState(() => buildRound(0, null, planRef.current[0]));
   const [phase, setPhase] = useState('playing');
   const [stars, setStars] = useState(0);
   const [streak, setStreak] = useState(0);
@@ -175,6 +207,7 @@ export default function Game2() {
   }
 
   const promptParts = getPromptParts(round);
+  const isNumeralRound = round.mode === 'numerals';
 
   const handleBasketTap = (id) => {
     if (phase !== 'playing' || wrongBasketId) return;
@@ -199,7 +232,7 @@ export default function Game2() {
       speak("You're a comparing champion! Great job, friend!", muted);
       return;
     }
-    const newRound = generateRound(next, round.category.key, planRef.current[next]);
+    const newRound = buildRound(next, round.category.key, planRef.current[next]);
     setRoundIndex(next);
     setRound(newRound);
     setPhase('playing');
@@ -210,8 +243,8 @@ export default function Game2() {
   };
 
   const playAgain = () => {
-    planRef.current = shuffle(ROUND_TYPE_DECK);
-    const newRound = generateRound(0, null, planRef.current[0]);
+    planRef.current = generateRoundPlan();
+    const newRound = buildRound(0, null, planRef.current[0]);
     setRoundIndex(0);
     setRound(newRound);
     setPhase('playing');
@@ -240,6 +273,10 @@ export default function Game2() {
         @keyframes wobble { 0%, 100% { transform: rotate(0deg) scale(1); } 25% { transform: rotate(-2deg) scale(1.03); } 75% { transform: rotate(2deg) scale(1.03); } }
         @keyframes glow-pulse { 0%, 100% { box-shadow: 0 0 0 rgba(255,217,61,0); } 50% { box-shadow: 0 0 0 10px rgba(255,217,61,0.35); } }
         @keyframes bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+        @keyframes basket-rock { 0%, 100% { transform: rotate(-0.6deg); } 50% { transform: rotate(0.6deg); } }
+        @keyframes breathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.06); } }
+        @keyframes sun-pulse { 0%, 100% { transform: scale(1); filter: drop-shadow(0 0 8px rgba(255,217,61,0.55)); } 50% { transform: scale(1.06); filter: drop-shadow(0 0 18px rgba(255,217,61,0.85)); } }
+        @keyframes shimmer { 0% { transform: translateX(-100%); } 100% { transform: translateX(220%); } }
         .font-heading { font-family: 'Fredoka', sans-serif; }
         .font-body { font-family: 'Nunito', sans-serif; }
         .animate-float-slow { animation: float-slow 6s ease-in-out infinite; }
@@ -251,6 +288,10 @@ export default function Game2() {
         .animate-wobble { animation: wobble 0.6s ease-in-out infinite; }
         .animate-glow-pulse { animation: glow-pulse 0.9s ease-in-out infinite; }
         .animate-bob { animation: bob 2.4s ease-in-out infinite; }
+        .animate-basket-rock { animation: basket-rock 4s ease-in-out infinite; }
+        .animate-breathe { animation: breathe 2.6s ease-in-out infinite; }
+        .animate-sun-pulse { animation: sun-pulse 3s ease-in-out infinite; }
+        .animate-shimmer { animation: shimmer 2.2s linear infinite; }
       `}</style>
 
       <div className="pointer-events-none absolute inset-0">
@@ -258,6 +299,8 @@ export default function Game2() {
         <div className="absolute right-[8%] top-[10%] text-4xl animate-float-slower">☁️</div>
         <div className="absolute right-[10%] top-[40%] text-2xl animate-sparkle">✨</div>
         <div className="absolute left-[8%] top-[35%] text-2xl animate-sparkle" style={{ animationDelay: '0.5s' }}>⭐</div>
+        <div className="absolute right-[6%] top-[3%] text-6xl opacity-90 animate-sun-pulse">☀️</div>
+        <div className="absolute left-[4%] bottom-[10%] text-4xl animate-float-slow" style={{ animationDelay: '1s' }}>🎈</div>
       </div>
 
       <div className="relative z-10 mx-auto flex min-h-[100dvh] max-w-5xl flex-col items-center px-4 py-5 sm:py-8">
@@ -271,9 +314,9 @@ export default function Game2() {
               🧺 Teddy's Picnic Adventure!
             </h1>
             <p className="font-body text-sm font-bold text-white/80 sm:text-base">
-              Round {roundIndex + 1} of {TOTAL_ROUNDS}
+              Round {roundIndex + 1} of {TOTAL_ROUNDS} {isNumeralRound && <span className="opacity-80">· Numbers round 🔢</span>}
             </p>
-            <RoundDots total={TOTAL_ROUNDS} current={roundIndex} />
+            <RoundDots total={TOTAL_ROUNDS} current={roundIndex} halfMark={6} />
 
             <TeddyPrompt promptParts={promptParts} streak={streak} isWrong={!!wrongBasketId} />
 
@@ -284,19 +327,33 @@ export default function Game2() {
                 round.baskets.length === 3 ? 'max-w-3xl' : 'max-w-xl'
               }`}
             >
-              {round.baskets.map((basket) => (
-                <BasketCard
-                  key={basket.id}
-                  basket={basket}
-                  category={round.category}
-                  onTap={() => handleBasketTap(basket.id)}
-                  disabled={phase !== 'playing'}
-                  isWrong={wrongBasketId === basket.id}
-                  isCorrectChosen={phase === 'success' && basket.id === round.correctId}
-                  isDimmed={phase === 'success' && basket.id !== round.correctId}
-                  showHintGlow={showHint && phase === 'playing' && basket.id === round.correctId}
-                />
-              ))}
+              {round.baskets.map((basket) =>
+                isNumeralRound ? (
+                  <NumeralCard
+                    key={basket.id}
+                    value={basket.count}
+                    category={round.category}
+                    onTap={() => handleBasketTap(basket.id)}
+                    disabled={phase !== 'playing'}
+                    isWrong={wrongBasketId === basket.id}
+                    isCorrectChosen={phase === 'success' && basket.id === round.correctId}
+                    isDimmed={phase === 'success' && basket.id !== round.correctId}
+                    showObjectHint={showHint}
+                  />
+                ) : (
+                  <BasketCard
+                    key={basket.id}
+                    basket={basket}
+                    category={round.category}
+                    onTap={() => handleBasketTap(basket.id)}
+                    disabled={phase !== 'playing'}
+                    isWrong={wrongBasketId === basket.id}
+                    isCorrectChosen={phase === 'success' && basket.id === round.correctId}
+                    isDimmed={phase === 'success' && basket.id !== round.correctId}
+                    showHintGlow={showHint && phase === 'playing' && basket.id === round.correctId}
+                  />
+                )
+              )}
             </div>
 
             {phase === 'playing' && (
@@ -306,7 +363,13 @@ export default function Game2() {
                 disabled={showHint}
                 className="font-body mt-5 rounded-full bg-white/85 px-5 py-2 text-sm font-extrabold text-slate-600 shadow-[0_4px_0_rgba(0,0,0,0.12)] transition-transform hover:-translate-y-0.5 active:translate-y-1 active:shadow-none disabled:cursor-default disabled:opacity-50 sm:text-base"
               >
-                🔍 Need a hint?
+                {isNumeralRound
+                  ? showHint
+                    ? '🔢 Counting shown!'
+                    : '🔢 Show as objects'
+                  : showHint
+                  ? '🔍 Hint shown!'
+                  : '🔍 Need a hint?'}
               </button>
             )}
 
@@ -366,11 +429,11 @@ function ReferenceBasket({ category, target }) {
       </span>
       <div className="relative flex min-h-[4.5rem] w-40 flex-wrap content-start items-start justify-center gap-1 rounded-b-[1.75rem] rounded-t-lg border-4 border-cyan-800/70 bg-gradient-to-b from-cyan-200 to-cyan-400 p-2.5 shadow-inner sm:w-48">
         <span className="absolute -top-2.5 left-1/2 h-3 w-8 -translate-x-1/2 rounded-t-full border-4 border-b-0 border-cyan-800/70" />
-        {items.map((it) => (
+        {items.map((it, i) => (
           <span
             key={it.id}
-            style={{ rotate: `${it.rotation}deg` }}
-            className="flex h-8 w-8 items-center justify-center text-xl sm:h-9 sm:w-9 sm:text-2xl"
+            style={{ rotate: `${it.rotation}deg`, animationDelay: `${(i % 4) * 0.25}s` }}
+            className="animate-float-slower flex h-8 w-8 items-center justify-center text-xl sm:h-9 sm:w-9 sm:text-2xl"
           >
             {category.emoji}
           </span>
@@ -381,9 +444,18 @@ function ReferenceBasket({ category, target }) {
 }
 
 function BasketCard({ basket, category, onTap, disabled, isWrong, isCorrectChosen, isDimmed, showHintGlow }) {
+  const stateAnim = isWrong
+    ? 'animate-shake'
+    : isCorrectChosen
+    ? 'animate-wobble ring-8 ring-green-300'
+    : showHintGlow
+    ? 'animate-glow-pulse ring-4 ring-yellow-300'
+    : isDimmed
+    ? ''
+    : 'animate-basket-rock';
   return (
     <button
-    style={{
+      style={{
         backgroundColor: '#d3f395',
         backgroundImage: `
           linear-gradient(to bottom, rgba(255,255,255,0.12), rgba(0,0,0,0.12)),
@@ -408,20 +480,50 @@ function BasketCard({ basket, category, onTap, disabled, isWrong, isCorrectChose
       disabled={disabled}
       className={`group relative flex min-h-[10rem] w-40 flex-wrap content-start items-start justify-center gap-1.5 rounded-b-[2.25rem] rounded-t-xl border-4 border-lime-700/70 bg-gradient-to-b from-violet-200 to-lime-200 p-3 shadow-[0_8px_0_rgba(0,0,0,0.18)] transition-all duration-200 ease-out sm:min-h-[11rem] sm:w-48 sm:p-4 ${
         disabled ? 'cursor-default' : 'cursor-pointer hover:-translate-y-1 active:translate-y-1 active:shadow-[0_3px_0_rgba(0,0,0,0.18)]'
-      } ${isWrong ? 'animate-shake' : ''} ${isCorrectChosen ? 'animate-wobble ring-8 ring-green-300' : ''} ${
-        isDimmed ? 'opacity-40 grayscale-[30%]' : ''
-      } ${showHintGlow ? 'animate-glow-pulse ring-4 ring-yellow-300' : ''}`}
+      } ${stateAnim} ${isDimmed ? 'opacity-40 grayscale-[30%]' : ''}`}
     >
       <span className="absolute -top-3 left-1/2 h-4 w-10 -translate-x-1/2 rounded-t-full border-4 border-b-0 border-cyan-800/70" />
-      {basket.items.map((it) => (
+      {basket.items.map((it, i) => (
         <span
           key={it.id}
-          style={{ rotate: `${it.rotation}deg` }}
-          className="flex h-8 w-8 items-center justify-center text-3xl sm:h-9 sm:w-10 sm:text-4xl"
+          style={{ rotate: `${it.rotation}deg`, animationDelay: `${(i % 4) * 0.25}s` }}
+          className="animate-float-slower flex h-8 w-8 items-center justify-center text-3xl sm:h-9 sm:w-10 sm:text-4xl"
         >
           {category.emoji}
         </span>
       ))}
+    </button>
+  );
+}
+
+function NumeralCard({ value, category, onTap, disabled, isWrong, isCorrectChosen, isDimmed, showObjectHint }) {
+  const stateAnim = isWrong
+    ? 'animate-shake'
+    : isCorrectChosen
+    ? 'animate-wobble ring-8 ring-green-300'
+    : isDimmed
+    ? ''
+    : 'animate-basket-rock';
+  return (
+    <button
+      type="button"
+      onClick={onTap}
+      disabled={disabled}
+      className={`group relative flex min-h-[10rem] w-40 flex-col items-center justify-center gap-2 rounded-b-[2.25rem] rounded-t-xl border-4 border-lime-700/70 bg-gradient-to-b from-violet-200 to-lime-200 p-3 shadow-[0_8px_0_rgba(0,0,0,0.18)] transition-all duration-200 ease-out sm:min-h-[11rem] sm:w-48 sm:p-4 ${
+        disabled ? 'cursor-default' : 'cursor-pointer hover:-translate-y-1 active:translate-y-1 active:shadow-[0_3px_0_rgba(0,0,0,0.18)]'
+      } ${stateAnim} ${isDimmed ? 'opacity-40 grayscale-[30%]' : ''}`}
+    >
+      <span className="absolute -top-3 left-1/2 h-4 w-10 -translate-x-1/2 rounded-t-full border-4 border-b-0 border-cyan-800/70" />
+      <span className="font-heading animate-breathe text-6xl font-bold text-slate-700 drop-shadow sm:text-7xl">{value}</span>
+      {showObjectHint && (
+        <div className="animate-pop-in flex max-w-[8.5rem] flex-wrap items-center justify-center gap-0.5 rounded-xl bg-white/70 p-1.5">
+          {Array.from({ length: value }).map((_, i) => (
+            <span key={i} className="text-sm sm:text-base">
+              {category.emoji}
+            </span>
+          ))}
+        </div>
+      )}
     </button>
   );
 }
@@ -457,9 +559,11 @@ function StarMeter({ stars, total, dark }) {
       <span className="text-xl sm:text-2xl">⭐</span>
       <div className={`h-2.5 w-16 overflow-hidden rounded-full sm:w-24 ${dark ? 'bg-slate-200' : 'bg-white/40'}`}>
         <div
-          className="h-full rounded-full bg-gradient-to-r from-yellow-300 to-orange-400 transition-all duration-500"
+          className="relative h-full overflow-hidden rounded-full bg-gradient-to-r from-yellow-300 to-orange-400 transition-all duration-500"
           style={{ width: `${pct}%` }}
-        />
+        >
+          <span className="animate-shimmer absolute inset-0 bg-gradient-to-r from-transparent via-white/60 to-transparent" />
+        </div>
       </div>
       <span
         className={`font-body text-xs font-extrabold sm:text-sm ${dark ? 'text-slate-700' : 'text-white drop-shadow'}`}
@@ -470,16 +574,18 @@ function StarMeter({ stars, total, dark }) {
   );
 }
 
-function RoundDots({ total, current }) {
+function RoundDots({ total, current, halfMark }) {
   return (
-    <div className="mt-1.5 flex flex-wrap justify-center gap-1">
+    <div className="mt-1.5 flex flex-wrap items-center justify-center gap-1">
       {Array.from({ length: total }).map((_, i) => (
-        <span
-          key={i}
-          className={`h-1.5 w-1.5 rounded-full transition-colors sm:h-2 sm:w-2 ${
-            i < current ? 'bg-white' : i === current ? 'animate-sparkle bg-yellow-300' : 'bg-white/30'
-          }`}
-        />
+        <React.Fragment key={i}>
+          {halfMark && i === halfMark && <span className="mx-1 h-3 w-px bg-white/40" />}
+          <span
+            className={`h-1.5 w-1.5 rounded-full transition-colors sm:h-2 sm:w-2 ${
+              i < current ? 'bg-white' : i === current ? 'animate-sparkle bg-yellow-300' : 'bg-white/30'
+            }`}
+          />
+        </React.Fragment>
       ))}
     </div>
   );
@@ -510,7 +616,7 @@ function CompletionScreen({ stars, total, onPlayAgain }) {
   return (
     <div className="relative mt-10 flex flex-col items-center rounded-[2.5rem] bg-white/90 px-8 py-10 text-center shadow-2xl sm:px-14">
       <Confetti pieces={40} />
-      <div className="text-7xl">🧺🏆</div>
+      <div className="animate-bob text-7xl">🧺🏆</div>
       <h2 className="font-heading mt-3 text-3xl font-bold text-slate-800 sm:text-4xl">Picnic packed perfectly!</h2>
       <p className="font-body mt-2 text-lg font-semibold text-slate-500">
         You earned {stars} out of {total} stars
