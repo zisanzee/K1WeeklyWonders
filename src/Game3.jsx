@@ -363,7 +363,7 @@ function SliderTile({ n, isHighlighted, isReference, showWord, onTap }) {
       {showWord && (
         <span
           className={clsx(
-            'font-body mb-0.5 whitespace-nowrap rounded-full px-1.5 py-0.5 text-[9px] font-extrabold uppercase tracking-wide',
+            'font-body mb-0.5 whitespace-nowrap rounded-full px-1.5 py-0.5 text-[12px] font-extrabold tracking-wide',
             isHighlighted ? 'bg-yellow-300 text-slate-700' : 'bg-white/70 text-teal-700'
           )}
         >

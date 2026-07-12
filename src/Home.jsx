@@ -191,8 +191,8 @@ function HomeContent() {
             <GameCard
               to="/Game1"
               emoji="🧺"
-              title="Week 1"
-              subtitle="Count & win!"
+              title="Count & win!"
+              subtitle="Game 1"
               color="from-green-400 to-teal-400"
               ring="ring-green-200"
               delay={0.1}
@@ -202,8 +202,8 @@ function HomeContent() {
             <GameCard
               to="/Game2"
               emoji="🧸"
-              title="Week 2"
-              subtitle="Compare quantity!"
+              title="Compare quantity!"
+              subtitle="Game 2"
               color="from-cyan-400 to-blue-400"
               ring="ring-cyan-200"
               delay={0.22}
@@ -213,8 +213,8 @@ function HomeContent() {
             <GameCard
               to="/Game3"
               emoji="🐙"
-              title="Week 3"
-              subtitle="Around the Number!"
+              title="Around the Number!"
+              subtitle="Game 3"
               color="from-purple-500 to-indigo-400 "
               ring="ring-purple-200"
               delay={0.34}
@@ -272,7 +272,7 @@ function GameCard({ to, emoji, title, subtitle, color, ring, delay, open, progre
         {emoji}
       </div>
 
-      <h2 className={`font-heading text-xl font-bold drop-shadow sm:text-2xl ${open ? "text-white" : "text-white/50"}`}>
+      <h2 className={`font-heading text-xl font-bold drop-shadow sm:text-2xl ${open ? "text-black" : "text-white/50"}`}>
         {title}
       </h2>
 
