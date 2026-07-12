@@ -1,9 +1,56 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import { motion } from "motion/react";
 import StatsPanel from "./StatsPanel";
+import NameGate from "./NameGate";
+import { usePlayerStore } from "./playerStore";
+import { isGameUnlocked } from "./gameAccess";
+import { fetchSummary } from "./logPlaySession";
 
 export default function Home() {
+  return (
+    <NameGate gameLabel="K1 Weekly Wonders">
+      <HomeContent />
+    </NameGate>
+  );
+}
+
+const MotionLink = motion.create(Link);
+
+function timeGreeting() {
+  const hour = new Date().getHours();
+  if (hour < 12) return "Good morning";
+  if (hour < 17) return "Good afternoon";
+  return "Good evening";
+}
+
+function HomeContent() {
+  const playerName = usePlayerStore((s) => s.playerName);
+  const isTeacher = usePlayerStore((s) => s.isTeacher);
+  const resetPlayer = usePlayerStore((s) => s.resetPlayer);
   const [showStats, setShowStats] = useState(false);
+  const [progressByGame, setProgressByGame] = useState({});
+
+  // Purely cosmetic — if the stats server is unreachable, the homepage
+  // still works fine, it just won't show the "best score" badges below.
+  useEffect(() => {
+    let cancelled = false;
+    fetchSummary()
+      .then((rows) => {
+        if (cancelled) return;
+        const mine = {};
+        rows.forEach((row) => {
+          if (row.playerName === playerName) mine[row.game] = row;
+        });
+        setProgressByGame(mine);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [playerName]);
+
+  const greeting = useMemo(() => timeGreeting(), []);
 
   return (
     <div className="relative flex min-h-[100dvh] w-full flex-col overflow-hidden bg-gradient-to-b from-[#48BFEE] via-[#8FE0FA] to-[#FFE9A8]">
@@ -56,16 +103,25 @@ export default function Home() {
         .animate-spin-slow { animation: spin-slow 50s linear infinite; }
         .animate-bob { animation: bob 2.4s ease-in-out infinite; }
         .animate-sway { animation: sway 3.2s ease-in-out infinite; transform-origin: bottom center; }
+        @keyframes kite-drift {
+          0%, 100% { transform: translate(0, 0) rotate(-4deg); }
+          50% { transform: translate(14px, -10px) rotate(4deg); }
+        }
+        .animate-kite-drift { animation: kite-drift 5s ease-in-out infinite; }
       `}</style>
 
-      {/* Stats button */}
-      <button
-        type="button"
-        onClick={() => setShowStats(true)}
-        className="font-body fixed right-4 top-4 z-20 flex items-center gap-1.5 rounded-full bg-white/90 px-4 py-2 text-sm font-extrabold text-slate-700 shadow-[0_4px_0_rgba(0,0,0,0.15)] transition-transform hover:-translate-y-0.5 active:translate-y-1 active:shadow-none sm:text-base"
-      >
-        📊 View Stats
-      </button>
+      {/* Stats button — teachers only */}
+      {isTeacher && (
+        <motion.button
+          type="button"
+          onClick={() => setShowStats(true)}
+          whileHover={{ y: -2 }}
+          whileTap={{ y: 1 }}
+          className="font-body fixed right-4 top-4 z-20 flex items-center gap-1.5 rounded-full bg-white/90 px-4 py-2 text-sm font-extrabold text-slate-700 shadow-[0_4px_0_rgba(0,0,0,0.15)] sm:text-base"
+        >
+          📊 View Stats
+        </motion.button>
+      )}
       {showStats && <StatsPanel onClose={() => setShowStats(false)} />}
 
       {/* Sun, top corner */}
@@ -87,6 +143,7 @@ export default function Home() {
         <div className="absolute left-[22%] top-[68%] animate-float-slower text-3xl opacity-70 blur-[0.5px] sm:text-4xl">☁️</div>
         <div className="absolute bottom-[22%] right-[4%] animate-float-slow text-5xl opacity-90 sm:text-6xl">☁️</div>
         <div className="absolute left-[42%] top-[6%] animate-float-slower text-3xl opacity-60 blur-[0.5px]">☁️</div>
+        <div className="absolute right-[20%] top-[8%] animate-kite-drift text-4xl opacity-90 sm:text-5xl">🪁</div>
 
         <div className="absolute left-[5%] top-[42%] animate-sparkle text-2xl sm:text-3xl">⭐</div>
         <div className="absolute right-[8%] top-[46%] animate-sparkle text-xl sm:text-2xl" style={{ animationDelay: "0.6s" }}>✨</div>
@@ -115,8 +172,15 @@ export default function Home() {
             <span className="text-pink-400">Wonders</span> 🌟
           </h1>
           <p className="font-body mt-3 text-[clamp(1rem,2.4vw,1.6rem)] font-bold text-white/90">
-            Pick a game and let's play! 🎈
+            {greeting}, {playerName}! Pick a game and let's play! 🎈
           </p>
+          <button
+            type="button"
+            onClick={resetPlayer}
+            className="font-body mt-2 rounded-full bg-white/20 px-3 py-1 text-xs font-bold text-white/80 backdrop-blur-sm transition-colors hover:bg-white/30 hover:text-white"
+          >
+            Not {playerName}? Switch player
+          </button>
         </div>
 
         {/* Game cards */}
@@ -131,8 +195,9 @@ export default function Home() {
               subtitle="Count & win!"
               color="from-green-400 to-teal-400"
               ring="ring-green-200"
-              delay="0.15s"
-              open={true}
+              delay={0.1}
+              open={isGameUnlocked(1, isTeacher)}
+              progress={progressByGame.game1}
             />
             <GameCard
               to="/Game2"
@@ -141,9 +206,9 @@ export default function Home() {
               subtitle="Compare quantity!"
               color="from-cyan-400 to-blue-400"
               ring="ring-cyan-200"
-              delay="0s"
-              open={true
-              }
+              delay={0.22}
+              open={isGameUnlocked(2, isTeacher)}
+              progress={progressByGame.game2}
             />
             <GameCard
               to="/Game3"
@@ -152,9 +217,9 @@ export default function Home() {
               subtitle="Around the Number!"
               color="from-purple-500 to-indigo-400 "
               ring="ring-purple-200"
-              delay="0s"
-              open={true
-              }
+              delay={0.34}
+              open={isGameUnlocked(3, isTeacher)}
+              progress={progressByGame.game3}
             />
           </div>
         </div>
@@ -170,20 +235,20 @@ export default function Home() {
   );
 }
 
-function GameCard({ to, emoji, title, subtitle, color, ring, delay, open }) {
+function GameCard({ to, emoji, title, subtitle, color, ring, delay, open, progress }) {
   return (
-    <Link
+    <MotionLink
       to={open ? to : "#"}
       aria-disabled={!open}
       tabIndex={open ? 0 : -1}
       onClick={(e) => {
         if (!open) e.preventDefault();
       }}
-      style={{ animationDelay: delay }}
-      className={`group animate-pop-in relative flex w-[78vw] max-w-[260px] flex-col items-center overflow-hidden rounded-[2rem] bg-gradient-to-b p-6 shadow-[0_10px_0_rgba(0,0,0,0.15)] ring-8 transition-all duration-200 ease-out sm:w-56 sm:p-7 md:w-64 lg:w-72 lg:p-8 xl:w-80 ${
-        open
-          ? `${color} ${ring} hover:-translate-y-2 hover:shadow-[0_16px_0_rgba(0,0,0,0.15)] active:translate-y-1 active:shadow-[0_4px_0_rgba(0,0,0,0.15)]`
-          : "from-slate-400 to-slate-500 ring-white/40 cursor-not-allowed"
+      style={{ animationDelay: `${delay}s` }}
+      whileHover={open ? { y: -8, rotate: -1 } : {}}
+      whileTap={open ? { y: 2, scale: 0.98 } : {}}
+      className={`group animate-pop-in relative flex w-[78vw] max-w-[260px] flex-col items-center overflow-hidden rounded-[2rem] bg-gradient-to-b p-6 shadow-[0_10px_0_rgba(0,0,0,0.15)] ring-8 sm:w-56 sm:p-7 md:w-64 lg:w-72 lg:p-8 xl:w-80 ${
+        open ? `${color} ${ring}` : "from-slate-400 to-slate-500 ring-white/40 cursor-not-allowed"
       }`}
     >
       {open && (
@@ -215,11 +280,21 @@ function GameCard({ to, emoji, title, subtitle, color, ring, delay, open }) {
         {subtitle}
       </p>
 
+      {open && progress && (
+        <div className="font-body mt-3 flex items-center gap-1.5 rounded-full bg-black/15 px-3 py-1 text-[11px] font-extrabold text-white sm:text-xs">
+          <span>
+            ⭐ {progress.bestStars}/{progress.totalRounds}
+          </span>
+          <span className="opacity-60">·</span>
+          <span>🎮 {progress.playCount}x</span>
+        </div>
+      )}
+
       {open && (
         <span className="font-body mt-4 rounded-full bg-white/90 px-5 py-1.5 text-sm font-extrabold text-slate-700 shadow group-hover:bg-white">
           Play now →
         </span>
       )}
-    </Link>
+    </MotionLink>
   );
 }

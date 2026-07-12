@@ -5,6 +5,7 @@ import Confetti from 'react-confetti';
 import { useWindowSize } from 'react-use';
 import clsx from 'clsx';
 import NameGate from './NameGate';
+import GameAccessGate from './GameAccessGate';
 import { usePlayerStore } from './playerStore';
 import { logPlaySession } from './logPlaySession';
 
@@ -67,7 +68,7 @@ function generateOptions(reference, type, correct) {
     if (rand !== correct && !candidates.includes(rand)) candidates.push(rand);
   }
   const values = shuffle([correct, ...candidates.slice(0, 2)]);
-  return values.map((v) => ({ value: v, word: capitalize(NUMBER_WORDS[v]) }));
+  return values.map((v) => ({ value: v, word: NUMBER_WORDS[v] }));
 }
 
 function generateRound(index, type, prevReference) {
@@ -83,7 +84,7 @@ function generateRound(index, type, prevReference) {
 }
 
 function getPromptParts(round) {
-  const refWord = capitalize(NUMBER_WORDS[round.reference]);
+  const refWord = NUMBER_WORDS[round.reference];
   return round.type === 'before'
     ? { before: 'What comes right', keyword: 'before', after: `${refWord}?` }
     : { before: 'What comes right', keyword: 'after', after: `${refWord}?` };
@@ -95,8 +96,8 @@ function getSpeechPrompt(round) {
 }
 
 function getResultMessage(round) {
-  const refWord = capitalize(NUMBER_WORDS[round.reference]);
-  const correctWord = capitalize(NUMBER_WORDS[round.correct]);
+  const refWord = NUMBER_WORDS[round.reference];
+  const correctWord = NUMBER_WORDS[round.correct];
   return round.type === 'before'
     ? `${correctWord} comes right before ${refWord}!`
     : `${correctWord} comes right after ${refWord}!`;
@@ -232,7 +233,7 @@ function Game3Inner() {
 
             <div className="mt-5 flex flex-col items-center gap-2">
               <span className="font-body rounded-full bg-white/85 px-3 py-0.5 text-xs font-extrabold text-teal-700 shadow sm:text-sm">
-                {showAllWords ? '🔤 Slide to explore the reef' : '🔍 Slide to find the glowing pearl'}
+                {showAllWords ? '🪸 Slide to explore the reef' : '🫧 Slide to find the glowing pearl'}
               </span>
               <NumberSlider
                 highlighted={highlighted}
@@ -275,7 +276,9 @@ function Game3Inner() {
 export default function Game3() {
   return (
     <NameGate gameLabel="Week 3: Ollie's Number Reef">
-      <Game3Inner />
+      <GameAccessGate gameNumber={3} gameLabel="Week 3: Ollie's Number Reef">
+        <Game3Inner />
+      </GameAccessGate>
     </NameGate>
   );
 }
@@ -364,7 +367,7 @@ function SliderTile({ n, isHighlighted, isReference, showWord, onTap }) {
             isHighlighted ? 'bg-yellow-300 text-slate-700' : 'bg-white/70 text-teal-700'
           )}
         >
-          {capitalize(NUMBER_WORDS[n])}
+          {NUMBER_WORDS[n]}
         </span>
       )}
       <span

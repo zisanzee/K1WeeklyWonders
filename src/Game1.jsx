@@ -10,12 +10,22 @@ import {
   useSensors,
 } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
+import { motion } from 'motion/react';
+import Confetti from 'react-confetti';
+import { useWindowSize } from 'react-use';
+import clsx from 'clsx';
+import { twMerge } from 'tailwind-merge';
 import NameGate from './NameGate';
+import GameAccessGate from './GameAccessGate';
 import { usePlayerStore } from './playerStore';
 import { logPlaySession } from './logPlaySession';
 
 const TOTAL_ROUNDS = 10;
 const NUMBER_WORDS = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
+
+function cn(...inputs) {
+  return twMerge(clsx(inputs));
+}
 
 function capitalize(s) {
   return s.charAt(0).toUpperCase() + s.slice(1);
@@ -101,6 +111,8 @@ function Game1Inner() {
   const [feedback, setFeedback] = useState(null);
   const [activeId, setActiveId] = useState(null);
   const [stars, setStars] = useState(0);
+  const [streak, setStreak] = useState(0);
+  const [hasErred, setHasErred] = useState(false);
   const [muted, setMuted] = useState(false);
   const [basketPulse, setBasketPulse] = useState(false);
   const [basketShake, setBasketShake] = useState(false);
@@ -108,6 +120,7 @@ function Game1Inner() {
 
   const prevBasketCountRef = useRef(0);
   const hasLoggedRef = useRef(false);
+  const peakStreakRef = useRef(0);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
@@ -163,16 +176,25 @@ function Game1Inner() {
     if (basketCount === round.target) {
       setPhase('success');
       setStars((s) => s + 1);
+      setStreak((s) => {
+        const next = hasErred ? 0 : s + 1;
+        peakStreakRef.current = Math.max(peakStreakRef.current, next);
+        return next;
+      });
       speak(`Perfect! You counted ${round.target} ${round.item.name}!`, muted);
     } else if (basketCount > round.target) {
       const diff = basketCount - round.target;
       setFeedback({ over: true, diff });
+      setHasErred(true);
+      setStreak(0);
       setBasketShake(true);
       setTimeout(() => setBasketShake(false), 500);
       speak(`Too many! Take out ${diff}.`, muted);
     } else {
       const diff = round.target - basketCount;
       setFeedback({ over: false, diff });
+      setHasErred(true);
+      setStreak(0);
       setPoolPulse(true);
       setTimeout(() => setPoolPulse(false), 900);
       speak(`Not enough! Add ${diff} more.`, muted);
@@ -183,10 +205,10 @@ function Game1Inner() {
     const next = roundIndex + 1;
     if (next >= TOTAL_ROUNDS) {
       setPhase('complete');
-      speak("Amazing job! You're a counting champion!", muted);
+      speak(`Amazing job, ${playerName}! You're a counting champion!`, muted);
       if (!hasLoggedRef.current) {
         hasLoggedRef.current = true;
-        logPlaySession({ game: 'game1', playerName, stars, totalRounds: TOTAL_ROUNDS, peakStreak: 0 });
+        logPlaySession({ game: 'game1', playerName, stars, totalRounds: TOTAL_ROUNDS, peakStreak: peakStreakRef.current });
       }
       return;
     }
@@ -195,6 +217,7 @@ function Game1Inner() {
     setRound(newRound);
     prevBasketCountRef.current = 0;
     setFeedback(null);
+    setHasErred(false);
     setPhase('playing');
     speak(`Fill the basket with ${newRound.target} ${newRound.item.name}!`, muted);
   };
@@ -207,9 +230,12 @@ function Game1Inner() {
     setRound(newRound);
     prevBasketCountRef.current = 0;
     setStars(0);
+    setStreak(0);
+    setHasErred(false);
     setFeedback(null);
     setPhase('playing');
     hasLoggedRef.current = false;
+    peakStreakRef.current = 0;
     speak(`Fill the basket with ${newRound.target} ${newRound.item.name}!`, muted);
   };
 
@@ -232,6 +258,8 @@ function Game1Inner() {
         @keyframes shake { 0%, 100% { transform: translateX(0); } 20%, 60% { transform: translateX(-6px); } 40%, 80% { transform: translateX(6px); } }
         @keyframes wobble { 0%, 100% { transform: rotate(0deg) scale(1); } 25% { transform: rotate(-2deg) scale(1.03); } 75% { transform: rotate(2deg) scale(1.03); } }
         @keyframes glow-pulse { 0%, 100% { box-shadow: 0 0 0 rgba(255,217,61,0); } 50% { box-shadow: 0 0 0 10px rgba(255,217,61,0.35); } }
+        @keyframes shimmer { 0% { transform: translateX(-100%); } 100% { transform: translateX(220%); } }
+        @keyframes basket-rock { 0%, 100% { transform: rotate(-0.6deg); } 50% { transform: rotate(0.6deg); } }
         .font-heading { font-family: 'Fredoka', sans-serif; }
         .font-body { font-family: 'Nunito', sans-serif; }
         .animate-float-slow { animation: float-slow 6s ease-in-out infinite; }
@@ -242,6 +270,8 @@ function Game1Inner() {
         .animate-shake { animation: shake 0.4s ease-in-out; }
         .animate-wobble { animation: wobble 0.4s ease-in-out; }
         .animate-glow-pulse { animation: glow-pulse 0.9s ease-in-out 2; }
+        .animate-shimmer { animation: shimmer 2.2s linear infinite; }
+        .animate-basket-rock { animation: basket-rock 4s ease-in-out infinite; }
       `}</style>
 
       <div className="pointer-events-none absolute inset-0">
@@ -255,7 +285,7 @@ function Game1Inner() {
         <TopBar totalRounds={TOTAL_ROUNDS} stars={stars} muted={muted} onToggleMute={() => setMuted((m) => !m)} />
 
         {phase === 'complete' ? (
-          <CompletionScreen stars={stars} total={TOTAL_ROUNDS} onPlayAgain={playAgain} />
+          <CompletionScreen stars={stars} total={TOTAL_ROUNDS} playerName={playerName} onPlayAgain={playAgain} />
         ) : (
           <>
             <h1 className="font-heading mt-2 text-xl font-bold text-white/95 drop-shadow sm:text-2xl">
@@ -265,6 +295,8 @@ function Game1Inner() {
               Round {roundIndex + 1} of {TOTAL_ROUNDS}
             </p>
             <RoundDots total={TOTAL_ROUNDS} current={roundIndex} />
+
+            <FarmerPrompt target={round.target} item={round.item} streak={streak} isWrong={!!feedback} />
 
             <TargetCard target={round.target} item={round.item} format={round.format} />
 
@@ -316,6 +348,7 @@ function Game1Inner() {
                 item={round.item}
                 format={round.format}
                 isLastRound={roundIndex + 1 >= TOTAL_ROUNDS}
+                streak={streak}
                 onNext={nextRound}
               />
             )}
@@ -329,7 +362,9 @@ function Game1Inner() {
 export default function Game1() {
   return (
     <NameGate gameLabel="Week 1: Harvest Challenge">
-      <Game1Inner />
+      <GameAccessGate gameNumber={1} gameLabel="Week 1: Harvest Challenge">
+        <Game1Inner />
+      </GameAccessGate>
     </NameGate>
   );
 }
@@ -365,9 +400,11 @@ function StarMeter({ stars, total, dark }) {
       <span className="text-xl sm:text-2xl">⭐</span>
       <div className={`h-2.5 w-16 overflow-hidden rounded-full sm:w-24 ${dark ? 'bg-slate-200' : 'bg-white/40'}`}>
         <div
-          className="h-full rounded-full bg-gradient-to-r from-yellow-300 to-orange-400 transition-all duration-500"
+          className="relative h-full overflow-hidden rounded-full bg-gradient-to-r from-yellow-300 to-orange-400 transition-all duration-500"
           style={{ width: `${pct}%` }}
-        />
+        >
+          <span className="animate-shimmer absolute inset-0 bg-gradient-to-r from-transparent via-white/60 to-transparent" />
+        </div>
       </div>
       <span
         className={`font-body text-xs font-extrabold sm:text-sm ${dark ? 'text-slate-700' : 'text-white drop-shadow'}`}
@@ -389,6 +426,45 @@ function RoundDots({ total, current }) {
           }`}
         />
       ))}
+    </div>
+  );
+}
+
+function FarmerPrompt({ target, item, streak, isWrong }) {
+  return (
+    <div className="mt-4 flex flex-col items-center gap-2">
+      <div className="relative">
+        <motion.span
+          className="inline-block text-6xl sm:text-7xl"
+          animate={isWrong ? { x: [0, -6, 6, -6, 6, 0] } : { rotate: [-4, 4, -4], y: [0, -6, 0] }}
+          transition={isWrong ? { duration: 0.4 } : { duration: 3, repeat: Infinity, ease: 'easeInOut' }}
+        >
+          👨‍🌾
+        </motion.span>
+        {streak >= 2 && (
+          <motion.span
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            className="font-body absolute -right-3 -top-2 rounded-full bg-orange-400 px-2 py-0.5 text-xs font-extrabold text-white shadow"
+          >
+            🔥{streak}
+          </motion.span>
+        )}
+      </div>
+      <motion.div
+        initial={{ scale: 0.85, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        className="relative max-w-xs rounded-3xl bg-white px-5 py-3 text-center shadow-[0_6px_0_rgba(0,0,0,0.1)] sm:max-w-sm"
+      >
+        <span className="absolute -top-2 left-1/2 h-4 w-4 -translate-x-1/2 rotate-45 bg-white" />
+        {isWrong ? (
+          <p className="font-body text-sm font-bold text-orange-600 sm:text-base">Let's fix the count! 🧺</p>
+        ) : (
+          <p className="font-body text-sm font-bold text-slate-700 sm:text-base">
+            Farmer Finn needs {target} {item.name}! {item.emoji}
+          </p>
+        )}
+      </motion.div>
     </div>
   );
 }
@@ -436,12 +512,14 @@ function PoolZone({ items, item, disabled, pulse }) {
   return (
     <div
       ref={setNodeRef}
-      className={`relative flex min-h-[11rem] flex-1 flex-wrap content-start items-start justify-center gap-2 rounded-[2rem] border-4 border-dashed border-white/60 bg-white/25 p-4 shadow-inner backdrop-blur-sm transition-shadow sm:min-h-[13rem] sm:gap-3 sm:p-6 ${
-        isOver ? 'border-yellow-300 bg-white/40' : ''
-      } ${pulse ? 'animate-glow-pulse' : ''}`}
+      className={cn(
+        'relative flex min-h-[11rem] flex-1 flex-wrap content-start items-start justify-center gap-2 rounded-[2rem] border-4 border-dashed border-white/60 bg-white/25 p-4 shadow-inner backdrop-blur-sm transition-shadow sm:min-h-[13rem] sm:gap-3 sm:p-6',
+        isOver && 'border-yellow-300 bg-white/40',
+        pulse && 'animate-glow-pulse'
+      )}
     >
       <span className="font-body absolute -top-3 left-4 rounded-full bg-white/90 px-3 py-0.5 text-xs font-extrabold text-slate-600 shadow sm:text-sm">
-         Orchard
+        🌳 Orchard
       </span>
       {items.length === 0 && (
         <span className="font-body mt-6 text-sm font-bold text-white/80">All picked!</span>
@@ -478,12 +556,16 @@ function BasketZone({ items, item, count, disabled, pulse, shake }) {
         `,
       }}
       ref={setNodeRef}
-      className={`relative flex min-h-[11rem] flex-1 flex-wrap content-start items-start justify-center gap-2 rounded-b-[3rem] rounded-t-2xl border-4 border-amber-700/70 bg-gradient-to-b from-amber-300 to-amber-500 p-4 shadow-inner transition-shadow sm:min-h-[13rem] sm:gap-3 sm:p-6 ${
-        isOver ? 'ring-4 ring-yellow-200' : ''
-      } ${pulse ? 'animate-wobble' : ''} ${shake ? 'animate-shake' : ''}`}
+      className={cn(
+        'relative flex min-h-[11rem] flex-1 flex-wrap content-start items-start justify-center gap-2 rounded-b-[3rem] rounded-t-2xl border-4 border-amber-700/70 bg-gradient-to-b from-amber-300 to-amber-500 p-4 shadow-inner transition-shadow sm:min-h-[13rem] sm:gap-3 sm:p-6',
+        isOver && 'ring-4 ring-yellow-200',
+        pulse && 'animate-wobble',
+        shake && 'animate-shake',
+        !pulse && !shake && !disabled && 'animate-basket-rock'
+      )}
     >
       <span className="font-body absolute -top-3 left-4 flex items-center gap-1 rounded-full bg-white/90 px-3 py-0.5 text-xs font-extrabold text-slate-600 shadow sm:text-sm">
-         Basket: {count}
+        🧺 Basket: {count}
       </span>
       {items.length === 0 && (
         <span className="font-body mt-6 text-lg font-bold text-amber-900/60">Drag {item.name} here!</span>
@@ -516,14 +598,30 @@ function DraggableFruit({ id, emoji, rotation, disabled }) {
   );
 }
 
-function SuccessOverlay({ target, item, format, isLastRound, onNext }) {
+function SuccessOverlay({ target, item, format, isLastRound, streak, onNext }) {
+  const { width, height } = useWindowSize();
   const label = format === 'word' ? capitalize(NUMBER_WORDS[target]) : String(target);
   return (
     <div className="fixed inset-0 z-30 flex items-center justify-center bg-black/30 p-4">
-      <Confetti pieces={30} />
-      <div className="animate-pop-in relative flex max-w-sm flex-col items-center rounded-[2.5rem] bg-white px-8 py-8 text-center shadow-2xl">
-        <div className="text-6xl text-center">🎉</div>
-        <p className="font-heading mt-2 text-2xl font-bold text-amber-500 sm:text-3xl">Perfect! </p>
+      <Confetti
+        width={width}
+        height={height}
+        numberOfPieces={streak >= 3 ? 160 : 90}
+        recycle={false}
+        gravity={0.24}
+        colors={['#FF6FA5', '#FFD93D', '#6BCB77', '#4FC3F7', '#9B5DE5', '#FF9F45']}
+        style={{ position: 'fixed', inset: 0, zIndex: 20, pointerEvents: 'none' }}
+      />
+      <motion.div
+        initial={{ scale: 0.7, y: 20, opacity: 0 }}
+        animate={{ scale: 1, y: 0, opacity: 1 }}
+        transition={{ type: 'spring', stiffness: 300, damping: 22 }}
+        className="relative flex max-w-sm flex-col items-center rounded-[2.5rem] bg-white px-8 py-8 text-center shadow-2xl"
+      >
+        <div className="text-6xl text-center">{streak >= 3 ? '🌟' : '🎉'}</div>
+        <p className="font-heading mt-2 text-2xl font-bold text-amber-500 sm:text-3xl">
+          {streak >= 3 ? 'On a streak!' : 'Perfect!'}
+        </p>
         <p className="font-body mt-2 text-base font-semibold text-slate-500 sm:text-lg">
           You counted {label} {item.name} {item.emoji}
         </p>
@@ -533,17 +631,34 @@ function SuccessOverlay({ target, item, format, isLastRound, onNext }) {
         >
           {isLastRound ? 'See my results! 🏆' : 'Next round ➡️'}
         </button>
-      </div>
+      </motion.div>
     </div>
   );
 }
 
-function CompletionScreen({ stars, total, onPlayAgain }) {
+function CompletionScreen({ stars, total, playerName, onPlayAgain }) {
+  const { width, height } = useWindowSize();
   return (
     <div className="relative mt-10 flex flex-col items-center rounded-[2.5rem] bg-white/90 px-8 py-10 text-center shadow-2xl sm:px-14">
-      <Confetti pieces={40} />
-      <div className="text-7xl">🏆</div>
-      <h2 className="font-heading mt-3 text-3xl font-bold text-slate-800 sm:text-4xl">Amazing counting!</h2>
+      <Confetti
+        width={width}
+        height={height}
+        numberOfPieces={160}
+        recycle={false}
+        gravity={0.2}
+        colors={['#FF6FA5', '#FFD93D', '#6BCB77', '#4FC3F7', '#9B5DE5']}
+        style={{ position: 'fixed', inset: 0, zIndex: 20, pointerEvents: 'none' }}
+      />
+      <motion.div
+        animate={{ y: [0, -10, 0] }}
+        transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+        className="text-7xl"
+      >
+        🏆
+      </motion.div>
+      <h2 className="font-heading mt-3 text-3xl font-bold text-slate-800 sm:text-4xl">
+        Amazing counting, {playerName}!
+      </h2>
       <p className="font-body mt-2 text-lg font-semibold text-slate-500">
         You earned {stars} out of {total} stars
       </p>
@@ -564,42 +679,6 @@ function CompletionScreen({ stars, total, onPlayAgain }) {
           🏠 Back home
         </Link>
       </div>
-    </div>
-  );
-}
-
-function Confetti({ pieces = 24 }) {
-  const colors = ['#FF6FA5', '#FFD93D', '#6BCB77', '#4FC3F7', '#9B5DE5', '#FF9F45'];
-  const items = useMemo(
-    () =>
-      Array.from({ length: pieces }, (_, i) => ({
-        id: i,
-        left: Math.random() * 100,
-        delay: (Math.random() * 0.5).toFixed(2),
-        duration: (1.8 + Math.random() * 1.4).toFixed(2),
-        color: colors[Math.floor(Math.random() * colors.length)],
-        rotate: Math.floor(Math.random() * 360),
-        size: 7 + Math.random() * 7,
-      })),
-    [pieces]
-  );
-  return (
-    <div className="pointer-events-none absolute inset-0 z-20 overflow-hidden">
-      {items.map((p) => (
-        <span
-          key={p.id}
-          className="animate-confetti-fall absolute top-0 rounded-sm"
-          style={{
-            left: `${p.left}%`,
-            width: p.size,
-            height: p.size * 0.6,
-            backgroundColor: p.color,
-            animationDelay: `${p.delay}s`,
-            animationDuration: `${p.duration}s`,
-            transform: `rotate(${p.rotate}deg)`,
-          }}
-        />
-      ))}
     </div>
   );
 }

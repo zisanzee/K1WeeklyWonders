@@ -1,6 +1,7 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import NameGate from './NameGate';
+import GameAccessGate from './GameAccessGate';
 import { usePlayerStore } from './playerStore';
 import { logPlaySession } from './logPlaySession';
 
@@ -407,7 +408,9 @@ function Game2Inner() {
 export default function Game2() {
   return (
     <NameGate gameLabel="Week 2: Teddy's Picnic Adventure">
-      <Game2Inner />
+      <GameAccessGate gameNumber={2} gameLabel="Week 2: Teddy's Picnic Adventure">
+        <Game2Inner />
+      </GameAccessGate>
     </NameGate>
   );
 }

@@ -42,3 +42,22 @@ export async function fetchSummary() {
     throw err;
   }
 }
+
+export async function deletePlayerGame(game, playerName) {
+  const res = await fetch(`${API_BASE}/api/plays`, {
+    method: 'DELETE',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      game,
+      playerName,
+    }),
+  });
+
+  if (!res.ok) {
+    throw new Error(`Server responded ${res.status} ${res.statusText}`);
+  }
+
+  return await res.json();
+}
