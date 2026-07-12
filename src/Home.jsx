@@ -1,6 +1,10 @@
+import { useState } from "react";
 import { Link } from "react-router-dom";
+import StatsPanel from "./StatsPanel";
 
 export default function Home() {
+  const [showStats, setShowStats] = useState(false);
+
   return (
     <div className="relative flex min-h-[100dvh] w-full flex-col overflow-hidden bg-gradient-to-b from-[#48BFEE] via-[#8FE0FA] to-[#FFE9A8]">
       {/* Google Fonts */}
@@ -53,6 +57,16 @@ export default function Home() {
         .animate-bob { animation: bob 2.4s ease-in-out infinite; }
         .animate-sway { animation: sway 3.2s ease-in-out infinite; transform-origin: bottom center; }
       `}</style>
+
+      {/* Stats button */}
+      <button
+        type="button"
+        onClick={() => setShowStats(true)}
+        className="font-body fixed right-4 top-4 z-20 flex items-center gap-1.5 rounded-full bg-white/90 px-4 py-2 text-sm font-extrabold text-slate-700 shadow-[0_4px_0_rgba(0,0,0,0.15)] transition-transform hover:-translate-y-0.5 active:translate-y-1 active:shadow-none sm:text-base"
+      >
+        📊 View Stats
+      </button>
+      {showStats && <StatsPanel onClose={() => setShowStats(false)} />}
 
       {/* Sun, top corner */}
       <div className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 sm:h-44 sm:w-44 md:h-56 md:w-56">

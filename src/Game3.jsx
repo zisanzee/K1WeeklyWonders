@@ -4,6 +4,9 @@ import { motion } from 'motion/react';
 import Confetti from 'react-confetti';
 import { useWindowSize } from 'react-use';
 import clsx from 'clsx';
+import NameGate from './NameGate';
+import { usePlayerStore } from './playerStore';
+import { logPlaySession } from './logPlaySession';
 
 const TOTAL_ROUNDS = 10;
 const NUMBER_WORDS = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
@@ -88,7 +91,7 @@ function getPromptParts(round) {
 
 function getSpeechPrompt(round) {
   const refWord = NUMBER_WORDS[round.reference];
-  return `What number comes right ${round.type} ${refWord}?`;
+  return `What number comes right ${round.type}${refWord}?`;
 }
 
 function getResultMessage(round) {
@@ -99,7 +102,8 @@ function getResultMessage(round) {
     : `${correctWord} comes right after ${refWord}!`;
 }
 
-export default function Game3() {
+function Game3Inner() {
+  const playerName = usePlayerStore((s) => s.playerName);
   const planRef = useRef(shuffle([...Array(5).fill('before'), ...Array(5).fill('after')]));
   const [roundIndex, setRoundIndex] = useState(0);
   const [round, setRound] = useState(() => generateRound(0, planRef.current[0], null));
@@ -112,6 +116,8 @@ export default function Game3() {
   const [hasErred, setHasErred] = useState(false);
   const [celebrate, setCelebrate] = useState(false);
 
+  const peakStreakRef = useRef(0);
+  const hasLoggedRef = useRef(false);
   const hasSpokenRef = useRef(false);
   if (!hasSpokenRef.current) {
     hasSpokenRef.current = true;
@@ -126,7 +132,11 @@ export default function Game3() {
     if (value === round.correct) {
       setPhase('success');
       setStars((s) => s + 1);
-      setStreak((s) => (hasErred ? 0 : s + 1));
+      setStreak((s) => {
+        const next = hasErred ? 0 : s + 1;
+        peakStreakRef.current = Math.max(peakStreakRef.current, next);
+        return next;
+      });
       setCelebrate(true);
       speak(getResultMessage(round), muted);
     } else {
@@ -143,6 +153,10 @@ export default function Game3() {
     if (next >= TOTAL_ROUNDS) {
       setPhase('complete');
       speak("You're a number-line explorer! Amazing job!", muted);
+      if (!hasLoggedRef.current) {
+        hasLoggedRef.current = true;
+        logPlaySession({ game: 'game3', playerName, stars, totalRounds: TOTAL_ROUNDS, peakStreak: peakStreakRef.current });
+      }
       return;
     }
     const newRound = generateRound(next, planRef.current[next], round.reference);
@@ -166,6 +180,8 @@ export default function Game3() {
     setStreak(0);
     setWrongValue(null);
     setHasErred(false);
+    peakStreakRef.current = 0;
+    hasLoggedRef.current = false;
     speak(getSpeechPrompt(newRound), muted);
   };
 
@@ -253,6 +269,14 @@ export default function Game3() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function Game3() {
+  return (
+    <NameGate gameLabel="Week 3: Ollie's Number Reef">
+      <Game3Inner />
+    </NameGate>
   );
 }
 
@@ -464,7 +488,7 @@ function SwimmingFish() {
           transition={{ duration: f.duration, delay: f.delay, repeat: Infinity, ease: 'linear' }}
         >
           {f.emoji}
-        </motion.span>
+    </motion.span>
       ))}
     </div>
   );

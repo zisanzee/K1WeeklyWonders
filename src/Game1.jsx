@@ -10,6 +10,9 @@ import {
   useSensors,
 } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
+import NameGate from './NameGate';
+import { usePlayerStore } from './playerStore';
+import { logPlaySession } from './logPlaySession';
 
 const TOTAL_ROUNDS = 10;
 const NUMBER_WORDS = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
@@ -89,7 +92,8 @@ function generateRound(roundIndex, prevCategoryKey, target, format) {
   return { category, item, target, format, items };
 }
 
-export default function Game1() {
+function Game1Inner() {
+  const playerName = usePlayerStore((s) => s.playerName);
   const [roundPlan, setRoundPlan] = useState(() => generateRoundPlan());
   const [roundIndex, setRoundIndex] = useState(0);
   const [round, setRound] = useState(() => generateRound(0, null, roundPlan[0].target, roundPlan[0].format));
@@ -103,6 +107,7 @@ export default function Game1() {
   const [poolPulse, setPoolPulse] = useState(false);
 
   const prevBasketCountRef = useRef(0);
+  const hasLoggedRef = useRef(false);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
@@ -179,6 +184,10 @@ export default function Game1() {
     if (next >= TOTAL_ROUNDS) {
       setPhase('complete');
       speak("Amazing job! You're a counting champion!", muted);
+      if (!hasLoggedRef.current) {
+        hasLoggedRef.current = true;
+        logPlaySession({ game: 'game1', playerName, stars, totalRounds: TOTAL_ROUNDS, peakStreak: 0 });
+      }
       return;
     }
     const newRound = generateRound(next, round.category.key, roundPlan[next].target, roundPlan[next].format);
@@ -200,6 +209,7 @@ export default function Game1() {
     setStars(0);
     setFeedback(null);
     setPhase('playing');
+    hasLoggedRef.current = false;
     speak(`Fill the basket with ${newRound.target} ${newRound.item.name}!`, muted);
   };
 
@@ -313,6 +323,14 @@ export default function Game1() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function Game1() {
+  return (
+    <NameGate gameLabel="Week 1: Harvest Challenge">
+      <Game1Inner />
+    </NameGate>
   );
 }
 

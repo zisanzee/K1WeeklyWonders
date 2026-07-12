@@ -1,5 +1,8 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
+import NameGate from './NameGate';
+import { usePlayerStore } from './playerStore';
+import { logPlaySession } from './logPlaySession';
 
 const TOTAL_ROUNDS = 12;
 
@@ -188,7 +191,8 @@ function getResultMessage(round) {
   }
 }
 
-export default function Game2() {
+function Game2Inner() {
+  const playerName = usePlayerStore((s) => s.playerName);
   const planRef = useRef(generateRoundPlan());
   const [roundIndex, setRoundIndex] = useState(0);
   const [round, setRound] = useState(() => buildRound(0, null, planRef.current[0]));
@@ -200,6 +204,8 @@ export default function Game2() {
   const [hasErred, setHasErred] = useState(false);
   const [showHint, setShowHint] = useState(false);
 
+  const peakStreakRef = useRef(0);
+  const hasLoggedRef = useRef(false);
   const hasSpokenRef = useRef(false);
   if (!hasSpokenRef.current) {
     hasSpokenRef.current = true;
@@ -214,7 +220,11 @@ export default function Game2() {
     if (id === round.correctId) {
       setPhase('success');
       setStars((s) => s + 1);
-      setStreak((s) => (hasErred ? 0 : s + 1));
+      setStreak((s) => {
+        const next = hasErred ? 0 : s + 1;
+        peakStreakRef.current = Math.max(peakStreakRef.current, next);
+        return next;
+      });
       speak(getResultMessage(round), muted);
     } else {
       setHasErred(true);
@@ -230,6 +240,10 @@ export default function Game2() {
     if (next >= TOTAL_ROUNDS) {
       setPhase('complete');
       speak("You're a comparing champion! Great job, friend!", muted);
+      if (!hasLoggedRef.current) {
+        hasLoggedRef.current = true;
+        logPlaySession({ game: 'game2', playerName, stars, totalRounds: TOTAL_ROUNDS, peakStreak: peakStreakRef.current });
+      }
       return;
     }
     const newRound = buildRound(next, round.category.key, planRef.current[next]);
@@ -253,6 +267,8 @@ export default function Game2() {
     setWrongBasketId(null);
     setHasErred(false);
     setShowHint(false);
+    peakStreakRef.current = 0;
+    hasLoggedRef.current = false;
     speak(getSpeechPrompt(newRound), muted);
   };
 
@@ -385,6 +401,14 @@ export default function Game2() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function Game2() {
+  return (
+    <NameGate gameLabel="Week 2: Teddy's Picnic Adventure">
+      <Game2Inner />
+    </NameGate>
   );
 }
 
