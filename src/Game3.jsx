@@ -275,8 +275,8 @@ function Game3Inner() {
 
 export default function Game3() {
   return (
-    <NameGate gameLabel="Week 3: Ollie's Number Reef">
-      <GameAccessGate gameNumber={3} gameLabel="Week 3: Ollie's Number Reef">
+    <NameGate gameLabel="Game 3: Ollie's Number Reef">
+      <GameAccessGate gameNumber={3} gameLabel="Game 3: Ollie's Number Reef">
         <Game3Inner />
       </GameAccessGate>
     </NameGate>

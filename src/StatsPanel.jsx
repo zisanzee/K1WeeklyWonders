@@ -4,17 +4,17 @@ import { fetchStats, fetchSummary, deletePlayerGame } from './logPlaySession';
 import { usePlayerStore } from './playerStore';
 
 const GAME_LABELS = {
-  game1: '🧺 Week 1',
-  game2: '🧸 Week 2',
-  game3: '🐙 Week 3',
+  game1: '🧺 Count & Win',
+  game2: '🧸 Compare Quantity ',
+  game3: "🐙 Ollie's Number Reef",
 };
 
 // New games "just work" here: known slugs get their custom emoji/name above,
-// anything else falls back to a generic "🎮 Week N" derived from the slug.
+// anything else falls back to a generic "🎮 Game N" derived from the slug.
 function gameLabel(key) {
   if (GAME_LABELS[key]) return GAME_LABELS[key];
   const num = key.match(/\d+/)?.[0];
-  return num ? `🎮 Week ${num}` : key;
+  return num ? `🎮 Game ${num}` : key;
 }
 
 // For sorting the "Game" column naturally (game2 < game10), not alphabetically.
@@ -26,9 +26,6 @@ function gameSortValue(key) {
 const DEFAULT_SORT_DIR = {
   playerName: 'asc',
   game: 'asc',
-  timesPlayed: 'desc',
-  bestStars: 'desc',
-  lastStars: 'desc',
   bestStreak: 'desc',
   lastPlayedAt: 'desc',
 };
@@ -175,7 +172,7 @@ export default function StatsPanel({ onClose }) {
 
   const activeGameStats = filter === 'all' ? null : stats?.perGame.find((g) => g._id === filter);
   const activeGamePlayers = filter === 'all' ? null : summary.filter((row) => row.game === filter).length;
-  const columnCount = filter === 'all' ? 8 : 7;
+  const columnCount = filter === 'all' ? 5 : 4;
 
   return (
     <div
@@ -194,13 +191,13 @@ export default function StatsPanel({ onClose }) {
         initial={{ scale: 0.9, opacity: 0, y: 20 }}
         animate={{ scale: 1, opacity: 1, y: 0 }}
         transition={{ type: 'spring', stiffness: 260, damping: 24 }}
-        className="relative flex max-h-[85vh] w-full max-w-4xl flex-col overflow-hidden rounded-[2rem] bg-white shadow-2xl"
+        className="relative flex h-[85vh] w-full max-w-4xl flex-col overflow-hidden rounded-[2rem] bg-white shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
-          <h2 style={{ fontFamily: "'Fredoka', sans-serif" }} className="text-xl font-bold text-slate-800 sm:text-2xl">
+          <p style={{ fontFamily: "'Fredoka', sans-serif" }} className="text-xl font-bold text-slate-700 sm:text-2xl">
             📊 Who's been playing?
-          </h2>
+          </p>
           <div className="flex items-center gap-2">
             <button
               onClick={load}
@@ -352,9 +349,6 @@ export default function StatsPanel({ onClose }) {
                         {filter === 'all' && (
                           <SortHeader label="Game" sortKey="game" current={sortKey} dir={sortDir} onSort={handleSort} />
                         )}
-                        <SortHeader label="Plays" sortKey="timesPlayed" current={sortKey} dir={sortDir} onSort={handleSort} />
-                        <SortHeader label="Best score" sortKey="bestStars" current={sortKey} dir={sortDir} onSort={handleSort} />
-                        <SortHeader label="Last score" sortKey="lastStars" current={sortKey} dir={sortDir} onSort={handleSort} />
                         <SortHeader label="Best streak" sortKey="bestStreak" current={sortKey} dir={sortDir} onSort={handleSort} />
                         <SortHeader label="Last played" sortKey="lastPlayedAt" current={sortKey} dir={sortDir} onSort={handleSort} />
                         <th className="px-3 py-1">
@@ -382,18 +376,14 @@ export default function StatsPanel({ onClose }) {
                             <tr key={key} className="border-t border-slate-100 transition-colors sm:hover:bg-slate-50">
                               <td className="px-4 py-3.5 font-bold text-slate-700">{row.playerName}</td>
                               {filter === 'all' && (
-                                <td className="px-4 py-3.5 text-slate-600">{gameLabel(row.game)}</td>
+                                <td className="px-4 py-3.5 text-slate-600 text-center">{gameLabel(row.game)}</td>
                               )}
-                              <td className="px-4 py-3.5 text-slate-600">{row.timesPlayed}</td>
-                              <td className="px-4 py-3.5 text-slate-600">
-                                {row.bestStars}/{row.totalRounds}
-                              </td>
-                              <td className="px-4 py-3.5 text-slate-600">
-                                {row.lastStars}/{row.totalRounds}
-                              </td>
                               <td className="px-4 py-3.5 text-slate-600">🔥{row.bestStreak}</td>
                               <td className="px-4 py-3.5 text-slate-500">
-                                {new Date(row.lastPlayedAt).toLocaleDateString()}
+                                {new Date(row.lastPlayedAt).toLocaleString(undefined, {
+                                  dateStyle: 'medium',
+                                  timeStyle: 'short',
+                                })}
                               </td>
                               <td className="px-2 py-2 text-right">
                                 <button

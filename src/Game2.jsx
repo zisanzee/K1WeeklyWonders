@@ -407,8 +407,8 @@ function Game2Inner() {
 
 export default function Game2() {
   return (
-    <NameGate gameLabel="Week 2: Teddy's Picnic Adventure">
-      <GameAccessGate gameNumber={2} gameLabel="Week 2: Teddy's Picnic Adventure">
+    <NameGate gameLabel="Game 2: Teddy's Picnic Adventure">
+      <GameAccessGate gameNumber={2} gameLabel="Game 2: Teddy's Picnic Adventure">
         <Game2Inner />
       </GameAccessGate>
     </NameGate>

@@ -83,7 +83,7 @@ function speak(text, muted) {
   if (muted || typeof window === 'undefined' || !('speechSynthesis' in window)) return;
   window.speechSynthesis.cancel();
   const utterance = new SpeechSynthesisUtterance(text);
-  utterance.rate = 0.85;
+  utterance.rate = 1;
   utterance.pitch = 1.3;
   window.speechSynthesis.speak(utterance);
 }
@@ -361,8 +361,8 @@ function Game1Inner() {
 
 export default function Game1() {
   return (
-    <NameGate gameLabel="Week 1: Harvest Challenge">
-      <GameAccessGate gameNumber={1} gameLabel="Week 1: Harvest Challenge">
+    <NameGate gameLabel="Game 1: Harvest Challenge">
+      <GameAccessGate gameNumber={1} gameLabel="Game 1: Harvest Challenge">
         <Game1Inner />
       </GameAccessGate>
     </NameGate>

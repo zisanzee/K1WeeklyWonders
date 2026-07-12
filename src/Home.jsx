@@ -191,7 +191,7 @@ function HomeContent() {
             <GameCard
               to="/Game1"
               emoji="🧺"
-              title="Count & win!"
+              title="Count & Win!"
               subtitle="Game 1"
               color="from-green-400 to-teal-400"
               ring="ring-green-200"
@@ -202,9 +202,9 @@ function HomeContent() {
             <GameCard
               to="/Game2"
               emoji="🧸"
-              title="Compare quantity!"
+              title="Compare Quantity!"
               subtitle="Game 2"
-              color="from-cyan-400 to-blue-400"
+              color="from-cyan-300 to-blue-400"
               ring="ring-cyan-200"
               delay={0.22}
               open={isGameUnlocked(2, isTeacher)}
@@ -215,7 +215,7 @@ function HomeContent() {
               emoji="🐙"
               title="Around the Number!"
               subtitle="Game 3"
-              color="from-purple-500 to-indigo-400 "
+              color="from-purple-400 to-indigo-400 "
               ring="ring-purple-200"
               delay={0.34}
               open={isGameUnlocked(3, isTeacher)}
@@ -231,6 +231,19 @@ function HomeContent() {
           <span className="h-0.5 w-10 border-t-2 border-dashed border-white/50" />
         </div>
       </div>
+    <div className="fixed bottom-5 right-5 z-50">
+  <div className="flex items-center gap-2 rounded-xl border border-white/15 bg-black/25 px-4 py-2 shadow-lg backdrop-blur-md">
+    <div className="h-4 w-4 animate-pulse rounded-full bg-red-500/75" />
+
+    <div className="leading-tight">
+      
+
+      <p className=" text-sm font-medium text-white/80">
+        Game results are saved automatically and submitted to teachers.
+      </p>
+    </div>
+  </div>
+</div>
     </div>
   );
 }
@@ -272,23 +285,15 @@ function GameCard({ to, emoji, title, subtitle, color, ring, delay, open, progre
         {emoji}
       </div>
 
-      <h2 className={`font-heading text-xl font-bold drop-shadow sm:text-2xl ${open ? "text-black" : "text-white/50"}`}>
+      <p className={`font-heading text-xl font-bold sm:text-xl ${open ? "text-slate-900" : "text-white/50"}`}>
         {title}
-      </h2>
+      </p>
 
       <p className={`font-body mt-1 text-center text-sm font-semibold sm:text-base ${open ? "text-white/90" : "text-white/40"}`}>
         {subtitle}
       </p>
 
-      {open && progress && (
-        <div className="font-body mt-3 flex items-center gap-1.5 rounded-full bg-black/15 px-3 py-1 text-[11px] font-extrabold text-white sm:text-xs">
-          <span>
-            ⭐ {progress.bestStars}/{progress.totalRounds}
-          </span>
-          <span className="opacity-60">·</span>
-          <span>🎮 {progress.playCount}x</span>
-        </div>
-      )}
+      
 
       {open && (
         <span className="font-body mt-4 rounded-full bg-white/90 px-5 py-1.5 text-sm font-extrabold text-slate-700 shadow group-hover:bg-white">
