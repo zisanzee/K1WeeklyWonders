@@ -425,7 +425,7 @@ function FilterPill({ active, onClick, children }) {
     <button
       onClick={onClick}
       style={{ fontFamily: "'Fredoka', sans-serif" }}
-      className={`rounded-full px-4 py-2.5 text-xs md:text-sm font-bold transition-all active:scale-95 ${
+      className={`rounded-full px-1 py-1 text-xs md:text-sm font-bold transition-all active:scale-95 ${
         active
           ? 'bg-gradient-to-r from-pink-500 to-purple-500 text-white shadow-md'
           : 'bg-slate-100 text-slate-600 active:bg-slate-200 sm:hover:bg-slate-200'
