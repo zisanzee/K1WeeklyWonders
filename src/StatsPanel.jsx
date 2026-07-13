@@ -6,7 +6,7 @@ import { usePlayerStore } from './playerStore';
 const GAME_LABELS = {
   game1: '🧺 Count & Win',
   game2: '🧸 Compare Quantity ',
-  game3: "🐙 Ollie's Number Reef",
+  game3: "🐙 Around the Number",
 };
 
 // New games "just work" here: known slugs get their custom emoji/name above,
@@ -194,8 +194,8 @@ export default function StatsPanel({ onClose }) {
         className="relative flex h-[75vh] w-full max-w-4xl flex-col overflow-hidden rounded-[2rem] bg-white shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
-          <p style={{ fontFamily: "'Fredoka', sans-serif" }} className="text-xl font-bold text-slate-700 sm:text-2xl">
+        <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3 md:px-6 md:py-4">
+          <p style={{ fontFamily: "'Fredoka', sans-serif" }} className="text-lg md:text-xl font-bold text-slate-700 sm:text-2xl">
             📊 Who's been playing?
           </p>
           <div className="flex items-center gap-2">
@@ -204,14 +204,14 @@ export default function StatsPanel({ onClose }) {
               disabled={status === 'loading'}
               aria-label="Refresh stats"
               title="Refresh"
-              className="flex h-11 w-11 items-center justify-center rounded-full bg-slate-100 text-lg text-slate-500 transition-colors active:scale-90 active:bg-slate-200 disabled:opacity-50 sm:h-9 sm:w-9 sm:hover:bg-slate-200"
+              className="flex h-8 w-8 md:h-11 md:w-11 items-center justify-center rounded-full bg-slate-100 text-lg text-slate-500 transition-colors active:scale-90 active:bg-slate-200 disabled:opacity-50 sm:h-9 sm:w-9 sm:hover:bg-slate-200"
             >
               <span className={status === 'loading' ? 'inline-block animate-spin' : ''}>🔄</span>
             </button>
             <button
               onClick={onClose}
               aria-label="Close"
-              className="flex h-11 w-11 items-center justify-center rounded-full bg-slate-100 text-lg font-bold text-slate-500 transition-colors active:scale-90 active:bg-slate-200 sm:h-9 sm:w-9 sm:hover:bg-slate-200"
+              className="flex h-8 w-8 md:h-11 md:w-11 items-center justify-center rounded-full bg-slate-100 text-lg font-bold text-slate-500 transition-colors active:scale-90 active:bg-slate-200 sm:h-9 sm:w-9 sm:hover:bg-slate-200"
             >
               ✕
             </button>
@@ -219,7 +219,7 @@ export default function StatsPanel({ onClose }) {
         </div>
 
         {status === 'ready' && stats && (
-          <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-6 py-2.5" style={{ fontFamily: "'Nunito', sans-serif" }}>
+          <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-6 py-2.5" style={{ fontFamily: "'Fredoka', sans-serif" }}>
             <p className="text-sm font-semibold text-slate-500">
               Welcome back, <span className="text-slate-700">{teacherName}</span>! 👋
             </p>
@@ -233,16 +233,21 @@ export default function StatsPanel({ onClose }) {
         )}
 
         {status === 'ready' && stats && (
-          <div className="flex flex-wrap items-center justify-center gap-2 border-b border-slate-100 px-6 py-3">
-            <FilterPill active={filter === 'all'} onClick={() => setFilter('all')}>
-              🎯 All games
-            </FilterPill>
-            {stats.perGame.map((g) => (
-              <FilterPill key={g._id} active={filter === g._id} onClick={() => setFilter(g._id)}>
-                {gameLabel(g._id)}
-              </FilterPill>
-            ))}
-          </div>
+          <div className="flex flex-wrap items-center justify-center gap-1.5 border-b border-slate-100 px-3 py-2 md:gap-2 md:px-6 md:py-3">
+  <FilterPill active={filter === 'all'} onClick={() => setFilter('all')}>
+    🎯 All games
+  </FilterPill>
+
+  {stats.perGame.map((g) => (
+    <FilterPill
+      key={g._id}
+      active={filter === g._id}
+      onClick={() => setFilter(g._id)}
+    >
+      {gameLabel(g._id)}
+    </FilterPill>
+  ))}
+</div>
         )}
 
         {status === 'ready' && stats && (
@@ -269,7 +274,7 @@ export default function StatsPanel({ onClose }) {
           </div>
         )}
 
-        <div className="flex-1 overflow-y-auto px-6 py-5" style={{ fontFamily: "'Nunito', sans-serif" }}>
+        <div className="flex-1 overflow-y-auto px-6 py-5" style={{ fontFamily: "'Fredoka', sans-serif" }}>
           {status === 'loading' && !slow && (
             <div className="flex flex-col items-center justify-center gap-2 py-16 text-slate-400">
               <span className="animate-bounce text-4xl">⏳</span>
@@ -341,8 +346,8 @@ export default function StatsPanel({ onClose }) {
                   </p>
                 )}
 
-                <div className="mt-6 overflow-x-auto rounded-2xl border border-slate-100">
-                  <table className="w-full min-w-[640px] text-left text-sm">
+                <div className="mt-6 overflow-x-auto rounded-2xl border text-center border-slate-100">
+                  <table className="w-full min-w-[640px] text-centert text-sm">
                     <thead className="bg-slate-50 text-xs font-bold uppercase tracking-wide text-slate-500">
                       <tr>
                         <SortHeader label="Player" sortKey="playerName" current={sortKey} dir={sortDir} onSort={handleSort} />
@@ -419,7 +424,8 @@ function FilterPill({ active, onClick, children }) {
   return (
     <button
       onClick={onClick}
-      className={`rounded-full px-4 py-2.5 text-sm font-bold transition-all active:scale-95 ${
+      style={{ fontFamily: "'Fredoka', sans-serif" }}
+      className={`rounded-full px-4 py-2.5 text-xs md:text-sm font-bold transition-all active:scale-95 ${
         active
           ? 'bg-gradient-to-r from-pink-500 to-purple-500 text-white shadow-md'
           : 'bg-slate-100 text-slate-600 active:bg-slate-200 sm:hover:bg-slate-200'
@@ -452,10 +458,10 @@ function SortHeader({ label, sortKey: key, current, dir, onSort }) {
 
 function StatCard({ label, value, sub }) {
   return (
-    <div className="rounded-2xl bg-slate-50 px-3 py-3 text-center transition-colors active:bg-slate-100">
-      <p className="text-2xl font-bold text-slate-800">{value ?? 0}</p>
-      <p className="mt-0.5 text-xs font-bold text-slate-500">{label}</p>
-      {sub && <p className="text-[10px] font-semibold text-slate-400">{sub}</p>}
+    <div className="rounded-2xl bg-slate-50  px-3 py-3 text-center transition-colors active:bg-slate-100">
+      <p className="text-2xl text-center font-bold text-slate-800">{value ?? 0}</p>
+      <p className="mt-0.5 text-xs text-center font-bold text-slate-500">{label}</p>
+      {sub && <p className="text-[10px] text-center font-semibold text-slate-400">{sub}</p>}
     </div>
   );
 }

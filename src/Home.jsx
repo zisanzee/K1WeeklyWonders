@@ -171,7 +171,7 @@ function HomeContent() {
             <span className="text-white">Weekly</span>{" "}
             <span className="text-pink-400">Wonders</span> 🌟
           </h1>
-          <p className="font-body mt-3 text-[clamp(1rem,2.4vw,1.6rem)] font-bold text-white/90">
+          <p style={{ fontFamily: "'Fredoka', sans-serif" }} className="font-body mt-3 text-[clamp(1rem,2.4vw,1.6rem)] font-medium text-white/90">
             {greeting}, {playerName}! Pick a game and let's play! 🎈
           </p>
           <button
@@ -231,14 +231,14 @@ function HomeContent() {
           <span className="h-0.5 w-10 border-t-2 border-dashed border-white/50" />
         </div>
       </div>
-    <div className="fixed bottom-5 right-5 z-50">
+    <div className="fixed bottom-5 right-5 md:right-5 z-50">
   <div className="flex items-center gap-2 rounded-xl border border-white/15 bg-black/25 px-4 py-2 shadow-lg backdrop-blur-md">
-    <div className="h-4 w-4 animate-pulse rounded-full bg-red-500/75" />
+    <div className="h-4 min-w-4 animate-pulse rounded-full bg-red-500/75" />
 
-    <div className="leading-tight">
+    <div className="leading-tight w-[15rem] md:w-[24rem]">
       
 
-      <p className="  text-xs md:text-md font-medium text-white/80">
+      <p style={{ fontFamily: "'Fredoka', sans-serif" }} className="text-left  text-xs md:text-md font-medium text-white/80">
         Game results are saved automatically and submitted to teachers.
       </p>
     </div>
