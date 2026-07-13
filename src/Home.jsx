@@ -238,7 +238,7 @@ function HomeContent() {
     <div className="leading-tight">
       
 
-      <p className=" text-sm font-medium text-white/80">
+      <p className="  text-xs md:text-md font-medium text-white/80">
         Game results are saved automatically and submitted to teachers.
       </p>
     </div>
