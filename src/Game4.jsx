@@ -21,6 +21,9 @@ import { usePlayerStore } from './playerStore';
 import { logPlaySession } from './logPlaySession';
 
 const TOTAL_ROUNDS = 12; // 3 free-split + 5 even-split + 4 target-split rounds
+const FREE_TOTALS = [3, 4, 5];
+const HALF_TOTALS = [4, 6, 8, 10, 8];
+const TARGET_TOTALS = [7, 8, 9, 10];
 
 function cn(...inputs) {
   return twMerge(clsx(inputs));
@@ -58,26 +61,24 @@ function speak(text, muted) {
 }
 
 // Rounds 0-2: any two-way split. Rounds 3-7: split exactly in half (Red and
-// Blue must match). Rounds 8-11: hit a specific, bigger pair of numbers.
+// Blue must match). Rounds 8-11: load a specific target pair with totals kept
+// inside the friendly 1-10 range.
 function modeForRound(index) {
   if (index < 3) return 'free';
   if (index < 8) return 'half';
   return 'target';
 }
 
-// Totals creep up a little within each phase so the challenge ramps.
+// Totals are chosen from friendly 1-10 values and kept as distinct as
+// possible within each phase so the game stays varied and predictable.
 function totalForRound(index, mode) {
   if (mode === 'free') {
-    return randInt(3 + index, 5 + index); // 3-5, 4-6, 5-7
+    return FREE_TOTALS[index];
   }
   if (mode === 'half') {
-    const step = Math.min(index - 3, 2); // growth eases off after a couple of rounds
-    const min = 4 + step * 2; // 4, 6, 8
-    return randInt(min / 2, min / 2 + 1) * 2; // stays even
+    return HALF_TOTALS[index - 3];
   }
-  // Final stretch: bigger numbers to stretch what they've learned.
-  const step = index - 8; // 0-3 across the 4 target rounds
-  return randInt(8 + step, 10 + step);
+  return TARGET_TOTALS[index - 8];
 }
 
 function generateRound(index, prevCargoKey) {

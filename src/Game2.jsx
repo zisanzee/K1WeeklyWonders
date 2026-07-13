@@ -274,7 +274,7 @@ function Game2Inner() {
   };
 
   return (
-    <div className="relative min-h-[100dvh] w-full overflow-hidden bg-gradient-to-b from-[#48BFEE] via-[#8FE0FA] to-[#FFE9A8]">
+    <div className="relative min-h-screen w-full overflow-hidden bg-gradient-to-b from-[#48BFEE] via-[#8FE0FA] to-[#FFE9A8]">
       <link
         rel="stylesheet"
         href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;700&family=Nunito:wght@600;800&display=swap"
@@ -320,7 +320,7 @@ function Game2Inner() {
         <div className="absolute left-[4%] bottom-[10%] text-4xl animate-float-slow" style={{ animationDelay: '1s' }}>🎈</div>
       </div>
 
-      <div className="relative z-10 mx-auto flex min-h-[100dvh] max-w-5xl flex-col items-center px-4 py-5 sm:py-8">
+      <div className="relative z-10 mx-auto flex min-h-screen max-w-5xl flex-col items-center px-4 py-4 sm:py-6">
         <TopBar totalRounds={TOTAL_ROUNDS} stars={stars} muted={muted} onToggleMute={() => setMuted((m) => !m)} />
 
         {phase === 'complete' ? (
@@ -339,39 +339,54 @@ function Game2Inner() {
 
             {round.type === 'same' && <ReferenceBasket category={round.category} target={round.target} />}
 
-            <div
-              className={`mt-5 flex w-full flex-1 flex-wrap items-start justify-center gap-5 sm:gap-8 ${
-                round.baskets.length === 3 ? 'max-w-3xl' : 'max-w-xl'
-              }`}
-            >
-              {round.baskets.map((basket) =>
-                isNumeralRound ? (
-                  <NumeralCard
-                    key={basket.id}
-                    value={basket.count}
-                    category={round.category}
-                    onTap={() => handleBasketTap(basket.id)}
-                    disabled={phase !== 'playing'}
-                    isWrong={wrongBasketId === basket.id}
-                    isCorrectChosen={phase === 'success' && basket.id === round.correctId}
-                    isDimmed={phase === 'success' && basket.id !== round.correctId}
-                    showObjectHint={showHint}
-                  />
-                ) : (
-                  <BasketCard
-                    key={basket.id}
-                    basket={basket}
-                    category={round.category}
-                    onTap={() => handleBasketTap(basket.id)}
-                    disabled={phase !== 'playing'}
-                    isWrong={wrongBasketId === basket.id}
-                    isCorrectChosen={phase === 'success' && basket.id === round.correctId}
-                    isDimmed={phase === 'success' && basket.id !== round.correctId}
-                    showHintGlow={showHint && phase === 'playing' && basket.id === round.correctId}
-                  />
-                )
-              )}
-            </div>
+            <div className="mt-5 flex w-full flex-1 justify-center px-3 sm:px-4">
+  <div
+    className={`grid w-full max-w-5xl justify-items-center gap-2  ${
+      round.baskets.length === 3
+        ? 'grid-cols-1 sm:grid-cols-2 xl:grid-cols-3'
+        : 'grid-cols-1 sm:grid-cols-2 max-w-2xl'
+    }`}
+  >
+    {round.baskets.map((basket, index) => {
+      const centerLastBasket = round.baskets.length === 3 && index === 2;
+
+      return (
+        <div
+          key={basket.id}
+          className={
+            centerLastBasket
+              ? 'w-full sm:col-span-2 xl:col-span-1 flex justify-center'
+              : 'w-full flex justify-center'
+          }
+        >
+          {isNumeralRound ? (
+            <NumeralCard
+              value={basket.count}
+              category={round.category}
+              onTap={() => handleBasketTap(basket.id)}
+              disabled={phase !== 'playing'}
+              isWrong={wrongBasketId === basket.id}
+              isCorrectChosen={phase === 'success' && basket.id === round.correctId}
+              isDimmed={phase === 'success' && basket.id !== round.correctId}
+              showObjectHint={showHint}
+            />
+          ) : (
+            <BasketCard
+              basket={basket}
+              category={round.category}
+              onTap={() => handleBasketTap(basket.id)}
+              disabled={phase !== 'playing'}
+              isWrong={wrongBasketId === basket.id}
+              isCorrectChosen={phase === 'success' && basket.id === round.correctId}
+              isDimmed={phase === 'success' && basket.id !== round.correctId}
+              showHintGlow={showHint && phase === 'playing' && basket.id === round.correctId}
+            />
+          )}
+        </div>
+      );
+    })}
+  </div>
+</div>
 
             {phase === 'playing' && (
               <button
@@ -454,7 +469,7 @@ function ReferenceBasket({ category, target }) {
       <span className="font-body rounded-full bg-white/90 px-3 py-0.5 text-xs font-extrabold text-slate-600 shadow sm:text-sm">
         🧸 Teddy's basket
       </span>
-      <div className="relative flex min-h-[4.5rem] w-40 flex-wrap content-start items-start justify-center gap-1 rounded-b-[1.75rem] rounded-t-lg border-4 border-cyan-800/70 bg-gradient-to-b from-cyan-200 to-cyan-400 p-2.5 shadow-inner sm:w-48">
+      <div className="relative flex min-h-[4rem] w-full max-w-[10rem] flex-wrap content-start items-start justify-center gap-1 rounded-b-[1.75rem] rounded-t-lg border-4 border-cyan-800/70 bg-gradient-to-b from-cyan-200 to-cyan-400 p-2.5 shadow-inner sm:max-w-[12rem]">
         <span className="absolute -top-2.5 left-1/2 h-3 w-8 -translate-x-1/2 rounded-t-full border-4 border-b-0 border-cyan-800/70" />
         {items.map((it, i) => (
           <span
@@ -505,7 +520,7 @@ function BasketCard({ basket, category, onTap, disabled, isWrong, isCorrectChose
       type="button"
       onClick={onTap}
       disabled={disabled}
-      className={`group relative flex min-h-[10rem] w-40 flex-wrap content-start items-start justify-center gap-1.5 rounded-b-[2.25rem] rounded-t-xl border-4 border-lime-700/70 bg-gradient-to-b from-violet-200 to-lime-200 p-3 shadow-[0_8px_0_rgba(0,0,0,0.18)] transition-all duration-200 ease-out sm:min-h-[11rem] sm:w-48 sm:p-4 ${
+      className={`group relative flex max-h-48 min-h-[8.5rem] w-full max-w-[14rem] flex-wrap content-start items-start justify-center gap-1.5 rounded-b-[2.25rem] rounded-t-xl border-4 border-lime-700/70 bg-gradient-to-b from-violet-200 to-lime-200 p-3 shadow-[0_8px_0_rgba(0,0,0,0.18)] transition-all duration-200 ease-out sm:min-h-[10.5rem] sm:max-w-[15rem] sm:p-4 ${
         disabled ? 'cursor-default' : 'cursor-pointer hover:-translate-y-1 active:translate-y-1 active:shadow-[0_3px_0_rgba(0,0,0,0.18)]'
       } ${stateAnim} ${isDimmed ? 'opacity-40 grayscale-[30%]' : ''}`}
     >
@@ -536,7 +551,7 @@ function NumeralCard({ value, category, onTap, disabled, isWrong, isCorrectChose
       type="button"
       onClick={onTap}
       disabled={disabled}
-      className={`group relative flex min-h-[10rem] w-40 flex-col items-center justify-center gap-2 rounded-b-[2.25rem] rounded-t-xl border-4 border-lime-700/70 bg-gradient-to-b from-violet-200 to-lime-200 p-3 shadow-[0_8px_0_rgba(0,0,0,0.18)] transition-all duration-200 ease-out sm:min-h-[11rem] sm:w-48 sm:p-4 ${
+      className={`group relative flex max-h-48 min-h-[8.5rem] w-full max-w-[14rem] flex-col items-center justify-center gap-2 rounded-b-[2.25rem] rounded-t-xl border-4 border-lime-700/70 bg-gradient-to-b from-violet-200 to-lime-200 p-3 shadow-[0_8px_0_rgba(0,0,0,0.18)] transition-all duration-200 ease-out sm:min-h-[10.5rem] sm:max-w-[15rem] sm:p-4 ${
         disabled ? 'cursor-default' : 'cursor-pointer hover:-translate-y-1 active:translate-y-1 active:shadow-[0_3px_0_rgba(0,0,0,0.18)]'
       } ${stateAnim} ${isDimmed ? 'opacity-40 grayscale-[30%]' : ''}`}
     >
@@ -641,7 +656,7 @@ function SuccessOverlay({ message, isLastRound, streak, onNext }) {
 
 function CompletionScreen({ stars, total, onPlayAgain }) {
   return (
-    <div className="relative mt-10 flex flex-col items-center rounded-[2.5rem] bg-white/90 px-8 py-10 text-center shadow-2xl sm:px-14">
+    <div className="relative mt-10 flex flex-col items-center rounded-[2.5rem] bg-white/90 px-6 py-8 text-center shadow-2xl sm:px-14 sm:py-10">
       <Confetti pieces={40} />
       <div className="animate-bob text-7xl">🧺🏆</div>
       <h2 className="font-heading mt-3 text-3xl font-bold text-slate-800 sm:text-4xl">Picnic packed perfectly!</h2>
