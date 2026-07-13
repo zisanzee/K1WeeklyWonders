@@ -288,9 +288,9 @@ function Game1Inner() {
           <CompletionScreen stars={stars} total={TOTAL_ROUNDS} playerName={playerName} onPlayAgain={playAgain} />
         ) : (
           <>
-            <h1 className="font-heading mt-2 text-xl font-bold text-white/95 drop-shadow sm:text-2xl">
+            <p className="font-heading mt-2 text-xl md:text-3xl font-bold text-white/95 drop-shadow sm:text-2xl">
               🧺 Harvest Challenge!
-            </h1>
+            </p>
             <p className="font-body text-sm font-bold text-white/80 sm:text-base">
               Round {roundIndex + 1} of {TOTAL_ROUNDS}
             </p>
@@ -454,14 +454,14 @@ function FarmerPrompt({ target, item, streak, isWrong }) {
       <motion.div
         initial={{ scale: 0.85, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
-        className="relative max-w-xs rounded-3xl bg-white px-5 py-3 text-center shadow-[0_6px_0_rgba(0,0,0,0.1)] sm:max-w-sm"
+        className="relative max-w-xs rounded-3xl bg-white px-3 py-1 text-center shadow-[0_6px_0_rgba(0,0,0,0.1)] sm:max-w-sm"
       >
         <span className="absolute -top-2 left-1/2 h-4 w-4 -translate-x-1/2 rotate-45 bg-white" />
         {isWrong ? (
-          <p className="font-body text-sm font-bold text-orange-600 sm:text-base">Let's fix the count! 🧺</p>
+          <p className="font-body text-sm font-bold text-orange-600 sm:text-base">Let's fix the count! </p>
         ) : (
           <p className="font-body text-sm font-bold text-slate-700 sm:text-base">
-            Farmer Finn needs {target} {item.name}! {item.emoji}
+            Farmer Finn needs {target} {item.name}!
           </p>
         )}
       </motion.div>
@@ -475,12 +475,12 @@ function TargetCard({ target, item, format }) {
   const isWord = format === 'word';
   const label = isWord ? NUMBER_WORDS[target] : String(target);
   return (
-    <div className="animate-pop-in mt-4 flex flex-col items-center gap-3 rounded-[2rem] bg-white/80 px-6 py-4 shadow-[0_8px_0_rgba(0,0,0,0.1)] sm:flex-row sm:gap-5 sm:px-8">
+    <div className="animate-pop-in mt-4 flex flex-col items-center gap-3 rounded-[2rem] bg-white/80 p-2 md:px-6 md:py-4 shadow-[0_8px_0_rgba(0,0,0,0.1)] sm:flex-row sm:gap-5 sm:px-8">
       <div className="flex items-center gap-3">
         <div className="flex flex-col items-center gap-1">
           <span
             className={`font-heading whitespace-nowrap font-bold leading-none text-pink-500 ${
-              isWord ? 'text-[clamp(1.75rem,5vw,3rem)]' : 'text-5xl sm:text-6xl'
+              isWord ? 'md:text-[clamp(1.75rem,5vw,3rem)] text-lg' : 'md:text-5xl  text-4xl'
             }`}
           >
             {label}
@@ -500,7 +500,7 @@ function TargetCard({ target, item, format }) {
           ))}
         </div>
       </div>
-      <p className="font-body text-center text-base font-bold text-slate-700 sm:text-left sm:text-lg">
+      <p className="font-body text-center text-base font-bold text-slate-700 sm:text-left md:text-lg text-sm px-2 ">
         Fill the basket with {label} {item.name}! {item.emoji}
       </p>
     </div>
