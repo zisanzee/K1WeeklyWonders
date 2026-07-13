@@ -53,7 +53,7 @@ function HomeContent() {
   const greeting = useMemo(() => timeGreeting(), []);
 
   return (
-    <div className="relative flex min-h-[100dvh] w-full flex-col overflow-hidden bg-gradient-to-b from-[#48BFEE] via-[#8FE0FA] to-[#FFE9A8]">
+    <div className="relative flex min-h-[100dvh] w-full flex-col overflow-hidden bg-gradient-to-b from-[#3FB6EA] via-[#8FE0FA] to-[#FFE9A8]">
       {/* Google Fonts */}
       <link
         rel="stylesheet"
@@ -93,6 +93,10 @@ function HomeContent() {
           0%, 100% { transform: rotate(-6deg); }
           50% { transform: rotate(6deg); }
         }
+        @keyframes number-drift {
+          0%, 100% { transform: translate(0, 0) rotate(-6deg); }
+          50% { transform: translate(8px, -12px) rotate(6deg); }
+        }
         .font-heading { font-family: 'Fredoka', sans-serif; }
         .font-body { font-family: 'Nunito', sans-serif; }
         .animate-float-slow { animation: float-slow 6s ease-in-out infinite; }
@@ -108,6 +112,7 @@ function HomeContent() {
           50% { transform: translate(14px, -10px) rotate(4deg); }
         }
         .animate-kite-drift { animation: kite-drift 5s ease-in-out infinite; }
+        .animate-number-drift { animation: number-drift 5.5s ease-in-out infinite; }
       `}</style>
 
       {/* Stats button — teachers only */}
@@ -136,7 +141,7 @@ function HomeContent() {
         <div className="absolute inset-[18%] rounded-full bg-gradient-to-br from-yellow-200 to-orange-300 shadow-[0_0_40px_rgba(255,217,61,0.6)]" />
       </div>
 
-      {/* Floating clouds & sparkles */}
+      {/* Floating clouds, numbers & sparkles */}
       <div className="pointer-events-none absolute inset-0">
         <div className="absolute left-[6%] top-[12%] animate-float-slow text-5xl opacity-90 sm:text-6xl">☁️</div>
         <div className="absolute right-[14%] top-[20%] animate-float-slower text-4xl opacity-80 sm:text-5xl">☁️</div>
@@ -145,11 +150,26 @@ function HomeContent() {
         <div className="absolute left-[42%] top-[6%] animate-float-slower text-3xl opacity-60 blur-[0.5px]">☁️</div>
         <div className="absolute right-[20%] top-[8%] animate-kite-drift text-4xl opacity-90 sm:text-5xl">🪁</div>
 
-        <div className="absolute left-[5%] top-[42%] animate-sparkle text-2xl sm:text-3xl">⭐</div>
-        <div className="absolute right-[8%] top-[46%] animate-sparkle text-xl sm:text-2xl" style={{ animationDelay: "0.6s" }}>✨</div>
-        <div className="absolute left-[47%] top-[10%] animate-sparkle text-xl sm:text-2xl" style={{ animationDelay: "1s" }}>✨</div>
-        <div className="absolute bottom-[30%] right-[36%] animate-sparkle text-2xl sm:text-3xl" style={{ animationDelay: "0.3s" }}>⭐</div>
-        <div className="absolute bottom-[36%] left-[10%] animate-sparkle text-lg sm:text-xl" style={{ animationDelay: "0.9s" }}>✨</div>
+        {/* Playful number bubbles — a nod to the counting theme */}
+        <div className="absolute left-[8%] top-[30%] flex h-10 w-10 animate-number-drift items-center justify-center rounded-full bg-white/90 font-heading text-lg font-extrabold text-teal-600 shadow-md sm:h-12 sm:w-12 sm:text-xl">
+          2
+        </div>
+        <div
+          className="absolute right-[10%] top-[36%] flex h-9 w-9 animate-number-drift items-center justify-center rounded-full bg-white/90 font-heading text-base font-extrabold text-violet-600 shadow-md sm:h-11 sm:w-11 sm:text-lg"
+          style={{ animationDelay: "1.2s" }}
+        >
+          5
+        </div>
+        <div
+          className="absolute bottom-[32%] left-[46%] flex h-8 w-8 animate-number-drift items-center justify-center rounded-full bg-white/90 font-heading text-sm font-extrabold text-orange-500 shadow-md sm:h-10 sm:w-10 sm:text-base"
+          style={{ animationDelay: "0.6s" }}
+        >
+          9
+        </div>
+
+        <div className="absolute left-[5%] top-[46%] animate-sparkle text-2xl sm:text-3xl">⭐</div>
+        <div className="absolute right-[6%] top-[50%] animate-sparkle text-xl sm:text-2xl" style={{ animationDelay: "0.6s" }}>✨</div>
+        <div className="absolute bottom-[36%] right-[38%] animate-sparkle text-2xl sm:text-3xl" style={{ animationDelay: "0.3s" }}>⭐</div>
       </div>
 
       {/* Ground / hills */}
@@ -166,12 +186,12 @@ function HomeContent() {
       <div className="relative z-10 flex flex-1 flex-col items-center justify-center px-4 py-10 sm:px-8">
         {/* Title */}
         <div className="animate-pop-in text-center">
-          <h1 className="font-heading text-[clamp(2.4rem,7vw,6rem)] font-bold leading-tight text-white drop-shadow-[0_4px_0_rgba(0,0,0,0.15)]">
+          <h1 className="font-heading text-[clamp(2.4rem,7vw,6rem)] font-bold leading-tight drop-shadow-[0_4px_0_rgba(0,0,0,0.15)]">
             <span className="inline-block animate-wiggle text-yellow-300">K1</span>{" "}
-            <span className="text-white">Weekly</span>{" "}
+            <span className="text-[#FFF6DA]">Weekly</span>{" "}
             <span className="text-pink-400">Wonders</span> 🌟
           </h1>
-          <p style={{ fontFamily: "'Fredoka', sans-serif" }} className="font-body mt-3 text-[clamp(1rem,2.4vw,1.6rem)] font-medium text-white/90">
+          <p className="font-body mt-3 text-[clamp(1rem,2.4vw,1.6rem)] font-medium text-white/90">
             {greeting}, {playerName}! Pick a game and let's play! 🎈
           </p>
           <button
@@ -193,8 +213,8 @@ function HomeContent() {
               emoji="🧺"
               title="Count & Win!"
               subtitle="Game 1"
-              color="from-green-400 to-teal-400"
-              ring="ring-green-200"
+              color="from-teal-400 to-emerald-500"
+              ring="ring-teal-200"
               delay={0.1}
               open={isGameUnlocked(1, isTeacher)}
               progress={progressByGame.game1}
@@ -204,9 +224,9 @@ function HomeContent() {
               emoji="🧸"
               title="Compare Quantity!"
               subtitle="Game 2"
-              color="from-cyan-300 to-blue-400"
-              ring="ring-cyan-200"
-              delay={0.22}
+              color="from-sky-400 to-blue-500"
+              ring="ring-sky-200"
+              delay={0.2}
               open={isGameUnlocked(2, isTeacher)}
               progress={progressByGame.game2}
             />
@@ -215,11 +235,22 @@ function HomeContent() {
               emoji="🐙"
               title="Around the Number!"
               subtitle="Game 3"
-              color="from-purple-400 to-indigo-400 "
-              ring="ring-purple-200"
-              delay={0.34}
+              color="from-violet-400 to-fuchsia-500"
+              ring="ring-violet-200"
+              delay={0.3}
               open={isGameUnlocked(3, isTeacher)}
               progress={progressByGame.game3}
+            />
+            <GameCard
+              to="/Game4"
+              emoji="🚀"
+              title="Splits and Groups!"
+              subtitle="Game 4"
+              color="from-amber-400 to-orange-500"
+              ring="ring-amber-200"
+              delay={0.4}
+              open={isGameUnlocked(4, isTeacher)}
+              progress={progressByGame.game4}
             />
           </div>
         </div>
@@ -231,19 +262,18 @@ function HomeContent() {
           <span className="h-0.5 w-10 border-t-2 border-dashed border-white/50" />
         </div>
       </div>
-    <div className="fixed bottom-5 right-5 md:right-5 z-50">
-  <div className="flex items-center gap-2 rounded-xl border border-white/15 bg-black/25 px-4 py-2 shadow-lg backdrop-blur-md">
-    <div className="h-4 min-w-4 animate-pulse rounded-full bg-red-500/75" />
 
-    <div className="leading-tight w-[15rem] md:w-[24rem]">
-      
+      <div className="fixed bottom-5 right-5 md:right-5 z-50">
+        <div className="flex items-center gap-2 rounded-xl border border-white/15 bg-black/25 px-4 py-2 shadow-lg backdrop-blur-md">
+          <div className="h-4 min-w-4 animate-pulse rounded-full bg-red-500/75" />
 
-      <p style={{ fontFamily: "'Fredoka', sans-serif" }} className="text-left  text-xs md:text-md font-medium text-white/80">
-        Game results are saved automatically and submitted to teachers.
-      </p>
-    </div>
-  </div>
-</div>
+          <div className="leading-tight w-[15rem] md:w-[24rem]">
+            <p className="font-body text-left text-xs md:text-md font-medium text-white/80">
+              Game results are saved automatically and submitted to teachers.
+            </p>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -260,7 +290,7 @@ function GameCard({ to, emoji, title, subtitle, color, ring, delay, open, progre
       style={{ animationDelay: `${delay}s` }}
       whileHover={open ? { y: -8, rotate: -1 } : {}}
       whileTap={open ? { y: 2, scale: 0.98 } : {}}
-      className={`group animate-pop-in relative flex w-[78vw] max-w-[260px] flex-col items-center overflow-hidden rounded-[2rem] bg-gradient-to-b p-6 shadow-[0_10px_0_rgba(0,0,0,0.15)] ring-8 sm:w-56 sm:p-7 md:w-64 lg:w-72 lg:p-8 xl:w-80 ${
+      className={`group animate-pop-in relative flex w-[78vw] max-w-[260px] flex-col items-center overflow-hidden rounded-[2rem] bg-gradient-to-b p-6 shadow-[0_10px_0_rgba(0,0,0,0.15)] ring-8 transition-shadow focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-white/80 sm:w-56 sm:p-7 md:w-64 lg:w-72 lg:p-8 xl:w-80 ${
         open ? `${color} ${ring}` : "from-slate-400 to-slate-500 ring-white/40 cursor-not-allowed"
       }`}
     >
@@ -285,15 +315,13 @@ function GameCard({ to, emoji, title, subtitle, color, ring, delay, open, progre
         {emoji}
       </div>
 
-      <p className={`font-heading text-xl font-bold sm:text-xl ${open ? "text-slate-900" : "text-white/50"}`}>
+      <p className={`font-heading text-xl font-bold sm:text-xl ${open ? "text-slate-900" : "text-white/55"}`}>
         {title}
       </p>
 
       <p className={`font-body mt-1 text-center text-sm font-semibold sm:text-base ${open ? "text-white/90" : "text-white/40"}`}>
         {subtitle}
       </p>
-
-      
 
       {open && (
         <span className="font-body mt-4 rounded-full bg-white/90 px-5 py-1.5 text-sm font-extrabold text-slate-700 shadow group-hover:bg-white">

@@ -243,7 +243,7 @@ function Game1Inner() {
   const basketItems = round.items.filter((it) => it.location === 'basket');
 
   return (
-    <div className="relative min-h-[100dvh] w-full overflow-hidden bg-gradient-to-b from-sky-400 via-sky-300 to-lime-100">
+    <div className="relative h-[100dvh] w-full overflow-hidden bg-gradient-to-b from-sky-400 via-sky-300 to-lime-100">
       <link
         rel="stylesheet"
         href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;700&family=Nunito:wght@600;800&display=swap"
@@ -275,23 +275,27 @@ function Game1Inner() {
       `}</style>
 
       <div className="pointer-events-none absolute inset-0">
-        <div className="absolute left-[6%] top-[6%] text-5xl animate-float-slow">☁️</div>
-        <div className="absolute right-[8%] top-[10%] text-4xl animate-float-slower">☁️</div>
+        <div className="absolute left-[6%] top-[6%] text-4xl sm:text-5xl animate-float-slow">☁️</div>
+        <div className="absolute right-[8%] top-[10%] text-3xl sm:text-4xl animate-float-slower">☁️</div>
         <div className="absolute right-[10%] top-[40%] text-2xl animate-sparkle">✨</div>
         <div className="absolute left-[8%] top-[35%] text-2xl animate-sparkle" style={{ animationDelay: '0.5s' }}>⭐</div>
       </div>
 
-      <div className="relative z-10 mx-auto flex min-h-[100dvh] max-w-5xl flex-col items-center px-4 py-5 sm:py-8">
-        <TopBar totalRounds={TOTAL_ROUNDS} stars={stars} muted={muted} onToggleMute={() => setMuted((m) => !m)} />
+      <div className="relative z-10 mx-auto flex h-full w-full max-w-5xl flex-col items-center overflow-hidden px-3 py-2 sm:px-4 sm:py-3">
+        <div className="flex w-full flex-none items-center justify-between">
+          <TopBar totalRounds={TOTAL_ROUNDS} stars={stars} muted={muted} onToggleMute={() => setMuted((m) => !m)} />
+        </div>
 
         {phase === 'complete' ? (
-          <CompletionScreen stars={stars} total={TOTAL_ROUNDS} playerName={playerName} onPlayAgain={playAgain} />
+          <div className="flex w-full flex-1 min-h-0 items-center justify-center overflow-y-auto">
+            <CompletionScreen stars={stars} total={TOTAL_ROUNDS} playerName={playerName} onPlayAgain={playAgain} />
+          </div>
         ) : (
-          <>
-            <p className="font-heading mt-2 text-xl md:text-3xl font-bold text-white/95 drop-shadow sm:text-2xl">
+          <div className="flex w-full flex-1 min-h-0 flex-col items-center overflow-y-auto">
+            <p className="font-heading mt-1 text-lg font-bold text-white/95 drop-shadow sm:text-xl md:text-2xl">
               🧺 Harvest Challenge!
             </p>
-            <p className="font-body text-sm font-bold text-white/80 sm:text-base">
+            <p className="font-body text-xs font-bold text-white/80 sm:text-sm">
               Round {roundIndex + 1} of {TOTAL_ROUNDS}
             </p>
             <RoundDots total={TOTAL_ROUNDS} current={roundIndex} />
@@ -301,7 +305,7 @@ function Game1Inner() {
             <TargetCard target={round.target} item={round.item} format={round.format} />
 
             <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-              <div className="relative mt-4 flex w-full flex-1 flex-col gap-5 md:flex-row md:items-start md:justify-center md:gap-6">
+              <div className="relative mt-2 flex w-full flex-1 min-h-0 flex-col gap-3 md:flex-row md:items-stretch md:gap-4">
                 <PoolZone items={poolItems} item={round.item} disabled={phase !== 'playing'} pulse={poolPulse} />
                 <BasketZone
                   items={basketItems}
@@ -315,14 +319,14 @@ function Game1Inner() {
 
               <DragOverlay>
                 {activeId ? (
-                  <div className="pointer-events-none flex h-16 w-16 scale-125 items-center justify-center rounded-2xl bg-white/50 text-4xl shadow-2xl sm:h-20 sm:w-20 sm:text-5xl">
+                  <div className="pointer-events-none flex h-14 w-14 scale-125 items-center justify-center rounded-2xl bg-white/50 text-3xl shadow-2xl sm:h-20 sm:w-20 sm:text-5xl">
                     {round.item.emoji}
                   </div>
                 ) : null}
               </DragOverlay>
             </DndContext>
 
-            <div className="mt-4 flex flex-col items-center gap-2">
+            <div className="mt-2 flex flex-none flex-col items-center gap-1.5 pb-1">
               {feedback && (
                 <p
                   className={`font-body animate-pop-in rounded-full px-4 py-1.5 text-sm font-bold shadow sm:text-base ${
@@ -335,7 +339,7 @@ function Game1Inner() {
               {phase === 'playing' && (
                 <button
                   onClick={handleCheck}
-                  className="font-heading rounded-full bg-gradient-to-b from-pink-400 to-pink-500 px-8 py-3 text-lg font-bold text-white shadow-[0_6px_0_rgba(0,0,0,0.2)] transition-transform hover:-translate-y-0.5 active:translate-y-1 active:shadow-none"
+                  className="font-heading rounded-full bg-gradient-to-b from-pink-400 to-pink-500 px-7 py-2.5 text-base font-bold text-white shadow-[0_6px_0_rgba(0,0,0,0.2)] transition-transform hover:-translate-y-0.5 active:translate-y-1 active:shadow-none sm:px-8 sm:py-3 sm:text-lg"
                 >
                   Check my basket! ✅
                 </button>
@@ -352,7 +356,7 @@ function Game1Inner() {
                 onNext={nextRound}
               />
             )}
-          </>
+          </div>
         )}
       </div>
     </div>
@@ -374,17 +378,17 @@ function TopBar({ totalRounds, stars, muted, onToggleMute }) {
     <div className="flex w-full items-center justify-between">
       <Link
         to="/"
-        className="font-body flex items-center gap-1 rounded-full bg-white/90 px-4 py-2 text-sm font-extrabold text-slate-700 shadow-[0_4px_0_rgba(0,0,0,0.15)] transition-transform hover:-translate-y-0.5 active:translate-y-1 active:shadow-none sm:text-base"
+        className="font-body flex items-center gap-1 rounded-full bg-white/90 px-3 py-1.5 text-xs font-extrabold text-slate-700 shadow-[0_4px_0_rgba(0,0,0,0.15)] transition-transform hover:-translate-y-0.5 active:translate-y-1 active:shadow-none sm:px-4 sm:py-2 sm:text-sm md:text-base"
       >
         ⬅️ Home
       </Link>
 
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2 sm:gap-3">
         <StarMeter stars={stars} total={totalRounds} />
         <button
           onClick={onToggleMute}
           aria-label={muted ? 'Unmute sound' : 'Mute sound'}
-          className="flex h-9 w-9 items-center justify-center rounded-full bg-white/90 text-lg shadow-[0_4px_0_rgba(0,0,0,0.15)] active:translate-y-0.5 active:shadow-none"
+          className="flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-base shadow-[0_4px_0_rgba(0,0,0,0.15)] active:translate-y-0.5 active:shadow-none sm:h-9 sm:w-9 sm:text-lg"
         >
           {muted ? '🔇' : '🔊'}
         </button>
@@ -397,8 +401,8 @@ function StarMeter({ stars, total, dark }) {
   const pct = total > 0 ? Math.round((stars / total) * 100) : 0;
   return (
     <div className="flex items-center gap-2" aria-label={`${stars} out of ${total} stars earned`}>
-      <span className="text-xl sm:text-2xl">⭐</span>
-      <div className={`h-2.5 w-16 overflow-hidden rounded-full sm:w-24 ${dark ? 'bg-slate-200' : 'bg-white/40'}`}>
+      <span className="text-lg sm:text-2xl">⭐</span>
+      <div className={`h-2 w-14 overflow-hidden rounded-full sm:h-2.5 sm:w-24 ${dark ? 'bg-slate-200' : 'bg-white/40'}`}>
         <div
           className="relative h-full overflow-hidden rounded-full bg-gradient-to-r from-yellow-300 to-orange-400 transition-all duration-500"
           style={{ width: `${pct}%` }}
@@ -417,7 +421,7 @@ function StarMeter({ stars, total, dark }) {
 
 function RoundDots({ total, current }) {
   return (
-    <div className="mt-1.5 flex flex-wrap justify-center gap-1">
+    <div className="mt-1 flex flex-wrap justify-center gap-1">
       {Array.from({ length: total }).map((_, i) => (
         <span
           key={i}
@@ -432,10 +436,10 @@ function RoundDots({ total, current }) {
 
 function FarmerPrompt({ target, item, streak, isWrong }) {
   return (
-    <div className="mt-4 flex flex-col items-center gap-2">
+    <div className="mt-2 flex flex-col items-center gap-1.5">
       <div className="relative">
         <motion.span
-          className="inline-block text-6xl sm:text-7xl"
+          className="inline-block text-5xl sm:text-6xl"
           animate={isWrong ? { x: [0, -6, 6, -6, 6, 0] } : { rotate: [-4, 4, -4], y: [0, -6, 0] }}
           transition={isWrong ? { duration: 0.4 } : { duration: 3, repeat: Infinity, ease: 'easeInOut' }}
         >
@@ -475,12 +479,12 @@ function TargetCard({ target, item, format }) {
   const isWord = format === 'word';
   const label = isWord ? NUMBER_WORDS[target] : String(target);
   return (
-    <div className="animate-pop-in mt-4 flex flex-col items-center gap-3 rounded-[2rem] bg-white/80 p-2 md:px-6 md:py-4 shadow-[0_8px_0_rgba(0,0,0,0.1)] sm:flex-row sm:gap-5 sm:px-8">
+    <div className="animate-pop-in mt-2 flex flex-col items-center gap-2 rounded-[1.5rem] bg-white/80 p-2 shadow-[0_6px_0_rgba(0,0,0,0.1)] sm:flex-row sm:gap-3 sm:px-5 md:px-4 md:py-2">
       <div className="flex items-center gap-3">
         <div className="flex flex-col items-center gap-1">
           <span
             className={`font-heading whitespace-nowrap font-bold leading-none text-pink-500 ${
-              isWord ? 'md:text-[clamp(1.75rem,5vw,3rem)] text-lg' : 'md:text-5xl  text-4xl'
+              isWord ? 'md:text-[clamp(1.5rem,4vw,2.5rem)] text-base' : 'md:text-4xl text-3xl'
             }`}
           >
             {label}
@@ -493,14 +497,14 @@ function TargetCard({ target, item, format }) {
               {row.map((filled, ci) => (
                 <span
                   key={ci}
-                  className={`h-3 w-3 rounded-full sm:h-3.5 sm:w-3.5 ${filled ? 'bg-pink-400' : 'border border-pink-200 bg-white'}`}
+                  className={`h-2.5 w-2.5 rounded-full sm:h-3 sm:w-3 ${filled ? 'bg-pink-400' : 'border border-pink-200 bg-white'}`}
                 />
               ))}
             </div>
           ))}
         </div>
       </div>
-      <p className="font-body text-center text-base font-bold text-slate-700 sm:text-left md:text-lg text-sm px-2 ">
+      <p className="font-body text-center text-sm font-bold text-slate-700 sm:text-left sm:text-base md:text-lg px-2">
         Fill the basket with {label} {item.name}! {item.emoji}
       </p>
     </div>
@@ -513,12 +517,12 @@ function PoolZone({ items, item, disabled, pulse }) {
     <div
       ref={setNodeRef}
       className={cn(
-        'relative flex min-h-[11rem] flex-1 flex-wrap content-start items-start justify-center gap-2 rounded-[2rem] border-4 border-dashed border-white/60 bg-white/25 p-4 shadow-inner backdrop-blur-sm transition-shadow sm:min-h-[13rem] sm:gap-3 sm:p-6',
+        'relative flex min-h-[6.5rem] flex-1 basis-0 flex-wrap content-start items-start justify-center gap-1.5 overflow-y-auto rounded-[1.75rem] border-4 border-dashed border-white/60 bg-white/25 p-3 shadow-inner backdrop-blur-sm transition-shadow sm:min-h-[8rem] sm:gap-2 sm:p-4',
         isOver && 'border-yellow-300 bg-white/40',
         pulse && 'animate-glow-pulse'
       )}
     >
-      <span className="font-body absolute -top-3 left-4 rounded-full bg-white/90 px-3 py-0.5 text-xs font-extrabold text-slate-600 shadow sm:text-sm">
+      <span className="font-body absolute top-1 left-4 rounded-full bg-white/90 px-3 py-0.5 text-xs font-extrabold text-slate-600 shadow sm:text-sm">
         🌳 Orchard
       </span>
       {items.length === 0 && (
@@ -557,18 +561,18 @@ function BasketZone({ items, item, count, disabled, pulse, shake }) {
       }}
       ref={setNodeRef}
       className={cn(
-        'relative flex min-h-[11rem] flex-1 flex-wrap content-start items-start justify-center gap-2 rounded-b-[3rem] rounded-t-2xl border-4 border-amber-700/70 bg-gradient-to-b from-amber-300 to-amber-500 p-4 shadow-inner transition-shadow sm:min-h-[13rem] sm:gap-3 sm:p-6',
+        'relative flex min-h-[6.5rem] flex-1 basis-0 flex-wrap content-start items-start justify-center gap-1.5 overflow-y-auto rounded-b-[2.5rem] rounded-t-2xl border-4 border-amber-700/70 bg-gradient-to-b from-amber-300 to-amber-500 p-3 shadow-inner transition-shadow sm:min-h-[8rem] sm:gap-2 sm:p-4',
         isOver && 'ring-4 ring-yellow-200',
         pulse && 'animate-wobble',
         shake && 'animate-shake',
         !pulse && !shake && !disabled && 'animate-basket-rock'
       )}
     >
-      <span className="font-body absolute -top-3 left-4 flex items-center gap-1 rounded-full bg-white/90 px-3 py-0.5 text-xs font-extrabold text-slate-600 shadow sm:text-sm">
+      <span className="font-body absolute top-1 left-4 flex items-center gap-1 rounded-full bg-white/90 px-3 py-0.5 text-xs font-extrabold text-slate-600 shadow sm:text-sm">
         🧺 Basket: {count}
       </span>
       {items.length === 0 && (
-        <span className="font-body mt-6 text-lg font-bold text-amber-900/60">Drag {item.name} here!</span>
+        <span className="font-body mt-6 text-base font-bold text-amber-900/60 sm:text-lg">Drag {item.name} here!</span>
       )}
       {items.map((it) => (
         <DraggableFruit key={it.id} id={it.id} emoji={item.emoji} rotation={it.rotation} disabled={disabled} />
@@ -589,7 +593,7 @@ function DraggableFruit({ id, emoji, rotation, disabled }) {
         rotate: `${rotation}deg`,
         touchAction: 'none',
       }}
-      className={`flex h-14 w-14 items-center justify-center rounded-2xl text-3xl transition-opacity duration-150 sm:h-16 sm:w-16 sm:text-4xl ${
+      className={`flex h-12 w-12 items-center justify-center rounded-2xl text-2xl transition-opacity duration-150 sm:h-14 sm:w-14 sm:text-3xl md:h-16 md:w-16 md:text-4xl ${
         disabled ? 'cursor-default' : 'cursor-grab active:cursor-grabbing'
       } ${isDragging ? 'opacity-0' : 'opacity-100'}`}
     >
@@ -616,18 +620,18 @@ function SuccessOverlay({ target, item, format, isLastRound, streak, onNext }) {
         initial={{ scale: 0.7, y: 20, opacity: 0 }}
         animate={{ scale: 1, y: 0, opacity: 1 }}
         transition={{ type: 'spring', stiffness: 300, damping: 22 }}
-        className="relative flex max-w-sm flex-col items-center rounded-[2.5rem] bg-white px-8 py-8 text-center shadow-2xl"
+        className="relative flex max-h-[90dvh] max-w-sm flex-col items-center overflow-y-auto rounded-[2.5rem] bg-white px-6 py-6 text-center shadow-2xl sm:px-8 sm:py-8"
       >
-        <div className="text-6xl text-center">{streak >= 3 ? '🌟' : '🎉'}</div>
-        <p className="font-heading mt-2 text-2xl font-bold text-amber-500 sm:text-3xl">
+        <div className="text-5xl text-center sm:text-6xl">{streak >= 3 ? '🌟' : '🎉'}</div>
+        <p className="font-heading mt-2 text-xl font-bold text-amber-500 sm:text-2xl md:text-3xl">
           {streak >= 3 ? 'On a streak!' : 'Perfect!'}
         </p>
-        <p className="font-body mt-2 text-base font-semibold text-slate-500 sm:text-lg">
+        <p className="font-body mt-1.5 text-sm font-semibold text-slate-500 sm:text-base md:text-lg">
           You counted {label} {item.name} {item.emoji}
         </p>
         <button
           onClick={onNext}
-          className="font-heading mt-6 rounded-full bg-gradient-to-b from-green-400 to-green-500 px-7 py-3 text-lg font-bold text-white shadow-[0_6px_0_rgba(0,0,0,0.2)] transition-transform hover:-translate-y-0.5 active:translate-y-1 active:shadow-none"
+          className="font-heading mt-4 rounded-full bg-gradient-to-b from-green-400 to-green-500 px-6 py-2.5 text-base font-bold text-white shadow-[0_6px_0_rgba(0,0,0,0.2)] transition-transform hover:-translate-y-0.5 active:translate-y-1 active:shadow-none sm:mt-6 sm:px-7 sm:py-3 sm:text-lg"
         >
           {isLastRound ? 'See my results! 🏆' : 'Next round ➡️'}
         </button>
@@ -639,7 +643,7 @@ function SuccessOverlay({ target, item, format, isLastRound, streak, onNext }) {
 function CompletionScreen({ stars, total, playerName, onPlayAgain }) {
   const { width, height } = useWindowSize();
   return (
-    <div className="relative mt-10 flex flex-col items-center rounded-[2.5rem] bg-white/90 px-8 py-10 text-center shadow-2xl sm:px-14">
+    <div className="relative flex max-h-full w-full flex-col items-center overflow-y-auto rounded-[2rem] bg-white/90 px-6 py-6 text-center shadow-2xl sm:px-10 sm:py-8">
       <Confetti
         width={width}
         height={height}
@@ -652,29 +656,29 @@ function CompletionScreen({ stars, total, playerName, onPlayAgain }) {
       <motion.div
         animate={{ y: [0, -10, 0] }}
         transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
-        className="text-7xl"
+        className="text-5xl sm:text-6xl md:text-7xl"
       >
         🏆
       </motion.div>
-      <h2 className="font-heading mt-3 text-3xl font-bold text-slate-800 sm:text-4xl">
+      <h2 className="font-heading mt-2 text-2xl font-bold text-slate-800 sm:text-3xl md:text-4xl">
         Amazing counting, {playerName}!
       </h2>
-      <p className="font-body mt-2 text-lg font-semibold text-slate-500">
+      <p className="font-body mt-1.5 text-base font-semibold text-slate-500 sm:text-lg">
         You earned {stars} out of {total} stars
       </p>
-      <div className="mt-3">
+      <div className="mt-2 sm:mt-3">
         <StarMeter stars={stars} total={total} dark />
       </div>
-      <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+      <div className="mt-4 flex flex-col gap-2.5 sm:mt-6 sm:flex-row sm:gap-3">
         <button
           onClick={onPlayAgain}
-          className="font-heading rounded-full bg-gradient-to-b from-pink-400 to-pink-500 px-6 py-3 text-lg font-bold text-white shadow-[0_6px_0_rgba(0,0,0,0.15)] transition-transform hover:-translate-y-0.5 active:translate-y-1 active:shadow-none"
+          className="font-heading rounded-full bg-gradient-to-b from-pink-400 to-pink-500 px-6 py-2.5 text-base font-bold text-white shadow-[0_6px_0_rgba(0,0,0,0.15)] transition-transform hover:-translate-y-0.5 active:translate-y-1 active:shadow-none sm:py-3 sm:text-lg"
         >
           🔁 Play again
         </button>
         <Link
           to="/"
-          className="font-heading rounded-full bg-gradient-to-b from-sky-400 to-sky-500 px-6 py-3 text-lg font-bold text-white shadow-[0_6px_0_rgba(0,0,0,0.15)] transition-transform hover:-translate-y-0.5 active:translate-y-1 active:shadow-none"
+          className="font-heading rounded-full bg-gradient-to-b from-sky-400 to-sky-500 px-6 py-2.5 text-base font-bold text-white shadow-[0_6px_0_rgba(0,0,0,0.15)] transition-transform hover:-translate-y-0.5 active:translate-y-1 active:shadow-none sm:py-3 sm:text-lg"
         >
           🏠 Back home
         </Link>

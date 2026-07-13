@@ -5,8 +5,9 @@ import { usePlayerStore } from './playerStore';
 
 const GAME_LABELS = {
   game1: '🧺 Count & Win',
-  game2: '🧸 Compare Quantity ',
-  game3: "🐙 Around the Number",
+  game2: '🧸 Compare Quantity',
+  game3: '🐙 Around the Number',
+  game4: '🚀 Splits and Groups',
 };
 
 // New games "just work" here: known slugs get their custom emoji/name above,
@@ -17,7 +18,8 @@ function gameLabel(key) {
   return num ? `🎮 Game ${num}` : key;
 }
 
-// For sorting the "Game" column naturally (game2 < game10), not alphabetically.
+// Pulls just the number out of a game key (game2 -> 2) for the filter pills
+// and for sorting the "Game" column naturally (game2 < game10).
 function gameSortValue(key) {
   const match = key.match(/\d+/);
   return match ? Number(match[0]) : key;
@@ -175,10 +177,7 @@ export default function StatsPanel({ onClose }) {
   const columnCount = filter === 'all' ? 5 : 4;
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-      onClick={onClose}
-    >
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-3 sm:p-4" onClick={onClose}>
       <style>{`
         @keyframes wake-progress {
           0% { transform: translateX(-100%); }
@@ -191,27 +190,27 @@ export default function StatsPanel({ onClose }) {
         initial={{ scale: 0.9, opacity: 0, y: 20 }}
         animate={{ scale: 1, opacity: 1, y: 0 }}
         transition={{ type: 'spring', stiffness: 260, damping: 24 }}
-        className="relative flex h-[75vh] w-full max-w-4xl flex-col overflow-hidden rounded-[2rem] bg-white shadow-2xl"
+        className="relative flex max-h-[90dvh] w-full max-w-4xl flex-col overflow-hidden rounded-[2rem] bg-white shadow-2xl sm:max-h-[85vh]"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3 md:px-6 md:py-4">
-          <p style={{ fontFamily: "'Fredoka', sans-serif" }} className="text-lg md:text-xl font-bold text-slate-700 sm:text-2xl">
+        <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3 sm:px-6 sm:py-4">
+          <h2 style={{ fontFamily: "'Fredoka', sans-serif" }} className="text-lg font-bold text-slate-800 sm:text-2xl">
             📊 Who's been playing?
-          </p>
+          </h2>
           <div className="flex items-center gap-2">
             <button
               onClick={load}
               disabled={status === 'loading'}
               aria-label="Refresh stats"
               title="Refresh"
-              className="flex h-8 w-8 md:h-11 md:w-11 items-center justify-center rounded-full bg-slate-100 text-lg text-slate-500 transition-colors active:scale-90 active:bg-slate-200 disabled:opacity-50 sm:h-9 sm:w-9 sm:hover:bg-slate-200"
+              className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-lg text-slate-500 transition-colors active:scale-90 active:bg-slate-200 disabled:opacity-50 sm:h-11 sm:w-11 sm:hover:bg-slate-200"
             >
               <span className={status === 'loading' ? 'inline-block animate-spin' : ''}>🔄</span>
             </button>
             <button
               onClick={onClose}
               aria-label="Close"
-              className="flex h-8 w-8 md:h-11 md:w-11 items-center justify-center rounded-full bg-slate-100 text-lg font-bold text-slate-500 transition-colors active:scale-90 active:bg-slate-200 sm:h-9 sm:w-9 sm:hover:bg-slate-200"
+              className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-lg font-bold text-slate-500 transition-colors active:scale-90 active:bg-slate-200 sm:h-11 sm:w-11 sm:hover:bg-slate-200"
             >
               ✕
             </button>
@@ -219,9 +218,12 @@ export default function StatsPanel({ onClose }) {
         </div>
 
         {status === 'ready' && stats && (
-          <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-6 py-2.5" style={{ fontFamily: "'Fredoka', sans-serif" }}>
+          <div
+            className="flex items-center justify-between gap-3 border-b border-slate-100 px-4 py-2.5 sm:px-6"
+            style={{ fontFamily: "'Nunito', sans-serif" }}
+          >
             <p className="text-sm font-semibold text-slate-500">
-              Welcome back, <span className="text-slate-700">{teacherName}</span>! 👋
+              Welcome back, <span className="font-bold text-slate-700">{teacherName}</span>! 👋
             </p>
             <button
               onClick={handleSwitchTeacher}
@@ -233,25 +235,33 @@ export default function StatsPanel({ onClose }) {
         )}
 
         {status === 'ready' && stats && (
-          <div className="flex flex-wrap items-center justify-center gap-1.5 border-b border-slate-100 px-3 py-2 md:gap-2 md:px-6 md:py-3">
-  <FilterPill active={filter === 'all'} onClick={() => setFilter('all')}>
-    🎯 All games
-  </FilterPill>
-
-  {stats.perGame.map((g) => (
-    <FilterPill
-      key={g._id}
-      active={filter === g._id}
-      onClick={() => setFilter(g._id)}
-    >
-      {gameLabel(g._id)}
-    </FilterPill>
-  ))}
-</div>
+          <div className="border-b border-slate-100 px-4 py-2.5 sm:px-6 sm:py-3">
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              <FilterPill active={filter === 'all'} onClick={() => setFilter('all')} label="All games">
+                🎯
+              </FilterPill>
+              {stats.perGame.map((g) => (
+                <FilterPill
+                  key={g._id}
+                  active={filter === g._id}
+                  onClick={() => setFilter(g._id)}
+                  label={gameLabel(g._id)}
+                >
+                  {gameSortValue(g._id)}
+                </FilterPill>
+              ))}
+            </div>
+            <p
+              className="mt-2 text-center text-xs font-bold text-slate-500 sm:text-sm"
+              style={{ fontFamily: "'Nunito', sans-serif" }}
+            >
+              {filter === 'all' ? 'Showing all games' : gameLabel(filter)}
+            </p>
+          </div>
         )}
 
         {status === 'ready' && stats && (
-          <div className="border-b border-slate-100 px-6 py-3">
+          <div className="border-b border-slate-100 px-4 py-2.5 sm:px-6 sm:py-3">
             <div className="relative mx-auto max-w-xs">
               <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-300">🔍</span>
               <input
@@ -259,6 +269,7 @@ export default function StatsPanel({ onClose }) {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search a player…"
+                style={{ fontFamily: "'Nunito', sans-serif" }}
                 className="w-full rounded-full border border-slate-200 bg-slate-50 py-2.5 pl-9 pr-9 text-sm font-semibold text-slate-700 outline-none transition-colors focus:border-pink-300 focus:bg-white"
               />
               {search && (
@@ -274,16 +285,16 @@ export default function StatsPanel({ onClose }) {
           </div>
         )}
 
-        <div className="flex-1 overflow-y-auto px-6 py-5" style={{ fontFamily: "'Fredoka', sans-serif" }}>
+        <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5" style={{ fontFamily: "'Nunito', sans-serif" }}>
           {status === 'loading' && !slow && (
-            <div className="flex flex-col items-center justify-center gap-2 py-16 text-slate-400">
+            <div className="flex flex-col items-center justify-center gap-2 py-10 text-slate-400 sm:py-16">
               <span className="animate-bounce text-4xl">⏳</span>
               <p className="font-bold">Loading stats…</p>
             </div>
           )}
 
           {status === 'loading' && slow && (
-            <div className="flex flex-col items-center justify-center gap-3 py-16 text-center text-slate-400">
+            <div className="flex flex-col items-center justify-center gap-3 py-10 text-center text-slate-400 sm:py-16">
               <span className="animate-pulse text-4xl">☕</span>
               <p className="font-bold text-slate-500">Waking things up…</p>
               <p className="max-w-xs text-xs">This can take a few extra seconds after a quiet spell. Hang tight!</p>
@@ -294,7 +305,7 @@ export default function StatsPanel({ onClose }) {
           )}
 
           {status === 'error' && (
-            <div className="flex flex-col items-center justify-center gap-3 py-16 text-center text-slate-400">
+            <div className="flex flex-col items-center justify-center gap-3 py-10 text-center text-slate-400 sm:py-16">
               <span className="text-4xl">😕</span>
               <p className="font-bold text-slate-500">Couldn't load the stats.</p>
               <p className="max-w-xs text-xs">Check your connection and try again.</p>
@@ -346,16 +357,16 @@ export default function StatsPanel({ onClose }) {
                   </p>
                 )}
 
-                <div className="mt-6 overflow-x-auto rounded-2xl border text-center border-slate-100">
-                  <table className="w-full min-w-[640px] text-centert text-sm">
+                <div className="mt-6 overflow-x-auto rounded-2xl border border-slate-100">
+                  <table className="w-full min-w-[480px] text-sm">
                     <thead className="bg-slate-50 text-xs font-bold uppercase tracking-wide text-slate-500">
                       <tr>
-                        <SortHeader label="Player" sortKey="playerName" current={sortKey} dir={sortDir} onSort={handleSort} />
+                        <SortHeader label="Player" sortKey="playerName" current={sortKey} dir={sortDir} onSort={handleSort} align="left" />
                         {filter === 'all' && (
-                          <SortHeader label="Game" sortKey="game" current={sortKey} dir={sortDir} onSort={handleSort} />
+                          <SortHeader label="Game" sortKey="game" current={sortKey} dir={sortDir} onSort={handleSort} align="center" />
                         )}
-                        <SortHeader label="Best streak" sortKey="bestStreak" current={sortKey} dir={sortDir} onSort={handleSort} />
-                        <SortHeader label="Last played" sortKey="lastPlayedAt" current={sortKey} dir={sortDir} onSort={handleSort} />
+                        <SortHeader label="Best streak" sortKey="bestStreak" current={sortKey} dir={sortDir} onSort={handleSort} align="center" />
+                        <SortHeader label="Last played" sortKey="lastPlayedAt" current={sortKey} dir={sortDir} onSort={handleSort} align="center" />
                         <th className="px-3 py-1">
                           <span className="sr-only">Actions</span>
                         </th>
@@ -379,12 +390,12 @@ export default function StatsPanel({ onClose }) {
                           const isDeleting = deletingKey === key;
                           return (
                             <tr key={key} className="border-t border-slate-100 transition-colors sm:hover:bg-slate-50">
-                              <td className="px-4 py-3.5 font-bold text-slate-700">{row.playerName}</td>
+                              <td className="px-4 py-3.5 text-left font-bold text-slate-700">{row.playerName}</td>
                               {filter === 'all' && (
-                                <td className="px-4 py-3.5 text-slate-600 text-center">{gameLabel(row.game)}</td>
+                                <td className="px-4 py-3.5 text-center text-slate-600">{gameLabel(row.game)}</td>
                               )}
-                              <td className="px-4 py-3.5 text-slate-600">🔥{row.bestStreak}</td>
-                              <td className="px-4 py-3.5 text-slate-500">
+                              <td className="px-4 py-3.5 text-center text-slate-600">🔥{row.bestStreak}</td>
+                              <td className="px-4 py-3.5 text-center text-slate-500">
                                 {new Date(row.lastPlayedAt).toLocaleString(undefined, {
                                   dateStyle: 'medium',
                                   timeStyle: 'short',
@@ -420,12 +431,14 @@ export default function StatsPanel({ onClose }) {
   );
 }
 
-function FilterPill({ active, onClick, children }) {
+function FilterPill({ active, onClick, children, label }) {
   return (
     <button
       onClick={onClick}
+      aria-label={label}
+      title={label}
       style={{ fontFamily: "'Fredoka', sans-serif" }}
-      className={`rounded-full px-1 py-1 text-xs md:text-sm font-bold transition-all active:scale-95 ${
+      className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-base font-bold transition-all active:scale-90 sm:h-11 sm:w-11 sm:text-lg ${
         active
           ? 'bg-gradient-to-r from-pink-500 to-purple-500 text-white shadow-md'
           : 'bg-slate-100 text-slate-600 active:bg-slate-200 sm:hover:bg-slate-200'
@@ -436,14 +449,15 @@ function FilterPill({ active, onClick, children }) {
   );
 }
 
-function SortHeader({ label, sortKey: key, current, dir, onSort }) {
+function SortHeader({ label, sortKey: key, current, dir, onSort, align = 'left' }) {
   const active = key === current;
+  const justify = align === 'center' ? 'justify-center' : align === 'right' ? 'justify-end' : 'justify-start';
   return (
     <th className="p-0">
       <button
         type="button"
         onClick={() => onSort(key)}
-        className={`flex w-full items-center gap-1 whitespace-nowrap px-4 py-3 text-left font-bold uppercase tracking-wide transition-colors active:bg-slate-100 ${
+        className={`flex w-full items-center gap-1 whitespace-nowrap px-4 py-3 font-bold uppercase tracking-wide transition-colors active:bg-slate-100 ${justify} ${
           active ? 'text-slate-800' : 'text-slate-500 sm:hover:text-slate-700'
         }`}
       >
@@ -458,10 +472,12 @@ function SortHeader({ label, sortKey: key, current, dir, onSort }) {
 
 function StatCard({ label, value, sub }) {
   return (
-    <div className="rounded-2xl bg-slate-50  px-3 py-3 text-center transition-colors active:bg-slate-100">
-      <p className="text-2xl text-center font-bold text-slate-800">{value ?? 0}</p>
-      <p className="mt-0.5 text-xs text-center font-bold text-slate-500">{label}</p>
-      {sub && <p className="text-[10px] text-center font-semibold text-slate-400">{sub}</p>}
+    <div className="rounded-2xl bg-slate-50 px-3 py-3 text-center transition-colors active:bg-slate-100">
+      <p className="text-2xl font-bold text-slate-800" style={{ fontFamily: "'Fredoka', sans-serif" }}>
+        {value ?? 0}
+      </p>
+      <p className="mt-0.5 text-xs font-bold text-slate-500">{label}</p>
+      {sub && <p className="text-[10px] font-semibold text-slate-400">{sub}</p>}
     </div>
   );
 }
