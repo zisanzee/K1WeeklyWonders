@@ -302,9 +302,9 @@ function Game4Inner() {
     speak(missionSpeech(newRound), muted);
   };
 
-  const poolItems = round.items.filter((it) => it.location === 'pool');
-  const leftItems = round.items.filter((it) => it.location === 'left');
-  const rightItems = round.items.filter((it) => it.location === 'right');
+  const poolItems = useMemo(() => round.items.filter((it) => it.location === 'pool'), [round.items]);
+  const leftItems = useMemo(() => round.items.filter((it) => it.location === 'left'), [round.items]);
+  const rightItems = useMemo(() => round.items.filter((it) => it.location === 'right'), [round.items]);
   const activeItem = round.items.find((it) => it.id === activeId);
 
   return (
@@ -325,14 +325,14 @@ function Game4Inner() {
         @keyframes flicker { 0%, 100% { transform: scaleY(1) translateY(0); opacity: 1; } 50% { transform: scaleY(1.25) translateY(2px); opacity: 0.8; } }
         .font-heading { font-family: 'Fredoka', sans-serif; }
         .font-body { font-family: 'Nunito', sans-serif; }
-        .animate-twinkle { animation: twinkle 2.4s ease-in-out infinite; }
-        .animate-drift { animation: drift 7s ease-in-out infinite; }
+        .animate-twinkle { animation: twinkle 2.4s ease-in-out infinite; will-change: opacity; }
+        .animate-drift { animation: drift 7s ease-in-out infinite; will-change: transform; }
         .animate-pop-in { animation: pop-in 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
         .animate-shake { animation: shake 0.4s ease-in-out; }
         .animate-wobble { animation: wobble 0.4s ease-in-out; }
         .animate-glow-pulse { animation: glow-pulse 0.9s ease-in-out 2; }
-        .animate-shimmer { animation: shimmer 2.2s linear infinite; }
-        .animate-flicker { animation: flicker 0.5s ease-in-out infinite; transform-origin: top center; }
+        .animate-shimmer { animation: shimmer 2.2s linear infinite; will-change: transform; }
+        .animate-flicker { animation: flicker 0.5s ease-in-out infinite; transform-origin: top center; will-change: transform; }
       `}</style>
 
       <Starfield />
@@ -725,7 +725,7 @@ function RocketZone({ id, count, items, cargo, disabled, shake, color, goal, mat
   );
 }
 
-function DraggableCargo({ id, emoji, rotation, disabled }) {
+const DraggableCargo = React.memo(function DraggableCargo({ id, emoji, rotation, disabled }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id, disabled });
   return (
     <div
@@ -744,7 +744,7 @@ function DraggableCargo({ id, emoji, rotation, disabled }) {
       {emoji}
     </div>
   );
-}
+});
 
 function SuccessOverlay({ leftCount, rightCount, total, cargo, isLastRound, streak, onNext }) {
   const { width, height } = useWindowSize();

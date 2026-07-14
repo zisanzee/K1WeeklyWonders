@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "motion/react";
 import StatsPanel from "./StatsPanel";
@@ -99,20 +99,20 @@ function HomeContent() {
         }
         .font-heading { font-family: 'Fredoka', sans-serif; }
         .font-body { font-family: 'Nunito', sans-serif; }
-        .animate-float-slow { animation: float-slow 6s ease-in-out infinite; }
-        .animate-float-slower { animation: float-slower 8s ease-in-out infinite; }
-        .animate-wiggle { animation: wiggle 2.5s ease-in-out infinite; }
+        .animate-float-slow { animation: float-slow 6s ease-in-out infinite; will-change: transform; }
+        .animate-float-slower { animation: float-slower 8s ease-in-out infinite; will-change: transform; }
+        .animate-wiggle { animation: wiggle 2.5s ease-in-out infinite; will-change: transform; }
         .animate-pop-in { animation: pop-in 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
-        .animate-sparkle { animation: sparkle 1.8s ease-in-out infinite; }
-        .animate-spin-slow { animation: spin-slow 50s linear infinite; }
-        .animate-bob { animation: bob 2.4s ease-in-out infinite; }
-        .animate-sway { animation: sway 3.2s ease-in-out infinite; transform-origin: bottom center; }
+        .animate-sparkle { animation: sparkle 1.8s ease-in-out infinite; will-change: transform, opacity; }
+        .animate-spin-slow { animation: spin-slow 50s linear infinite; will-change: transform; }
+        .animate-bob { animation: bob 2.4s ease-in-out infinite; will-change: transform; }
+        .animate-sway { animation: sway 3.2s ease-in-out infinite; transform-origin: bottom center; will-change: transform; }
         @keyframes kite-drift {
           0%, 100% { transform: translate(0, 0) rotate(-4deg); }
           50% { transform: translate(14px, -10px) rotate(4deg); }
         }
-        .animate-kite-drift { animation: kite-drift 5s ease-in-out infinite; }
-        .animate-number-drift { animation: number-drift 5.5s ease-in-out infinite; }
+        .animate-kite-drift { animation: kite-drift 5s ease-in-out infinite; will-change: transform; }
+        .animate-number-drift { animation: number-drift 5.5s ease-in-out infinite; will-change: transform; }
       `}</style>
 
       {/* Stats button — teachers only */}
@@ -278,7 +278,7 @@ function HomeContent() {
   );
 }
 
-function GameCard({ to, emoji, title, subtitle, color, ring, delay, open, progress }) {
+const GameCard = React.memo(function GameCard({ to, emoji, title, subtitle, color, ring, delay, open, progress }) {
   return (
     <MotionLink
       to={open ? to : "#"}
@@ -330,4 +330,4 @@ function GameCard({ to, emoji, title, subtitle, color, ring, delay, open, progre
       )}
     </MotionLink>
   );
-}
+});

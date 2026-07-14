@@ -296,19 +296,19 @@ function Game2Inner() {
         @keyframes shimmer { 0% { transform: translateX(-100%); } 100% { transform: translateX(220%); } }
         .font-heading { font-family: 'Fredoka', sans-serif; }
         .font-body { font-family: 'Nunito', sans-serif; }
-        .animate-float-slow { animation: float-slow 6s ease-in-out infinite; }
-        .animate-float-slower { animation: float-slower 8s ease-in-out infinite; }
+        .animate-float-slow { animation: float-slow 6s ease-in-out infinite; will-change: transform; }
+        .animate-float-slower { animation: float-slower 8s ease-in-out infinite; will-change: transform; }
         .animate-pop-in { animation: pop-in 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
-        .animate-sparkle { animation: sparkle 1.8s ease-in-out infinite; }
-        .animate-confetti-fall { animation-name: confetti-fall; animation-timing-function: linear; animation-fill-mode: forwards; }
+        .animate-sparkle { animation: sparkle 1.8s ease-in-out infinite; will-change: transform, opacity; }
+        .animate-confetti-fall { animation-name: confetti-fall; animation-timing-function: linear; animation-fill-mode: forwards; will-change: transform, opacity; }
         .animate-shake { animation: shake 0.4s ease-in-out; }
         .animate-wobble { animation: wobble 0.6s ease-in-out infinite; }
         .animate-glow-pulse { animation: glow-pulse 0.9s ease-in-out infinite; }
-        .animate-bob { animation: bob 2.4s ease-in-out infinite; }
-        .animate-basket-rock { animation: basket-rock 4s ease-in-out infinite; }
-        .animate-breathe { animation: breathe 2.6s ease-in-out infinite; }
-        .animate-sun-pulse { animation: sun-pulse 3s ease-in-out infinite; }
-        .animate-shimmer { animation: shimmer 2.2s linear infinite; }
+        .animate-bob { animation: bob 2.4s ease-in-out infinite; will-change: transform; }
+        .animate-basket-rock { animation: basket-rock 4s ease-in-out infinite; will-change: transform; }
+        .animate-breathe { animation: breathe 2.6s ease-in-out infinite; will-change: transform; }
+        .animate-sun-pulse { animation: sun-pulse 3s ease-in-out infinite; will-change: transform; }
+        .animate-shimmer { animation: shimmer 2.2s linear infinite; will-change: transform; }
       `}</style>
 
       <div className="pointer-events-none absolute inset-0">

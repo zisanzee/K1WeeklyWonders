@@ -239,8 +239,8 @@ function Game1Inner() {
     speak(`Fill the basket with ${newRound.target} ${newRound.item.name}!`, muted);
   };
 
-  const poolItems = round.items.filter((it) => it.location === 'pool');
-  const basketItems = round.items.filter((it) => it.location === 'basket');
+  const poolItems = useMemo(() => round.items.filter((it) => it.location === 'pool'), [round.items]);
+  const basketItems = useMemo(() => round.items.filter((it) => it.location === 'basket'), [round.items]);
 
   return (
     <div className="relative h-[100dvh] w-full overflow-hidden bg-gradient-to-b from-sky-400 via-sky-300 to-lime-100">
@@ -262,16 +262,16 @@ function Game1Inner() {
         @keyframes basket-rock { 0%, 100% { transform: rotate(-0.6deg); } 50% { transform: rotate(0.6deg); } }
         .font-heading { font-family: 'Fredoka', sans-serif; }
         .font-body { font-family: 'Nunito', sans-serif; }
-        .animate-float-slow { animation: float-slow 6s ease-in-out infinite; }
-        .animate-float-slower { animation: float-slower 8s ease-in-out infinite; }
+        .animate-float-slow { animation: float-slow 6s ease-in-out infinite; will-change: transform; }
+        .animate-float-slower { animation: float-slower 8s ease-in-out infinite; will-change: transform; }
         .animate-pop-in { animation: pop-in 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
-        .animate-sparkle { animation: sparkle 1.8s ease-in-out infinite; }
-        .animate-confetti-fall { animation-name: confetti-fall; animation-timing-function: linear; animation-fill-mode: forwards; }
+        .animate-sparkle { animation: sparkle 1.8s ease-in-out infinite; will-change: transform, opacity; }
+        .animate-confetti-fall { animation-name: confetti-fall; animation-timing-function: linear; animation-fill-mode: forwards; will-change: transform, opacity; }
         .animate-shake { animation: shake 0.4s ease-in-out; }
         .animate-wobble { animation: wobble 0.4s ease-in-out; }
         .animate-glow-pulse { animation: glow-pulse 0.9s ease-in-out 2; }
-        .animate-shimmer { animation: shimmer 2.2s linear infinite; }
-        .animate-basket-rock { animation: basket-rock 4s ease-in-out infinite; }
+        .animate-shimmer { animation: shimmer 2.2s linear infinite; will-change: transform; }
+        .animate-basket-rock { animation: basket-rock 4s ease-in-out infinite; will-change: transform; }
       `}</style>
 
       <div className="pointer-events-none absolute inset-0">
@@ -581,7 +581,7 @@ function BasketZone({ items, item, count, disabled, pulse, shake }) {
   );
 }
 
-function DraggableFruit({ id, emoji, rotation, disabled }) {
+const DraggableFruit = React.memo(function DraggableFruit({ id, emoji, rotation, disabled }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id, disabled });
   return (
     <div
@@ -600,7 +600,7 @@ function DraggableFruit({ id, emoji, rotation, disabled }) {
       {emoji}
     </div>
   );
-}
+});
 
 function SuccessOverlay({ target, item, format, isLastRound, streak, onNext }) {
   const { width, height } = useWindowSize();

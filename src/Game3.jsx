@@ -199,13 +199,17 @@ function Game3Inner() {
         @keyframes shake { 0%, 100% { transform: translateX(0); } 20%, 60% { transform: translateX(-6px); } 40%, 80% { transform: translateX(6px); } }
         @keyframes wobble { 0%, 100% { transform: rotate(0deg) scale(1); } 25% { transform: rotate(-2deg) scale(1.03); } 75% { transform: rotate(2deg) scale(1.03); } }
         @keyframes sway { 0%, 100% { transform: rotate(-5deg); } 50% { transform: rotate(5deg); } }
+        @keyframes rise-bubble { 0% { transform: translateY(0); opacity: 0; } 8% { opacity: 0.8; } 92% { opacity: 0.8; } 100% { transform: translateY(-115vh); opacity: 0; } }
+        @keyframes swim-fish { 0% { transform: translateX(110vw); } 100% { transform: translateX(-110vw); } }
         .font-heading { font-family: 'Fredoka', sans-serif; }
         .font-body { font-family: 'Nunito', sans-serif; }
         .animate-pop-in { animation: pop-in 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
-        .animate-sparkle { animation: sparkle 1.8s ease-in-out infinite; }
+        .animate-sparkle { animation: sparkle 1.8s ease-in-out infinite; will-change: transform, opacity; }
         .animate-shake { animation: shake 0.4s ease-in-out; }
         .animate-wobble { animation: wobble 0.6s ease-in-out infinite; }
-        .animate-sway { animation: sway 3.4s ease-in-out infinite; transform-origin: bottom center; }
+        .animate-sway { animation: sway 3.4s ease-in-out infinite; transform-origin: bottom center; will-change: transform; }
+        .animate-rise-bubble { animation-name: rise-bubble; animation-timing-function: linear; animation-iteration-count: infinite; will-change: transform, opacity; }
+        .animate-swim-fish { animation-name: swim-fish; animation-timing-function: linear; animation-iteration-count: infinite; will-change: transform; }
       `}</style>
 
       <RisingBubbles />
@@ -458,12 +462,16 @@ function RisingBubbles() {
   return (
     <div className="pointer-events-none absolute inset-0 overflow-hidden">
       {bubbles.map((b) => (
-        <motion.span
+        <span
           key={b.id}
-          className="absolute bottom-0 rounded-full border border-white/40 bg-white/20"
-          style={{ left: `${b.left}%`, width: b.size, height: b.size }}
-          animate={{ y: ['0vh', '-115vh'], opacity: [0, 0.8, 0] }}
-          transition={{ duration: b.duration, delay: b.delay, repeat: Infinity, ease: 'linear' }}
+          className="animate-rise-bubble absolute bottom-0 rounded-full border border-white/40 bg-white/20"
+          style={{
+            left: `${b.left}%`,
+            width: b.size,
+            height: b.size,
+            animationDuration: `${b.duration}s`,
+            animationDelay: `${b.delay}s`,
+          }}
         />
       ))}
     </div>
@@ -482,16 +490,17 @@ function SwimmingFish() {
   return (
     <div className="pointer-events-none absolute inset-0 overflow-hidden">
       {fish.map((f, i) => (
-        <motion.span
+        <span
           key={i}
-          className="absolute text-3xl sm:text-4xl"
-          style={{ top: `${f.top}%` }}
-          initial={{ x: '110vw' }}
-          animate={{ x: '-110vw' }}
-          transition={{ duration: f.duration, delay: f.delay, repeat: Infinity, ease: 'linear' }}
+          className="animate-swim-fish absolute text-3xl sm:text-4xl"
+          style={{
+            top: `${f.top}%`,
+            animationDuration: `${f.duration}s`,
+            animationDelay: `${f.delay}s`,
+          }}
         >
           {f.emoji}
-    </motion.span>
+        </span>
       ))}
     </div>
   );
