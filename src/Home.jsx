@@ -50,6 +50,26 @@ function HomeContent() {
     };
   }, [playerName]);
 
+  // Warm the cache for each unlocked game once the homepage is idle, so the
+  // first tap on a card doesn't have to wait on a fresh chunk download —
+  // this matches the same import() specifiers used by the lazy() calls in
+  // main.jsx, so the browser/bundler reuses this fetch instead of refetching.
+  useEffect(() => {
+    const prefetchGames = () => {
+      if (isGameUnlocked(1, isTeacher)) import("./Game1");
+      if (isGameUnlocked(2, isTeacher)) import("./Game2");
+      if (isGameUnlocked(3, isTeacher)) import("./Game3");
+      if (isGameUnlocked(4, isTeacher)) import("./Game4");
+    };
+
+    if (typeof window !== "undefined" && "requestIdleCallback" in window) {
+      const id = window.requestIdleCallback(prefetchGames, { timeout: 2000 });
+      return () => window.cancelIdleCallback(id);
+    }
+    const t = setTimeout(prefetchGames, 800);
+    return () => clearTimeout(t);
+  }, [isTeacher]);
+
   const greeting = useMemo(() => timeGreeting(), []);
 
   return (
