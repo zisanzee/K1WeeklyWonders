@@ -50,6 +50,30 @@
     filter: invert(1) brightness(2);
   }
 }
+@theme {
+  --animate-flame: flame 0.14s ease-in-out infinite alternate;
+  --animate-flame2: flame2 0.11s ease-in-out infinite alternate;
+
+  @keyframes flame {
+    from {
+      transform: translateY(2px) scale(0.8);
+    }
+    to {
+      transform: translateY(-2px) scale(1.15);
+    }
+  }
+
+  @keyframes flame2 {
+    from {
+      transform: translateY(6px) scale(0.55);
+      opacity: 0.4;
+    }
+    to {
+      transform: translateY(12px) scale(0.85);
+      opacity: 0.8;
+    }
+  }
+}
 
 body {
   margin: 0;

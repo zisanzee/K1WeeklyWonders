@@ -720,7 +720,13 @@ function RocketZone({ id, count, items, cargo, disabled, shake, color, goal, mat
           ))}
         </div>
       </div>
-      <span className="animate-flicker -mt-1 text-2xl">🔥</span>
+      <div className="relative flex justify-center rotate-180">
+  <span className="mt-9 text-2xl animate-flame">🔥</span>
+
+  <span className="absolute mt-5 text-xl opacity-70 animate-flame2">
+    🔥
+  </span>
+</div>
     </div>
   );
 }
