@@ -43,6 +43,19 @@ export async function fetchSummary() {
   }
 }
 
+// Every individual play session, uncollapsed and most recent first — used by
+// the "show all plays" view (see GET /api/plays on the server).
+export async function fetchAllPlays() {
+  try {
+    const res = await fetch(`${API_BASE}/api/plays`);
+    if (!res.ok) throw new Error(`Server responded ${res.status} ${res.statusText}`);
+    return await res.json();
+  } catch (err) {
+    console.error(`[stats] Could not reach ${API_BASE}/api/plays —`, err);
+    throw err;
+  }
+}
+
 export async function deletePlayerGame(game, playerName) {
   const res = await fetch(`${API_BASE}/api/plays`, {
     method: 'DELETE',

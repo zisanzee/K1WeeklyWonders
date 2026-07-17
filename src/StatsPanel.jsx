@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { fetchStats, fetchSummary, deletePlayerGame } from './logPlaySession';
+import { fetchStats, fetchSummary, fetchAllPlays, deletePlayerGame } from './logPlaySession';
 import { usePlayerStore } from './playerStore';
 
 const GAME_LABELS = {
@@ -25,11 +25,27 @@ function gameSortValue(key) {
   return match ? Number(match[0]) : key;
 }
 
+// Formats a play's score consistently across the summary and all-plays views.
+function formatStars(stars, totalRounds) {
+  if (stars == null) return '—';
+  return totalRounds ? `${stars}/${totalRounds} ⭐` : `${stars} ⭐`;
+}
+
 const DEFAULT_SORT_DIR = {
   playerName: 'asc',
   game: 'asc',
   bestStreak: 'desc',
   lastPlayedAt: 'desc',
+};
+
+// Same idea as DEFAULT_SORT_DIR, but for the raw "show all plays" table,
+// which sorts individual sessions rather than aggregated per-player rows.
+const DEFAULT_SORT_DIR_ALL = {
+  playerName: 'asc',
+  game: 'asc',
+  stars: 'desc',
+  peakStreak: 'desc',
+  completedAt: 'desc',
 };
 
 // How long we wait before assuming a slow response is a cold-start
@@ -55,11 +71,22 @@ export default function StatsPanel({ onClose }) {
   const [sortKey, setSortKey] = useState('lastPlayedAt');
   const [sortDir, setSortDir] = useState('desc');
 
+  // "Show all plays" reveals every individual session instead of the
+  // one-row-per-player+game summary. Fetched lazily on first toggle and
+  // cached — cheap to flip back and forth without re-hitting the server.
+  const [showAll, setShowAll] = useState(false);
+  const [allPlays, setAllPlays] = useState(null);
+  const [allStatus, setAllStatus] = useState('idle'); // idle | loading | error | ready
+  const [allSlow, setAllSlow] = useState(false);
+  const [sortKeyAll, setSortKeyAll] = useState('completedAt');
+  const [sortDirAll, setSortDirAll] = useState('desc');
+
   const [confirmDeleteKey, setConfirmDeleteKey] = useState(null);
   const [deletingKey, setDeletingKey] = useState(null);
   const [deleteError, setDeleteError] = useState(null);
 
   const slowTimerRef = useRef(null);
+  const allSlowTimerRef = useRef(null);
   const confirmTimerRef = useRef(null);
 
   const load = async () => {
@@ -86,9 +113,36 @@ export default function StatsPanel({ onClose }) {
     load();
     return () => {
       clearTimeout(slowTimerRef.current);
+      clearTimeout(allSlowTimerRef.current);
       clearTimeout(confirmTimerRef.current);
     };
   }, [teacherName]);
+
+  const loadAllPlays = async () => {
+    setAllStatus('loading');
+    setAllSlow(false);
+    allSlowTimerRef.current = setTimeout(() => setAllSlow(true), SLOW_THRESHOLD_MS);
+
+    try {
+      const data = await fetchAllPlays();
+      setAllPlays(data);
+      setAllStatus('ready');
+    } catch (err) {
+      console.error(err);
+      setAllStatus('error');
+    } finally {
+      clearTimeout(allSlowTimerRef.current);
+      setAllSlow(false);
+    }
+  };
+
+  const handleToggleShowAll = () => {
+    setShowAll((prev) => {
+      const next = !prev;
+      if (next && allPlays === null) loadAllPlays();
+      return next;
+    });
+  };
 
   // Lock background scroll while the modal is open, and let Escape close it —
   // both matter on iPad, where the page behind can scroll under a tap-drag.
@@ -119,6 +173,15 @@ export default function StatsPanel({ onClose }) {
     }
   };
 
+  const handleSortAll = (key) => {
+    if (key === sortKeyAll) {
+      setSortDirAll((d) => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortKeyAll(key);
+      setSortDirAll(DEFAULT_SORT_DIR_ALL[key] || 'asc');
+    }
+  };
+
   const handleDeleteClick = (row) => {
     const key = `${row.playerName}::${row.game}`;
     setDeleteError(null);
@@ -138,6 +201,9 @@ export default function StatsPanel({ onClose }) {
     try {
       await deletePlayerGame(row.game, row.playerName);
       await load();
+      // The cached raw play list would now show sessions that no longer
+      // exist — clear it so the next "show all" toggle refetches fresh.
+      setAllPlays(null);
     } catch (err) {
       console.error(err);
       setDeleteError(`Couldn't delete ${row.playerName}'s ${gameLabel(row.game)} record — try again.`);
@@ -171,6 +237,33 @@ export default function StatsPanel({ onClose }) {
       return ((av ?? 0) - (bv ?? 0)) * dir;
     });
   }, [filteredSummary, sortKey, sortDir]);
+
+  const filteredAllPlays = useMemo(() => {
+    if (!allPlays) return [];
+    let rows = filter === 'all' ? allPlays : allPlays.filter((row) => row.game === filter);
+    const q = search.trim().toLowerCase();
+    if (q) rows = rows.filter((row) => row.playerName.toLowerCase().includes(q));
+    return rows;
+  }, [allPlays, filter, search]);
+
+  const sortedAllPlays = useMemo(() => {
+    const dir = sortDirAll === 'asc' ? 1 : -1;
+    return [...filteredAllPlays].sort((a, b) => {
+      if (sortKeyAll === 'completedAt') {
+        return (new Date(a.completedAt).getTime() - new Date(b.completedAt).getTime()) * dir;
+      }
+      if (sortKeyAll === 'game') {
+        const av = gameSortValue(a.game);
+        const bv = gameSortValue(b.game);
+        if (typeof av === 'number' && typeof bv === 'number') return (av - bv) * dir;
+        return String(av).localeCompare(String(bv)) * dir;
+      }
+      const av = a[sortKeyAll];
+      const bv = b[sortKeyAll];
+      if (typeof av === 'string') return av.localeCompare(bv) * dir;
+      return ((av ?? 0) - (bv ?? 0)) * dir;
+    });
+  }, [filteredAllPlays, sortKeyAll, sortDirAll]);
 
   const activeGameStats = filter === 'all' ? null : stats?.perGame.find((g) => g._id === filter);
   const activeGamePlayers = filter === 'all' ? null : summary.filter((row) => row.game === filter).length;
@@ -262,26 +355,46 @@ export default function StatsPanel({ onClose }) {
 
         {status === 'ready' && stats && (
           <div className="border-b border-slate-100 px-4 py-2.5 sm:px-6 sm:py-3">
-            <div className="relative mx-auto max-w-xs">
-              <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-300">🔍</span>
-              <input
-                type="text"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search a player…"
+            <div className="flex flex-col items-center gap-2.5 sm:flex-row sm:justify-center">
+              <div className="relative w-full max-w-xs">
+                <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-300">🔍</span>
+                <input
+                  type="text"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search a player…"
+                  style={{ fontFamily: "'Nunito', sans-serif" }}
+                  className="w-full rounded-full border border-slate-200 bg-slate-50 py-2.5 pl-9 pr-9 text-sm font-semibold text-slate-700 outline-none transition-colors focus:border-pink-300 focus:bg-white"
+                />
+                {search && (
+                  <button
+                    onClick={() => setSearch('')}
+                    aria-label="Clear search"
+                    className="absolute right-1.5 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full text-slate-300 transition-colors active:bg-slate-200 active:text-slate-500"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+
+              <button
+                type="button"
+                onClick={handleToggleShowAll}
                 style={{ fontFamily: "'Nunito', sans-serif" }}
-                className="w-full rounded-full border border-slate-200 bg-slate-50 py-2.5 pl-9 pr-9 text-sm font-semibold text-slate-700 outline-none transition-colors focus:border-pink-300 focus:bg-white"
-              />
-              {search && (
-                <button
-                  onClick={() => setSearch('')}
-                  aria-label="Clear search"
-                  className="absolute right-1.5 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full text-slate-300 transition-colors active:bg-slate-200 active:text-slate-500"
-                >
-                  ✕
-                </button>
-              )}
+                className={`flex h-10 w-full shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-full px-4 text-sm font-bold transition-all active:scale-95 sm:h-11 sm:w-auto ${
+                  showAll
+                    ? 'bg-gradient-to-r from-pink-500 to-purple-500 text-white shadow-md'
+                    : 'bg-slate-100 text-slate-600 active:bg-slate-200 sm:hover:bg-slate-200'
+                }`}
+              >
+                {showAll ? '📋 Show summary' : '🧾 Show all plays'}
+              </button>
             </div>
+            <p className="mt-2 text-center text-[11px] font-semibold text-slate-400 sm:text-xs">
+              {showAll
+                ? 'Every individual play, most recent first.'
+                : 'One row per player — tap "Show all plays" to see every play.'}
+            </p>
           </div>
         )}
 
@@ -321,7 +434,7 @@ export default function StatsPanel({ onClose }) {
           {status === 'ready' && stats && (
             <AnimatePresence mode="wait">
               <motion.div
-                key={filter}
+                key={`${filter}-${showAll}`}
                 initial={{ opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -6 }}
@@ -357,71 +470,243 @@ export default function StatsPanel({ onClose }) {
                   </p>
                 )}
 
-                <div className="mt-6 overflow-x-auto rounded-2xl border border-slate-100">
-                  <table className="w-full min-w-[480px] text-sm">
-                    <thead className="bg-slate-50 text-xs font-bold uppercase tracking-wide text-slate-500">
-                      <tr>
-                        <SortHeader label="Player" sortKey="playerName" current={sortKey} dir={sortDir} onSort={handleSort} align="left" />
-                        {filter === 'all' && (
-                          <SortHeader label="Game" sortKey="game" current={sortKey} dir={sortDir} onSort={handleSort} align="center" />
-                        )}
-                        <SortHeader label="Best streak" sortKey="bestStreak" current={sortKey} dir={sortDir} onSort={handleSort} align="center" />
-                        <SortHeader label="Last played" sortKey="lastPlayedAt" current={sortKey} dir={sortDir} onSort={handleSort} align="center" />
-                        <th className="px-3 py-1">
-                          <span className="sr-only">Actions</span>
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
+                {!showAll && (
+                  <>
+                    {/* Phones: stacked cards avoid the sideways-scrolling table below. */}
+                    <div className="mt-6 space-y-2.5 sm:hidden">
                       {sortedSummary.length === 0 ? (
-                        <tr>
-                          <td colSpan={columnCount} className="px-4 py-8 text-center font-bold text-slate-400">
-                            {search.trim()
-                              ? `No players found matching "${search.trim()}".`
-                              : filter === 'all'
-                              ? 'No plays logged yet — go play a game! 🎮'
-                              : `No plays logged for ${gameLabel(filter)} yet.`}
-                          </td>
-                        </tr>
+                        <EmptyState search={search} filter={filter} />
                       ) : (
                         sortedSummary.map((row) => {
                           const key = `${row.playerName}::${row.game}`;
                           const isConfirming = confirmDeleteKey === key;
                           const isDeleting = deletingKey === key;
                           return (
-                            <tr key={key} className="border-t border-slate-100 transition-colors sm:hover:bg-slate-50">
-                              <td className="px-4 py-3.5 text-left font-bold text-slate-700">{row.playerName}</td>
-                              {filter === 'all' && (
-                                <td className="px-4 py-3.5 text-center text-slate-600">{gameLabel(row.game)}</td>
-                              )}
-                              <td className="px-4 py-3.5 text-center text-slate-600">🔥{row.bestStreak}</td>
-                              <td className="px-4 py-3.5 text-center text-slate-500">
-                                {new Date(row.lastPlayedAt).toLocaleString(undefined, {
-                                  dateStyle: 'medium',
-                                  timeStyle: 'short',
-                                })}
-                              </td>
-                              <td className="px-2 py-2 text-right">
+                            <div key={key} className="rounded-2xl border border-slate-100 bg-white p-3.5 shadow-sm">
+                              <div className="flex items-start justify-between gap-2">
+                                <div>
+                                  <PlayerName name={row.playerName} timesPlayed={row.timesPlayed} />
+                                  {filter === 'all' && (
+                                    <p className="mt-0.5 text-xs font-semibold text-slate-500">{gameLabel(row.game)}</p>
+                                  )}
+                                </div>
                                 <button
                                   onClick={() => handleDeleteClick(row)}
                                   disabled={isDeleting}
                                   title={isConfirming ? 'Tap again to confirm' : `Delete ${row.playerName}'s ${gameLabel(row.game)} record`}
-                                  className={`min-w-11 rounded-full px-3 py-2.5 text-xs font-bold transition-all active:scale-90 disabled:opacity-50 ${
+                                  className={`min-w-11 shrink-0 rounded-full px-3 py-2 text-xs font-bold transition-all active:scale-90 disabled:opacity-50 ${
                                     isConfirming
                                       ? 'bg-rose-500 text-white shadow-sm'
-                                      : 'bg-transparent text-slate-300 active:bg-rose-50 active:text-rose-500 sm:hover:bg-rose-50 sm:hover:text-rose-500'
+                                      : 'bg-slate-50 text-slate-300 active:bg-rose-50 active:text-rose-500'
                                   }`}
                                 >
                                   {isDeleting ? '…' : isConfirming ? 'Confirm?' : '🗑️'}
                                 </button>
-                              </td>
-                            </tr>
+                              </div>
+                              <div className="mt-2.5 flex items-center justify-between text-xs font-semibold text-slate-500">
+                                <span>🔥 {row.bestStreak} best streak</span>
+                                <span>
+                                  {new Date(row.lastPlayedAt).toLocaleString(undefined, {
+                                    dateStyle: 'medium',
+                                    timeStyle: 'short',
+                                  })}
+                                </span>
+                              </div>
+                            </div>
                           );
                         })
                       )}
-                    </tbody>
-                  </table>
-                </div>
+                    </div>
+
+                    {/* Tablet/desktop: sortable table. */}
+                    <div className="mt-6 hidden overflow-x-auto rounded-2xl border border-slate-100 sm:block">
+                      <table className="w-full min-w-[480px] text-sm">
+                        <thead className="bg-slate-50 text-xs font-bold uppercase tracking-wide text-slate-500">
+                          <tr>
+                            <SortHeader label="Player" sortKey="playerName" current={sortKey} dir={sortDir} onSort={handleSort} align="left" />
+                            {filter === 'all' && (
+                              <SortHeader label="Game" sortKey="game" current={sortKey} dir={sortDir} onSort={handleSort} align="center" />
+                            )}
+                            <SortHeader label="Best streak" sortKey="bestStreak" current={sortKey} dir={sortDir} onSort={handleSort} align="center" />
+                            <SortHeader label="Last played" sortKey="lastPlayedAt" current={sortKey} dir={sortDir} onSort={handleSort} align="center" />
+                            <th className="px-3 py-1">
+                              <span className="sr-only">Actions</span>
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {sortedSummary.length === 0 ? (
+                            <tr>
+                              <td colSpan={columnCount} className="px-4 py-8 text-center font-bold text-slate-400">
+                                {search.trim()
+                                  ? `No players found matching "${search.trim()}".`
+                                  : filter === 'all'
+                                  ? 'No plays logged yet — go play a game! 🎮'
+                                  : `No plays logged for ${gameLabel(filter)} yet.`}
+                              </td>
+                            </tr>
+                          ) : (
+                            sortedSummary.map((row) => {
+                              const key = `${row.playerName}::${row.game}`;
+                              const isConfirming = confirmDeleteKey === key;
+                              const isDeleting = deletingKey === key;
+                              return (
+                                <tr key={key} className="border-t border-slate-100 transition-colors sm:hover:bg-slate-50">
+                                  <td className="px-4 py-3.5 text-left font-bold text-slate-700">
+                                    <PlayerName name={row.playerName} timesPlayed={row.timesPlayed} />
+                                  </td>
+                                  {filter === 'all' && (
+                                    <td className="px-4 py-3.5 text-center text-slate-600">{gameLabel(row.game)}</td>
+                                  )}
+                                  <td className="px-4 py-3.5 text-center text-slate-600">🔥{row.bestStreak}</td>
+                                  <td className="px-4 py-3.5 text-center text-slate-500">
+                                    {new Date(row.lastPlayedAt).toLocaleString(undefined, {
+                                      dateStyle: 'medium',
+                                      timeStyle: 'short',
+                                    })}
+                                  </td>
+                                  <td className="px-2 py-2 text-right">
+                                    <button
+                                      onClick={() => handleDeleteClick(row)}
+                                      disabled={isDeleting}
+                                      title={isConfirming ? 'Tap again to confirm' : `Delete ${row.playerName}'s ${gameLabel(row.game)} record`}
+                                      className={`min-w-11 rounded-full px-3 py-2.5 text-xs font-bold transition-all active:scale-90 disabled:opacity-50 ${
+                                        isConfirming
+                                          ? 'bg-rose-500 text-white shadow-sm'
+                                          : 'bg-transparent text-slate-300 active:bg-rose-50 active:text-rose-500 sm:hover:bg-rose-50 sm:hover:text-rose-500'
+                                      }`}
+                                    >
+                                      {isDeleting ? '…' : isConfirming ? 'Confirm?' : '🗑️'}
+                                    </button>
+                                  </td>
+                                </tr>
+                              );
+                            })
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </>
+                )}
+
+                {showAll && (
+                  <div className="mt-6">
+                    {allStatus === 'loading' && !allSlow && (
+                      <div className="flex flex-col items-center justify-center gap-2 py-10 text-slate-400 sm:py-16">
+                        <span className="animate-bounce text-4xl">⏳</span>
+                        <p className="font-bold">Loading every play…</p>
+                      </div>
+                    )}
+
+                    {allStatus === 'loading' && allSlow && (
+                      <div className="flex flex-col items-center justify-center gap-3 py-10 text-center text-slate-400 sm:py-16">
+                        <span className="animate-pulse text-4xl">☕</span>
+                        <p className="font-bold text-slate-500">Waking things up…</p>
+                        <p className="max-w-xs text-xs">This can take a few extra seconds after a quiet spell. Hang tight!</p>
+                        <div className="mt-1 h-1.5 w-40 overflow-hidden rounded-full bg-slate-100">
+                          <span className="animate-wake-progress block h-full w-1/3 rounded-full bg-gradient-to-r from-sky-300 to-pink-300" />
+                        </div>
+                      </div>
+                    )}
+
+                    {allStatus === 'error' && (
+                      <div className="flex flex-col items-center justify-center gap-3 py-10 text-center text-slate-400 sm:py-16">
+                        <span className="text-4xl">😕</span>
+                        <p className="font-bold text-slate-500">Couldn't load every play.</p>
+                        <p className="max-w-xs text-xs">Check your connection and try again.</p>
+                        <button
+                          onClick={loadAllPlays}
+                          className="rounded-full bg-slate-100 px-5 py-2.5 text-sm font-bold text-slate-600 active:scale-95 active:bg-slate-200 sm:hover:bg-slate-200"
+                        >
+                          Try again
+                        </button>
+                      </div>
+                    )}
+
+                    {allStatus === 'ready' && (
+                      <>
+                        {/* Phones: stacked cards, one per play. */}
+                        <div className="space-y-2.5 sm:hidden">
+                          {sortedAllPlays.length === 0 ? (
+                            <EmptyState search={search} filter={filter} />
+                          ) : (
+                            sortedAllPlays.map((row, i) => (
+                              <div
+                                key={`${row.playerName}::${row.game}::${row.completedAt}::${i}`}
+                                className="rounded-2xl border border-slate-100 bg-white p-3.5 shadow-sm"
+                              >
+                                <p className="font-bold text-slate-700">{row.playerName}</p>
+                                {filter === 'all' && (
+                                  <p className="mt-0.5 text-xs font-semibold text-slate-500">{gameLabel(row.game)}</p>
+                                )}
+                                <div className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-semibold text-slate-500">
+                                  <span>{formatStars(row.stars, row.totalRounds)}</span>
+                                  <span>🔥 {row.peakStreak}</span>
+                                  <span>
+                                    {new Date(row.completedAt).toLocaleString(undefined, {
+                                      dateStyle: 'medium',
+                                      timeStyle: 'short',
+                                    })}
+                                  </span>
+                                </div>
+                              </div>
+                            ))
+                          )}
+                        </div>
+
+                        {/* Tablet/desktop: sortable table. */}
+                        <div className="hidden overflow-x-auto rounded-2xl border border-slate-100 sm:block">
+                          <table className="w-full min-w-[480px] text-sm">
+                            <thead className="bg-slate-50 text-xs font-bold uppercase tracking-wide text-slate-500">
+                              <tr>
+                                <SortHeader label="Player" sortKey="playerName" current={sortKeyAll} dir={sortDirAll} onSort={handleSortAll} align="left" />
+                                {filter === 'all' && (
+                                  <SortHeader label="Game" sortKey="game" current={sortKeyAll} dir={sortDirAll} onSort={handleSortAll} align="center" />
+                                )}
+                                <SortHeader label="Stars" sortKey="stars" current={sortKeyAll} dir={sortDirAll} onSort={handleSortAll} align="center" />
+                                <SortHeader label="Streak" sortKey="peakStreak" current={sortKeyAll} dir={sortDirAll} onSort={handleSortAll} align="center" />
+                                <SortHeader label="Played at" sortKey="completedAt" current={sortKeyAll} dir={sortDirAll} onSort={handleSortAll} align="center" />
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {sortedAllPlays.length === 0 ? (
+                                <tr>
+                                  <td colSpan={columnCount} className="px-4 py-8 text-center font-bold text-slate-400">
+                                    {search.trim()
+                                      ? `No players found matching "${search.trim()}".`
+                                      : filter === 'all'
+                                      ? 'No plays logged yet — go play a game! 🎮'
+                                      : `No plays logged for ${gameLabel(filter)} yet.`}
+                                  </td>
+                                </tr>
+                              ) : (
+                                sortedAllPlays.map((row, i) => (
+                                  <tr
+                                    key={`${row.playerName}::${row.game}::${row.completedAt}::${i}`}
+                                    className="border-t border-slate-100 transition-colors sm:hover:bg-slate-50"
+                                  >
+                                    <td className="px-4 py-3.5 text-left font-bold text-slate-700">{row.playerName}</td>
+                                    {filter === 'all' && (
+                                      <td className="px-4 py-3.5 text-center text-slate-600">{gameLabel(row.game)}</td>
+                                    )}
+                                    <td className="px-4 py-3.5 text-center text-slate-600">{formatStars(row.stars, row.totalRounds)}</td>
+                                    <td className="px-4 py-3.5 text-center text-slate-600">🔥{row.peakStreak}</td>
+                                    <td className="px-4 py-3.5 text-center text-slate-500">
+                                      {new Date(row.completedAt).toLocaleString(undefined, {
+                                        dateStyle: 'medium',
+                                        timeStyle: 'short',
+                                      })}
+                                    </td>
+                                  </tr>
+                                ))
+                              )}
+                            </tbody>
+                          </table>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
               </motion.div>
             </AnimatePresence>
           )}
@@ -429,6 +714,30 @@ export default function StatsPanel({ onClose }) {
       </motion.div>
     </div>
   );
+}
+
+// Small badge next to a player's name showing how many times they've played
+// — only relevant in the summary view, where repeat plays are collapsed.
+function PlayerName({ name, timesPlayed }) {
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      {name}
+      {timesPlayed > 1 && (
+        <span
+          title={`Played ${timesPlayed} times`}
+          className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-pink-100 px-1.5 text-[10px] font-extrabold text-pink-600"
+        >
+          ×{timesPlayed}
+        </span>
+      )}
+    </span>
+  );
+}
+
+function EmptyState({ search, filter }) {
+  if (search.trim()) return <p className="py-8 text-center font-bold text-slate-400">No players found matching "{search.trim()}".</p>;
+  if (filter === 'all') return <p className="py-8 text-center font-bold text-slate-400">No plays logged yet — go play a game! 🎮</p>;
+  return <p className="py-8 text-center font-bold text-slate-400">No plays logged for {gameLabel(filter)} yet.</p>;
 }
 
 function FilterPill({ active, onClick, children, label }) {
