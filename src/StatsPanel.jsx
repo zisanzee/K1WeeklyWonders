@@ -31,6 +31,19 @@ function formatStars(stars, totalRounds) {
   return totalRounds ? `${stars}/${totalRounds} ⭐` : `${stars} ⭐`;
 }
 
+const DEVICE_ICONS = { mobile: '📱', tablet: '💻', desktop: '🖥️', unknown: '❔' };
+const DEVICE_KIND_LABEL = { mobile: 'Mobile', tablet: 'Tablet', desktop: 'Desktop', unknown: 'Unknown' };
+
+// Older plays logged before device tracking was added won't have this field.
+function formatDevice(device) {
+  if (!device) return { icon: '❔', text: 'Unknown', title: 'No device info recorded for this play.' };
+  const icon = DEVICE_ICONS[device.kind] || '❔';
+  const kindLabel = DEVICE_KIND_LABEL[device.kind] || 'Unknown';
+  const text = device.os && device.os !== 'Unknown OS' ? `${kindLabel} · ${device.os}` : kindLabel;
+  const title = [device.browser, device.os, device.userAgent].filter(Boolean).join(' · ') || 'No further detail available.';
+  return { icon, text, title };
+}
+
 const DEFAULT_SORT_DIR = {
   playerName: 'asc',
   game: 'asc',
@@ -46,6 +59,7 @@ const DEFAULT_SORT_DIR_ALL = {
   stars: 'desc',
   peakStreak: 'desc',
   completedAt: 'desc',
+  deviceKind: 'asc',
 };
 
 // How long we wait before assuming a slow response is a cold-start
@@ -258,6 +272,11 @@ export default function StatsPanel({ onClose }) {
         if (typeof av === 'number' && typeof bv === 'number') return (av - bv) * dir;
         return String(av).localeCompare(String(bv)) * dir;
       }
+      if (sortKeyAll === 'deviceKind') {
+        const av = a.device?.kind || 'zzz';
+        const bv = b.device?.kind || 'zzz';
+        return av.localeCompare(bv) * dir;
+      }
       const av = a[sortKeyAll];
       const bv = b[sortKeyAll];
       if (typeof av === 'string') return av.localeCompare(bv) * dir;
@@ -268,6 +287,9 @@ export default function StatsPanel({ onClose }) {
   const activeGameStats = filter === 'all' ? null : stats?.perGame.find((g) => g._id === filter);
   const activeGamePlayers = filter === 'all' ? null : summary.filter((row) => row.game === filter).length;
   const columnCount = filter === 'all' ? 5 : 4;
+  // The all-plays table swaps the Actions column for Stars *and* adds a
+  // Device column, so it has one more column than the summary table.
+  const columnCountAll = columnCount + 1;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-3 sm:p-4" onClick={onClose}>
@@ -630,27 +652,33 @@ export default function StatsPanel({ onClose }) {
                           {sortedAllPlays.length === 0 ? (
                             <EmptyState search={search} filter={filter} />
                           ) : (
-                            sortedAllPlays.map((row, i) => (
-                              <div
-                                key={`${row.playerName}::${row.game}::${row.completedAt}::${i}`}
-                                className="rounded-2xl border border-slate-100 bg-white p-3.5 shadow-sm"
-                              >
-                                <p className="font-bold text-slate-700">{row.playerName}</p>
-                                {filter === 'all' && (
-                                  <p className="mt-0.5 text-xs font-semibold text-slate-500">{gameLabel(row.game)}</p>
-                                )}
-                                <div className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-semibold text-slate-500">
-                                  <span>{formatStars(row.stars, row.totalRounds)}</span>
-                                  <span>🔥 {row.peakStreak}</span>
-                                  <span>
-                                    {new Date(row.completedAt).toLocaleString(undefined, {
-                                      dateStyle: 'medium',
-                                      timeStyle: 'short',
-                                    })}
-                                  </span>
+                            sortedAllPlays.map((row, i) => {
+                              const device = formatDevice(row.device);
+                              return (
+                                <div
+                                  key={`${row.playerName}::${row.game}::${row.completedAt}::${i}`}
+                                  className="rounded-2xl border border-slate-100 bg-white p-3.5 shadow-sm"
+                                >
+                                  <p className="font-bold text-slate-700">{row.playerName}</p>
+                                  {filter === 'all' && (
+                                    <p className="mt-0.5 text-xs font-semibold text-slate-500">{gameLabel(row.game)}</p>
+                                  )}
+                                  <div className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-semibold text-slate-500">
+                                    <span>{formatStars(row.stars, row.totalRounds)}</span>
+                                    <span>🔥 {row.peakStreak}</span>
+                                    <span>
+                                      {new Date(row.completedAt).toLocaleString(undefined, {
+                                        dateStyle: 'medium',
+                                        timeStyle: 'short',
+                                      })}
+                                    </span>
+                                    <span title={device.title}>
+                                      {device.icon} {device.text}
+                                    </span>
+                                  </div>
                                 </div>
-                              </div>
-                            ))
+                              );
+                            })
                           )}
                         </div>
 
@@ -666,12 +694,13 @@ export default function StatsPanel({ onClose }) {
                                 <SortHeader label="Stars" sortKey="stars" current={sortKeyAll} dir={sortDirAll} onSort={handleSortAll} align="center" />
                                 <SortHeader label="Streak" sortKey="peakStreak" current={sortKeyAll} dir={sortDirAll} onSort={handleSortAll} align="center" />
                                 <SortHeader label="Played at" sortKey="completedAt" current={sortKeyAll} dir={sortDirAll} onSort={handleSortAll} align="center" />
+                                <SortHeader label="Device" sortKey="deviceKind" current={sortKeyAll} dir={sortDirAll} onSort={handleSortAll} align="center" />
                               </tr>
                             </thead>
                             <tbody>
                               {sortedAllPlays.length === 0 ? (
                                 <tr>
-                                  <td colSpan={columnCount} className="px-4 py-8 text-center font-bold text-slate-400">
+                                  <td colSpan={columnCountAll} className="px-4 py-8 text-center font-bold text-slate-400">
                                     {search.trim()
                                       ? `No players found matching "${search.trim()}".`
                                       : filter === 'all'
@@ -680,25 +709,31 @@ export default function StatsPanel({ onClose }) {
                                   </td>
                                 </tr>
                               ) : (
-                                sortedAllPlays.map((row, i) => (
-                                  <tr
-                                    key={`${row.playerName}::${row.game}::${row.completedAt}::${i}`}
-                                    className="border-t border-slate-100 transition-colors sm:hover:bg-slate-50"
-                                  >
-                                    <td className="px-4 py-3.5 text-left font-bold text-slate-700">{row.playerName}</td>
-                                    {filter === 'all' && (
-                                      <td className="px-4 py-3.5 text-center text-slate-600">{gameLabel(row.game)}</td>
-                                    )}
-                                    <td className="px-4 py-3.5 text-center text-slate-600">{formatStars(row.stars, row.totalRounds)}</td>
-                                    <td className="px-4 py-3.5 text-center text-slate-600">🔥{row.peakStreak}</td>
-                                    <td className="px-4 py-3.5 text-center text-slate-500">
-                                      {new Date(row.completedAt).toLocaleString(undefined, {
-                                        dateStyle: 'medium',
-                                        timeStyle: 'short',
-                                      })}
-                                    </td>
-                                  </tr>
-                                ))
+                                sortedAllPlays.map((row, i) => {
+                                  const device = formatDevice(row.device);
+                                  return (
+                                    <tr
+                                      key={`${row.playerName}::${row.game}::${row.completedAt}::${i}`}
+                                      className="border-t border-slate-100 transition-colors sm:hover:bg-slate-50"
+                                    >
+                                      <td className="px-4 py-3.5 text-left font-bold text-slate-700">{row.playerName}</td>
+                                      {filter === 'all' && (
+                                        <td className="px-4 py-3.5 text-center text-slate-600">{gameLabel(row.game)}</td>
+                                      )}
+                                      <td className="px-4 py-3.5 text-center text-slate-600">{formatStars(row.stars, row.totalRounds)}</td>
+                                      <td className="px-4 py-3.5 text-center text-slate-600">🔥{row.peakStreak}</td>
+                                      <td className="px-4 py-3.5 text-center text-slate-500">
+                                        {new Date(row.completedAt).toLocaleString(undefined, {
+                                          dateStyle: 'medium',
+                                          timeStyle: 'short',
+                                        })}
+                                      </td>
+                                      <td className="px-4 py-3.5 text-center text-slate-600" title={device.title}>
+                                        {device.icon} {device.text}
+                                      </td>
+                                    </tr>
+                                  );
+                                })
                               )}
                             </tbody>
                           </table>
