@@ -8,6 +8,7 @@ const GAME_LABELS = {
   game2: '🧸 Compare Quantity',
   game3: '🐙 Around the Number',
   game4: '🚀 Splits and Groups',
+  game5: "🗝️ Part-Part-Whole",
 };
 
 // New games "just work" here: known slugs get their custom emoji/name above,

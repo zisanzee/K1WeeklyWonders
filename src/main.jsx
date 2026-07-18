@@ -4,6 +4,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import "./index.css";
 
 import Home from "./Home";
+import Game5 from "./Game5";
 
 // Each game pulls in its own copy of framer-motion / dnd-kit / confetti and is
 // 25-30KB+ of JSX alone. Lazy-loading means a phone only ever downloads and
@@ -54,6 +55,7 @@ ReactDOM.createRoot(document.getElementById("root")).render(
         <Route path="/game2" element={<Game2 />} />
         <Route path="/game3" element={<Game3 />} />
         <Route path="/game4" element={<Game4 />} />
+        <Route path="/game5" element={<Game5 />} />
       </Routes>
     </Suspense>
   </BrowserRouter>

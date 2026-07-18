@@ -232,7 +232,7 @@ function HomeContent() {
               to="/Game1"
               emoji="🧺"
               title="Count & Win!"
-              subtitle="Game 1"
+              subtitle="Week 1"
               color="from-teal-400 to-emerald-500"
               ring="ring-teal-200"
               delay={0.1}
@@ -243,7 +243,7 @@ function HomeContent() {
               to="/Game2"
               emoji="🧸"
               title="Compare Quantity!"
-              subtitle="Game 2"
+              subtitle="Week 2"
               color="from-sky-400 to-blue-500"
               ring="ring-sky-200"
               delay={0.2}
@@ -254,7 +254,7 @@ function HomeContent() {
               to="/Game3"
               emoji="🐙"
               title="Around the Number!"
-              subtitle="Game 3"
+              subtitle="Week 3"
               color="from-violet-400 to-fuchsia-500"
               ring="ring-violet-200"
               delay={0.3}
@@ -265,12 +265,24 @@ function HomeContent() {
               to="/Game4"
               emoji="🚀"
               title="Splits and Groups!"
-              subtitle="Game 4"
+              subtitle="Week 4"
               color="from-amber-400 to-orange-500"
               ring="ring-amber-200"
               delay={0.4}
               open={isGameUnlocked(4, isTeacher)}
               progress={progressByGame.game4}
+            />
+           
+            <GameCard
+              to="/Game5"
+              emoji="🗝️"
+              title="Part-Part-Whole!"
+              subtitle="Week 5"
+              color="from-rose-400 to-pink-500"
+              ring="ring-rose-200"
+              delay={0.5}
+              open={isGameUnlocked(5, isTeacher)}
+              progress={progressByGame.game5}
             />
           </div>
         </div>
