@@ -26,6 +26,17 @@
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 
+  /* Stops mobile pull-to-refresh / rubber-band scrolling at the document
+     level. Each page already manages its own full-height layout with its
+     own overflow-hidden (or overflow-y-auto) container, so the outer
+     document itself never needs to scroll — this just stops the browser
+     chrome from intercepting a downward drag as a "pull to refresh"
+     gesture. It doesn't touch touch-action, so drag-and-drop (dnd-kit)
+     keeps working exactly as before. */
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+
   @media (max-width: 1024px) {
     font-size: 16px;
   }
@@ -77,6 +88,9 @@
 
 body {
   margin: 0;
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
 }
 
 #root {
