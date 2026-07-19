@@ -82,16 +82,21 @@
   }
 }
 
+/*
+  The browser's own document/window is never allowed to scroll below.
+  That's deliberate: pull-to-refresh (Chrome/Android) and rubber-band
+  bounce (iOS Safari) both hook into scrolling *the page itself* — if
+  the page can't scroll, there's nothing for that gesture to grab.
+  #root becomes the one real scroll container instead, the same trick
+  Discord/Slack's web clients use for their app shell.
+*/
 html,
 body {
   margin: 0;
   height: 100%;
-}
-
-body {
-  overflow-x: hidden;
-  overflow-y: auto;
-  overscroll-behavior-y: none;
+  overflow: hidden;
+  overscroll-behavior: none;
+  touch-action: pan-y;
 }
 
 #root {
@@ -100,10 +105,29 @@ body {
   margin: 0 auto;
   text-align: center;
   border-inline: 1px solid var(--border);
-  min-height: 100svh;
+  height: 100dvh;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
+}
+
+/*
+  Flexbox quirk: a flex item's default min-height is "auto", which
+  normally stops it from being squeezed smaller than its own content.
+  But that protection is dropped the moment the item's own overflow
+  is non-visible (e.g. Home's overflow-hidden, used to clip decorative
+  clouds). Without flex-shrink: 0, #root's fixed height was allowed to
+  squash the routed page down to one screen and clip anything past
+  it — that's why the last game card became unreachable. Forcing
+  flex-shrink: 0 here means the routed page always renders at its full
+  natural height, and #root scrolls to reveal whatever doesn't fit.
+*/
+#root > * {
+  flex-shrink: 0;
 }
 
 h1,
