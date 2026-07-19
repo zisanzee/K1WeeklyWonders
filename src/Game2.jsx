@@ -339,54 +339,44 @@ function Game2Inner() {
 
             {round.type === 'same' && <ReferenceBasket category={round.category} target={round.target} />}
 
-            <div className="mt-5 flex w-full flex-1 justify-center px-3 sm:px-4">
-  <div
-    className={`grid w-full max-w-5xl justify-items-center gap-2  ${
-      round.baskets.length === 3
-        ? 'grid-cols-1 sm:grid-cols-2 xl:grid-cols-3'
-        : 'grid-cols-1 sm:grid-cols-2 max-w-2xl'
-    }`}
-  >
-    {round.baskets.map((basket, index) => {
-      const centerLastBasket = round.baskets.length === 3 && index === 2;
-
-      return (
-        <div
-          key={basket.id}
-          className={
-            centerLastBasket
-              ? 'w-full sm:col-span-2 xl:col-span-1 flex justify-center'
-              : 'w-full flex justify-center'
-          }
-        >
-          {isNumeralRound ? (
-            <NumeralCard
-              value={basket.count}
-              category={round.category}
-              onTap={() => handleBasketTap(basket.id)}
-              disabled={phase !== 'playing'}
-              isWrong={wrongBasketId === basket.id}
-              isCorrectChosen={phase === 'success' && basket.id === round.correctId}
-              isDimmed={phase === 'success' && basket.id !== round.correctId}
-              showObjectHint={showHint}
-            />
-          ) : (
-            <BasketCard
-              basket={basket}
-              category={round.category}
-              onTap={() => handleBasketTap(basket.id)}
-              disabled={phase !== 'playing'}
-              isWrong={wrongBasketId === basket.id}
-              isCorrectChosen={phase === 'success' && basket.id === round.correctId}
-              isDimmed={phase === 'success' && basket.id !== round.correctId}
-              showHintGlow={showHint && phase === 'playing' && basket.id === round.correctId}
-            />
-          )}
-        </div>
-      );
-    })}
-  </div>
-</div>
+            <div className="mt-4 flex w-full flex-1 justify-center px-2 sm:mt-5 sm:px-4">
+              <div className="flex w-full max-w-5xl flex-row flex-wrap items-stretch justify-center gap-2 sm:gap-4 md:gap-6">
+                {round.baskets.map((basket) => (
+                  <div
+                    key={basket.id}
+                    className={
+                      round.baskets.length === 3
+                        ? 'flex w-[clamp(5.5rem,28vw,12rem)] justify-center'
+                        : 'flex w-[clamp(7.5rem,42vw,15rem)] justify-center'
+                    }
+                  >
+                    {isNumeralRound ? (
+                      <NumeralCard
+                        value={basket.count}
+                        category={round.category}
+                        onTap={() => handleBasketTap(basket.id)}
+                        disabled={phase !== 'playing'}
+                        isWrong={wrongBasketId === basket.id}
+                        isCorrectChosen={phase === 'success' && basket.id === round.correctId}
+                        isDimmed={phase === 'success' && basket.id !== round.correctId}
+                        showObjectHint={showHint}
+                      />
+                    ) : (
+                      <BasketCard
+                        basket={basket}
+                        category={round.category}
+                        onTap={() => handleBasketTap(basket.id)}
+                        disabled={phase !== 'playing'}
+                        isWrong={wrongBasketId === basket.id}
+                        isCorrectChosen={phase === 'success' && basket.id === round.correctId}
+                        isDimmed={phase === 'success' && basket.id !== round.correctId}
+                        showHintGlow={showHint && phase === 'playing' && basket.id === round.correctId}
+                      />
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
 
             {phase === 'playing' && (
               <button
@@ -430,7 +420,7 @@ export default function Game2() {
   );
 }
 
-function TeddyPrompt({ promptParts, streak, isWrong }) {
+const TeddyPrompt = React.memo(function TeddyPrompt({ promptParts, streak, isWrong }) {
   return (
     <div className="mt-4 flex flex-col items-center gap-2">
       <div className="relative">
@@ -453,9 +443,9 @@ function TeddyPrompt({ promptParts, streak, isWrong }) {
       </div>
     </div>
   );
-}
+});
 
-function ReferenceBasket({ category, target }) {
+const ReferenceBasket = React.memo(function ReferenceBasket({ category, target }) {
   const items = useMemo(
     () =>
       Array.from({ length: target }, (_, i) => ({
@@ -483,9 +473,9 @@ function ReferenceBasket({ category, target }) {
       </div>
     </div>
   );
-}
+});
 
-function BasketCard({ basket, category, onTap, disabled, isWrong, isCorrectChosen, isDimmed, showHintGlow }) {
+const BasketCard = React.memo(function BasketCard({ basket, category, onTap, disabled, isWrong, isCorrectChosen, isDimmed, showHintGlow }) {
   const stateAnim = isWrong
     ? 'animate-shake'
     : isCorrectChosen
@@ -520,25 +510,28 @@ function BasketCard({ basket, category, onTap, disabled, isWrong, isCorrectChose
       type="button"
       onClick={onTap}
       disabled={disabled}
-      className={`group relative flex max-h-48 min-h-[8.5rem] w-full max-w-[14rem] flex-wrap content-start items-start justify-center gap-1.5 rounded-b-[2.25rem] rounded-t-xl border-4 border-lime-700/70 bg-gradient-to-b from-violet-200 to-lime-200 p-3 shadow-[0_8px_0_rgba(0,0,0,0.18)] transition-all duration-200 ease-out sm:min-h-[10.5rem] sm:max-w-[15rem] sm:p-4 ${
+      className={`group relative flex w-full min-h-[clamp(5.5rem,26vw,10.5rem)] max-h-56 flex-wrap content-start items-start justify-center gap-1 overflow-hidden rounded-b-[2.25rem] rounded-t-xl border-4 border-lime-700/70 bg-gradient-to-b from-violet-200 to-lime-200 p-2 shadow-[0_8px_0_rgba(0,0,0,0.18)] transition-all duration-200 ease-out sm:gap-1.5 sm:p-4 ${
         disabled ? 'cursor-default' : 'cursor-pointer hover:-translate-y-1 active:translate-y-1 active:shadow-[0_3px_0_rgba(0,0,0,0.18)]'
       } ${stateAnim} ${isDimmed ? 'opacity-40 grayscale-[30%]' : ''}`}
     >
+      {!disabled && !isDimmed && (
+        <span className="animate-shimmer pointer-events-none absolute inset-0 -z-0 bg-gradient-to-r from-transparent via-white/25 to-transparent" />
+      )}
       <span className="absolute -top-3 left-1/2 h-4 w-10 -translate-x-1/2 rounded-t-full border-4 border-b-0 border-cyan-800/70" />
       {basket.items.map((it, i) => (
         <span
           key={it.id}
-          style={{ rotate: `${it.rotation}deg`, animationDelay: `${(i % 4) * 0.25}s` }}
-          className="animate-float-slower flex h-8 w-8 items-center justify-center text-3xl sm:h-9 sm:w-10 sm:text-4xl"
+          style={{ rotate: `${it.rotation}deg`, animationDelay: `${(i % 4) * 0.25}s`, fontSize: 'clamp(1.15rem,6.5vw,2.25rem)' }}
+          className="animate-float-slower flex aspect-square items-center justify-center leading-none"
         >
           {category.emoji}
         </span>
       ))}
     </button>
   );
-}
+});
 
-function NumeralCard({ value, category, onTap, disabled, isWrong, isCorrectChosen, isDimmed, showObjectHint }) {
+const NumeralCard = React.memo(function NumeralCard({ value, category, onTap, disabled, isWrong, isCorrectChosen, isDimmed, showObjectHint }) {
   const stateAnim = isWrong
     ? 'animate-shake'
     : isCorrectChosen
@@ -551,12 +544,20 @@ function NumeralCard({ value, category, onTap, disabled, isWrong, isCorrectChose
       type="button"
       onClick={onTap}
       disabled={disabled}
-      className={`group relative flex max-h-48 min-h-[8.5rem] w-full max-w-[14rem] flex-col items-center justify-center gap-2 rounded-b-[2.25rem] rounded-t-xl border-4 border-lime-700/70 bg-gradient-to-b from-violet-200 to-lime-200 p-3 shadow-[0_8px_0_rgba(0,0,0,0.18)] transition-all duration-200 ease-out sm:min-h-[10.5rem] sm:max-w-[15rem] sm:p-4 ${
+      className={`group relative flex w-full min-h-[clamp(5.5rem,26vw,10.5rem)] max-h-56 flex-col items-center justify-center gap-1.5 overflow-hidden rounded-b-[2.25rem] rounded-t-xl border-4 border-lime-700/70 bg-gradient-to-b from-violet-200 to-lime-200 p-2 shadow-[0_8px_0_rgba(0,0,0,0.18)] transition-all duration-200 ease-out sm:gap-2 sm:p-4 ${
         disabled ? 'cursor-default' : 'cursor-pointer hover:-translate-y-1 active:translate-y-1 active:shadow-[0_3px_0_rgba(0,0,0,0.18)]'
       } ${stateAnim} ${isDimmed ? 'opacity-40 grayscale-[30%]' : ''}`}
     >
+      {!disabled && !isDimmed && (
+        <span className="animate-shimmer pointer-events-none absolute inset-0 -z-0 bg-gradient-to-r from-transparent via-white/25 to-transparent" />
+      )}
       <span className="absolute -top-3 left-1/2 h-4 w-10 -translate-x-1/2 rounded-t-full border-4 border-b-0 border-cyan-800/70" />
-      <span className="font-heading animate-breathe text-6xl font-bold text-slate-700 drop-shadow sm:text-7xl">{value}</span>
+      <span
+        style={{ fontSize: 'clamp(2.25rem,13vw,4.5rem)' }}
+        className="font-heading animate-breathe font-bold leading-none text-slate-700 drop-shadow"
+      >
+        {value}
+      </span>
       {showObjectHint && (
         <div className="animate-pop-in flex max-w-[8.5rem] flex-wrap items-center justify-center gap-0.5 rounded-xl bg-white/70 p-1.5">
           {Array.from({ length: value }).map((_, i) => (
@@ -568,9 +569,9 @@ function NumeralCard({ value, category, onTap, disabled, isWrong, isCorrectChose
       )}
     </button>
   );
-}
+});
 
-function TopBar({ totalRounds, stars, muted, onToggleMute }) {
+const TopBar = React.memo(function TopBar({ totalRounds, stars, muted, onToggleMute }) {
   return (
     <div className="flex w-full items-center justify-between">
       <Link
@@ -592,9 +593,9 @@ function TopBar({ totalRounds, stars, muted, onToggleMute }) {
       </div>
     </div>
   );
-}
+});
 
-function StarMeter({ stars, total, dark }) {
+const StarMeter = React.memo(function StarMeter({ stars, total, dark }) {
   const pct = total > 0 ? Math.round((stars / total) * 100) : 0;
   return (
     <div className="flex items-center gap-2" aria-label={`${stars} out of ${total} stars earned`}>
@@ -614,9 +615,9 @@ function StarMeter({ stars, total, dark }) {
       </span>
     </div>
   );
-}
+});
 
-function RoundDots({ total, current, halfMark }) {
+const RoundDots = React.memo(function RoundDots({ total, current, halfMark }) {
   return (
     <div className="mt-1.5 flex flex-wrap items-center justify-center gap-1">
       {Array.from({ length: total }).map((_, i) => (
@@ -631,7 +632,7 @@ function RoundDots({ total, current, halfMark }) {
       ))}
     </div>
   );
-}
+});
 
 function SuccessOverlay({ message, isLastRound, streak, onNext }) {
   return (

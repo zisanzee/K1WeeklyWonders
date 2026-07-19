@@ -323,6 +323,8 @@ function Game4Inner() {
         @keyframes glow-pulse { 0%, 100% { box-shadow: 0 0 0 rgba(139,92,246,0); } 50% { box-shadow: 0 0 0 10px rgba(139,92,246,0.35); } }
         @keyframes shimmer { 0% { transform: translateX(-100%); } 100% { transform: translateX(220%); } }
         @keyframes flicker { 0%, 100% { transform: scaleY(1) translateY(0); opacity: 1; } 50% { transform: scaleY(1.25) translateY(2px); opacity: 0.8; } }
+        @keyframes flame { 0%, 100% { transform: scaleY(1) scaleX(1) translateY(0); opacity: 1; } 30% { transform: scaleY(1.3) scaleX(0.9) translateY(-2px); opacity: 0.9; } 60% { transform: scaleY(0.85) scaleX(1.1) translateY(1px); opacity: 1; } }
+        @keyframes flame2 { 0%, 100% { transform: scaleY(0.9) scaleX(1.1) translateY(0); opacity: 0.7; } 40% { transform: scaleY(1.2) scaleX(0.85) translateY(-3px); opacity: 0.5; } 70% { transform: scaleY(1) scaleX(1) translateY(1px); opacity: 0.75; } }
         .font-heading { font-family: 'Fredoka', sans-serif; }
         .font-body { font-family: 'Nunito', sans-serif; }
         .animate-twinkle { animation: twinkle 2.4s ease-in-out infinite; will-change: opacity; }
@@ -333,6 +335,8 @@ function Game4Inner() {
         .animate-glow-pulse { animation: glow-pulse 0.9s ease-in-out 2; }
         .animate-shimmer { animation: shimmer 2.2s linear infinite; will-change: transform; }
         .animate-flicker { animation: flicker 0.5s ease-in-out infinite; transform-origin: top center; will-change: transform; }
+        .animate-flame { animation: flame 0.45s ease-in-out infinite; transform-origin: top center; will-change: transform, opacity; }
+        .animate-flame2 { animation: flame2 0.6s ease-in-out infinite; animation-delay: 0.15s; transform-origin: top center; will-change: transform, opacity; }
       `}</style>
 
       <Starfield />
@@ -377,7 +381,7 @@ function Game4Inner() {
             <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
               <CargoBay items={poolItems} count={poolCount} cargo={round.cargo} disabled={phase !== 'playing'} pulse={bayPulse} />
 
-              <div className="mt-3 flex w-full flex-1 flex-col gap-3 sm:mt-4 sm:flex-row sm:items-start sm:justify-center sm:gap-4">
+              <div className="mt-3 flex w-full flex-1 flex-row items-start justify-center gap-2 sm:mt-4 sm:gap-4">
                 <RocketZone
                   id="left"
                   label="Red Rocket"
@@ -492,7 +496,7 @@ function Starfield() {
   );
 }
 
-function TopBar({ totalRounds, stars, muted, onToggleMute }) {
+const TopBar = React.memo(function TopBar({ totalRounds, stars, muted, onToggleMute }) {
   return (
     <div className="flex w-full items-center justify-between">
       <Link
@@ -514,9 +518,9 @@ function TopBar({ totalRounds, stars, muted, onToggleMute }) {
       </div>
     </div>
   );
-}
+});
 
-function StarMeter({ stars, total, dark }) {
+const StarMeter = React.memo(function StarMeter({ stars, total, dark }) {
   const pct = total > 0 ? Math.round((stars / total) * 100) : 0;
   return (
     <div className="flex items-center gap-2" aria-label={`${stars} out of ${total} stars earned`}>
@@ -534,9 +538,9 @@ function StarMeter({ stars, total, dark }) {
       </span>
     </div>
   );
-}
+});
 
-function RoundDots({ total, current, markers = [] }) {
+const RoundDots = React.memo(function RoundDots({ total, current, markers = [] }) {
   return (
     <div className="mt-1.5 flex flex-wrap items-center justify-center gap-1">
       {Array.from({ length: total }).map((_, i) => (
@@ -551,9 +555,9 @@ function RoundDots({ total, current, markers = [] }) {
       ))}
     </div>
   );
-}
+});
 
-function NovaPrompt({ round, streak, isWrong }) {
+const NovaPrompt = React.memo(function NovaPrompt({ round, streak, isWrong }) {
   return (
     <div className="relative shrink-0">
       <motion.span
@@ -574,7 +578,7 @@ function NovaPrompt({ round, streak, isWrong }) {
       )}
     </div>
   );
-}
+});
 
 // A big, bouncy number — the one shared "language" used everywhere instead
 // of any +/= notation: the bay's count, and each rocket's count.
@@ -592,7 +596,7 @@ function BigNumber({ value, className }) {
   );
 }
 
-function MissionHeader({ round }) {
+const MissionHeader = React.memo(function MissionHeader({ round }) {
   return (
     <div className="animate-pop-in flex flex-col items-center gap-0.5 rounded-[1.5rem] bg-white/90 px-4 py-2 text-center shadow-[0_6px_0_rgba(0,0,0,0.15)] sm:px-5 sm:py-2.5">
       <div className="flex items-center gap-1.5">
@@ -620,11 +624,11 @@ function MissionHeader({ round }) {
 </p>
     </div>
   );
-}
+});
 
 // A literal seesaw: it visibly tilts toward whichever rocket has more, and
 // levels out the moment Red and Blue match — no numbers needed to "get" it.
-function BalanceScale({ leftCount, rightCount }) {
+const BalanceScale = React.memo(function BalanceScale({ leftCount, rightCount }) {
   const diff = Math.max(-4, Math.min(4, rightCount - leftCount));
   const angle = diff * 6;
   const balanced = leftCount === rightCount && leftCount > 0;
@@ -644,15 +648,27 @@ function BalanceScale({ leftCount, rightCount }) {
       </p>
     </div>
   );
-}
+});
 
-function CargoBay({ items, count, cargo, disabled, pulse }) {
+const CargoBay = React.memo(function CargoBay({ items, count, cargo, disabled, pulse }) {
   const { isOver, setNodeRef } = useDroppable({ id: 'pool' });
   return (
     <div
       ref={setNodeRef}
+      style={{
+        backgroundImage: `
+          linear-gradient(to bottom, rgba(255,255,255,0.08), rgba(0,0,0,0.08)),
+          repeating-linear-gradient(
+            135deg,
+            rgba(255,255,255,0.06) 0px,
+            rgba(255,255,255,0.06) 3px,
+            transparent 3px,
+            transparent 16px
+          )
+        `,
+      }}
       className={cn(
-        'relative mt-3 flex min-h-[clamp(4.5rem,15vh,7rem)] w-full flex-col items-center gap-1.5 rounded-[1.75rem] border-4 border-dashed border-indigo-300/50 bg-white/10 p-3 pt-7 shadow-inner backdrop-blur-sm transition-shadow sm:mt-4 sm:gap-2 sm:p-4 sm:pt-8',
+        'relative mt-3 flex min-h-[clamp(4.5rem,15vh,7rem)] w-full flex-col items-center gap-1 rounded-[1.75rem] border-4 border-dashed border-indigo-300/50 bg-white/10 p-2 pt-7 shadow-inner backdrop-blur-sm transition-shadow sm:mt-4 sm:gap-2 sm:p-4 sm:pt-8',
         isOver && 'border-yellow-300 bg-white/20',
         pulse && 'animate-glow-pulse'
       )}
@@ -661,7 +677,7 @@ function CargoBay({ items, count, cargo, disabled, pulse }) {
         🛰️ Cargo Bay
       </span>
       <BigNumber value={count} className="text-indigo-100" />
-      <div className="flex flex-wrap content-start items-start justify-center gap-1.5 sm:gap-2">
+      <div className="flex flex-wrap content-start items-start justify-center gap-1 sm:gap-2">
         {items.length === 0 && <span className="font-body text-sm font-bold text-white/70">All loaded!</span>}
         {items.map((it) => (
           <DraggableCargo key={it.id} id={it.id} emoji={cargo.emoji} rotation={it.rotation} disabled={disabled} />
@@ -669,67 +685,96 @@ function CargoBay({ items, count, cargo, disabled, pulse }) {
       </div>
     </div>
   );
-}
+});
 
 const ROCKET_THEME = {
   red: {
     label: '🔴 Red Rocket',
     body: 'from-rose-300 to-rose-500 border-rose-800/70',
     ring: 'ring-rose-200',
+    finLeft: 'bg-rose-600',
+    finRight: 'bg-rose-700',
   },
   blue: {
     label: '🔵 Blue Rocket',
     body: 'from-sky-300 to-sky-500 border-sky-800/70',
     ring: 'ring-sky-200',
+    finLeft: 'bg-sky-600',
+    finRight: 'bg-sky-700',
   },
 };
 
-function RocketZone({ id, count, items, cargo, disabled, shake, color, goal, matched }) {
+const RocketZone = React.memo(function RocketZone({ id, count, items, cargo, disabled, shake, color, goal, matched }) {
   const { isOver, setNodeRef } = useDroppable({ id });
   const theme = ROCKET_THEME[color];
   return (
     <div className="flex flex-1 flex-col items-center">
       <div
         ref={setNodeRef}
+        style={{
+          backgroundImage: `
+            linear-gradient(to bottom, rgba(255,255,255,0.18), rgba(0,0,0,0.1)),
+            repeating-linear-gradient(
+              0deg,
+              rgba(255,255,255,0.1) 0px,
+              rgba(255,255,255,0.1) 3px,
+              transparent 3px,
+              transparent 13px
+            )
+          `,
+        }}
         className={cn(
-          'relative flex min-h-[clamp(5.5rem,19vh,8.5rem)] w-full flex-col items-center gap-1.5 rounded-t-[2.5rem] rounded-b-2xl border-4 bg-gradient-to-b p-3 pt-7 shadow-inner transition-shadow sm:gap-2 sm:p-4 sm:pt-8',
+          'relative flex min-h-[clamp(5.5rem,19vh,8.5rem)] w-full flex-col items-center gap-1 overflow-hidden rounded-t-[2.5rem] rounded-b-2xl border-4 bg-gradient-to-b p-2 pt-8 shadow-inner transition-shadow sm:gap-2 sm:p-4 sm:pt-9',
           theme.body,
           isOver && `ring-4 ${theme.ring}`,
           shake && 'animate-shake',
           matched && 'ring-4 ring-emerald-300'
         )}
       >
-        <span className="font-body absolute -top-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-white/95 px-3 py-0.5 text-xs font-extrabold text-slate-600 shadow sm:text-sm">
+        {/* Decorative porthole window — sits behind the cargo so it never
+            blocks a drop target or a drag gesture. */}
+        <span
+          className="pointer-events-none absolute left-1/2 top-3 h-6 w-6 -translate-x-1/2 rounded-full border-2 border-white/70 bg-gradient-to-br from-white/80 via-sky-100/40 to-transparent shadow-inner sm:h-8 sm:w-8"
+          aria-hidden="true"
+        />
+        <span className="font-body absolute -top-3 left-1/2 z-10 mt-3 -translate-x-1/2 whitespace-nowrap rounded-full bg-white/95 px-2.5 py-0.5 text-[11px] font-extrabold text-slate-600 shadow sm:px-3 sm:text-sm">
           {theme.label}
         </span>
-        <BigNumber value={count} className="text-white" />
+        <div className="mt-2 sm:mt-2.5">
+          <BigNumber value={count} className="text-white" />
+        </div>
         {goal != null && (
           <span
             className={cn(
-              'font-body rounded-full px-2.5 py-0.5 text-xs font-extrabold shadow',
+              'font-body rounded-full px-2 py-0.5 text-[11px] font-extrabold shadow sm:px-2.5 sm:text-xs',
               matched ? 'bg-emerald-400 text-white' : 'bg-white/80 text-slate-600'
             )}
           >
             {matched ? '✅ Goal met!' : `🎯 Goal: ${goal}`}
           </span>
         )}
-        <div className="flex flex-wrap content-start items-start justify-center gap-1.5 sm:gap-2">
+        <div className="flex flex-wrap content-start items-start justify-center gap-1 sm:gap-2">
           {items.length === 0 && <span className="font-body text-xs font-bold text-white/80 sm:text-sm">Drop cargo here!</span>}
           {items.map((it) => (
             <DraggableCargo key={it.id} id={it.id} emoji={cargo.emoji} rotation={it.rotation} disabled={disabled} />
           ))}
         </div>
       </div>
-      <div className="relative flex justify-center rotate-180">
-  <span className="mt-9 text-2xl animate-flame">🔥</span>
 
-  <span className="absolute mt-5 text-xl opacity-70 animate-flame2">
-    🔥
-  </span>
-</div>
+      {/* Fins — a couple of clipped triangles bracketing the engine, purely
+          decorative and cheap (no extra animation, just static shapes). */}
+      <div className="relative flex w-full items-start justify-center">
+        <span className={cn('absolute -top-1 h-4 w-6 sm:h-5 sm:w-7', theme.finLeft)} style={{ left: '14%', clipPath: 'polygon(100% 0, 100% 100%, 0 100%)' }} />
+        <span className={cn('absolute -top-1 h-4 w-6 sm:h-5 sm:w-7', theme.finRight)} style={{ right: '14%', clipPath: 'polygon(0 0, 100% 100%, 0 100%)' }} />
+      </div>
+
+      <div className="relative flex justify-center rotate-180">
+        <span className="animate-flame mt-9 text-2xl">🔥</span>
+        <span className="animate-flame2 absolute mt-5 text-xl opacity-70">🔥</span>
+      </div>
     </div>
   );
-}
+});
 
 const DraggableCargo = React.memo(function DraggableCargo({ id, emoji, rotation, disabled }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id, disabled });
@@ -743,7 +788,7 @@ const DraggableCargo = React.memo(function DraggableCargo({ id, emoji, rotation,
         rotate: `${rotation}deg`,
         touchAction: 'none',
       }}
-      className={`flex h-9 w-9 items-center justify-center rounded-2xl text-lg transition-opacity duration-150 sm:h-12 sm:w-12 sm:text-2xl ${
+      className={`flex h-8 w-8 items-center justify-center rounded-2xl text-base transition-opacity duration-150 sm:h-12 sm:w-12 sm:text-2xl ${
         disabled ? 'cursor-default' : 'cursor-grab active:cursor-grabbing'
       } ${isDragging ? 'opacity-0' : 'opacity-100'}`}
     >
