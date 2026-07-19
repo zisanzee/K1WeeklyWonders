@@ -1,9 +1,15 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
+import clsx from 'clsx';
+import { twMerge } from 'tailwind-merge';
 import NameGate from './NameGate';
 import GameAccessGate from './GameAccessGate';
 import { usePlayerStore } from './playerStore';
 import { logPlaySession } from './logPlaySession';
+
+function cn(...inputs) {
+  return twMerge(clsx(inputs));
+}
 
 const TOTAL_ROUNDS = 12;
 
@@ -274,7 +280,7 @@ function Game2Inner() {
   };
 
   return (
-    <div className="relative min-h-screen w-full overflow-hidden bg-gradient-to-b from-[#48BFEE] via-[#8FE0FA] to-[#FFE9A8]">
+    <div className="relative h-[100dvh] w-full overflow-hidden bg-gradient-to-b from-[#48BFEE] via-[#8FE0FA] to-[#FFE9A8]">
       <link
         rel="stylesheet"
         href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;700&family=Nunito:wght@600;800&display=swap"
@@ -283,7 +289,7 @@ function Game2Inner() {
       <style>{`
         @keyframes float-slow { 0%, 100% { transform: translateY(0) translateX(0); } 50% { transform: translateY(-20px) translateX(10px); } }
         @keyframes float-slower { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-14px); } }
-        @keyframes pop-in { 0% { transform: scale(0.6); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+        @keyframes pop-in { 0% { transform: scale(0.6) translateY(10px); opacity: 0; } 100% { transform: scale(1) translateY(0); opacity: 1; } }
         @keyframes sparkle { 0%, 100% { opacity: 0.3; transform: scale(0.8); } 50% { opacity: 1; transform: scale(1.2); } }
         @keyframes confetti-fall { 0% { transform: translateY(-20px) rotate(0deg); opacity: 1; } 100% { transform: translateY(105vh) rotate(360deg); opacity: 0.9; } }
         @keyframes shake { 0%, 100% { transform: translateX(0); } 20%, 60% { transform: translateX(-6px); } 40%, 80% { transform: translateX(6px); } }
@@ -292,45 +298,53 @@ function Game2Inner() {
         @keyframes bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
         @keyframes basket-rock { 0%, 100% { transform: rotate(-0.6deg); } 50% { transform: rotate(0.6deg); } }
         @keyframes breathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.06); } }
-        @keyframes sun-pulse { 0%, 100% { transform: scale(1); filter: drop-shadow(0 0 8px rgba(255,217,61,0.55)); } 50% { transform: scale(1.06); filter: drop-shadow(0 0 18px rgba(255,217,61,0.85)); } }
+        @keyframes sun-pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.06); } }
         @keyframes shimmer { 0% { transform: translateX(-100%); } 100% { transform: translateX(220%); } }
         .font-heading { font-family: 'Fredoka', sans-serif; }
         .font-body { font-family: 'Nunito', sans-serif; }
         .animate-float-slow { animation: float-slow 6s ease-in-out infinite; will-change: transform; }
         .animate-float-slower { animation: float-slower 8s ease-in-out infinite; will-change: transform; }
         .animate-pop-in { animation: pop-in 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
-        .animate-sparkle { animation: sparkle 1.8s ease-in-out infinite; will-change: transform, opacity; }
-        .animate-confetti-fall { animation-name: confetti-fall; animation-timing-function: linear; animation-fill-mode: forwards; will-change: transform, opacity; }
+        .animate-sparkle { animation: sparkle 1.8s ease-in-out infinite; }
+        .animate-confetti-fall { animation-name: confetti-fall; animation-timing-function: linear; animation-fill-mode: forwards; }
         .animate-shake { animation: shake 0.4s ease-in-out; }
         .animate-wobble { animation: wobble 0.6s ease-in-out infinite; }
         .animate-glow-pulse { animation: glow-pulse 0.9s ease-in-out infinite; }
         .animate-bob { animation: bob 2.4s ease-in-out infinite; will-change: transform; }
-        .animate-basket-rock { animation: basket-rock 4s ease-in-out infinite; will-change: transform; }
-        .animate-breathe { animation: breathe 2.6s ease-in-out infinite; will-change: transform; }
+        .animate-basket-rock { animation: basket-rock 4s ease-in-out infinite; }
+        .animate-breathe { animation: breathe 2.6s ease-in-out infinite; }
         .animate-sun-pulse { animation: sun-pulse 3s ease-in-out infinite; will-change: transform; }
         .animate-shimmer { animation: shimmer 2.2s linear infinite; will-change: transform; }
+        @media (prefers-reduced-motion: reduce) {
+          .animate-float-slow, .animate-float-slower, .animate-sparkle, .animate-shake, .animate-wobble,
+          .animate-glow-pulse, .animate-bob, .animate-basket-rock, .animate-breathe, .animate-sun-pulse,
+          .animate-shimmer, .animate-confetti-fall {
+            animation-duration: 0.001s !important;
+            animation-iteration-count: 1 !important;
+          }
+        }
       `}</style>
 
       <div className="pointer-events-none absolute inset-0">
-        <div className="absolute left-[6%] top-[6%] text-5xl animate-float-slow">☁️</div>
-        <div className="absolute right-[8%] top-[10%] text-4xl animate-float-slower">☁️</div>
-        <div className="absolute right-[10%] top-[40%] text-2xl animate-sparkle">✨</div>
-        <div className="absolute left-[8%] top-[35%] text-2xl animate-sparkle" style={{ animationDelay: '0.5s' }}>⭐</div>
-        <div className="absolute right-[6%] top-[3%] text-6xl opacity-90 animate-sun-pulse">☀️</div>
-        <div className="absolute left-[4%] bottom-[10%] text-4xl animate-float-slow" style={{ animationDelay: '1s' }}>🎈</div>
+        <div className="absolute left-[6%] top-[6%] text-4xl sm:text-5xl animate-float-slow">☁️</div>
+        <div className="absolute right-[8%] top-[10%] text-3xl sm:text-4xl animate-float-slower">☁️</div>
+        <div className="absolute right-[10%] top-[40%] text-xl sm:text-2xl animate-sparkle">✨</div>
+        <div className="absolute left-[8%] top-[35%] text-xl sm:text-2xl animate-sparkle" style={{ animationDelay: '0.5s' }}>⭐</div>
+        <div className="absolute right-[6%] top-[3%] text-5xl sm:text-6xl opacity-90 animate-sun-pulse">☀️</div>
+        <div className="absolute left-[4%] bottom-[10%] text-3xl sm:text-4xl animate-float-slow" style={{ animationDelay: '1s' }}>🎈</div>
       </div>
 
-      <div className="relative z-10 mx-auto flex min-h-screen max-w-5xl flex-col items-center px-4 py-4 sm:py-6">
+      <div className="relative z-10 mx-auto flex h-full max-w-5xl flex-col items-center overflow-y-auto px-3 py-2.5 sm:px-4 sm:py-4">
         <TopBar totalRounds={TOTAL_ROUNDS} stars={stars} muted={muted} onToggleMute={() => setMuted((m) => !m)} />
 
         {phase === 'complete' ? (
           <CompletionScreen stars={stars} total={TOTAL_ROUNDS} onPlayAgain={playAgain} />
         ) : (
           <>
-            <h1 className="font-heading mt-2 text-xl font-bold text-white/95 drop-shadow sm:text-2xl">
+            <h1 className="font-heading mt-1.5 text-lg font-bold text-white/95 drop-shadow sm:mt-2 sm:text-2xl">
               🧺 Teddy's Picnic Adventure!
             </h1>
-            <p className="font-body text-sm font-bold text-white/80 sm:text-base">
+            <p className="font-body text-xs font-bold text-white/80 sm:text-base">
               Round {roundIndex + 1} of {TOTAL_ROUNDS} {isNumeralRound && <span className="opacity-80">· Numbers round 🔢</span>}
             </p>
             <RoundDots total={TOTAL_ROUNDS} current={roundIndex} halfMark={6} />
@@ -339,16 +353,20 @@ function Game2Inner() {
 
             {round.type === 'same' && <ReferenceBasket category={round.category} target={round.target} />}
 
-            <div className="mt-4 flex w-full flex-1 justify-center px-2 sm:mt-5 sm:px-4">
-              <div className="flex w-full max-w-5xl flex-row flex-wrap items-stretch justify-center gap-2 sm:gap-4 md:gap-6">
-                {round.baskets.map((basket) => (
+            <div className="mt-3 flex w-full flex-1 items-center justify-center px-1 sm:mt-5 sm:px-4">
+              <div
+                className={cn(
+                  'grid w-full gap-2 sm:gap-4 md:gap-5',
+                  round.baskets.length === 3
+                    ? 'grid-cols-3 max-w-sm sm:max-w-xl md:max-w-2xl'
+                    : 'grid-cols-2 max-w-[19rem] sm:max-w-lg md:max-w-xl'
+                )}
+              >
+                {round.baskets.map((basket, i) => (
                   <div
                     key={basket.id}
-                    className={
-                      round.baskets.length === 3
-                        ? 'flex w-[clamp(5.5rem,28vw,12rem)] justify-center'
-                        : 'flex w-[clamp(7.5rem,42vw,15rem)] justify-center'
-                    }
+                    className="animate-pop-in aspect-[4/5] w-full"
+                    style={{ animationDelay: `${i * 0.08}s` }}
                   >
                     {isNumeralRound ? (
                       <NumeralCard
@@ -360,6 +378,7 @@ function Game2Inner() {
                         isCorrectChosen={phase === 'success' && basket.id === round.correctId}
                         isDimmed={phase === 'success' && basket.id !== round.correctId}
                         showObjectHint={showHint}
+                        dense={round.baskets.length === 3}
                       />
                     ) : (
                       <BasketCard
@@ -371,6 +390,7 @@ function Game2Inner() {
                         isCorrectChosen={phase === 'success' && basket.id === round.correctId}
                         isDimmed={phase === 'success' && basket.id !== round.correctId}
                         showHintGlow={showHint && phase === 'playing' && basket.id === round.correctId}
+                        dense={round.baskets.length === 3}
                       />
                     )}
                   </div>
@@ -378,22 +398,24 @@ function Game2Inner() {
               </div>
             </div>
 
-            {phase === 'playing' && (
-              <button
-                type="button"
-                onClick={() => setShowHint(true)}
-                disabled={showHint}
-                className="font-body mt-5 rounded-full bg-white/85 px-5 py-2 text-sm font-extrabold text-slate-600 shadow-[0_4px_0_rgba(0,0,0,0.12)] transition-transform hover:-translate-y-0.5 active:translate-y-1 active:shadow-none disabled:cursor-default disabled:opacity-50 sm:text-base"
-              >
-                {isNumeralRound
-                  ? showHint
-                    ? '🔢 Counting shown!'
-                    : '🔢 Show as objects'
-                  : showHint
-                  ? '🔍 Hint shown!'
-                  : '🔍 Need a hint?'}
-              </button>
-            )}
+            <div className="mt-2 flex min-h-[2.75rem] flex-col items-center gap-1.5 pb-2 sm:mt-4">
+              {phase === 'playing' && (
+                <button
+                  type="button"
+                  onClick={() => setShowHint(true)}
+                  disabled={showHint}
+                  className="font-body rounded-full bg-white/85 px-4 py-1.5 text-xs font-extrabold text-slate-600 shadow-[0_4px_0_rgba(0,0,0,0.12)] transition-transform hover:-translate-y-0.5 active:translate-y-1 active:shadow-none disabled:cursor-default disabled:opacity-50 sm:px-5 sm:py-2 sm:text-base"
+                >
+                  {isNumeralRound
+                    ? showHint
+                      ? '🔢 Counting shown!'
+                      : '🔢 Show as objects'
+                    : showHint
+                    ? '🔍 Hint shown!'
+                    : '🔍 Need a hint?'}
+                </button>
+              )}
+            </div>
 
             {phase === 'success' && (
               <SuccessOverlay
@@ -422,21 +444,21 @@ export default function Game2() {
 
 const TeddyPrompt = React.memo(function TeddyPrompt({ promptParts, streak, isWrong }) {
   return (
-    <div className="mt-4 flex flex-col items-center gap-2">
+    <div className="mt-2 flex flex-col items-center gap-1.5 sm:mt-4 sm:gap-2">
       <div className="relative">
-        <span className={`inline-block text-6xl sm:text-7xl ${isWrong ? 'animate-shake' : 'animate-bob'}`}>🧸</span>
+        <span className={`inline-block text-4xl sm:text-6xl md:text-7xl ${isWrong ? 'animate-shake' : 'animate-bob'}`}>🧸</span>
         {streak >= 2 && (
-          <span className="font-body animate-pop-in absolute -right-3 -top-2 rounded-full bg-orange-400 px-2 py-0.5 text-xs font-extrabold text-white shadow">
+          <span className="font-body animate-pop-in absolute -right-2 -top-1.5 rounded-full bg-orange-400 px-1.5 py-0.5 text-[10px] font-extrabold text-white shadow sm:-right-3 sm:-top-2 sm:px-2 sm:text-xs">
             🔥{streak}
           </span>
         )}
       </div>
-      <div className="animate-pop-in relative max-w-xs rounded-3xl bg-white px-5 py-3 text-center shadow-[0_6px_0_rgba(0,0,0,0.1)] sm:max-w-sm">
-        <span className="absolute -top-2 left-1/2 h-4 w-4 -translate-x-1/2 rotate-45 bg-white" />
+      <div className="animate-pop-in relative max-w-[15rem] rounded-2xl bg-white px-3.5 py-2 text-center shadow-[0_5px_0_rgba(0,0,0,0.1)] sm:max-w-sm sm:rounded-3xl sm:px-5 sm:py-3">
+        <span className="absolute -top-1.5 left-1/2 h-3 w-3 -translate-x-1/2 rotate-45 bg-white sm:-top-2 sm:h-4 sm:w-4" />
         {isWrong ? (
-          <p className="font-body text-sm font-bold text-orange-600 sm:text-base">Not quite! Try again 💪</p>
+          <p className="font-body text-xs font-bold text-orange-600 sm:text-base">Not quite! Try again 💪</p>
         ) : (
-          <p className="font-body text-sm font-bold text-slate-700 sm:text-base">
+          <p className="font-body text-xs font-bold text-slate-700 sm:text-base">
             {promptParts.before} <span className="text-pink-500">{promptParts.keyword}</span> {promptParts.after}
           </p>
         )}
@@ -455,17 +477,17 @@ const ReferenceBasket = React.memo(function ReferenceBasket({ category, target }
     [target]
   );
   return (
-    <div className="animate-pop-in mt-4 flex flex-col items-center gap-1.5">
-      <span className="font-body rounded-full bg-white/90 px-3 py-0.5 text-xs font-extrabold text-slate-600 shadow sm:text-sm">
+    <div className="animate-pop-in mt-2 flex flex-col items-center gap-1 sm:mt-4 sm:gap-1.5">
+      <span className="font-body rounded-full bg-white/90 px-2.5 py-0.5 text-[10px] font-extrabold text-slate-600 shadow sm:px-3 sm:text-sm">
         🧸 Teddy's basket
       </span>
-      <div className="relative flex min-h-[4rem] w-full max-w-[10rem] flex-wrap content-start items-start justify-center gap-1 rounded-b-[1.75rem] rounded-t-lg border-4 border-cyan-800/70 bg-gradient-to-b from-cyan-200 to-cyan-400 p-2.5 shadow-inner sm:max-w-[12rem]">
-        <span className="absolute -top-2.5 left-1/2 h-3 w-8 -translate-x-1/2 rounded-t-full border-4 border-b-0 border-cyan-800/70" />
+      <div className="relative flex min-h-[3rem] w-full max-w-[8rem] flex-wrap content-start items-start justify-center gap-1 rounded-b-[1.5rem] rounded-t-lg border-4 border-cyan-800/70 bg-gradient-to-b from-cyan-200 to-cyan-400 p-2 shadow-inner sm:min-h-[4rem] sm:max-w-[11rem] sm:p-2.5">
+        <span className="absolute -top-2 left-1/2 h-2.5 w-6 -translate-x-1/2 rounded-t-full border-4 border-b-0 border-cyan-800/70 sm:-top-2.5 sm:h-3 sm:w-8" />
         {items.map((it, i) => (
           <span
             key={it.id}
             style={{ rotate: `${it.rotation}deg`, animationDelay: `${(i % 4) * 0.25}s` }}
-            className="animate-float-slower flex h-8 w-8 items-center justify-center text-xl sm:h-9 sm:w-9 sm:text-2xl"
+            className="animate-float-slower flex h-6 w-6 items-center justify-center text-base sm:h-9 sm:w-9 sm:text-2xl"
           >
             {category.emoji}
           </span>
@@ -475,7 +497,7 @@ const ReferenceBasket = React.memo(function ReferenceBasket({ category, target }
   );
 });
 
-const BasketCard = React.memo(function BasketCard({ basket, category, onTap, disabled, isWrong, isCorrectChosen, isDimmed, showHintGlow }) {
+const BasketCard = React.memo(function BasketCard({ basket, category, onTap, disabled, isWrong, isCorrectChosen, isDimmed, showHintGlow, dense }) {
   const stateAnim = isWrong
     ? 'animate-shake'
     : isCorrectChosen
@@ -510,19 +532,25 @@ const BasketCard = React.memo(function BasketCard({ basket, category, onTap, dis
       type="button"
       onClick={onTap}
       disabled={disabled}
-      className={`group relative flex w-full min-h-[clamp(5.5rem,26vw,10.5rem)] max-h-56 flex-wrap content-start items-start justify-center gap-1 overflow-hidden rounded-b-[2.25rem] rounded-t-xl border-4 border-lime-700/70 bg-gradient-to-b from-violet-200 to-lime-200 p-2 shadow-[0_8px_0_rgba(0,0,0,0.18)] transition-all duration-200 ease-out sm:gap-1.5 sm:p-4 ${
-        disabled ? 'cursor-default' : 'cursor-pointer hover:-translate-y-1 active:translate-y-1 active:shadow-[0_3px_0_rgba(0,0,0,0.18)]'
-      } ${stateAnim} ${isDimmed ? 'opacity-40 grayscale-[30%]' : ''}`}
+      className={cn(
+        'group relative flex h-full w-full flex-wrap content-center items-center justify-center gap-1 rounded-b-[2.25rem] rounded-t-xl border-4 border-lime-700/70 bg-gradient-to-b from-violet-200 to-lime-200 p-2 shadow-[0_8px_0_rgba(0,0,0,0.18)] transition-transform duration-200 ease-out sm:gap-2 sm:p-4',
+        disabled ? 'cursor-default' : 'cursor-pointer hover:-translate-y-1 active:translate-y-1 active:shadow-[0_3px_0_rgba(0,0,0,0.18)]',
+        stateAnim,
+        isDimmed && 'opacity-40 grayscale-[30%]'
+      )}
     >
       {!disabled && !isDimmed && (
-        <span className="animate-shimmer pointer-events-none absolute inset-0 -z-0 bg-gradient-to-r from-transparent via-white/25 to-transparent" />
+        <span className="pointer-events-none absolute inset-0 overflow-hidden rounded-b-[2.25rem] rounded-t-xl">
+          <span className="animate-shimmer absolute inset-0 bg-gradient-to-r from-transparent via-white/25 to-transparent" />
+        </span>
       )}
       <span className="absolute -top-3 left-1/2 h-4 w-10 -translate-x-1/2 rounded-t-full border-4 border-b-0 border-cyan-800/70" />
+      <span className="absolute -bottom-1.5 left-1/2 h-2 w-[55%] -translate-x-1/2 rounded-full bg-black/15 blur-[3px]" />
       {basket.items.map((it, i) => (
         <span
           key={it.id}
-          style={{ rotate: `${it.rotation}deg`, animationDelay: `${(i % 4) * 0.25}s`, fontSize: 'clamp(1.15rem,6.5vw,2.25rem)' }}
-          className="animate-float-slower flex aspect-square items-center justify-center leading-none"
+          style={{ rotate: `${it.rotation}deg`, animationDelay: `${(i % 4) * 0.25}s`, fontSize: dense ? 'clamp(1.1rem,6vw,1.9rem)' : 'clamp(1.3rem,7vw,2.4rem)', margin: dense ? '0.2rem' : '0.6rem' }}
+          className="animate-float-slower flex items-center justify-center"
         >
           {category.emoji}
         </span>
@@ -531,7 +559,7 @@ const BasketCard = React.memo(function BasketCard({ basket, category, onTap, dis
   );
 });
 
-const NumeralCard = React.memo(function NumeralCard({ value, category, onTap, disabled, isWrong, isCorrectChosen, isDimmed, showObjectHint }) {
+const NumeralCard = React.memo(function NumeralCard({ value, category, onTap, disabled, isWrong, isCorrectChosen, isDimmed, showObjectHint, dense }) {
   const stateAnim = isWrong
     ? 'animate-shake'
     : isCorrectChosen
@@ -544,24 +572,30 @@ const NumeralCard = React.memo(function NumeralCard({ value, category, onTap, di
       type="button"
       onClick={onTap}
       disabled={disabled}
-      className={`group relative flex w-full min-h-[clamp(5.5rem,26vw,10.5rem)] max-h-56 flex-col items-center justify-center gap-1.5 overflow-hidden rounded-b-[2.25rem] rounded-t-xl border-4 border-lime-700/70 bg-gradient-to-b from-violet-200 to-lime-200 p-2 shadow-[0_8px_0_rgba(0,0,0,0.18)] transition-all duration-200 ease-out sm:gap-2 sm:p-4 ${
-        disabled ? 'cursor-default' : 'cursor-pointer hover:-translate-y-1 active:translate-y-1 active:shadow-[0_3px_0_rgba(0,0,0,0.18)]'
-      } ${stateAnim} ${isDimmed ? 'opacity-40 grayscale-[30%]' : ''}`}
+      className={cn(
+        'group relative flex h-full w-full flex-col items-center justify-center gap-1 rounded-b-[2.25rem] rounded-t-xl border-4 border-lime-700/70 bg-gradient-to-b from-violet-200 to-lime-200 p-2 shadow-[0_8px_0_rgba(0,0,0,0.18)] transition-transform duration-200 ease-out sm:gap-2 sm:p-4',
+        disabled ? 'cursor-default' : 'cursor-pointer hover:-translate-y-1 active:translate-y-1 active:shadow-[0_3px_0_rgba(0,0,0,0.18)]',
+        stateAnim,
+        isDimmed && 'opacity-40 grayscale-[30%]'
+      )}
     >
       {!disabled && !isDimmed && (
-        <span className="animate-shimmer pointer-events-none absolute inset-0 -z-0 bg-gradient-to-r from-transparent via-white/25 to-transparent" />
+        <span className="pointer-events-none absolute inset-0 overflow-hidden rounded-b-[2.25rem] rounded-t-xl">
+          <span className="animate-shimmer absolute inset-0 bg-gradient-to-r from-transparent via-white/25 to-transparent" />
+        </span>
       )}
       <span className="absolute -top-3 left-1/2 h-4 w-10 -translate-x-1/2 rounded-t-full border-4 border-b-0 border-cyan-800/70" />
+      <span className="absolute -bottom-1.5 left-1/2 h-2 w-[55%] -translate-x-1/2 rounded-full bg-black/15 blur-[3px]" />
       <span
-        style={{ fontSize: 'clamp(2.25rem,13vw,4.5rem)' }}
+        style={{ fontSize: dense ? 'clamp(1.75rem,9vw,3.5rem)' : 'clamp(2.25rem,13vw,4.5rem)' }}
         className="font-heading animate-breathe font-bold leading-none text-slate-700 drop-shadow"
       >
         {value}
       </span>
       {showObjectHint && (
-        <div className="animate-pop-in flex max-w-[8.5rem] flex-wrap items-center justify-center gap-0.5 rounded-xl bg-white/70 p-1.5">
+        <div className="animate-pop-in flex max-w-[85%] flex-wrap items-center justify-center gap-0.5 rounded-xl bg-white/70 p-1 sm:p-1.5">
           {Array.from({ length: value }).map((_, i) => (
-            <span key={i} className="text-sm sm:text-base">
+            <span key={i} className="text-xs sm:text-base">
               {category.emoji}
             </span>
           ))}
@@ -576,17 +610,17 @@ const TopBar = React.memo(function TopBar({ totalRounds, stars, muted, onToggleM
     <div className="flex w-full items-center justify-between">
       <Link
         to="/"
-        className="font-body flex items-center gap-1 rounded-full bg-white/90 px-4 py-2 text-sm font-extrabold text-slate-700 shadow-[0_4px_0_rgba(0,0,0,0.15)] transition-transform hover:-translate-y-0.5 active:translate-y-1 active:shadow-none sm:text-base"
+        className="font-body flex items-center gap-1 rounded-full bg-white/90 px-3 py-1.5 text-xs font-extrabold text-slate-700 shadow-[0_4px_0_rgba(0,0,0,0.15)] transition-transform hover:-translate-y-0.5 active:translate-y-1 active:shadow-none sm:px-4 sm:py-2 sm:text-base"
       >
         ⬅️ Home
       </Link>
 
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2 sm:gap-3">
         <StarMeter stars={stars} total={totalRounds} />
         <button
           onClick={onToggleMute}
           aria-label={muted ? 'Unmute sound' : 'Mute sound'}
-          className="flex h-9 w-9 items-center justify-center rounded-full bg-white/90 text-lg shadow-[0_4px_0_rgba(0,0,0,0.15)] active:translate-y-0.5 active:shadow-none"
+          className="flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-base shadow-[0_4px_0_rgba(0,0,0,0.15)] active:translate-y-0.5 active:shadow-none sm:h-9 sm:w-9 sm:text-lg"
         >
           {muted ? '🔇' : '🔊'}
         </button>
@@ -657,26 +691,26 @@ function SuccessOverlay({ message, isLastRound, streak, onNext }) {
 
 function CompletionScreen({ stars, total, onPlayAgain }) {
   return (
-    <div className="relative mt-10 flex flex-col items-center rounded-[2.5rem] bg-white/90 px-6 py-8 text-center shadow-2xl sm:px-14 sm:py-10">
+    <div className="relative mt-3 flex flex-col items-center rounded-[2.5rem] bg-white/90 px-5 py-5 text-center shadow-2xl sm:mt-10 sm:px-14 sm:py-10">
       <Confetti pieces={40} />
-      <div className="animate-bob text-7xl">🧺🏆</div>
-      <h2 className="font-heading mt-3 text-3xl font-bold text-slate-800 sm:text-4xl">Picnic packed perfectly!</h2>
-      <p className="font-body mt-2 text-lg font-semibold text-slate-500">
+      <div className="animate-bob text-5xl sm:text-7xl">🧺🏆</div>
+      <h2 className="font-heading mt-2 text-xl font-bold text-slate-800 sm:mt-3 sm:text-4xl">Picnic packed perfectly!</h2>
+      <p className="font-body mt-1 text-sm font-semibold text-slate-500 sm:mt-2 sm:text-lg">
         You earned {stars} out of {total} stars
       </p>
-      <div className="mt-3">
+      <div className="mt-2 sm:mt-3">
         <StarMeter stars={stars} total={total} dark />
       </div>
-      <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+      <div className="mt-4 flex flex-col gap-2 sm:mt-8 sm:flex-row sm:gap-3">
         <button
           onClick={onPlayAgain}
-          className="font-heading rounded-full bg-gradient-to-b from-pink-400 to-pink-500 px-6 py-3 text-lg font-bold text-white shadow-[0_6px_0_rgba(0,0,0,0.15)] transition-transform hover:-translate-y-0.5 active:translate-y-1 active:shadow-none"
+          className="font-heading rounded-full bg-gradient-to-b from-pink-400 to-pink-500 px-5 py-2 text-base font-bold text-white shadow-[0_6px_0_rgba(0,0,0,0.15)] transition-transform hover:-translate-y-0.5 active:translate-y-1 active:shadow-none sm:px-6 sm:py-3 sm:text-lg"
         >
           🔁 Play again
         </button>
         <Link
           to="/"
-          className="font-heading rounded-full bg-gradient-to-b from-sky-400 to-sky-500 px-6 py-3 text-lg font-bold text-white shadow-[0_6px_0_rgba(0,0,0,0.15)] transition-transform hover:-translate-y-0.5 active:translate-y-1 active:shadow-none"
+          className="font-heading rounded-full bg-gradient-to-b from-sky-400 to-sky-500 px-5 py-2 text-base font-bold text-white shadow-[0_6px_0_rgba(0,0,0,0.15)] transition-transform hover:-translate-y-0.5 active:translate-y-1 active:shadow-none sm:px-6 sm:py-3 sm:text-lg"
         >
           🏠 Back home
         </Link>
