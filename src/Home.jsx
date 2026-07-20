@@ -10,9 +10,36 @@ import { Helmet } from "react-helmet-async";
 
 export default function Home() {
   return (
-    <NameGate gameLabel="K1 Weekly Wonders">
-      <HomeContent />
-    </NameGate>
+    <>
+      <Helmet>
+        <title>K1 Weekly Wonders | Interactive Kindergarten Numeracy Games</title>
+        <meta
+          name="description"
+          content="K1 Weekly Wonders offers free interactive numeracy games for Kindergarten 1 students. Practice counting, number recognition, part-whole relationships, sequencing, and more."
+        />
+      </Helmet>
+
+      {/*
+        Real, keyword-bearing content that's always in the DOM regardless of
+        NameGate state. A fresh visitor (including Google's crawler, which
+        never has a stored player name) always sees the gate first — so
+        anything meant to be indexed has to live out here, not inside
+        HomeContent.
+      */}
+      <section className="hidden">
+        <h1>Weekly Numeracy Games for Kindergarten 1</h1>
+        <p>
+          K1 Weekly Wonders provides interactive maths games that help
+          Kindergarten children practise counting, number recognition,
+          addition, subtraction and other early numeracy skills through
+          engaging activities.
+        </p>
+      </section>
+
+      <NameGate gameLabel="K1 Weekly Wonders">
+        <HomeContent />
+      </NameGate>
+    </>
   );
 }
 
@@ -74,15 +101,6 @@ function HomeContent() {
   const greeting = useMemo(() => timeGreeting(), []);
 
   return (
-    <>
-      <Helmet>
-    <title>K1 Weekly Wonders | Interactive Numeracy Games</title>
-
-    <meta
-      name="description"
-      content="Interactive weekly numeracy games designed for Kindergarten 1 students."
-    />
-  </Helmet>
     <div className="relative flex min-h-[100dvh] w-full flex-col overflow-hidden bg-gradient-to-b from-[#3FB6EA] via-[#8FE0FA] to-[#FFE9A8]">
       {/* Google Fonts */}
       <link
@@ -170,16 +188,7 @@ function HomeContent() {
         </svg>
         <div className="absolute inset-[18%] rounded-full bg-gradient-to-br from-yellow-200 to-orange-300 shadow-[0_0_40px_rgba(255,217,61,0.6)]" />
       </div>
-<section className="hidden">
-    <h1>Weekly Numeracy Games for Kindergarten 1</h1>
 
-    <p>
-        K1 Weekly Wonders provides interactive maths games that help
-        Kindergarten children practise counting, number recognition,
-        addition, subtraction and other early numeracy skills through
-        engaging activities.
-    </p>
-</section>
       {/* Floating clouds, numbers & sparkles */}
       <div className="pointer-events-none absolute inset-0">
         <div className="absolute left-[6%] top-[12%] animate-float-slow text-5xl opacity-90 sm:text-6xl">☁️</div>
@@ -189,7 +198,6 @@ function HomeContent() {
         <div className="absolute left-[42%] top-[6%] animate-float-slower text-3xl opacity-60 blur-[0.5px]">☁️</div>
         <div className="absolute right-[20%] top-[8%] animate-kite-drift text-4xl opacity-90 sm:text-5xl">🪁</div>
 
-        {/* Playful number bubbles — a nod to the counting theme */}
         <div className="absolute left-[8%] top-[30%] flex h-10 w-10 animate-number-drift items-center justify-center rounded-full bg-white/90 font-heading text-lg font-extrabold text-teal-600 shadow-md sm:h-12 sm:w-12 sm:text-xl">
           2
         </div>
@@ -291,7 +299,7 @@ function HomeContent() {
               open={isGameUnlocked(4, isTeacher)}
               progress={progressByGame.game4}
             />
-           
+
             <GameCard
               to="/Game5"
               emoji="🗝️"
@@ -325,7 +333,7 @@ function HomeContent() {
           </div>
         </div>
       </div>
-    </div> </>
+    </div>
   );
 }
 

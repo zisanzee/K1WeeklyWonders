@@ -1,0 +1,13 @@
+{
+  "name": "K1 Weekly Wonders",
+  "short_name": "K1 Weekly Wonders",
+  "icons": [
+    { "src": "/favicon-96.png", "sizes": "96x96", "type": "image/png" },
+    { "src": "/android-chrome-192x192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/android-chrome-512x512.png", "sizes": "512x512", "type": "image/png" }
+  ],
+  "theme_color": "#3fb6ea",
+  "background_color": "#3fb6ea",
+  "display": "standalone",
+  "start_url": "/"
+}

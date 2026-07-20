@@ -21,7 +21,14 @@
     <meta name="robots" content="index,follow" />
 
     <link rel="canonical" href="https://k1weekly.netlify.app/" />
-    <link rel="icon" type="image/png" href="/favicon.png" />
+
+    <!-- Favicon set -->
+    <link rel="icon" href="/favicon.ico" sizes="any" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png" />
+    <link rel="icon" type="image/png" sizes="96x96" href="/favicon-96.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
 
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="K1 Weekly Wonders" />
@@ -40,6 +47,24 @@
       content="Free interactive numeracy games for Kindergarten 1 students."
     />
     <meta name="twitter:image" content="https://k1weekly.netlify.app/og-image.png" />
+
+    <!--
+      Static structured data, in the raw HTML rather than injected by React/Helmet.
+      This guarantees Google sees an explicit site name no matter what — it
+      doesn't depend on JS executing or the name-gate state, unlike anything
+      rendered client-side.
+    -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "name": "K1 Weekly Wonders",
+        "alternateName": "K1 Weekly",
+        "url": "https://k1weekly.netlify.app/",
+        "description": "Free interactive numeracy games for Kindergarten 1 students.",
+        "inLanguage": "en"
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>
