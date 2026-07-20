@@ -6,6 +6,7 @@ import NameGate from "./NameGate";
 import { usePlayerStore } from "./playerStore";
 import { isGameUnlocked } from "./gameAccess";
 import { fetchSummary } from "./logPlaySession";
+import { Helmet } from "react-helmet-async";
 
 export default function Home() {
   return (
@@ -73,6 +74,15 @@ function HomeContent() {
   const greeting = useMemo(() => timeGreeting(), []);
 
   return (
+    <>
+      <Helmet>
+    <title>K1 Weekly Wonders | Interactive Numeracy Games</title>
+
+    <meta
+      name="description"
+      content="Interactive weekly numeracy games designed for Kindergarten 1 students."
+    />
+  </Helmet>
     <div className="relative flex min-h-[100dvh] w-full flex-col overflow-hidden bg-gradient-to-b from-[#3FB6EA] via-[#8FE0FA] to-[#FFE9A8]">
       {/* Google Fonts */}
       <link
@@ -160,7 +170,16 @@ function HomeContent() {
         </svg>
         <div className="absolute inset-[18%] rounded-full bg-gradient-to-br from-yellow-200 to-orange-300 shadow-[0_0_40px_rgba(255,217,61,0.6)]" />
       </div>
+<section className="hidden">
+    <h1>Weekly Numeracy Games for Kindergarten 1</h1>
 
+    <p>
+        K1 Weekly Wonders provides interactive maths games that help
+        Kindergarten children practise counting, number recognition,
+        addition, subtraction and other early numeracy skills through
+        engaging activities.
+    </p>
+</section>
       {/* Floating clouds, numbers & sparkles */}
       <div className="pointer-events-none absolute inset-0">
         <div className="absolute left-[6%] top-[12%] animate-float-slow text-5xl opacity-90 sm:text-6xl">☁️</div>
@@ -306,7 +325,7 @@ function HomeContent() {
           </div>
         </div>
       </div>
-    </div>
+    </div> </>
   );
 }
 

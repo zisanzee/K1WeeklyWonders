@@ -19,6 +19,7 @@ import NameGate from './NameGate';
 import GameAccessGate from './GameAccessGate';
 import { usePlayerStore } from './playerStore';
 import { logPlaySession } from './logPlaySession';
+import { Helmet } from 'react-helmet-async';
 
 const TOTAL_ROUNDS = 10;
 const NUMBER_WORDS = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
@@ -248,6 +249,14 @@ function Game1Inner() {
         rel="stylesheet"
         href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;700&family=Nunito:wght@600;800&display=swap"
       />
+      <Helmet>
+    <title>Count and Win | K1 Weekly Wonders</title>
+
+    <meta
+      name="description"
+      content="Practice counting through an interactive game designed for Kindergarten students."
+    />
+  </Helmet>
 
       <style>{`
         @keyframes float-slow { 0%, 100% { transform: translateY(0) translateX(0); } 50% { transform: translateY(-20px) translateX(10px); } }

@@ -19,6 +19,7 @@ import NameGate from './NameGate';
 import GameAccessGate from './GameAccessGate';
 import { usePlayerStore } from './playerStore';
 import { logPlaySession } from './logPlaySession';
+import { Helmet } from 'react-helmet-async';
 
 const TOTAL_ROUNDS = 12; // 3 free-split + 5 even-split + 4 target-split rounds
 const FREE_TOTALS = [3, 4, 5];
@@ -313,6 +314,14 @@ function Game4Inner() {
         rel="stylesheet"
         href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;700&family=Nunito:wght@600;800&display=swap"
       />
+        <Helmet>
+          <title>Splits and Groups | K1 Weekly Wonders</title>
+      
+          <meta
+            name="description"
+            content="Practice counting through an interactive game designed for Kindergarten students."
+          />
+        </Helmet>
 
       <style>{`
         @keyframes twinkle { 0%, 100% { opacity: 0.25; transform: scale(0.8); } 50% { opacity: 1; transform: scale(1.15); } }
