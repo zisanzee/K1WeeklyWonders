@@ -194,7 +194,7 @@ function Game3Inner() {
         href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;700&family=Nunito:wght@600;800&display=swap"
       />
         <Helmet>
-          <title>Counting Game | K1 Weekly Wonders</title>
+          <title>Around the Number | K1 Weekly Wonders</title>
       
           <meta
             name="description"
