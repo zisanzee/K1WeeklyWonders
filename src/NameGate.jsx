@@ -22,12 +22,23 @@ export default function NameGate({ gameLabel, children }) {
   const [codeDraft, setCodeDraft] = useState('');
   const [codeError, setCodeError] = useState(null);
 
-  if (playerName) return children;
+const hasValidPlayer =
+  playerName &&
+  playerName.trim().toLowerCase() !== 'guest';
 
-  const handleNameSubmit = (e) => {
-    e.preventDefault();
-    setPlayerName(draft);
-  };
+if (hasValidPlayer) return children;
+const handleNameSubmit = (e) => {
+  e.preventDefault();
+
+  const name = draft.trim();
+
+  // Don't allow empty names or "Guest"
+  if (!name || name.toLowerCase() === 'guest') {
+    return;
+  }
+
+  setPlayerName(name);
+};
 
   const handleCodeSubmit = (e) => {
     e.preventDefault();
@@ -86,14 +97,7 @@ export default function NameGate({ gameLabel, children }) {
             >
               Let's play! 🎉
             </button>
-            <button
-              type="button"
-              onClick={() => setPlayerName('Guest')}
-              style={{ fontFamily: "'Nunito', sans-serif" }}
-              className="text-xs font-bold text-slate-400 underline underline-offset-2 hover:text-slate-500"
-            >
-              Skip, just call me Guest
-            </button>
+           
             <button
               type="button"
               onClick={() => {

@@ -165,7 +165,7 @@ function HomeContent() {
 
       {/* Stats button — teachers only */}
       {isTeacher && (
-        <motion.button
+        <div><motion.button
           type="button"
           onClick={() => setShowStats(true)}
           whileHover={{ y: -2 }}
@@ -174,6 +174,13 @@ function HomeContent() {
         >
           📊 View Stats
         </motion.button>
+        <Link
+
+          to="/phaser-demo"
+          className=" hidden font-body fixed left-4 top-4 z-20 flex items-center gap-1.5 rounded-full bg-white/90 px-4 py-2 text-sm font-extrabold text-slate-700 shadow-[0_4px_0_rgba(0,0,0,0.15)] sm:text-base "
+        >
+          👾 Phaser game demo
+        </Link> </div>
       )}
       {showStats && <StatsPanel onClose={() => setShowStats(false)} />}
 

@@ -9,7 +9,7 @@ const BUBBLE_RADIUS = 34;
 const TEXTURE_PADDING = 4;
 const TEXTURE_SIZE = (BUBBLE_RADIUS + TEXTURE_PADDING) * 2;
 const TOTAL_NUMBERS = 10;
-const SPLAT_HOLD_MS = 2200; // how long a splat sits at full strength before fading
+const SPLAT_HOLD_MS = 3000; // how long a splat sits at full strength before fading
 const SPLAT_FADE_MS = 500;
 
 function makeBubbleTexture(scene, value, colorHex) {
@@ -20,23 +20,82 @@ function makeBubbleTexture(scene, value, colorHex) {
   canvas.width = TEXTURE_SIZE;
   canvas.height = TEXTURE_SIZE;
   const ctx = canvas.getContext('2d');
+
   const c = TEXTURE_SIZE / 2;
+
+  // ---------- Drop shadow ----------
+  ctx.save();
+  ctx.shadowColor = 'rgba(0,0,0,0.15)';
+  ctx.shadowBlur = 10;
+  ctx.shadowOffsetX = 1;
+  ctx.shadowOffsetY = 1;
 
   ctx.beginPath();
   ctx.arc(c, c, BUBBLE_RADIUS, 0, Math.PI * 2);
   ctx.fillStyle = `#${colorHex.toString(16).padStart(6, '0')}`;
   ctx.fill();
-  ctx.lineWidth = 4;
-  ctx.strokeStyle = 'rgba(255,255,255,0.9)';
-  ctx.stroke();
 
-  ctx.fillStyle = '#ffffff';
-  ctx.font = 'bold 30px Fredoka, sans-serif';
+  ctx.restore();
+
+  // ---------- Radial lighting ----------
+  const grad = ctx.createRadialGradient(
+    c - 12,
+    c - 14,
+    6,
+    c,
+    c,
+    BUBBLE_RADIUS
+  );
+
+  grad.addColorStop(0, 'rgba(255,255,255,0.35)');
+  grad.addColorStop(0.45, 'rgba(255,255,255,0.08)');
+  grad.addColorStop(1, 'rgba(0,0,0,0.12)');
+
+  ctx.beginPath();
+  ctx.arc(c, c, BUBBLE_RADIUS, 0, Math.PI * 2);
+  ctx.fillStyle = grad;
+  ctx.fill();
+
+  // ---------- White border ----------
+  ctx.beginPath();
+  ctx.arc(c, c, BUBBLE_RADIUS - 1, 0, Math.PI * 2);
+
+
+  // ---------- Small glossy highlight ----------
+  ctx.fillStyle = 'rgba(255,255,255,0.25)';
+  ctx.beginPath();
+  ctx.ellipse(
+    c - 12,
+    c - 13,
+    11,
+    7,
+    -0.4,
+    0,
+    Math.PI * 2
+  );
+  ctx.fill();
+
+  // ---------- Tiny sparkle ----------
+  ctx.fillStyle = 'rgba(255,255,255,0.9)';
+  ctx.beginPath();
+  ctx.arc(c - 4, c - 20, 2, 0, Math.PI * 2);
+  ctx.fill();
+
+  // ---------- Number ----------
+  ctx.font = ' 32px Fredoka, sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
+
+  ctx.lineJoin = 'round';
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = '#ffffff';
+  ctx.strokeText(String(value), c, c +2 );
+
+  ctx.fillStyle = '#173b59';
   ctx.fillText(String(value), c, c + 2);
 
   scene.textures.addCanvas(key, canvas);
+
   return key;
 }
 
@@ -49,17 +108,72 @@ function makeBackgroundTexture(scene, width, height) {
   canvas.height = height;
   const ctx = canvas.getContext('2d');
 
-  ctx.fillStyle = '#8fe0fa';
+  // Sky gradient — matches the rest of the app instead of a flat fill.
+  const sky = ctx.createLinearGradient(0, 0, 0, height);
+  sky.addColorStop(0, '#3fb6ea');
+  sky.addColorStop(0.55, '#8fe0fa');
+  sky.addColorStop(1, '#ffe9a8');
+  ctx.fillStyle = sky;
   ctx.fillRect(0, 0, width, height);
 
-  ctx.fillStyle = 'rgba(255,255,255,0.85)';
+  // Sun glow tucked in a back corner, well clear of the bubble play area.
+  const sunX = width * 0.86;
+  const sunY = height * 0.07;
+  const sunGlow = ctx.createRadialGradient(sunX, sunY, 4, sunX, sunY, 80);
+  sunGlow.addColorStop(0, 'rgba(255,217,61,0.9)');
+  sunGlow.addColorStop(1, 'rgba(255,217,61,0)');
+  ctx.fillStyle = sunGlow;
+  ctx.beginPath();
+  ctx.arc(sunX, sunY, 80, 0, Math.PI * 2);
+  ctx.fill();
+
+  // A couple of baked-in clouds for backdrop texture — two more, independent
+  // sprites drift gently on top of this at runtime for a bit of parallax.
+  ctx.fillStyle = 'rgba(255,255,255,0.8)';
   const clouds = [
-    [width * 0.15, height * 0.1, 26],
-    [width * 0.15 + 22, height * 0.1 + 6, 20],
-    [width * 0.85, height * 0.16, 22],
-    [width * 0.85 + 18, height * 0.16 + 5, 16],
+    [width * 0.16, height * 0.12, 22],
+    [width * 0.16 + 20, height * 0.12 + 5, 16],
   ];
   clouds.forEach(([x, y, r]) => {
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fill();
+  });
+
+  // Soft rolling hill along the bottom, echoing the ground from the
+  // homepage — purely decorative, sits behind every bubble.
+  ctx.fillStyle = 'rgba(111, 207, 87, 0.85)';
+  ctx.beginPath();
+  ctx.moveTo(0, height);
+  ctx.lineTo(0, height - 24);
+  ctx.quadraticCurveTo(width * 0.25, height - 48, width * 0.5, height - 26);
+  ctx.quadraticCurveTo(width * 0.75, height - 4, width, height - 28);
+  ctx.lineTo(width, height);
+  ctx.closePath();
+  ctx.fill();
+
+  scene.textures.addCanvas(key, canvas);
+  return key;
+}
+
+function makeCloudTexture(scene) {
+  const key = 'cloud-puff';
+  if (scene.textures.exists(key)) return key;
+
+  const w = 100;
+  const h = 50;
+  const canvas = document.createElement('canvas');
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext('2d');
+
+  ctx.fillStyle = 'rgba(255,255,255,0.92)';
+  [
+    [30, 30, 20],
+    [55, 22, 17],
+    [74, 30, 14],
+    [45, 34, 16],
+  ].forEach(([x, y, r]) => {
     ctx.beginPath();
     ctx.arc(x, y, r, 0, Math.PI * 2);
     ctx.fill();
@@ -127,6 +241,22 @@ export default class NumberOrderScene extends Phaser.Scene {
     const bgKey = makeBackgroundTexture(this, width, height);
     this.add.image(width / 2, height / 2, bgKey);
 
+    const cloudKey = makeCloudTexture(this);
+    const driftClouds = [
+      this.add.image(width * 0.24, height * 0.055, cloudKey).setScale(0.85).setAlpha(0.85),
+      this.add.image(width * 0.74, height * 0.1, cloudKey).setScale(1.1).setAlpha(0.7),
+    ];
+    driftClouds.forEach((cloud, i) => {
+      this.tweens.add({
+        targets: cloud,
+        x: cloud.x + (i % 2 === 0 ? 24 : -20),
+        duration: 6500 + i * 1500,
+        yoyo: true,
+        repeat: -1,
+        ease: 'Sine.easeInOut',
+      });
+    });
+
     makeSplatTexture(this);
 
     this.add.text(width / 2, 34, 'Tap in order! 🔢', {
@@ -136,14 +266,25 @@ export default class NumberOrderScene extends Phaser.Scene {
       fontStyle: 'bold',
     }).setOrigin(0.5);
 
-    this.nextText = this.add.text(width / 2, 74, 'Next: 1', {
-      fontSize: '22px',
-      fontFamily: 'Nunito, sans-serif',
-      color: '#0f3d5c',
-      fontStyle: 'bold',
-      backgroundColor: '#ffffffaa',
-      padding: { x: 14, y: 6 },
-    }).setOrigin(0.5);
+this.nextText = this.add.text(width / 2, 74, 'Next: 1', {
+  fontSize: '22px',
+  fontFamily: 'Nunito, sans-serif',
+  color: '#0f3d5c',
+  fontStyle: 'bold',
+  backgroundColor: '#ffffffdd',
+  padding: { x: 14, y: 6 },
+}).setOrigin(0.5);
+
+this.nextText.setStroke('#ffffff', 3);
+
+this.nextText.setShadow(
+  2,
+  2,
+  '#00000033',
+  3,
+  false,
+  true
+);
 
     this.timerText = this.add.text(width - 16, 16, '0s', {
       fontSize: '20px',
@@ -160,6 +301,7 @@ export default class NumberOrderScene extends Phaser.Scene {
       padding: { x: 8, y: 4 },
     }).setOrigin(0, 0).setInteractive({ useHandCursor: true }).setDepth(20);
     restartButton.on('pointerdown', () => this.scene.restart());
+    this.addHoverFeedback(restartButton);
 
     const dotG = this.make.graphics({ x: 0, y: 0, add: false });
     dotG.fillStyle(0xffffff, 1);
@@ -184,6 +326,17 @@ export default class NumberOrderScene extends Phaser.Scene {
     this.physics.world.pause();
 
     this.runCountdown(['3', '2', '1', 'GO!'], () => this.startGame());
+  }
+
+  // A small scale bump on hover/press so buttons feel tappable rather than
+  // flat text — cheap (one tween per event, no continuous cost when idle).
+  addHoverFeedback(obj) {
+    obj.on('pointerover', () => {
+      this.tweens.add({ targets: obj, scale: 1.08, duration: 120, ease: 'Sine.easeOut' });
+    });
+    obj.on('pointerout', () => {
+      this.tweens.add({ targets: obj, scale: 1, duration: 120, ease: 'Sine.easeOut' });
+    });
   }
 
   runCountdown(steps, onComplete) {
@@ -275,13 +428,26 @@ export default class NumberOrderScene extends Phaser.Scene {
       const angle = Phaser.Math.FloatBetween(0, Math.PI * 2);
       bubble.body.setVelocity(Math.cos(angle) * speed, Math.sin(angle) * speed);
 
+      // Staggered pop-in entrance (this happens while physics is still
+      // paused for the countdown, so there's no visual conflict with
+      // movement) followed by the ongoing idle "breathing" loop.
+      bubble.setScale(0);
       this.tweens.add({
         targets: bubble,
-        scale: { from: 0.94, to: 1.06 },
-        duration: Phaser.Math.Between(700, 1000),
-        yoyo: true,
-        repeat: -1,
-        ease: 'Sine.easeInOut',
+        scale: 1,
+        delay: 250 + value * 60,
+        duration: 380,
+        ease: 'Back.Out',
+        onComplete: () => {
+          this.tweens.add({
+            targets: bubble,
+            scale: { from: 0.94, to: 1.06 },
+            duration: Phaser.Math.Between(700, 1000),
+            yoyo: true,
+            repeat: -1,
+            ease: 'Sine.easeInOut',
+          });
+        },
       });
 
       bubble.on('pointerdown', () => this.handleTap(bubble));
@@ -305,6 +471,12 @@ export default class NumberOrderScene extends Phaser.Scene {
         this.time.delayedCall(300, () => this.showComplete());
       } else {
         this.nextText.setText(`Next: ${this.nextExpected}`);
+        this.tweens.add({
+          targets: this.nextText,
+          scale: { from: 1.3, to: 1 },
+          duration: 240,
+          ease: 'Back.Out',
+        });
       }
     } else {
       this.wrongTap(bubble);
@@ -408,7 +580,11 @@ export default class NumberOrderScene extends Phaser.Scene {
     this.tweens.add({ targets: overlay, alpha: 1, duration: 250 });
 
     const panel = this.add.container(width / 2, height / 2).setDepth(56).setScale(0.3).setAlpha(0);
-    const panelBg = this.add.rectangle(0, 0, 280, 200, 0xffffff, 1).setStrokeStyle(6, 0xffd93d);
+    const panelBg = this.add.graphics();
+    panelBg.fillStyle(0xffffff, 1);
+    panelBg.fillRoundedRect(-140, -100, 280, 200, 28);
+    panelBg.lineStyle(6, 0xffd93d, 1);
+    panelBg.strokeRoundedRect(-140, -100, 280, 200, 28);
     const title = this.add.text(0, -60, '🎉 Great counting!', {
       fontSize: '24px',
       fontFamily: 'Fredoka, sans-serif',
@@ -439,6 +615,19 @@ export default class NumberOrderScene extends Phaser.Scene {
       alpha: 1,
       duration: 450,
       ease: 'Back.Out',
+      onComplete: () => {
+        // A gentle, ongoing invite-to-tap pulse — separate from hover
+        // feedback, since this one needs to keep going even before anyone
+        // has touched the button.
+        this.tweens.add({
+          targets: restart,
+          scale: { from: 1, to: 1.06 },
+          duration: 700,
+          yoyo: true,
+          repeat: -1,
+          ease: 'Sine.easeInOut',
+        });
+      },
     });
 
     const starPositions = [[-110, -90], [110, -90], [-110, 90], [110, 90]];

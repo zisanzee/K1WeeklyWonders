@@ -4,7 +4,7 @@
 //
 // Teachers always see every game regardless of this list — entering a
 // valid teacher code overrides it completely.
-export const UNLOCKED_GAMES = [1];
+export const UNLOCKED_GAMES = [1,2];
 
 export function isGameUnlocked(gameNumber, isTeacher) {
   return Boolean(isTeacher) || UNLOCKED_GAMES.includes(gameNumber);
