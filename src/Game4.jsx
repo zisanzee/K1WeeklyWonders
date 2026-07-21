@@ -10,7 +10,7 @@ import {
   useSensors,
 } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from "motion/react";
 import Confetti from 'react-confetti';
 import { useWindowSize } from 'react-use';
 import clsx from 'clsx';
@@ -25,6 +25,19 @@ const TOTAL_ROUNDS = 12; // 3 free-split + 5 even-split + 4 target-split rounds
 const FREE_TOTALS = [3, 4, 5];
 const HALF_TOTALS = [4, 6, 8, 10, 8];
 const TARGET_TOTALS = [7, 8, 9, 10];
+const numberWords = [
+  "One",
+  "Two",
+  "Three",
+  "Four",
+  "Five",
+  "Six",
+  "Seven",
+  "Eight",
+  "Nine",
+  "Ten",
+];
+
 
 function cn(...inputs) {
   return twMerge(clsx(inputs));
@@ -130,6 +143,7 @@ function Game4Inner() {
   const [redShake, setRedShake] = useState(false);
   const [blueShake, setBlueShake] = useState(false);
   const [bayPulse, setBayPulse] = useState(false);
+  const [selectedNumber, setSelectedNumber] = useState(null);
 
   const hasLoggedRef = useRef(false);
   const peakStreakRef = useRef(0);
@@ -425,6 +439,73 @@ function Game4Inner() {
                 ) : null}
               </DragOverlay>
             </DndContext>
+           {round.mode === 'target' && ( <div className="w-full">
+  {/* Spelled Number */}
+  <div className="h-24 flex items-center justify-center overflow-hidden">
+    <AnimatePresence mode="wait">
+      {selectedNumber === null ? (
+        <motion.p
+          key="help"
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -10 }}
+          transition={{ duration: 0.25 }}
+          className="text-sm sm:text-lg font-semibold text-slate-300 text-center"
+        >
+          Need help? Click a number to see its spelled form.
+        </motion.p>
+      ) : (
+        <motion.div
+          key={selectedNumber}
+          initial={{ opacity: 0, scale: 0.65, y: 10 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.8, y: -10 }}
+          transition={{
+  type: "spring",
+  stiffness: 800,
+  damping: 28,
+  mass: 0.4,
+}}
+          className="bg-slate-400/35 border-4 rounded-sm shadow-lg px-4 py-2"
+        >
+          <span className="text-xl sm:text-4xl md:text-2xl font-bold text-slate-200">
+            {numberWords[selectedNumber]}
+          </span>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  </div>
+
+  {/* Number Buttons */}
+  <div className="grid grid-cols-10 gap-0 sm:gap-2 select-none max-w-2xl mx-auto">
+    {numberWords.map((_, i) => (
+      <motion.button
+        key={i}
+        onClick={() => setSelectedNumber(i)}
+        whileHover={{ scale: 1.08, y: -2 }}
+        whileTap={{ scale: 0.9 }}
+        animate={{
+          scale: selectedNumber === i ? 1.12 : 1,
+          rotate: selectedNumber === i ? [-2, 2, 0] : 0,
+        }}
+        transition={{
+          type: "spring",
+          stiffness: 250,
+          damping: 8,
+        }}
+        className={`aspect-square border border-amber-950 font-bold rounded-sm
+          text-lg sm:text-2xl md:text-3xl shadow-md
+          ${
+            selectedNumber === i
+              ? "bg-sky-500 text-white ring-4 ring-sky-200"
+              : "bg-slate-500/50 border-1 border-white/70 hover:bg-slate-500 text-slate-200/90"
+          }`}
+      >
+        {i + 1}
+      </motion.button>
+    ))}
+  </div>
+</div>)}
 
             <div className="mt-2 flex flex-col items-center gap-1.5 pb-2 sm:mt-3">
               {feedback && (
@@ -459,6 +540,7 @@ function Game4Inner() {
             )}
           </>
         )}
+        
       </div>
     </div>
   );
@@ -504,6 +586,7 @@ function Starfield() {
     </div>
   );
 }
+
 
 const TopBar = React.memo(function TopBar({ totalRounds, stars, muted, onToggleMute }) {
   return (
@@ -609,23 +692,29 @@ const MissionHeader = React.memo(function MissionHeader({ round }) {
   return (
     <div className="animate-pop-in flex flex-col items-center gap-0.5 rounded-[1.5rem] bg-white/90 px-4 py-2 text-center shadow-[0_6px_0_rgba(0,0,0,0.15)] sm:px-5 sm:py-2.5">
       <div className="flex items-center gap-1.5">
-        <span className="font-heading text-3xl font-bold text-indigo-600 sm:text-4xl">{round.total}</span>
+        <span className="font-heading text-3xl font-bold text-indigo-600 sm:text-4xl">{round.mode === 'target' ? numberWords[round.total - 1] : round.total}</span>
         <span className="text-2xl sm:text-3xl">{round.cargo.emoji}</span>
       </div>
       <p className="font-body text-xs font-bold text-slate-600 sm:text-sm">
-  {round.mode === 'free' && `${round.cargo.name} — split any way you like!`}
+  {round.mode === 'free' && `Split the ${round.cargo.name} any way you like!`}
 
-  {round.mode === 'half' && `${round.cargo.name} — split evenly!`}
+{round.mode === 'half' && (
+  <>
+    Split the {round.cargo.name} evenly!
+    <br />
+    The <span className='text-red-600 text-lg font-bold'>Red</span> and <span className='text-blue-600 text-lg font-bold'>Blue</span> rockets need the same amount!
+  </>
+)}
 
   {round.mode === 'target' && (
     <>
-      Red needs{' '}
-      <span className="text-lg font-extrabold text-red-500 sm:text-xl">
-        {round.targetA}
+      <span className='text-red-600 text-lg'>Red</span> needs{' '}
+      <span className="text-lg font-extrabold text-red-600 sm:text-xl">
+        {numberWords[round.targetA - 1]}
       </span>
-      , Blue needs{' '}
-      <span className="text-lg font-extrabold text-blue-500 sm:text-xl">
-        {round.targetB}
+      , <span className='text-blue-600 text-lg'>Blue</span> needs{' '}
+      <span className="text-lg font-extrabold text-blue-600 sm:text-xl">
+        {numberWords[round.targetB - 1]}
       </span>
       
     </>
@@ -752,16 +841,7 @@ const RocketZone = React.memo(function RocketZone({ id, count, items, cargo, dis
         <div className="mt-2 sm:mt-2.5">
           <BigNumber value={count} className="text-white" />
         </div>
-        {goal != null && (
-          <span
-            className={cn(
-              'font-body rounded-full px-2 py-0.5 text-[11px] font-extrabold shadow sm:px-2.5 sm:text-xs',
-              matched ? 'bg-emerald-400 text-white' : 'bg-white/80 text-slate-600'
-            )}
-          >
-            {matched ? '✅ Goal met!' : `🎯 Goal: ${goal}`}
-          </span>
-        )}
+        
         <div className="flex flex-wrap content-start items-start justify-center gap-1 sm:gap-2">
           {items.length === 0 && <span className="font-body text-xs font-bold text-white/80 sm:text-sm">Drop cargo here!</span>}
           {items.map((it) => (
@@ -830,7 +910,7 @@ function SuccessOverlay({ leftCount, rightCount, total, cargo, isLastRound, stre
           {streak >= 3 ? 'On a streak!' : 'Blast off!'}
         </p>
         <p className="font-body mt-2 text-base font-semibold text-slate-500 sm:text-lg">
-          You split {total} {cargo.name} into {leftCount} and {rightCount}!
+          {total} can be split into {leftCount} and {rightCount}!
         </p>
         <button
           onClick={onNext}

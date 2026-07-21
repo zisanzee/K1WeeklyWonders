@@ -11,6 +11,7 @@ const TEXTURE_SIZE = (BUBBLE_RADIUS + TEXTURE_PADDING) * 2;
 const TOTAL_NUMBERS = 10;
 const SPLAT_HOLD_MS = 3000; // how long a splat sits at full strength before fading
 const SPLAT_FADE_MS = 500;
+const POP_SOUND_KEYS = ['pop1', 'pop2', 'pop3'];
 
 function makeBubbleTexture(scene, value, colorHex) {
   const key = `bubble-${value}`;
@@ -230,6 +231,127 @@ export default class NumberOrderScene extends Phaser.Scene {
     super('NumberOrderScene');
   }
 
+  preload() {
+    this.load.audio('pop1', '/PhaserAssets/pop_fx/pop-1.mp3');
+    this.load.audio('pop2', '/PhaserAssets/pop_fx/pop-2.mp3');
+    this.load.audio('pop3', '/PhaserAssets/pop_fx/pop-3.mp3');
+    this.load.audio('wrong', '/PhaserAssets/wrong.wav');
+    this.load.audio('bgMusic', '/PhaserAssets/bg_music.m4a');
+  }
+
+  // ---------------------------------------------------------------------
+  // Reusable rounded "pill" button/chip — Phaser's built-in Text
+  // backgroundColor is always a flat, square-cornered rectangle, which is
+  // why plain text-with-background looked out of place next to the rest of
+  // the app's rounded, shadowed buttons. This draws a real rounded rect
+  // with a drop "step" shadow and press feedback (the shadow ducks under
+  // the button on press, same idea as the CSS active:shadow-none buttons
+  // used everywhere else in the app), and works equally well as a static
+  // status chip (interactive: false) or a tappable button.
+  // ---------------------------------------------------------------------
+  createPillButton(x, y, initialLabel, opts = {}) {
+    const {
+      fontSize = '20px',
+      bgColor = 0xffffff,
+      textColor = '#173b59',
+      paddingX = 18,
+      paddingY = 10,
+      anchor = 'center', // 'center' | 'topLeft' | 'topRight'
+      borderColor = null,
+      depth = 20,
+      interactive = true,
+      minWidth = 0,
+    } = opts;
+
+    const text = this.add.text(0, 0, initialLabel, {
+      fontSize,
+      fontFamily: 'Fredoka, sans-serif',
+      color: textColor,
+      fontStyle: 'bold',
+    }).setOrigin(0.5);
+
+    let w = Math.max(text.width + paddingX * 2, minWidth);
+    let h = text.height + paddingY * 2;
+    const radius = h / 2;
+    let currentBg = bgColor;
+
+    const offsetFor = (ww) => {
+      if (anchor === 'topLeft') return { ox: ww / 2, oy: h / 2 };
+      if (anchor === 'topRight') return { ox: -ww / 2, oy: h / 2 };
+      return { ox: 0, oy: 0 };
+    };
+    let { ox, oy } = offsetFor(w);
+    text.setPosition(ox, oy);
+
+    const shadow = this.add.graphics();
+    const bgGfx = this.add.graphics();
+
+    const redraw = () => {
+      shadow.clear();
+      shadow.fillStyle(0x000000, 0.18);
+      shadow.fillRoundedRect(ox - w / 2, oy - h / 2 + 4, w, h, radius);
+
+      bgGfx.clear();
+      bgGfx.fillStyle(currentBg, 1);
+      bgGfx.fillRoundedRect(ox - w / 2, oy - h / 2, w, h, radius);
+      if (borderColor !== null) {
+        bgGfx.lineStyle(3, borderColor, 1);
+        bgGfx.strokeRoundedRect(ox - w / 2, oy - h / 2, w, h, radius);
+      }
+    };
+    redraw();
+
+    const container = this.add.container(x, y, [shadow, bgGfx, text]).setDepth(depth);
+
+    const applyHitArea = () => {
+      const rect = new Phaser.Geom.Rectangle(ox - w / 2, oy - h / 2, w, h + 4);
+      container.setSize(rect.width, rect.height);
+      if (interactive) {
+        container.setInteractive(rect, Phaser.Geom.Rectangle.Contains);
+        container.input.cursor = 'pointer';
+      }
+    };
+    applyHitArea();
+
+    if (interactive) {
+      container.on('pointerover', () => {
+        this.tweens.add({ targets: container, scale: 1.05, duration: 120, ease: 'Sine.easeOut' });
+      });
+      container.on('pointerout', () => {
+        this.tweens.add({ targets: container, scale: 1, duration: 120, ease: 'Sine.easeOut' });
+        this.tweens.add({ targets: [bgGfx, text], y: oy, duration: 90 });
+        shadow.setAlpha(1);
+      });
+      container.on('pointerdown', () => {
+        this.tweens.add({ targets: [bgGfx, text], y: oy + 3, duration: 60 });
+        shadow.setAlpha(0.4);
+      });
+      container.on('pointerup', () => {
+        this.tweens.add({ targets: [bgGfx, text], y: oy, duration: 90 });
+        shadow.setAlpha(1);
+      });
+    }
+
+    return {
+      container,
+      width: () => w,
+      setText: (str) => {
+        text.setText(str);
+        w = Math.max(text.width + paddingX * 2, minWidth);
+        ({ ox, oy } = offsetFor(w));
+        text.setPosition(ox, oy);
+        redraw();
+        applyHitArea();
+      },
+      setBg: (colorHex) => {
+        currentBg = colorHex;
+        redraw();
+      },
+      on: (evt, cb) => container.on(evt, cb),
+      destroy: () => container.destroy(),
+    };
+  }
+
   create() {
     const { width, height } = this.scale;
 
@@ -237,6 +359,13 @@ export default class NumberOrderScene extends Phaser.Scene {
     this.elapsedSeconds = 0;
     this.finished = false;
     this.locked = true;
+    this.muted = false;
+
+    // Guard against a leftover instance from a previous "Play again" —
+    // scene.restart() re-runs create(), and without this a second overlap
+    // would start playing alongside the new one.
+    this.sound.stopByKey('bgMusic');
+    this.bgMusic = this.sound.add('bgMusic', { loop: true, volume: 0.32 });
 
     const bgKey = makeBackgroundTexture(this, width, height);
     this.add.image(width / 2, height / 2, bgKey);
@@ -266,42 +395,47 @@ export default class NumberOrderScene extends Phaser.Scene {
       fontStyle: 'bold',
     }).setOrigin(0.5);
 
-this.nextText = this.add.text(width / 2, 74, 'Next: 1', {
-  fontSize: '22px',
-  fontFamily: 'Nunito, sans-serif',
-  color: '#0f3d5c',
-  fontStyle: 'bold',
-  backgroundColor: '#ffffffdd',
-  padding: { x: 14, y: 6 },
-}).setOrigin(0.5);
+    this.nextChip = this.createPillButton(width / 2, 78, 'Next: 1', {
+      fontSize: '22px',
+      paddingX: 16,
+      paddingY: 8,
+      interactive: false,
+      minWidth: 130,
+      depth: 15,
+    });
 
-this.nextText.setStroke('#ffffff', 3);
+    this.timerChip = this.createPillButton(width - 16, 16, '0s', {
+      fontSize: '18px',
+      paddingX: 12,
+      paddingY: 6,
+      anchor: 'topRight',
+      interactive: false,
+      depth: 15,
+    });
 
-this.nextText.setShadow(
-  2,
-  2,
-  '#00000033',
-  3,
-  false,
-  true
-);
+    // Restart + mute, available any time — during countdown, mid-game, or
+    // after finishing — not just from the end screen.
+    this.restartBtn = this.createPillButton(16, 16, '🔁', {
+      fontSize: '18px',
+      paddingX: 10,
+      paddingY: 8,
+      anchor: 'topLeft',
+      depth: 20,
+    });
+    this.restartBtn.on('pointerdown', () => this.scene.restart());
 
-    this.timerText = this.add.text(width - 16, 16, '0s', {
-      fontSize: '20px',
-      fontFamily: 'Nunito, sans-serif',
-      color: '#0f3d5c',
-      fontStyle: 'bold',
-    }).setOrigin(1, 0);
-
-    // Restart button, available any time -- during countdown, mid-game, or
-    // after finishing -- not just from the end screen.
-    const restartButton = this.add.text(16, 16, '🔁', {
-      fontSize: '20px',
-      backgroundColor: '#ffffffaa',
-      padding: { x: 8, y: 4 },
-    }).setOrigin(0, 0).setInteractive({ useHandCursor: true }).setDepth(20);
-    restartButton.on('pointerdown', () => this.scene.restart());
-    this.addHoverFeedback(restartButton);
+    this.muteBtn = this.createPillButton(16 + this.restartBtn.width() + 8, 16, '🔊', {
+      fontSize: '18px',
+      paddingX: 10,
+      paddingY: 8,
+      anchor: 'topLeft',
+      depth: 20,
+    });
+    this.muteBtn.on('pointerdown', () => {
+      this.muted = !this.muted;
+      this.sound.mute = this.muted;
+      this.muteBtn.setText(this.muted ? '🔇' : '🔊');
+    });
 
     const dotG = this.make.graphics({ x: 0, y: 0, add: false });
     dotG.fillStyle(0xffffff, 1);
@@ -325,17 +459,52 @@ this.nextText.setShadow(
 
     this.physics.world.pause();
 
-    this.runCountdown(['3', '2', '1', 'GO!'], () => this.startGame());
+    // The game no longer starts itself — bubbles pop in and sit here,
+    // gently breathing, behind a Play button until the player taps it.
+    this.showPlayOverlay();
   }
 
-  // A small scale bump on hover/press so buttons feel tappable rather than
-  // flat text — cheap (one tween per event, no continuous cost when idle).
-  addHoverFeedback(obj) {
-    obj.on('pointerover', () => {
-      this.tweens.add({ targets: obj, scale: 1.08, duration: 120, ease: 'Sine.easeOut' });
+  showPlayOverlay() {
+    const { width, height } = this.scale;
+
+    const dim = this.add.rectangle(width / 2, height / 2, width, height, 0x0f3d5c, 0.35).setDepth(40);
+
+    const title = this.add.text(width / 2, height / 2 - 70, 'Ready to pop\nsome bubbles?', {
+      fontSize: '30px',
+      fontFamily: 'Fredoka, sans-serif',
+      color: '#ffffff',
+      fontStyle: 'bold',
+      align: 'center',
+    }).setOrigin(0.5).setDepth(41);
+
+    const playBtn = this.createPillButton(width / 2, height / 2 + 30, '▶️ Play', {
+      fontSize: '30px',
+      paddingX: 30,
+      paddingY: 16,
+      bgColor: 0xffd93d,
+      textColor: '#0f3d5c',
+      depth: 41,
     });
-    obj.on('pointerout', () => {
-      this.tweens.add({ targets: obj, scale: 1, duration: 120, ease: 'Sine.easeOut' });
+
+    // A gentle, ongoing invite-to-tap pulse — keeps going even before
+    // anyone has touched the button, so it reads as tappable immediately.
+    this.tweens.add({
+      targets: playBtn.container,
+      scale: { from: 1, to: 1.06 },
+      duration: 700,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut',
+    });
+
+    playBtn.on('pointerdown', () => {
+      if (!this.muted) this.bgMusic.play();
+
+      dim.destroy();
+      title.destroy();
+      playBtn.destroy();
+
+      this.runCountdown(['3', '2', '1', 'GO!'], () => this.startGame());
     });
   }
 
@@ -391,7 +560,7 @@ this.nextText.setShadow(
       callback: () => {
         if (this.finished) return;
         this.elapsedSeconds += 1;
-        this.timerText.setText(`${this.elapsedSeconds}s`);
+        this.timerChip.setText(`${this.elapsedSeconds}s`);
       },
     });
   }
@@ -470,9 +639,9 @@ this.nextText.setShadow(
         this.timerEvent.remove();
         this.time.delayedCall(300, () => this.showComplete());
       } else {
-        this.nextText.setText(`Next: ${this.nextExpected}`);
+        this.nextChip.setText(`Next: ${this.nextExpected}`);
         this.tweens.add({
-          targets: this.nextText,
+          targets: this.nextChip.container,
           scale: { from: 1.3, to: 1 },
           duration: 240,
           ease: 'Back.Out',
@@ -485,6 +654,7 @@ this.nextText.setShadow(
 
   popBubble(bubble) {
     this.popEmitter.explode(20, bubble.x, bubble.y);
+    this.sound.play(Phaser.Utils.Array.GetRandom(POP_SOUND_KEYS), { volume: 0.6 });
 
     // A standalone splat image, same color as the bubble that popped,
     // sitting behind the remaining bubbles (depth 1 vs their depth 10).
@@ -519,6 +689,7 @@ this.nextText.setShadow(
   }
 
   wrongTap(bubble) {
+    this.sound.play('wrong', { volume: 0.55 });
     this.cameras.main.shake(180, 0.006);
     this.cameras.main.flash(120, 255, 60, 60);
 
@@ -547,15 +718,17 @@ this.nextText.setShadow(
       onComplete: () => xMark.destroy(),
     });
 
-    this.nextText.setBackgroundColor('#ff4d4f');
+    this.nextChip.setBg(0xff4d4f);
     this.time.delayedCall(200, () => {
       if (bubble.active) bubble.clearTint();
-      this.nextText.setBackgroundColor('#ffffffaa');
+      this.nextChip.setBg(0xffffff);
     });
   }
 
   showComplete() {
     const { width, height } = this.scale;
+
+    this.bgMusic?.stop();
 
     const flash = this.add.rectangle(width / 2, height / 2, width, height, 0xffffff, 1).setDepth(60);
     this.tweens.add({ targets: flash, alpha: 0, duration: 400, onComplete: () => flash.destroy() });
@@ -598,16 +771,18 @@ this.nextText.setShadow(
       fontFamily: 'Nunito, sans-serif',
       color: '#0f3d5c',
     }).setOrigin(0.5);
-    const restart = this.add.text(0, 55, '🔁 Play again', {
+
+    const restart = this.createPillButton(0, 55, '🔁 Play again', {
       fontSize: '20px',
-      fontFamily: 'Fredoka, sans-serif',
-      color: '#ffffff',
-      backgroundColor: '#22b8cf',
-      padding: { x: 16, y: 8 },
-    }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+      paddingX: 18,
+      paddingY: 10,
+      bgColor: 0x22b8cf,
+      textColor: '#ffffff',
+      depth: 0,
+    });
     restart.on('pointerdown', () => this.scene.restart());
 
-    panel.add([panelBg, title, subtitle, restart]);
+    panel.add([panelBg, title, subtitle, restart.container]);
 
     this.tweens.add({
       targets: panel,
@@ -620,7 +795,7 @@ this.nextText.setShadow(
         // feedback, since this one needs to keep going even before anyone
         // has touched the button.
         this.tweens.add({
-          targets: restart,
+          targets: restart.container,
           scale: { from: 1, to: 1.06 },
           duration: 700,
           yoyo: true,
