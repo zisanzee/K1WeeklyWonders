@@ -288,7 +288,7 @@ function HomeContent() {
               to="/bonus-game1"
               emoji="9️⃣"
               title="Number Pop!"
-              subtitle={`Bonus Game 1\n (not logging scores yet)`}
+              subtitle={`Bonus Game 1\n (not finished / optimized yet)`}
               color="from-blue-400 via-orange-500 to-blue-500 "
               ring="ring-sky-200"
               delay={0.2}

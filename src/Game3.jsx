@@ -10,12 +10,42 @@ import { usePlayerStore } from './playerStore';
 import { logPlaySession } from './logPlaySession';
 import { Helmet } from 'react-helmet-async';
 
-const TOTAL_ROUNDS = 10;
+const TOTAL_ROUNDS = 15;
 const NUMBER_WORDS = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
 const TILE_WIDTH = 64; // px, keep in sync with slider drag math below
 const WINDOW_SIZE = 5;
 const MIN_NUM = 1;
 const MAX_NUM = 10;
+
+// Three difficulty blocks of 5 rounds each. Block 0 is the easiest combo
+// (numeral prompt, but fewer slider word-hints); block 1 is the original
+// "easy" configuration (spelled prompt, every slider number spelled out);
+// block 2 is the original "hard" configuration (spelled prompt, only the
+// highlighted number spelled out) -- the hardest combination, saved for last.
+const LEVEL_THEMES = [
+  {
+    label: 'Level 1 · Shallow Waters',
+    emoji: '🐚',
+    pill: 'border-white bg-sky-200/90 text-teal-700',
+    accent: 'from-teal-400 to-teal-500',
+  },
+  {
+    label: 'Level 2 · Coral Garden',
+    emoji: '🪸',
+    pill: 'border-white bg-green-200/90 text-sky-700',
+    accent: 'from-sky-400 to-sky-500',
+  },
+  {
+    label: 'Level 3 · Deep Trench',
+    emoji: '🦑',
+    pill: 'border-white bg-red-200/90 text-indigo-700',
+    accent: 'from-indigo-400 to-indigo-500',
+  },
+];
+
+function getBlockIndex(roundIndex) {
+  return Math.floor(roundIndex / 5);
+}
 
 function capitalize(s) {
   return s.charAt(0).toUpperCase() + s.slice(1);
@@ -51,6 +81,17 @@ function getWindowStart(highlighted) {
   return clamp(highlighted - 2, MIN_NUM, MAX_NUM - WINDOW_SIZE + 1);
 }
 
+// Builds 3 rounds worth of before/after type per block, shuffled within
+// each block so each 5-round level gets its own balanced mix.
+function buildPlan() {
+  const patterns = [
+    ['before', 'before', 'before', 'after', 'after'],
+    ['before', 'before', 'after', 'after', 'after'],
+    ['before', 'before', 'before', 'after', 'after'],
+  ];
+  return patterns.flatMap((p) => shuffle(p));
+}
+
 // Builds three spelled-out options: the correct answer, the "wrong direction"
 // trap (before vs after swapped), and the reference number itself (the
 // classic "just repeats the number" trap). Falls back to a random distractor
@@ -81,19 +122,20 @@ function generateRound(index, type, prevReference) {
   } while (reference === prevReference && attempts < 8);
   const correct = type === 'before' ? reference - 1 : reference + 1;
   const options = generateOptions(reference, type, correct);
-  return { index, type, reference, correct, options };
+  const promptNumeral = getBlockIndex(index) === 0;
+  return { index, type, reference, correct, options, promptNumeral };
 }
 
 function getPromptParts(round) {
-  const refWord = NUMBER_WORDS[round.reference];
+  const refDisplay = round.promptNumeral ? String(round.reference) : NUMBER_WORDS[round.reference];
   return round.type === 'before'
-    ? { before: 'What comes right', keyword: 'before', after: `${refWord}?` }
-    : { before: 'What comes right', keyword: 'after', after: `${refWord}?` };
+    ? { before: 'What comes right', keyword: 'before', after: `${refDisplay}?` }
+    : { before: 'What comes right', keyword: 'after', after: `${refDisplay}?` };
 }
 
 function getSpeechPrompt(round) {
   const refWord = NUMBER_WORDS[round.reference];
-  return `What number comes right ${round.type}${refWord}?`;
+  return `What number comes right ${round.type} ${refWord}?`;
 }
 
 function getResultMessage(round) {
@@ -103,10 +145,22 @@ function getResultMessage(round) {
     ? `${correctWord} comes right before ${refWord}!`
     : `${correctWord} comes right after ${refWord}!`;
 }
+function getSliderPrompt(blockIndex) {
+  switch (blockIndex) {
+    case 0:
+      return '🐚 Slide to find the shell';
+    case 1:
+      return '🪸 Slide to find the coral';
+    case 2:
+      return '🦑 Slide to find the squid';
+    default:
+      return '🐚 Slide to find the shell';
+  }
+}
 
 function Game3Inner() {
   const playerName = usePlayerStore((s) => s.playerName);
-  const planRef = useRef(shuffle([...Array(5).fill('before'), ...Array(5).fill('after')]));
+  const planRef = useRef(buildPlan());
   const [roundIndex, setRoundIndex] = useState(0);
   const [round, setRound] = useState(() => generateRound(0, planRef.current[0], null));
   const [highlighted, setHighlighted] = useState(round.reference);
@@ -126,7 +180,9 @@ function Game3Inner() {
     speak(getSpeechPrompt(round), muted);
   }
 
-  const showAllWords = roundIndex < 5;
+  const blockIndex = getBlockIndex(roundIndex);
+  const levelTheme = LEVEL_THEMES[blockIndex];
+  const showAllWords = blockIndex === 1;
   const promptParts = getPromptParts(round);
 
   const handleAnswer = (value) => {
@@ -172,7 +228,7 @@ function Game3Inner() {
   };
 
   const playAgain = () => {
-    planRef.current = shuffle([...Array(5).fill('before'), ...Array(5).fill('after')]);
+    planRef.current = buildPlan();
     const newRound = generateRound(0, planRef.current[0], null);
     setRoundIndex(0);
     setRound(newRound);
@@ -240,14 +296,17 @@ function Game3Inner() {
             <p className="font-body text-sm font-bold text-white/80 sm:text-base">
               Round {roundIndex + 1} of {TOTAL_ROUNDS}
             </p>
+            <span className="font-body mt-0.5 rounded-full bg-white/20 px-3 py-0.5 text-[11px] font-extrabold uppercase tracking-wide text-white/85 sm:text-xs">
+              {levelTheme.label}
+            </span>
             <RoundDots total={TOTAL_ROUNDS} current={roundIndex} />
 
             <OllieBubble promptParts={promptParts} isWrong={!!wrongValue} />
 
             <div className="mt-5 flex flex-col items-center gap-2">
               <span className="font-body rounded-full bg-white/85 px-3 py-0.5 text-xs font-extrabold text-teal-700 shadow sm:text-sm">
-                {showAllWords ? '🪸 Slide to explore the reef' : '🫧 Slide to find the glowing pearl'}
-              </span>
+  {getSliderPrompt(blockIndex)}
+</span>
               <NumberSlider
                 highlighted={highlighted}
                 onChange={setHighlighted}
@@ -262,6 +321,8 @@ function Game3Inner() {
                 <AnswerPill
                   key={opt.value}
                   option={opt}
+                  emoji={levelTheme.emoji}
+                  baseClass={levelTheme.pill}
                   onTap={() => handleAnswer(opt.value)}
                   disabled={phase !== 'playing'}
                   isWrong={wrongValue === opt.value}
@@ -276,6 +337,7 @@ function Game3Inner() {
                 message={getResultMessage(round)}
                 isLastRound={roundIndex + 1 >= TOTAL_ROUNDS}
                 streak={streak}
+                accent={levelTheme.accent}
                 onNext={nextRound}
               />
             )}
@@ -412,7 +474,7 @@ function SliderArrow({ direction, onClick, disabled }) {
   );
 }
 
-function AnswerPill({ option, onTap, disabled, isWrong, isCorrectChosen, isDimmed }) {
+function AnswerPill({ option, emoji, baseClass, onTap, disabled, isWrong, isCorrectChosen, isDimmed }) {
   return (
     <button
       type="button"
@@ -424,10 +486,10 @@ function AnswerPill({ option, onTap, disabled, isWrong, isCorrectChosen, isDimme
         isWrong && 'animate-shake border-red-300 bg-red-100 text-red-500',
         isCorrectChosen && 'animate-wobble border-green-300 bg-green-100 text-green-600 ring-8 ring-green-200',
         isDimmed && 'opacity-40',
-        !isWrong && !isCorrectChosen && !isDimmed && 'border-white bg-white/90 text-teal-700'
+        !isWrong && !isCorrectChosen && !isDimmed && baseClass
       )}
     >
-      🐚 {option.word}
+      {emoji} {option.word}
     </button>
   );
 }
@@ -597,20 +659,22 @@ function StarMeter({ stars, total, dark }) {
 
 function RoundDots({ total, current }) {
   return (
-    <div className="mt-1.5 flex flex-wrap justify-center gap-1">
+    <div className="mt-1.5 flex flex-wrap items-center justify-center gap-1">
       {Array.from({ length: total }).map((_, i) => (
-        <span
-          key={i}
-          className={`h-1.5 w-1.5 rounded-full transition-colors sm:h-2 sm:w-2 ${
-            i < current ? 'bg-white' : i === current ? 'animate-sparkle bg-yellow-300' : 'bg-white/30'
-          }`}
-        />
+        <React.Fragment key={i}>
+          {i > 0 && i % 5 === 0 && <span className="mx-0.5 h-2 w-px self-center bg-white/40" />}
+          <span
+            className={`h-1.5 w-1.5 rounded-full transition-colors sm:h-2 sm:w-2 ${
+              i < current ? 'bg-white' : i === current ? 'animate-sparkle bg-yellow-300' : 'bg-white/30'
+            }`}
+          />
+        </React.Fragment>
       ))}
     </div>
   );
 }
 
-function SuccessOverlay({ message, isLastRound, streak, onNext }) {
+function SuccessOverlay({ message, isLastRound, streak, accent, onNext }) {
   return (
     <div className="fixed inset-0 z-30 flex items-center justify-center bg-black/30 p-4">
       <div className="animate-pop-in relative flex max-w-sm flex-col items-center rounded-[2.5rem] bg-white px-8 py-8 text-center shadow-2xl">
@@ -621,7 +685,7 @@ function SuccessOverlay({ message, isLastRound, streak, onNext }) {
         <p className="font-body mt-2 text-base font-semibold text-slate-500 sm:text-lg">{message}</p>
         <button
           onClick={onNext}
-          className="font-heading mt-6 rounded-full bg-gradient-to-b from-teal-400 to-teal-500 px-7 py-3 text-lg font-bold text-white shadow-[0_6px_0_rgba(0,0,0,0.2)] transition-transform hover:-translate-y-0.5 active:translate-y-1 active:shadow-none"
+          className={`font-heading mt-6 rounded-full bg-gradient-to-b ${accent} px-7 py-3 text-lg font-bold text-white shadow-[0_6px_0_rgba(0,0,0,0.2)] transition-transform hover:-translate-y-0.5 active:translate-y-1 active:shadow-none`}
         >
           {isLastRound ? 'See my treasure! 🏆' : 'Next round ➡️'}
         </button>
