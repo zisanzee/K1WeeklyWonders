@@ -9,6 +9,11 @@ const GAME_LABELS = {
   game3: '🐙 Around the Number',
   game4: '🚀 Splits and Groups',
   game5: "🗝️ Part-Part-Whole",
+  game6: "🗝️ name not set yet",
+  game7: "🗝️ name not set yet",
+  game8: "🗝️ name not set yet",
+  game9: "🗝️ name not set yet",
+  bonusGame1: "🗝️ name not set yet",
 };
 
 // New games "just work" here: known slugs get their custom emoji/name above,

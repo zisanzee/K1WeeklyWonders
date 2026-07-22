@@ -251,107 +251,134 @@ export default class NumberOrderScene extends Phaser.Scene {
   // status chip (interactive: false) or a tappable button.
   // ---------------------------------------------------------------------
   createPillButton(x, y, initialLabel, opts = {}) {
-    const {
-      fontSize = '20px',
-      bgColor = 0xffffff,
-      textColor = '#173b59',
-      paddingX = 18,
-      paddingY = 10,
-      anchor = 'center', // 'center' | 'topLeft' | 'topRight'
-      borderColor = null,
-      depth = 20,
-      interactive = true,
-      minWidth = 0,
-    } = opts;
+  const {
+  fontSize = '20px',
+  bgColor = 0xffffff,
+  textColor = '#173b59',
+  paddingX = 18,
+  paddingY = 10,
+  anchor = 'center',
+  borderColor = null,
+  depth = 20,
+  interactive = true,
+  minWidth = 0,
+  simple = false,
+} = opts;
 
-    const text = this.add.text(0, 0, initialLabel, {
-      fontSize,
-      fontFamily: 'Fredoka, sans-serif',
-      color: textColor,
-      fontStyle: 'bold',
-    }).setOrigin(0.5);
+  const text = this.add.text(0, 0, initialLabel, {
+    fontSize,
+    fontFamily: 'Fredoka, sans-serif',
+    color: textColor,
+    fontStyle: 'bold',
+  }).setOrigin(0.5);
 
-    let w = Math.max(text.width + paddingX * 2, minWidth);
-    let h = text.height + paddingY * 2;
-    const radius = h / 2;
-    let currentBg = bgColor;
+  let w = Math.max(text.width + paddingX * 2, minWidth);
+  let h = text.height + paddingY * 2;
+  const radius = h / 2;
+  let currentBg = bgColor;
 
-    const offsetFor = (ww) => {
-      if (anchor === 'topLeft') return { ox: ww / 2, oy: h / 2 };
-      if (anchor === 'topRight') return { ox: -ww / 2, oy: h / 2 };
-      return { ox: 0, oy: 0 };
-    };
-    let { ox, oy } = offsetFor(w);
-    text.setPosition(ox, oy);
+  // ox/oy = where the pill's CENTER sits, relative to the container's
+  // origin (x,y), given which corner/edge that origin represents.
+  const offsetFor = (ww) => {
+    if (anchor === 'topLeft') return { ox: ww / 2, oy: h / 2 };
+    if (anchor === 'topRight') return { ox: -ww / 2, oy: h / 2 };
+    return { ox: 0, oy: 0 };
+  };
+  let { ox, oy } = offsetFor(w);
+  text.setPosition(ox, oy);
 
-    const shadow = this.add.graphics();
-    const bgGfx = this.add.graphics();
+  const shadow = this.add.graphics();
+  const bgGfx = this.add.graphics();
 
-    const redraw = () => {
-      shadow.clear();
-      shadow.fillStyle(0x000000, 0.18);
-      shadow.fillRoundedRect(ox - w / 2, oy - h / 2 + 4, w, h, radius);
+  const redraw = () => {
+    shadow.clear();
+    shadow.fillStyle(0x000000, 0.18);
+    shadow.fillRoundedRect(ox - w / 2, oy - h / 2 + 4, w, h, radius);
 
-      bgGfx.clear();
-      bgGfx.fillStyle(currentBg, 1);
-      bgGfx.fillRoundedRect(ox - w / 2, oy - h / 2, w, h, radius);
-      if (borderColor !== null) {
-        bgGfx.lineStyle(3, borderColor, 1);
-        bgGfx.strokeRoundedRect(ox - w / 2, oy - h / 2, w, h, radius);
-      }
-    };
-    redraw();
+    bgGfx.clear();
+    bgGfx.fillStyle(currentBg, 1);
+    bgGfx.fillRoundedRect(ox - w / 2, oy - h / 2, w, h, radius);
+    if (borderColor !== null) {
+      bgGfx.lineStyle(3, borderColor, 1);
+      bgGfx.strokeRoundedRect(ox - w / 2, oy - h / 2, w, h, radius);
+    }
+  };
+  redraw();
 
-    const container = this.add.container(x, y, [shadow, bgGfx, text]).setDepth(depth);
+  const container = this.add.container(x, y, [shadow, bgGfx, text]).setDepth(depth);
 
-    const applyHitArea = () => {
-      const rect = new Phaser.Geom.Rectangle(ox - w / 2, oy - h / 2, w, h + 4);
-      container.setSize(rect.width, rect.height);
-      if (interactive) {
-        container.setInteractive(rect, Phaser.Geom.Rectangle.Contains);
-        container.input.cursor = 'pointer';
-      }
-    };
-    applyHitArea();
-
+  const HIT_SLOP = 10;
+  const applyHitArea = () => {
+    const hitW = w + HIT_SLOP * 2;
+    const hitH = h + 4 + HIT_SLOP * 2;
+    // Same center (ox, oy) as the graphics, padded out by HIT_SLOP on every
+    // side — this is the ONLY thing that determines the tappable area.
+    // (Container.setSize() does NOT affect hit-testing once an explicit
+    // hitArea + hitAreaCallback is supplied below, so it's deliberately not
+    // called here — leaving it in previously implied it mattered, when it
+    // was actually just dead weight.)
+    const rect = new Phaser.Geom.Rectangle(ox - hitW / 2, oy - hitH / 2, hitW, hitH);
     if (interactive) {
-      container.on('pointerover', () => {
-        this.tweens.add({ targets: container, scale: 1.05, duration: 120, ease: 'Sine.easeOut' });
-      });
-      container.on('pointerout', () => {
-        this.tweens.add({ targets: container, scale: 1, duration: 120, ease: 'Sine.easeOut' });
-        this.tweens.add({ targets: [bgGfx, text], y: oy, duration: 90 });
-        shadow.setAlpha(1);
-      });
-      container.on('pointerdown', () => {
-        this.tweens.add({ targets: [bgGfx, text], y: oy + 3, duration: 60 });
-        shadow.setAlpha(0.4);
-      });
-      container.on('pointerup', () => {
-        this.tweens.add({ targets: [bgGfx, text], y: oy, duration: 90 });
-        shadow.setAlpha(1);
+      container.setInteractive({
+        hitArea: rect,
+        hitAreaCallback: Phaser.Geom.Rectangle.Contains,
+        useHandCursor: true,
       });
     }
+  };
+  applyHitArea();
 
-    return {
-      container,
-      width: () => w,
-      setText: (str) => {
-        text.setText(str);
-        w = Math.max(text.width + paddingX * 2, minWidth);
-        ({ ox, oy } = offsetFor(w));
-        text.setPosition(ox, oy);
-        redraw();
-        applyHitArea();
-      },
-      setBg: (colorHex) => {
-        currentBg = colorHex;
-        redraw();
-      },
-      on: (evt, cb) => container.on(evt, cb),
-      destroy: () => container.destroy(),
-    };
-  }
+if (interactive && !simple) {
+  container.on('pointerdown', () => {
+    this.tweens.killTweensOf([bgGfx, text]);
+    this.tweens.add({
+      targets: [bgGfx, text],
+      y: oy + 3,
+      duration: 60,
+    });
+    shadow.setAlpha(0.4);
+  });
+
+  container.on('pointerup', () => {
+    this.tweens.killTweensOf([bgGfx, text]);
+    this.tweens.add({
+      targets: [bgGfx, text],
+      y: oy,
+      duration: 90,
+    });
+    shadow.setAlpha(1);
+  });
+
+  container.on('pointerout', () => {
+    this.tweens.killTweensOf([bgGfx, text]);
+    this.tweens.add({
+      targets: [bgGfx, text],
+      y: oy,
+      duration: 90,
+    });
+    shadow.setAlpha(1);
+  });
+}
+
+  return {
+    container,
+    width: () => w,
+    setText: (str) => {
+      text.setText(str);
+      w = Math.max(text.width + paddingX * 2, minWidth);
+      ({ ox, oy } = offsetFor(w));
+      text.setPosition(ox, oy);
+      redraw();
+      applyHitArea();
+    },
+    setBg: (colorHex) => {
+      currentBg = colorHex;
+      redraw();
+    },
+    on: (evt, cb) => container.on(evt, cb),
+    destroy: () => container.destroy(),
+  };
+}
 
   create() {
     const { width, height } = this.scale;
@@ -421,24 +448,26 @@ export default class NumberOrderScene extends Phaser.Scene {
     // these two to crowd/overlap each other.
     const ICON_BTN_SIZE = 56;
 
-    this.restartBtn = this.createPillButton(16, 16, '🔁', {
-      fontSize: '20px',
-      paddingX: 10,
-      paddingY: 8,
-      minWidth: ICON_BTN_SIZE,
-      anchor: 'topLeft',
-      depth: 20,
-    });
+this.restartBtn = this.createPillButton(16, 16, '🔁', {
+  fontSize: '20px',
+  paddingX: 10,
+  paddingY: 8,
+  minWidth: ICON_BTN_SIZE,
+  anchor: 'topLeft',
+  depth: 20,
+  simple: true,
+});
     this.restartBtn.on('pointerdown', () => this.scene.restart());
 
-    this.muteBtn = this.createPillButton(16 + ICON_BTN_SIZE + 12, 16, '🔊', {
-      fontSize: '20px',
-      paddingX: 10,
-      paddingY: 8,
-      minWidth: ICON_BTN_SIZE,
-      anchor: 'topLeft',
-      depth: 20,
-    });
+this.muteBtn = this.createPillButton(16 + ICON_BTN_SIZE + 12, 16, '🔊', {
+  fontSize: '20px',
+  paddingX: 10,
+  paddingY: 8,
+  minWidth: ICON_BTN_SIZE,
+  anchor: 'topLeft',
+  depth: 20,
+  simple: true,
+});
     this.muteBtn.on('pointerdown', () => {
       this.muted = !this.muted;
       this.sound.mute = this.muted;
@@ -452,10 +481,10 @@ export default class NumberOrderScene extends Phaser.Scene {
     dotG.destroy();
 
     this.popEmitter = this.add.particles(0, 0, 'dot', {
-      speed: { min: 100, max: 260 },
-      lifespan: 550,
-      scale: { start: 1.8, end: 0 },
-      quantity: 20,
+      speed: { min: 100, max: 240 },
+      lifespan: 420,
+      scale: { start: 1.6, end: 0 },
+      quantity: 12,
       tint: [0xffd93d, 0xffffff, 0xff9f45],
       emitting: false,
     }).setDepth(15);
@@ -672,7 +701,7 @@ export default class NumberOrderScene extends Phaser.Scene {
   }
 
   popBubble(bubble) {
-    this.popEmitter.explode(20, bubble.x, bubble.y);
+    this.popEmitter.explode(12, bubble.x, bubble.y);
     this.sound.play(Phaser.Utils.Array.GetRandom(POP_SOUND_KEYS), { volume: 0.6 });
 
     // A standalone splat image, same color as the bubble that popped,
@@ -753,19 +782,20 @@ export default class NumberOrderScene extends Phaser.Scene {
     this.tweens.add({ targets: flash, alpha: 0, duration: 400, onComplete: () => flash.destroy() });
 
     const confettiKey = makeConfettiTexture(this);
-    const confetti = this.add.particles(width / 2, -20, confettiKey, {
-      x: { min: 0, max: width },
-      y: -20,
-      quantity: 4,
-      frequency: 40,
-      lifespan: 2200,
-      speedY: { min: 150, max: 260 },
-      speedX: { min: -60, max: 60 },
-      rotate: { min: 0, max: 360 },
-      scale: { start: 1, end: 0.8 },
-      tint: NUMBER_COLORS,
-    }).setDepth(61);
-    this.time.delayedCall(2600, () => confetti.destroy());
+const confetti = this.add.particles(0, 0, confettiKey, {
+  x: { min: width / 2 , max: width / 2 + 40 },
+  y: -20,
+  quantity: 4,
+  frequency: 40,
+  lifespan: 1700,
+  speedY: { min: 180, max: 280 },
+  speedX: { min: -120, max: 120 },
+  rotate: { min: 0, max: 360 },
+  scale: { start: 1.8, end: 1.3 },
+  alpha: { start: 1, end: 0 },
+  tint: NUMBER_COLORS,
+}).setDepth(61);
+    this.time.delayedCall(2200, () => confetti.destroy());
 
     const overlay = this.add.rectangle(width / 2, height / 2, width, height, 0x0f3d5c, 0.55)
       .setDepth(55).setAlpha(0);
@@ -785,11 +815,25 @@ export default class NumberOrderScene extends Phaser.Scene {
       align: 'center',
       wordWrap: { width: 250 },
     }).setOrigin(0.5);
-    const subtitle = this.add.text(0, -10, `You did it in ${this.elapsedSeconds}s`, {
-      fontSize: '18px',
-      fontFamily: 'Nunito, sans-serif',
-      color: '#0f3d5c',
-    }).setOrigin(0.5);
+const leftPart = this.add.text(0, 0, 'You did it in ', {
+  fontSize: '18px',
+  fontFamily: 'Nunito, sans-serif',
+  color: '#0f3d5c',
+}).setOrigin(0, 0.5);
+
+const scorePart = this.add.text(0, 0, `${this.elapsedSeconds}s`, {
+  fontSize: '28px',
+  fontFamily: 'Fredoka, sans-serif',
+  fontStyle: 'bold',
+  color: '#ff7a00',
+}).setOrigin(0, 0.5);
+
+const totalWidth = leftPart.width + scorePart.width;
+
+leftPart.setPosition(-totalWidth / 2, 0);
+scorePart.setPosition(-totalWidth / 2 + leftPart.width, 0);
+
+const subtitle = this.add.container(0, -10, [leftPart, scorePart]);
 
     const restart = this.createPillButton(0, 55, '🔁 Play again', {
       fontSize: '20px',

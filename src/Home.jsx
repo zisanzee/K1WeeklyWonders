@@ -266,7 +266,7 @@ function HomeContent() {
               to="/Game1"
               emoji="🧺"
               title="Count & Win!"
-              subtitle="Week 1"
+              subtitle="Game 1"
               color="from-teal-400 to-emerald-500"
               ring="ring-teal-200"
               delay={0.1}
@@ -277,7 +277,7 @@ function HomeContent() {
               to="/Game2"
               emoji="🧸"
               title="Compare Quantity!"
-              subtitle="Week 2"
+              subtitle="Game 2"
               color="from-sky-400 to-blue-500"
               ring="ring-sky-200"
               delay={0.2}
@@ -285,10 +285,21 @@ function HomeContent() {
               progress={progressByGame.game2}
             />
             <GameCard
+              to="/bonus-game1"
+              emoji="9️⃣"
+              title="Number Pop!"
+              subtitle={`Bonus Game 1\n (not logging scores yet)`}
+              color="from-blue-400 via-orange-500 to-blue-500 "
+              ring="ring-sky-200"
+              delay={0.2}
+              open={isGameUnlocked('b1', isTeacher)}
+              progress={progressByGame.game2}
+            />
+            <GameCard
               to="/Game3"
               emoji="🐙"
               title="Around the Number!"
-              subtitle="Week 3"
+              subtitle="Game 3"
               color="from-violet-400 to-fuchsia-500"
               ring="ring-violet-200"
               delay={0.3}
@@ -299,7 +310,7 @@ function HomeContent() {
               to="/Game4"
               emoji="🚀"
               title="Splits and Groups!"
-              subtitle="Week 4"
+              subtitle="Game 4"
               color="from-amber-400 to-orange-500"
               ring="ring-amber-200"
               delay={0.4}
@@ -311,7 +322,7 @@ function HomeContent() {
               to="/Game5"
               emoji="🗝️"
               title="Part-Part-Whole!"
-              subtitle="Week 5"
+              subtitle="Game 5"
               color="from-rose-400 to-pink-500"
               ring="ring-rose-200"
               delay={0.5}
@@ -385,7 +396,7 @@ const GameCard = React.memo(function GameCard({ to, emoji, title, subtitle, colo
         {title}
       </p>
 
-      <p className={`font-body mt-1 text-center text-sm font-semibold sm:text-base ${open ? "text-white/90" : "text-white/40"}`}>
+      <p className={` whitespace-pre-line font-body mt-1 text-center text-sm font-semibold sm:text-base ${open ? "text-white/90" : "text-white/40"}`}>
         {subtitle}
       </p>
 

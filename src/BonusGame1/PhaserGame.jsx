@@ -21,13 +21,15 @@ export default function PhaserGame() {
         // not this number — but a bigger base resolution means Phaser is
         // scaling *down* into most containers instead of stretching a small
         // canvas up, which is why things look noticeably crisper.
+        //
+        // Deliberately NOT setting a custom `resolution` (devicePixelRatio)
+        // multiplier here: combined with Scale.FIT, that's a known source of
+        // the DOM-pointer-to-game-coordinate mapping drifting out of sync
+        // with what's actually drawn — buttons render in the right place,
+        // but taps land as if they were somewhere else. The 720x960 base
+        // resolution already gives plenty of sharpness on its own.
         width: 720,
         height: 960,
-        // Multiplies the canvas's backing-store resolution by the device's
-        // pixel ratio (capped at 2 — going higher rarely helps and costs
-        // real GPU/memory on older phones, which is exactly the hardware we
-        // most need this to run smoothly on).
-        resolution: Math.min(window.devicePixelRatio || 1, 2),
         backgroundColor: '#8fe0fa',
         physics: {
           default: 'arcade',
