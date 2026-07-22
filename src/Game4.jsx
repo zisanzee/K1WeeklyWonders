@@ -300,6 +300,7 @@ function Game4Inner() {
     setFeedback(null);
     setHasErred(false);
     setPhase('playing');
+    setSelectedNumber(null);
     speak(missionSpeech(newRound), muted);
   };
 
@@ -312,6 +313,7 @@ function Game4Inner() {
     setHasErred(false);
     setFeedback(null);
     setPhase('playing');
+    setSelectedNumber(null);
     hasLoggedRef.current = false;
     peakStreakRef.current = 0;
     speak(missionSpeech(newRound), muted);
@@ -439,73 +441,10 @@ function Game4Inner() {
                 ) : null}
               </DragOverlay>
             </DndContext>
-           {round.mode === 'target' && ( <div className="w-full">
-  {/* Spelled Number */}
-  <div className="h-24 flex items-center justify-center overflow-hidden">
-    <AnimatePresence mode="wait">
-      {selectedNumber === null ? (
-        <motion.p
-          key="help"
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -10 }}
-          transition={{ duration: 0.25 }}
-          className="text-sm sm:text-lg font-semibold text-slate-300 text-center"
-        >
-          Need help? Click a number to see its spelled form.
-        </motion.p>
-      ) : (
-        <motion.div
-          key={selectedNumber}
-          initial={{ opacity: 0, scale: 0.65, y: 10 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.8, y: -10 }}
-          transition={{
-  type: "spring",
-  stiffness: 800,
-  damping: 28,
-  mass: 0.4,
-}}
-          className="bg-slate-400/35 border-4 rounded-sm shadow-lg px-4 py-2"
-        >
-          <span className="text-xl sm:text-4xl md:text-2xl font-bold text-slate-200">
-            {numberWords[selectedNumber]}
-          </span>
-        </motion.div>
-      )}
-    </AnimatePresence>
-  </div>
 
-  {/* Number Buttons */}
-  <div className="grid grid-cols-10 gap-0 sm:gap-2 select-none max-w-2xl mx-auto">
-    {numberWords.map((_, i) => (
-      <motion.button
-        key={i}
-        onClick={() => setSelectedNumber(i)}
-        whileHover={{ scale: 1.08, y: -2 }}
-        whileTap={{ scale: 0.9 }}
-        animate={{
-          scale: selectedNumber === i ? 1.12 : 1,
-          rotate: selectedNumber === i ? [-2, 2, 0] : 0,
-        }}
-        transition={{
-          type: "spring",
-          stiffness: 250,
-          damping: 8,
-        }}
-        className={`aspect-square border border-amber-950 font-bold rounded-sm
-          text-lg sm:text-2xl md:text-3xl shadow-md
-          ${
-            selectedNumber === i
-              ? "bg-sky-500 text-white ring-4 ring-sky-200"
-              : "bg-slate-500/50 border-1 border-white/70 hover:bg-slate-500 text-slate-200/90"
-          }`}
-      >
-        {i + 1}
-      </motion.button>
-    ))}
-  </div>
-</div>)}
+            {round.mode === 'target' && (
+              <NumberHelper selected={selectedNumber} onSelect={setSelectedNumber} />
+            )}
 
             <div className="mt-2 flex flex-col items-center gap-1.5 pb-2 sm:mt-3">
               {feedback && (
@@ -882,6 +821,76 @@ const DraggableCargo = React.memo(function DraggableCargo({ id, emoji, rotation,
       } ${isDragging ? 'opacity-0' : 'opacity-100'}`}
     >
       {emoji}
+    </div>
+  );
+});
+
+// A standalone "look up any number" tool, shown during target rounds. Kept
+// visually consistent with MissionHeader (same white card, same rounded
+// corners) and uses indigo for its selected state rather than blue, so it
+// never reads as "the Blue rocket" by accident.
+const NumberHelper = React.memo(function NumberHelper({ selected, onSelect }) {
+  return (
+    <div className="animate-pop-in mt-3 w-full max-w-2xl rounded-[1.5rem] bg-white/90 px-3 py-3 shadow-[0_6px_0_rgba(0,0,0,0.15)] sm:mt-4 sm:px-5 sm:py-4">
+      <p className="font-body text-center text-xs font-bold text-slate-500 sm:text-sm">
+        🔤 Not sure what a number looks like spelled out? Tap one to check!
+      </p>
+
+      <div className="mt-2 flex h-14 items-center justify-center sm:h-16">
+        <AnimatePresence mode="wait">
+          {selected === null ? (
+            <motion.p
+              key="hint"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="font-body text-xs font-semibold text-slate-300 sm:text-sm"
+            >
+              Pick a number below 👇
+            </motion.p>
+          ) : (
+            <motion.div
+              key={selected}
+              initial={{ opacity: 0, scale: 0.6, y: 8 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.8, y: -8 }}
+              transition={{ type: 'spring', stiffness: 500, damping: 24 }}
+              className="rounded-2xl bg-indigo-50 px-5 py-1.5 shadow-inner"
+            >
+              <span className="font-heading text-xl font-bold text-indigo-600 sm:text-2xl">
+                {numberWords[selected]}
+              </span>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
+      <div className="mt-2 grid grid-cols-5 gap-1.5 sm:grid-cols-10 sm:gap-2">
+        {numberWords.map((_, i) => {
+          const active = selected === i;
+          return (
+            <motion.button
+              key={i}
+              type="button"
+              onClick={() => onSelect(i)}
+              aria-pressed={active}
+              aria-label={`Show ${i + 1} spelled out`}
+              whileTap={{ scale: 0.9 }}
+              animate={{ scale: active ? 1.08 : 1 }}
+              transition={{ type: 'spring', stiffness: 400, damping: 20 }}
+              className={cn(
+                'font-heading aspect-square rounded-xl text-base font-bold shadow-sm transition-colors sm:text-lg',
+                active
+                  ? 'bg-indigo-500 text-white ring-4 ring-indigo-200'
+                  : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+              )}
+            >
+              {i + 1}
+            </motion.button>
+          );
+        })}
+      </div>
     </div>
   );
 });

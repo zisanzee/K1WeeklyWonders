@@ -59,9 +59,10 @@ function makeBubbleTexture(scene, value, colorHex) {
 
   // ---------- White border ----------
   ctx.beginPath();
-  ctx.arc(c, c, BUBBLE_RADIUS - 1, 0, Math.PI * 2);
-
-
+  ctx.arc(c, c, BUBBLE_RADIUS - 1.5, 0, Math.PI * 2);
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+  ctx.stroke();
   // ---------- Small glossy highlight ----------
   ctx.fillStyle = 'rgba(255,255,255,0.25)';
   ctx.beginPath();
@@ -83,14 +84,14 @@ function makeBubbleTexture(scene, value, colorHex) {
   ctx.fill();
 
   // ---------- Number ----------
-  ctx.font = ' 32px Fredoka, sans-serif';
+  ctx.font = 'bold 32px Fredoka, sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
 
   ctx.lineJoin = 'round';
   ctx.lineWidth = 3;
   ctx.strokeStyle = '#ffffff';
-  ctx.strokeText(String(value), c, c +2 );
+  ctx.strokeText(String(value), c, c + 2);
 
   ctx.fillStyle = '#173b59';
   ctx.fillText(String(value), c, c + 2);
@@ -414,20 +415,27 @@ export default class NumberOrderScene extends Phaser.Scene {
     });
 
     // Restart + mute, available any time — during countdown, mid-game, or
-    // after finishing — not just from the end screen.
+    // after finishing — not just from the end screen. Fixed minWidth here
+    // rather than relying on the emoji's measured text width, which some
+    // browsers under-report for color emoji glyphs — that was causing
+    // these two to crowd/overlap each other.
+    const ICON_BTN_SIZE = 56;
+
     this.restartBtn = this.createPillButton(16, 16, '🔁', {
-      fontSize: '18px',
+      fontSize: '20px',
       paddingX: 10,
       paddingY: 8,
+      minWidth: ICON_BTN_SIZE,
       anchor: 'topLeft',
       depth: 20,
     });
     this.restartBtn.on('pointerdown', () => this.scene.restart());
 
-    this.muteBtn = this.createPillButton(16 + this.restartBtn.width() + 8, 16, '🔊', {
-      fontSize: '18px',
+    this.muteBtn = this.createPillButton(16 + ICON_BTN_SIZE + 12, 16, '🔊', {
+      fontSize: '20px',
       paddingX: 10,
       paddingY: 8,
+      minWidth: ICON_BTN_SIZE,
       anchor: 'topLeft',
       depth: 20,
     });
@@ -553,6 +561,7 @@ export default class NumberOrderScene extends Phaser.Scene {
   startGame() {
     this.locked = false;
     this.physics.world.resume();
+    this.enableBubbleInput();
 
     this.timerEvent = this.time.addEvent({
       delay: 1000,
@@ -565,11 +574,20 @@ export default class NumberOrderScene extends Phaser.Scene {
     });
   }
 
+  enableBubbleInput() {
+    this.bubbles.forEach((bubble) => {
+      if (!bubble.active) return;
+      bubble.setInteractive(this.bubbleHitCircle, Phaser.Geom.Circle.Contains);
+      bubble.on('pointerdown', () => this.handleTap(bubble));
+    });
+  }
+
   createBubbles(width, height) {
     const order = Phaser.Utils.Array.NumberArray(1, TOTAL_NUMBERS);
     const placed = [];
     const bubbles = [];
     const hitCircle = new Phaser.Geom.Circle(TEXTURE_SIZE / 2, TEXTURE_SIZE / 2, BUBBLE_RADIUS);
+    this.bubbleHitCircle = hitCircle;
 
     order.forEach((value) => {
       let x, y, tries = 0;
@@ -587,7 +605,10 @@ export default class NumberOrderScene extends Phaser.Scene {
       const bubble = this.physics.add.image(x, y, key);
       bubble.value = value;
       bubble.setDepth(10); // stays above splats (depth 1) regardless of add order
-      bubble.setInteractive(hitCircle, Phaser.Geom.Circle.Contains);
+      // NOT interactive yet — see enableBubbleInput(), called from startGame().
+      // Bubbles are scattered across the whole play area, including right
+      // where the Play button and countdown sit, so leaving them clickable
+      // this whole time was stealing taps meant for those instead.
 
       bubble.body.setCircle(BUBBLE_RADIUS, TEXTURE_PADDING, TEXTURE_PADDING);
       bubble.body.setCollideWorldBounds(true);
@@ -618,8 +639,6 @@ export default class NumberOrderScene extends Phaser.Scene {
           });
         },
       });
-
-      bubble.on('pointerdown', () => this.handleTap(bubble));
 
       bubbles.push(bubble);
     });

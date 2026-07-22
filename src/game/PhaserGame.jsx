@@ -15,11 +15,19 @@ export default function PhaserGame() {
       gameRef.current = new Phaser.Game({
         type: Phaser.AUTO,
         parent: containerRef.current,
-        // 3:4 — Scale.FIT scales this to whatever size the CSS container
-        // ends up at (see PhaserGame's className), so the actual on-screen
-        // size is driven by that container, not this base resolution.
-        width: 480,
-        height: 640,
+        // 3:4 base resolution. Scale.FIT then scales this to whatever size
+        // the CSS container ends up at (see the wrapper div's className
+        // below), so the actual on-screen size is driven by that container,
+        // not this number — but a bigger base resolution means Phaser is
+        // scaling *down* into most containers instead of stretching a small
+        // canvas up, which is why things look noticeably crisper.
+        width: 720,
+        height: 960,
+        // Multiplies the canvas's backing-store resolution by the device's
+        // pixel ratio (capped at 2 — going higher rarely helps and costs
+        // real GPU/memory on older phones, which is exactly the hardware we
+        // most need this to run smoothly on).
+        resolution: Math.min(window.devicePixelRatio || 1, 2),
         backgroundColor: '#8fe0fa',
         physics: {
           default: 'arcade',
