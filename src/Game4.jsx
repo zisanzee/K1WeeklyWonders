@@ -23,19 +23,14 @@ import { Helmet } from 'react-helmet-async';
 
 const TOTAL_ROUNDS = 12; // 3 free-split + 5 even-split + 4 target-split rounds
 const FREE_TOTALS = [3, 4, 5];
-const HALF_TOTALS = [4, 6, 8, 10, 8];
-const TARGET_TOTALS = [7, 8, 9, 10];
+const HALF_TOTALS = [2, 4, 2, 4, 2];
+const TARGET_TOTALS = [2, 3, 4, 5];
 const numberWords = [
   "One",
   "Two",
   "Three",
   "Four",
   "Five",
-  "Six",
-  "Seven",
-  "Eight",
-  "Nine",
-  "Ten",
 ];
 
 
@@ -76,14 +71,14 @@ function speak(text, muted) {
 
 // Rounds 0-2: any two-way split. Rounds 3-7: split exactly in half (Red and
 // Blue must match). Rounds 8-11: load a specific target pair with totals kept
-// inside the friendly 1-10 range.
+// inside the friendly 1-5 range.
 function modeForRound(index) {
   if (index < 3) return 'free';
   if (index < 8) return 'half';
   return 'target';
 }
 
-// Totals are chosen from friendly 1-10 values and kept as distinct as
+// Totals are chosen from friendly 1-5 values and kept as distinct as
 // possible within each phase so the game stays varied and predictable.
 function totalForRound(index, mode) {
   if (mode === 'free') {
@@ -866,7 +861,7 @@ const NumberHelper = React.memo(function NumberHelper({ selected, onSelect }) {
         </AnimatePresence>
       </div>
 
-      <div className="mt-2 grid grid-cols-5 gap-1.5 [@media(min-width:640px)_and_(min-height:720px)]:grid-cols-10 [@media(min-width:640px)_and_(min-height:720px)]:gap-2">
+      <div className="mt-2 grid grid-cols-5 gap-1.5 [@media(min-width:640px)_and_(min-height:720px)]:gap-2">
         {numberWords.map((_, i) => {
           const active = selected === i;
           return (

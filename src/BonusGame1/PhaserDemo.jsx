@@ -51,7 +51,7 @@ function PhaserDemoInner() {
   const [selectedNumber, setSelectedNumber] = useState(null);
 
   return (
-    <div className="relative flex min-h-[100dvh] w-full flex-col items-center overflow-hidden bg-gradient-to-b from-[#3FB6EA] via-[#8FE0FA] to-[#FFE9A8] px-4 pb-6 pt-4 sm:pt-6">
+    <div className="relative flex h-[100dvh] w-full flex-col items-center overflow-hidden bg-gradient-to-b from-[#3FB6EA] via-[#8FE0FA] to-[#FFE9A8] px-3 pb-2 pt-2 sm:px-4 sm:pb-4 sm:pt-3">
       <link
         rel="stylesheet"
         href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;700&family=Nunito:wght@600;800&display=swap"
@@ -102,7 +102,7 @@ function PhaserDemoInner() {
         ⬅️ Home
       </Link>
 
-      <div className="relative z-10 flex w-full min-h-full flex-1 flex-col items-center justify-center gap-3 md:flex-row md:items-center md:gap-6">
+      <div className="relative z-10 flex w-full min-h-0 flex-1 flex-col items-center justify-center max-w-2xl gap-2 md:flex-row md:items-center md:gap-6">
         {/* Number rail — a horizontal strip above the game on phones/tablets,
             a vertical strip along the left on wider screens. Same panel,
             just re-flowed via the grid + flex direction below. */}
@@ -110,35 +110,21 @@ function PhaserDemoInner() {
           initial={{ opacity: 0, y: -18 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.45, ease: 'easeOut' }}
-          className="font-body order-1 flex w-full max-w-md flex-col items-center gap-2 rounded-[1.75rem] bg-white/85 px-3 py-2.5 shadow-[0_6px_0_rgba(0,0,0,0.12)] backdrop-blur-sm sm:gap-2.5 sm:px-4 sm:py-3 md:order-none md:w-24 md:max-w-none md:justify-center md:gap-3 md:self-stretch md:px-2.5 md:py-4"
+          className="font-body relative order-1 flex w-full max-w-md flex-none flex-col items-center gap-1.5 rounded-[1.5rem] bg-white/85 px-2.5 py-1.5 shadow-[0_5px_0_rgba(0,0,0,0.12)] backdrop-blur-sm sm:rounded-[1.75rem] sm:px-3 sm:py-2 md:order-none md:w-24 md:max-w-none md:flex-1 md:justify-center md:gap-3 md:self-stretch md:px-2.5 md:py-4"
         >
-          <p className="font-heading text-center text-[11px] font-bold uppercase tracking-wide text-slate-500 sm:text-xs">
-            🔢 Pick a number
-          </p>
-
-          {/* Fixed-height readout so picking a number never shoves the
-              buttons around. */}
-          <div className="flex h-8 items-center justify-center sm:h-9">
+          {/* Selected word — floats above the rail on mobile so it never
+              adds height (and never causes scroll); sits inline in the
+              flow on the desktop rail, where there's room to spare. */}
+          <div className="pointer-events-none absolute -top-7 left-1/2 -translate-x-1/2 md:static md:order-first md:flex md:h-9 md:translate-x-0 md:items-center md:justify-center">
             <AnimatePresence mode="wait">
-              {selectedNumber === null ? (
-                <motion.p
-                  key="hint"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.2 }}
-                  className="text-[11px] font-semibold text-slate-300 sm:text-xs"
-                >
-                  Tap a number below
-                </motion.p>
-              ) : (
+              {selectedNumber !== null && (
                 <motion.span
                   key={selectedNumber}
-                  initial={{ opacity: 0, scale: 0.6, y: 8 }}
+                  initial={{ opacity: 0, scale: 0.6, y: 6 }}
                   animate={{ opacity: 1, scale: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.8, y: -8 }}
+                  exit={{ opacity: 0, scale: 0.8, y: -6 }}
                   transition={{ type: 'spring', stiffness: 500, damping: 24 }}
-                  className="rounded-full bg-amber-50 px-3.5 py-1 font-heading text-sm font-bold text-orange-600 shadow-inner sm:text-base"
+                  className="whitespace-nowrap rounded-full bg-amber-50 px-3 py-1 font-heading text-lg font-bold text-orange-600 shadow-[0_3px_0_rgba(0,0,0,0.1)] sm:text-lg md:text-base"
                 >
                   {numberWords[selectedNumber - 1]}
                 </motion.span>
@@ -146,11 +132,15 @@ function PhaserDemoInner() {
             </AnimatePresence>
           </div>
 
+          <p className="hidden font-heading text-center text-xs font-bold uppercase tracking-wide text-slate-500 md:block">
+            🔢 Pick
+          </p>
+
           <motion.div
             variants={gridVariants}
             initial="hidden"
             animate="show"
-            className="grid grid-cols-5 gap-1.5 sm:gap-2 md:grid-cols-1 md:gap-1.5"
+            className="grid grid-cols-10 gap-1 sm:gap-1.5 md:grid-cols-1 md:gap-1.5"
           >
             {Array.from({ length: 10 }, (_, idx) => idx + 1).map((i) => {
               const isSelected = selectedNumber === i;
@@ -167,7 +157,7 @@ function PhaserDemoInner() {
                   animate={{ scale: isSelected ? 1.1 : 1, y: isSelected ? -2 : 0 }}
                   transition={{ type: 'spring', stiffness: 420, damping: 22 }}
                   className={cn(
-                    'font-heading relative flex aspect-square items-center justify-center rounded-xl text-base font-bold shadow-[0_3px_0_rgba(0,0,0,0.15)] transition-colors sm:rounded-2xl sm:text-lg md:h-10 md:w-10',
+                    'font-heading relative flex aspect-square items-center justify-center rounded-lg text-lg font-bold shadow-[0_3px_0_rgba(0,0,0,0.15)] transition-colors sm:rounded-xl sm:text-sm md:h-10 md:w-10 md:rounded-2xl md:text-lg',
                     isSelected
                       ? 'bg-gradient-to-b from-amber-300 to-orange-400 text-white ring-2 ring-amber-200 ring-offset-1'
                       : 'bg-white text-slate-600 hover:bg-amber-50'
@@ -176,7 +166,7 @@ function PhaserDemoInner() {
                   {isSelected && (
                     <motion.span
                       layoutId="number-glow"
-                      className="absolute -inset-1.5 -z-10 rounded-xl bg-amber-300/40 blur-md sm:rounded-2xl"
+                      className="absolute -inset-1.5 -z-10 rounded-lg bg-amber-300/40 blur-md sm:rounded-xl md:rounded-2xl"
                       transition={{ type: 'spring', stiffness: 420, damping: 26 }}
                     />
                   )}
@@ -187,7 +177,9 @@ function PhaserDemoInner() {
           </motion.div>
         </motion.div>
 
-        <PhaserGame playerName={playerName} />
+        <div className="flex w-full min-h-0 flex-1 items-center justify-center">
+          <PhaserGame playerName={playerName} />
+        </div>
       </div>
     </div>
   );
