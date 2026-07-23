@@ -1,392 +1,48 @@
 // NumberOrderScene.js
 import * as Phaser from 'phaser';
+import { LEVELS, labelForValue } from './levels';
+import { createPillButton } from './uiHelpers';
+import {
+  makeBackgroundTexture,
+  makeCloudTexture,
+  makeSplatTexture,
+  makeConfettiTexture,
+  makeConfettiSquareTexture,
+  makeItemTexture,
+} from './sceneAssets';
+import { completeLevel, isLevelUnlocked, totalStars } from './starProgress';
 
-const NUMBER_COLORS = [
-  0xff6b6b, 0xffa94d, 0xffd43b, 0x94d82d, 0x51cf66,
-  0x20c997, 0x22b8cf, 0x4dabf7, 0x845ef7, 0xf783ac,
-];
-
-const BUBBLE_RADIUS = 34;
 const TEXTURE_PADDING = 4;
-const TEXTURE_SIZE = (BUBBLE_RADIUS + TEXTURE_PADDING) * 2;
-const TOTAL_NUMBERS = 10;
 const SPLAT_HOLD_MS = 3000; // how long a splat sits at full strength before fading
 const SPLAT_FADE_MS = 500;
 const POP_SOUND_KEYS = ['pop1', 'pop2', 'pop3'];
-
-function makeBubbleTexture(scene, value, colorHex) {
-  const key = `bubble-${value}`;
-  if (scene.textures.exists(key)) return key;
-
-  const canvas = document.createElement('canvas');
-  canvas.width = TEXTURE_SIZE;
-  canvas.height = TEXTURE_SIZE;
-  const ctx = canvas.getContext('2d');
-
-  const c = TEXTURE_SIZE / 2;
-
-  // ---------- Drop shadow ----------
-  ctx.save();
-  ctx.shadowColor = 'rgba(0,0,0,0.15)';
-  ctx.shadowBlur = 10;
-  ctx.shadowOffsetX = 1;
-  ctx.shadowOffsetY = 1;
-
-  ctx.beginPath();
-  ctx.arc(c, c, BUBBLE_RADIUS, 0, Math.PI * 2);
-  ctx.fillStyle = `#${colorHex.toString(16).padStart(6, '0')}`;
-  ctx.fill();
-
-  ctx.restore();
-
-  // ---------- Radial lighting ----------
-  const grad = ctx.createRadialGradient(
-    c - 12,
-    c - 14,
-    6,
-    c,
-    c,
-    BUBBLE_RADIUS
-  );
-
-  grad.addColorStop(0, 'rgba(255,255,255,0.35)');
-  grad.addColorStop(0.45, 'rgba(255,255,255,0.08)');
-  grad.addColorStop(1, 'rgba(0,0,0,0.12)');
-
-  ctx.beginPath();
-  ctx.arc(c, c, BUBBLE_RADIUS, 0, Math.PI * 2);
-  ctx.fillStyle = grad;
-  ctx.fill();
-
-  // ---------- White border ----------
-  ctx.beginPath();
-  ctx.arc(c, c, BUBBLE_RADIUS - 1.5, 0, Math.PI * 2);
-  ctx.lineWidth = 3;
-  ctx.strokeStyle = 'rgba(255,255,255,0.9)';
-  ctx.stroke();
-  // ---------- Small glossy highlight ----------
-  ctx.fillStyle = 'rgba(255,255,255,0.25)';
-  ctx.beginPath();
-  ctx.ellipse(
-    c - 12,
-    c - 13,
-    11,
-    7,
-    -0.4,
-    0,
-    Math.PI * 2
-  );
-  ctx.fill();
-
-  // ---------- Tiny sparkle ----------
-  ctx.fillStyle = 'rgba(255,255,255,0.9)';
-  ctx.beginPath();
-  ctx.arc(c - 4, c - 20, 2, 0, Math.PI * 2);
-  ctx.fill();
-
-  // ---------- Number ----------
-  ctx.font = 'bold 32px Fredoka, sans-serif';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-
-  ctx.lineJoin = 'round';
-  ctx.lineWidth = 3;
-  ctx.strokeStyle = '#ffffff';
-  ctx.strokeText(String(value), c, c + 2);
-
-  ctx.fillStyle = '#173b59';
-  ctx.fillText(String(value), c, c + 2);
-
-  scene.textures.addCanvas(key, canvas);
-
-  return key;
-}
-
-function makeBackgroundTexture(scene, width, height) {
-  const key = 'bg-sky';
-  if (scene.textures.exists(key)) return key;
-
-  const canvas = document.createElement('canvas');
-  canvas.width = width;
-  canvas.height = height;
-  const ctx = canvas.getContext('2d');
-
-  // Sky gradient — matches the rest of the app instead of a flat fill.
-  const sky = ctx.createLinearGradient(0, 0, 0, height);
-  sky.addColorStop(0, '#3fb6ea');
-  sky.addColorStop(0.55, '#8fe0fa');
-  sky.addColorStop(1, '#ffe9a8');
-  ctx.fillStyle = sky;
-  ctx.fillRect(0, 0, width, height);
-
-  // Sun glow tucked in a back corner, well clear of the bubble play area.
-  const sunX = width * 0.86;
-  const sunY = height * 0.07;
-  const sunGlow = ctx.createRadialGradient(sunX, sunY, 4, sunX, sunY, 80);
-  sunGlow.addColorStop(0, 'rgba(255,217,61,0.9)');
-  sunGlow.addColorStop(1, 'rgba(255,217,61,0)');
-  ctx.fillStyle = sunGlow;
-  ctx.beginPath();
-  ctx.arc(sunX, sunY, 80, 0, Math.PI * 2);
-  ctx.fill();
-
-  // A couple of baked-in clouds for backdrop texture — two more, independent
-  // sprites drift gently on top of this at runtime for a bit of parallax.
-  ctx.fillStyle = 'rgba(255,255,255,0.8)';
-  const clouds = [
-    [width * 0.16, height * 0.12, 22],
-    [width * 0.16 + 20, height * 0.12 + 5, 16],
-  ];
-  clouds.forEach(([x, y, r]) => {
-    ctx.beginPath();
-    ctx.arc(x, y, r, 0, Math.PI * 2);
-    ctx.fill();
-  });
-
-  // Soft rolling hill along the bottom, echoing the ground from the
-  // homepage — purely decorative, sits behind every bubble.
-  ctx.fillStyle = 'rgba(111, 207, 87, 0.85)';
-  ctx.beginPath();
-  ctx.moveTo(0, height);
-  ctx.lineTo(0, height - 24);
-  ctx.quadraticCurveTo(width * 0.25, height - 48, width * 0.5, height - 26);
-  ctx.quadraticCurveTo(width * 0.75, height - 4, width, height - 28);
-  ctx.lineTo(width, height);
-  ctx.closePath();
-  ctx.fill();
-
-  scene.textures.addCanvas(key, canvas);
-  return key;
-}
-
-function makeCloudTexture(scene) {
-  const key = 'cloud-puff';
-  if (scene.textures.exists(key)) return key;
-
-  const w = 100;
-  const h = 50;
-  const canvas = document.createElement('canvas');
-  canvas.width = w;
-  canvas.height = h;
-  const ctx = canvas.getContext('2d');
-
-  ctx.fillStyle = 'rgba(255,255,255,0.92)';
-  [
-    [30, 30, 20],
-    [55, 22, 17],
-    [74, 30, 14],
-    [45, 34, 16],
-  ].forEach(([x, y, r]) => {
-    ctx.beginPath();
-    ctx.arc(x, y, r, 0, Math.PI * 2);
-    ctx.fill();
-  });
-
-  scene.textures.addCanvas(key, canvas);
-  return key;
-}
-
-function makeSplatTexture(scene) {
-  const key = 'splat';
-  if (scene.textures.exists(key)) return key;
-
-  const size = 140;
-  const canvas = document.createElement('canvas');
-  canvas.width = size;
-  canvas.height = size;
-  const ctx = canvas.getContext('2d');
-  const cx = size / 2;
-  const cy = size / 2;
-
-  ctx.fillStyle = '#ffffff';
-  ctx.beginPath();
-  ctx.arc(cx, cy, 32, 0, Math.PI * 2);
-  ctx.fill();
-
-  const drops = 9;
-  for (let i = 0; i < drops; i += 1) {
-    const angle = (i / drops) * Math.PI * 2 + Math.random() * 0.5;
-    const dist = 28 + Math.random() * 24;
-    const r = 6 + Math.random() * 11;
-    ctx.beginPath();
-    ctx.arc(cx + Math.cos(angle) * dist, cy + Math.sin(angle) * dist, r, 0, Math.PI * 2);
-    ctx.fill();
-  }
-
-  scene.textures.addCanvas(key, canvas);
-  return key;
-}
-
-function makeConfettiTexture(scene) {
-  const key = 'confetti-dot';
-  if (scene.textures.exists(key)) return key;
-  const g = scene.make.graphics({ x: 0, y: 0, add: false });
-  g.fillStyle(0xffffff, 1);
-  g.fillRect(0, 0, 6, 10);
-  g.generateTexture(key, 6, 10);
-  g.destroy();
-  return key;
-}
-function makeConfettiSquareTexture(scene) {
-  const key = 'confetti-square';
-  if (scene.textures.exists(key)) return key;
-  const g = scene.make.graphics({ x: 0, y: 0, add: false });
-  g.fillStyle(0xffffff, 1);
-  g.fillRect(0, 0, 8, 8);
-  g.generateTexture(key, 8, 8);
-  g.destroy();
-  return key;
-}
 
 export default class NumberOrderScene extends Phaser.Scene {
   constructor() {
     super('NumberOrderScene');
   }
 
+  init(data) {
+    this.levelIndex = Phaser.Math.Clamp(data?.levelIndex ?? 0, 0, LEVELS.length - 1);
+    this.level = LEVELS[this.levelIndex];
+  }
 
-
-  // ---------------------------------------------------------------------
-  // Reusable rounded "pill" button/chip — Phaser's built-in Text
-  // backgroundColor is always a flat, square-cornered rectangle, which is
-  // why plain text-with-background looked out of place next to the rest of
-  // the app's rounded, shadowed buttons. This draws a real rounded rect
-  // with a drop "step" shadow and press feedback (the shadow ducks under
-  // the button on press, same idea as the CSS active:shadow-none buttons
-  // used everywhere else in the app), and works equally well as a static
-  // status chip (interactive: false) or a tappable button.
-  // ---------------------------------------------------------------------
+  // Thin wrapper so the rest of the class can keep calling
+  // this.createPillButton(...) like before.
   createPillButton(x, y, initialLabel, opts = {}) {
-  const {
-  fontSize = '20px',
-  bgColor = 0xffffff,
-  textColor = '#173b59',
-  paddingX = 18,
-  paddingY = 10,
-  anchor = 'center',
-  borderColor = null,
-  depth = 20,
-  interactive = true,
-  minWidth = 0,
-  simple = false,
-} = opts;
+    return createPillButton(this, x, y, initialLabel, opts);
+  }
 
-  const text = this.add.text(0, 0, initialLabel, {
-    fontSize,
-    fontFamily: 'Fredoka, sans-serif',
-    color: textColor,
-    fontStyle: 'bold',
-  }).setOrigin(0.5);
-
-  let w = Math.max(text.width + paddingX * 2, minWidth);
-  let h = text.height + paddingY * 2;
-  const radius = h / 2;
-  let currentBg = bgColor;
-
-  // ox/oy = where the pill's CENTER sits, relative to the container's
-  // origin (x,y), given which corner/edge that origin represents.
-  const offsetFor = (ww) => {
-    if (anchor === 'topLeft') return { ox: ww / 2, oy: h / 2 };
-    if (anchor === 'topRight') return { ox: -ww / 2, oy: h / 2 };
-    return { ox: 0, oy: 0 };
-  };
-  let { ox, oy } = offsetFor(w);
-  text.setPosition(ox, oy);
-
-  const shadow = this.add.graphics();
-  const bgGfx = this.add.graphics();
-
-  const redraw = () => {
-    shadow.clear();
-    shadow.fillStyle(0x000000, 0.18);
-    shadow.fillRoundedRect(ox - w / 2, oy - h / 2 + 4, w, h, radius);
-
-    bgGfx.clear();
-    bgGfx.fillStyle(currentBg, 1);
-    bgGfx.fillRoundedRect(ox - w / 2, oy - h / 2, w, h, radius);
-    if (borderColor !== null) {
-      bgGfx.lineStyle(3, borderColor, 1);
-      bgGfx.strokeRoundedRect(ox - w / 2, oy - h / 2, w, h, radius);
-    }
-  };
-  redraw();
-
-  const container = this.add.container(x, y, [shadow, bgGfx, text]).setDepth(depth);
-
-  const HIT_SLOP = 10;
-  const applyHitArea = () => {
-    const hitW = w + HIT_SLOP * 2;
-    const hitH = h + 4 + HIT_SLOP * 2;
-    // Same center (ox, oy) as the graphics, padded out by HIT_SLOP on every
-    // side — this is the ONLY thing that determines the tappable area.
-    // (Container.setSize() does NOT affect hit-testing once an explicit
-    // hitArea + hitAreaCallback is supplied below, so it's deliberately not
-    // called here — leaving it in previously implied it mattered, when it
-    // was actually just dead weight.)
-    const rect = new Phaser.Geom.Rectangle(ox - hitW / 2, oy - hitH / 2, hitW, hitH);
-    if (interactive) {
-      container.setInteractive({
-        hitArea: rect,
-        hitAreaCallback: Phaser.Geom.Rectangle.Contains,
-        useHandCursor: true,
-      });
-    }
-  };
-  applyHitArea();
-
-if (interactive && !simple) {
-  container.on('pointerdown', () => {
-    this.tweens.killTweensOf([bgGfx, text]);
-    this.tweens.add({
-      targets: [bgGfx, text],
-      y: oy + 3,
-      duration: 60,
-    });
-    shadow.setAlpha(0.4);
-  });
-
-  container.on('pointerup', () => {
-    this.tweens.killTweensOf([bgGfx, text]);
-    this.tweens.add({
-      targets: [bgGfx, text],
-      y: oy,
-      duration: 90,
-    });
-    shadow.setAlpha(1);
-  });
-
-  container.on('pointerout', () => {
-    this.tweens.killTweensOf([bgGfx, text]);
-    this.tweens.add({
-      targets: [bgGfx, text],
-      y: oy,
-      duration: 90,
-    });
-    shadow.setAlpha(1);
-  });
-}
-
-  return {
-    container,
-    width: () => w,
-    setText: (str) => {
-      text.setText(str);
-      w = Math.max(text.width + paddingX * 2, minWidth);
-      ({ ox, oy } = offsetFor(w));
-      text.setPosition(ox, oy);
-      redraw();
-      applyHitArea();
-    },
-    setBg: (colorHex) => {
-      currentBg = colorHex;
-      redraw();
-    },
-    on: (evt, cb) => container.on(evt, cb),
-    destroy: () => container.destroy(),
-  };
-}
+  labelFor(value) {
+    return labelForValue(this.level, value);
+  }
 
   create() {
     const { width, height } = this.scale;
+    const level = this.level;
+
+    this.itemRadius = level.itemRadius;
+    this.textureSize = (this.itemRadius + TEXTURE_PADDING) * 2;
 
     this.nextExpected = 1;
     this.elapsedSeconds = 0;
@@ -401,7 +57,7 @@ if (interactive && !simple) {
     this.sound.removeByKey('bgMusic');
     this.bgMusic = this.sound.add('bgMusic', { loop: true, volume: 0.32 });
 
-    const bgKey = makeBackgroundTexture(this, width, height);
+    const bgKey = makeBackgroundTexture(this, width, height, level, `bg-${level.key}`);
     this.add.image(width / 2, height / 2, bgKey);
 
     const cloudKey = makeCloudTexture(this);
@@ -422,63 +78,79 @@ if (interactive && !simple) {
 
     makeSplatTexture(this);
 
-    this.add.text(width / 2, 34, 'Tap in order! 🔢', {
-      fontSize: '26px',
+    // Small "Level N" chip + back-to-menu affordance up top, so it's always
+    // clear which level is active without cluttering the main title.
+    this.add.text(width / 2, 34, level.title, {
+      fontSize: '28px',
       fontFamily: 'Fredoka, sans-serif',
       color: '#0f3d5c',
       fontStyle: 'bold',
+      align: 'center',
+      wordWrap: { width: width - 40 },
     }).setOrigin(0.5);
 
-    this.nextChip = this.createPillButton(width / 2, 78, 'Next: 1', {
-      fontSize: '22px',
-      paddingX: 16,
-      paddingY: 8,
+    this.nextChip = this.createPillButton(width / 2, 82, `Next: ${this.labelFor(1)}`, {
+      fontSize: '26px',
+      paddingX: 18,
+      paddingY: 10,
       interactive: false,
-      minWidth: 130,
+      minWidth: 170,
       depth: 15,
     });
 
     this.timerChip = this.createPillButton(width - 16, 16, '0s', {
-      fontSize: '18px',
-      paddingX: 12,
-      paddingY: 6,
+      fontSize: '20px',
+      paddingX: 14,
+      paddingY: 7,
       anchor: 'topRight',
       interactive: false,
       depth: 15,
     });
 
-    // Restart + mute, available any time — during countdown, mid-game, or
-    // after finishing — not just from the end screen. Fixed minWidth here
-    // rather than relying on the emoji's measured text width, which some
-    // browsers under-report for color emoji glyphs — that was causing
-    // these two to crowd/overlap each other.
-    const ICON_BTN_SIZE = 56;
+    // Restart + mute + home, available any time — during countdown,
+    // mid-game, or after finishing — not just from the end screen. Fixed
+    // minWidth here rather than relying on the emoji's measured text
+    // width, which some browsers under-report for color emoji glyphs —
+    // that was causing these to crowd/overlap each other.
+    const ICON_BTN_SIZE = 64;
+    const ICON_BTN_GAP = 12;
 
-this.restartBtn = this.createPillButton(16, 16, '🔁', {
-  fontSize: '20px',
-  paddingX: 10,
-  paddingY: 8,
-  minWidth: ICON_BTN_SIZE,
-  anchor: 'topLeft',
-  depth: 20,
-  simple: true,
-});
-    this.restartBtn.on('pointerdown', () => this.scene.restart());
+    this.restartBtn = this.createPillButton(16, 16, '🔁', {
+      fontSize: '24px',
+      paddingX: 10,
+      paddingY: 8,
+      minWidth: ICON_BTN_SIZE,
+      anchor: 'topLeft',
+      depth: 20,
+      simple: true,
+    });
+    this.restartBtn.on('pointerdown', () => this.scene.restart({ levelIndex: this.levelIndex }));
 
-this.muteBtn = this.createPillButton(16 + ICON_BTN_SIZE + 12, 16, '🔊', {
-  fontSize: '20px',
-  paddingX: 10,
-  paddingY: 8,
-  minWidth: ICON_BTN_SIZE,
-  anchor: 'topLeft',
-  depth: 20,
-  simple: true,
-});
+    this.muteBtn = this.createPillButton(16 + (ICON_BTN_SIZE + ICON_BTN_GAP), 16, '🔊', {
+      fontSize: '24px',
+      paddingX: 10,
+      paddingY: 8,
+      minWidth: ICON_BTN_SIZE,
+      anchor: 'topLeft',
+      depth: 20,
+      simple: true,
+    });
     this.muteBtn.on('pointerdown', () => {
       this.muted = !this.muted;
       this.sound.mute = this.muted;
       this.muteBtn.setText(this.muted ? '🔇' : '🔊');
     });
+
+    this.homeBtn = this.createPillButton(16 + (ICON_BTN_SIZE + ICON_BTN_GAP) * 2, 16, '🏠', {
+      fontSize: '24px',
+      paddingX: 10,
+      paddingY: 8,
+      minWidth: ICON_BTN_SIZE,
+      anchor: 'topLeft',
+      depth: 20,
+      simple: true,
+    });
+    this.homeBtn.on('pointerdown', () => this.scene.start('LevelSelectScene'));
 
     const dotG = this.make.graphics({ x: 0, y: 0, add: false });
     dotG.fillStyle(0xffffff, 1);
@@ -512,8 +184,8 @@ this.muteBtn = this.createPillButton(16 + ICON_BTN_SIZE + 12, 16, '🔊', {
 
     const dim = this.add.rectangle(width / 2, height / 2, width, height, 0x0f3d5c, 0.35).setDepth(40);
 
-    const title = this.add.text(width / 2, height / 2 - 70, 'Ready to pop\nsome bubbles?', {
-      fontSize: '30px',
+    const title = this.add.text(width / 2, height / 2 - 70, `${this.level.icon} ${this.level.name}\nReady?`, {
+      fontSize: '34px',
       fontFamily: 'Fredoka, sans-serif',
       color: '#ffffff',
       fontStyle: 'bold',
@@ -521,9 +193,9 @@ this.muteBtn = this.createPillButton(16 + ICON_BTN_SIZE + 12, 16, '🔊', {
     }).setOrigin(0.5).setDepth(41);
 
     const playBtn = this.createPillButton(width / 2, height / 2 + 30, '▶️ Play', {
-      fontSize: '30px',
-      paddingX: 30,
-      paddingY: 16,
+      fontSize: '34px',
+      paddingX: 36,
+      paddingY: 20,
       bgColor: 0xffd93d,
       textColor: '#0f3d5c',
       depth: 41,
@@ -618,25 +290,27 @@ this.muteBtn = this.createPillButton(16 + ICON_BTN_SIZE + 12, 16, '🔊', {
   }
 
   createBubbles(width, height) {
-    const order = Phaser.Utils.Array.NumberArray(1, TOTAL_NUMBERS);
+    const level = this.level;
+    const total = level.totalNumbers;
+    const order = Phaser.Utils.Array.NumberArray(1, total);
     const placed = [];
     const bubbles = [];
-    const hitCircle = new Phaser.Geom.Circle(TEXTURE_SIZE / 2, TEXTURE_SIZE / 2, BUBBLE_RADIUS);
+    const hitCircle = new Phaser.Geom.Circle(this.textureSize / 2, this.textureSize / 2, this.itemRadius);
     this.bubbleHitCircle = hitCircle;
 
     order.forEach((value) => {
       let x, y, tries = 0;
       do {
-        x = Phaser.Math.Between(BUBBLE_RADIUS + 10, width - BUBBLE_RADIUS - 10);
-        y = Phaser.Math.Between(BUBBLE_RADIUS + 110, height - BUBBLE_RADIUS - 10);
+        x = Phaser.Math.Between(this.itemRadius + 10, width - this.itemRadius - 10);
+        y = Phaser.Math.Between(this.itemRadius + 110, height - this.itemRadius - 10);
         tries += 1;
       } while (
         tries < 30 &&
-        placed.some((p) => Phaser.Math.Distance.Between(x, y, p.x, p.y) < BUBBLE_RADIUS * 2.3)
+        placed.some((p) => Phaser.Math.Distance.Between(x, y, p.x, p.y) < this.itemRadius * 2.3)
       );
       placed.push({ x, y });
 
-      const key = makeBubbleTexture(this, value, NUMBER_COLORS[value - 1]);
+      const key = makeItemTexture(this, level, this.levelIndex, value);
       const bubble = this.physics.add.image(x, y, key);
       bubble.value = value;
       bubble.setDepth(10); // stays above splats (depth 1) regardless of add order
@@ -645,7 +319,7 @@ this.muteBtn = this.createPillButton(16 + ICON_BTN_SIZE + 12, 16, '🔊', {
       // where the Play button and countdown sit, so leaving them clickable
       // this whole time was stealing taps meant for those instead.
 
-      bubble.body.setCircle(BUBBLE_RADIUS, TEXTURE_PADDING, TEXTURE_PADDING);
+      bubble.body.setCircle(this.itemRadius, TEXTURE_PADDING, TEXTURE_PADDING);
       bubble.body.setCollideWorldBounds(true);
       bubble.body.setBounce(1, 1);
 
@@ -688,12 +362,12 @@ this.muteBtn = this.createPillButton(16 + ICON_BTN_SIZE + 12, 16, '🔊', {
       this.popBubble(bubble);
       this.nextExpected += 1;
 
-      if (this.nextExpected > TOTAL_NUMBERS) {
+      if (this.nextExpected > this.level.totalNumbers) {
         this.finished = true;
         this.timerEvent.remove();
         this.time.delayedCall(300, () => this.showComplete());
       } else {
-        this.nextChip.setText(`Next: ${this.nextExpected}`);
+        this.nextChip.setText(`Next: ${this.labelFor(this.nextExpected)}`);
         this.tweens.add({
           targets: this.nextChip.container,
           scale: { from: 1.3, to: 1 },
@@ -715,7 +389,7 @@ this.muteBtn = this.createPillButton(16 + ICON_BTN_SIZE + 12, 16, '🔊', {
     // It holds at full strength for a couple of seconds, then fades and
     // removes itself -- nothing persists indefinitely.
     const splat = this.add.image(bubble.x, bubble.y, 'splat');
-    splat.setTint(NUMBER_COLORS[bubble.value - 1]);
+    splat.setTint(this.level.palette[(bubble.value - 1) % this.level.palette.length]);
     splat.setAlpha(0.55);
     splat.setScale(Phaser.Math.FloatBetween(0.6, 0.95));
     splat.setRotation(Phaser.Math.FloatBetween(0, Math.PI * 2));
@@ -782,15 +456,29 @@ this.muteBtn = this.createPillButton(16 + ICON_BTN_SIZE + 12, 16, '🔊', {
 
   showComplete() {
     const { width, height } = this.scale;
+    const level = this.level;
+
+    // Award the star + unlock the next level before anything below reads
+    // progress back out (the total-stars chip, the "Next Level" button's
+    // availability, etc. all depend on this having already happened).
+    completeLevel(this.levelIndex);
+    const isLastLevel = this.levelIndex === LEVELS.length - 1;
+    const nextIndex = this.levelIndex + 1;
+    const nextUnlocked = !isLastLevel && isLevelUnlocked(nextIndex);
 
     // Hand the finished run's numbers off to React — this scene doesn't
     // know the player's name or how to log a session, it just reports what
     // happened. `this.game.events` is the one event bus that's reachable
     // from both sides: Phaser exposes it on every Scene as `this.game`, and
     // PhaserGame.jsx holds the same Game instance in `gameRef.current`.
+    // `stars` scales with the level itself (Level 1 → 1 star, Level 2 → 2
+    // stars, etc.) rather than always being a flat 1.
     this.game.events.emit('numberpop-complete', {
       elapsedSeconds: this.elapsedSeconds,
       mistakes: this.mistakes,
+      level: this.levelIndex + 1,
+      levelKey: level.key,
+      stars: this.levelIndex + 1,
     });
 
     this.bgMusic?.stop();
@@ -798,88 +486,128 @@ this.muteBtn = this.createPillButton(16 + ICON_BTN_SIZE + 12, 16, '🔊', {
     const flash = this.add.rectangle(width / 2, height / 2, width, height, 0xffffff, 1).setDepth(60);
     this.tweens.add({ targets: flash, alpha: 0, duration: 400, onComplete: () => flash.destroy() });
 
-const confettiRectKey = makeConfettiTexture(this);
-const confettiSquareKey = makeConfettiSquareTexture(this);
+    const confettiRectKey = makeConfettiTexture(this);
+    const confettiSquareKey = makeConfettiSquareTexture(this);
 
-// Shared between both shapes so they fall in sync as one cohesive shower
-// rather than two visually-different effects layered on top of each other.
-const confettiConfig = {
-  x: { min: 0, max: width },       // full width, not a 40px band
-  y: -20,
-  quantity: 2,
-  frequency: 35,
-  lifespan: { min: 1600, max: 2400 },  // slight variance so pieces don't
-                                        // all vanish in the same instant
-  speedY: { min: 60, max: 140 },   // gentler initial speed -- gravity
-  speedX: { min: -70, max: 70 },   // below does the rest of the work
-  gravityY: 240,                   // real acceleration, not constant fall
-  rotate: { start: 0, end: 360 },  // actually spins over its lifetime,
-                                    // rather than freezing at one angle
-  scale: { start: 1.3, end: 0.7 },
-  alpha: { start: 1, end: 0 },
-  tint: NUMBER_COLORS,
-  duration: 1400,                  // stops spawning after 1.4s; particles
-                                    // already in flight keep falling
-};
+    // Shared between both shapes so they fall in sync as one cohesive shower
+    // rather than two visually-different effects layered on top of each other.
+    const confettiConfig = {
+      x: { min: 0, max: width },       // full width, not a 40px band
+      y: -20,
+      quantity: 2,
+      frequency: 35,
+      lifespan: { min: 1600, max: 2400 },  // slight variance so pieces don't
+                                            // all vanish in the same instant
+      speedY: { min: 60, max: 140 },   // gentler initial speed -- gravity
+      speedX: { min: -70, max: 70 },   // below does the rest of the work
+      gravityY: 240,                   // real acceleration, not constant fall
+      rotate: { start: 0, end: 360 },  // actually spins over its lifetime,
+                                        // rather than freezing at one angle
+      scale: { start: 1.3, end: 0.7 },
+      alpha: { start: 1, end: 0 },
+      tint: level.palette,
+      duration: 1400,                  // stops spawning after 1.4s; particles
+                                        // already in flight keep falling
+    };
 
-const confettiRects = this.add.particles(0, 0, confettiRectKey, confettiConfig).setDepth(61);
-const confettiSquares = this.add.particles(0, 0, confettiSquareKey, confettiConfig).setDepth(61);
+    const confettiRects = this.add.particles(0, 0, confettiRectKey, confettiConfig).setDepth(61);
+    const confettiSquares = this.add.particles(0, 0, confettiSquareKey, confettiConfig).setDepth(61);
 
-// Fires once every already-emitted particle has actually finished falling
-// and faded out -- not a guessed timeout, so it can't clip particles that
-// happen to be near the end of a longer lifespan roll.
-confettiRects.once('complete', () => confettiRects.destroy());
-confettiSquares.once('complete', () => confettiSquares.destroy());
+    // Fires once every already-emitted particle has actually finished falling
+    // and faded out -- not a guessed timeout, so it can't clip particles that
+    // happen to be near the end of a longer lifespan roll.
+    confettiRects.once('complete', () => confettiRects.destroy());
+    confettiSquares.once('complete', () => confettiSquares.destroy());
 
     const overlay = this.add.rectangle(width / 2, height / 2, width, height, 0x0f3d5c, 0.55)
       .setDepth(55).setAlpha(0);
     this.tweens.add({ targets: overlay, alpha: 1, duration: 250 });
 
+    const panelW = 340;
+    const panelH = 380;
     const panel = this.add.container(width / 2, height / 2).setDepth(56).setScale(0.3).setAlpha(0);
     const panelBg = this.add.graphics();
     panelBg.fillStyle(0xffffff, 1);
-    panelBg.fillRoundedRect(-140, -100, 280, 200, 28);
+    panelBg.fillRoundedRect(-panelW / 2, -panelH / 2, panelW, panelH, 28);
     panelBg.lineStyle(6, 0xffd93d, 1);
-    panelBg.strokeRoundedRect(-140, -100, 280, 200, 28);
-    const title = this.add.text(0, -60, '🎉 Great counting!', {
-      fontSize: '24px',
+    panelBg.strokeRoundedRect(-panelW / 2, -panelH / 2, panelW, panelH, 28);
+
+    const title = this.add.text(0, -panelH / 2 + 46, `${level.icon} ${level.name} complete!`, {
+      fontSize: '26px',
       fontFamily: 'Fredoka, sans-serif',
       color: '#0f3d5c',
       fontStyle: 'bold',
       align: 'center',
-      wordWrap: { width: 250 },
+      wordWrap: { width: panelW - 30 },
     }).setOrigin(0.5);
-const leftPart = this.add.text(0, 0, 'You did it in ', {
-  fontSize: '18px',
-  fontFamily: 'Nunito, sans-serif',
-  color: '#0f3d5c',
-}).setOrigin(0, 0.5);
 
-const scorePart = this.add.text(0, 0, `${this.elapsedSeconds}s`, {
-  fontSize: '28px',
-  fontFamily: 'Fredoka, sans-serif',
-  fontStyle: 'bold',
-  color: '#ff7a00',
-}).setOrigin(0, 0.5);
+    const leftPart = this.add.text(0, 0, 'You did it in ', {
+      fontSize: '18px',
+      fontFamily: 'Nunito, sans-serif',
+      color: '#0f3d5c',
+    }).setOrigin(0, 0.5);
 
-const totalWidth = leftPart.width + scorePart.width;
+    const scorePart = this.add.text(0, 0, `${this.elapsedSeconds}s`, {
+      fontSize: '28px',
+      fontFamily: 'Fredoka, sans-serif',
+      fontStyle: 'bold',
+      color: '#ff7a00',
+    }).setOrigin(0, 0.5);
 
-leftPart.setPosition(-totalWidth / 2, 0);
-scorePart.setPosition(-totalWidth / 2 + leftPart.width, 0);
+    const totalWidth = leftPart.width + scorePart.width;
+    leftPart.setPosition(-totalWidth / 2, 0);
+    scorePart.setPosition(-totalWidth / 2 + leftPart.width, 0);
 
-const subtitle = this.add.container(0, -10, [leftPart, scorePart]);
+    const subtitle = this.add.container(0, -panelH / 2 + 92, [leftPart, scorePart]);
 
-    const restart = this.createPillButton(0, 55, '🔁 Play again', {
+    const star = this.add.text(0, -panelH / 2 + 134, '⭐', { fontSize: '40px' }).setOrigin(0.5).setScale(0);
+    const starLabel = this.add.text(0, -panelH / 2 + 168, `⭐ ${totalStars()}/${LEVELS.length} stars total`, {
+      fontSize: '16px',
+      fontFamily: 'Nunito, sans-serif',
+      fontStyle: 'bold',
+      color: '#4a6478',
+    }).setOrigin(0.5);
+
+    let primary;
+    let secondary;
+
+    if (nextUnlocked) {
+      primary = this.createPillButton(0, panelH / 2 - 104, `▶️ Next: ${LEVELS[nextIndex].name}`, {
+        fontSize: '22px',
+        paddingX: 20,
+        paddingY: 14,
+        bgColor: 0x22b8cf,
+        textColor: '#ffffff',
+        minWidth: 270,
+        depth: 0,
+      });
+      primary.on('pointerdown', () => this.scene.start('NumberOrderScene', { levelIndex: nextIndex }));
+    } else {
+      primary = this.createPillButton(0, panelH / 2 - 104, '🏆 All levels complete!', {
+        fontSize: '19px',
+        paddingX: 20,
+        paddingY: 14,
+        bgColor: 0xffd93d,
+        textColor: '#173b59',
+        minWidth: 270,
+        depth: 0,
+        interactive: false,
+      });
+    }
+
+    secondary = this.createPillButton(0, panelH / 2 - 46, '🏠 Level Select', {
       fontSize: '20px',
-      paddingX: 18,
-      paddingY: 10,
-      bgColor: 0x22b8cf,
-      textColor: '#ffffff',
+      paddingX: 20,
+      paddingY: 12,
+      bgColor: 0xffffff,
+      textColor: '#173b59',
+      borderColor: 0x173b59,
+      minWidth: 270,
       depth: 0,
     });
-    restart.on('pointerdown', () => this.scene.restart());
+    secondary.on('pointerdown', () => this.scene.start('LevelSelectScene'));
 
-    panel.add([panelBg, title, subtitle, restart.container]);
+    panel.add([panelBg, title, subtitle, star, starLabel, primary.container, secondary.container]);
 
     this.tweens.add({
       targets: panel,
@@ -888,32 +616,24 @@ const subtitle = this.add.container(0, -10, [leftPart, scorePart]);
       duration: 450,
       ease: 'Back.Out',
       onComplete: () => {
-        // A gentle, ongoing invite-to-tap pulse — separate from hover
-        // feedback, since this one needs to keep going even before anyone
-        // has touched the button.
         this.tweens.add({
-          targets: restart.container,
-          scale: { from: 1, to: 1.06 },
-          duration: 700,
-          yoyo: true,
-          repeat: -1,
-          ease: 'Sine.easeInOut',
+          targets: star,
+          scale: 1,
+          angle: 360,
+          duration: 400,
+          ease: 'Back.Out',
         });
+        if (nextUnlocked) {
+          this.tweens.add({
+            targets: primary.container,
+            scale: { from: 1, to: 1.06 },
+            duration: 700,
+            yoyo: true,
+            repeat: -1,
+            ease: 'Sine.easeInOut',
+          });
+        }
       },
-    });
-
-    const starPositions = [[-110, -90], [110, -90], [-110, 90], [110, 90]];
-    starPositions.forEach(([sx, sy], idx) => {
-      const star = this.add.text(sx, sy, '⭐', { fontSize: '26px' }).setOrigin(0.5).setScale(0);
-      panel.add(star);
-      this.tweens.add({
-        targets: star,
-        scale: 1,
-        angle: 360,
-        delay: 500 + idx * 120,
-        duration: 400,
-        ease: 'Back.Out',
-      });
     });
   }
 }

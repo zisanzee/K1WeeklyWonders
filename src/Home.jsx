@@ -39,6 +39,7 @@ export default function Home() {
       <NameGate gameLabel="K1 Weekly Wonders">
         <HomeContent />
       </NameGate>
+      
     </>
   );
 }
@@ -359,6 +360,28 @@ function HomeContent() {
           </div>
         </div>
       </div>
+      {/* Footer */}
+<footer className="relative z-10 mt-10 w-full px-4 pb-28 sm:mt-12 sm:pb-24">
+  <div className="mx-auto max-w-4xl">
+    <div className="overflow-hidden rounded-[1.75rem] border border-white/30 bg-white/25 shadow-[0_10px_30px_rgba(0,0,0,0.10)] backdrop-blur-md">
+      <div className="h-1 w-full bg-gradient-to-r from-yellow-300 via-pink-300 to-sky-300" />
+
+      <div className="flex flex-col items-center gap-2 px-5 py-4 text-center sm:px-7 sm:py-5">
+        <p className="font-body text-[0.78rem] font-extrabold tracking-[0.22em] text-slate-700 uppercase">
+          K1 Weekly Wonders
+        </p>
+
+        <p className="font-body text-sm font-semibold text-slate-800 sm:text-base">
+          © {new Date().getFullYear()} · Developed by Towhid · Educational Content by Siti Soleha
+        </p>
+
+        <p className="font-body text-xs font-medium text-slate-700/80 sm:text-sm">
+          A collaborative numeracy project for joyful early learning.
+        </p>
+      </div>
+    </div>
+  </div>
+</footer>
     </div>
   );
 }
@@ -434,6 +457,7 @@ const GameCard = React.memo(function GameCard({ to, emoji, title, subtitle, colo
           </span>
         )}
       </MotionLink>
+      
     </div>
   );
 });

@@ -11,9 +11,9 @@ export default class PreloadScene extends Phaser.Scene {
 // A real vertical gradient, not flat bands -- matches the 3-stop sky
     // gradient the main scene bakes into its background canvas texture
     // (#3fb6ea -> #8fe0fa -> #ffe9a8), so there's no visible seam or color
-    // jump when this hands off to the real game. fillGradientStyle takes
-    // 4 corner colors; using the same color for both top corners and both
-    // bottom corners of each rect gives a smooth top-to-bottom blend.
+    // jump when this hands off to the level select menu. fillGradientStyle
+    // takes 4 corner colors; using the same color for both top corners and
+    // both bottom corners of each rect gives a smooth top-to-bottom blend.
     const bg = this.add.graphics();
     const midY = height * 0.55;
     bg.fillGradientStyle(0x3fb6ea, 0x3fb6ea, 0x8fe0fa, 0x8fe0fa, 1);
@@ -71,6 +71,6 @@ const fillWidth = barWidth * value;
   }
 
   create() {
-    this.scene.start('NumberOrderScene');
+    this.scene.start('LevelSelectScene');
   }
 }

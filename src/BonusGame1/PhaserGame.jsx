@@ -2,6 +2,7 @@
 import { useEffect, useRef } from 'react';
 import * as Phaser from 'phaser';
 import PreloadScene from './PreloadScene';
+import LevelSelectScene from './LevelSelectScene';
 import NumberOrderScene from './NumberOrderScene';
 import { logPlaySession } from '../logPlaySession';
 
@@ -52,23 +53,30 @@ export default function PhaserGame({ playerName }) {
           mode: Phaser.Scale.FIT,
           autoCenter: Phaser.Scale.CENTER_BOTH,
         },
-        scene: [PreloadScene, NumberOrderScene],
+        scene: [PreloadScene, LevelSelectScene, NumberOrderScene],
       });
 
-      // One log per finished run — the scene emits this exactly once, right
-      // when the 10th bubble pops in order (see showComplete() in
-      // NumberOrderScene.js). "Play again" calls scene.restart(), which
+      // Fires once per finished level — the scene emits this exactly once,
+      // right when a level's final bubble pops in order (see showComplete()
+      // in NumberOrderScene.js). With 4 levels now, this can fire up to 4
+      // times per visit (once per level cleared), plus again on any replay,
+      // so `level`/`levelKey` are included to tell those runs apart. `stars`
+      // scales with the level itself — Level 1 reports 1 star, Level 2
+      // reports 2, and so on — rather than a flat 1 every time.
+      // "Play again" / "Next Level" both restart or start a scene, which
       // runs create() again and can fire a fresh 'numberpop-complete' event
       // on its own next finish, so no "already logged" guard is needed here
       // the way the round-based games need one.
-      gameRef.current.events.on('numberpop-complete', ({ elapsedSeconds, mistakes }) => {
+      gameRef.current.events.on('numberpop-complete', ({ elapsedSeconds, mistakes, level, levelKey, stars }) => {
         logPlaySession({
           game: 'bonusGame1',
           playerName: playerNameRef.current || 'Guest',
-          stars: 1,
+          stars,
           totalRounds: 1,
           elapsedSeconds,
           mistakes,
+          level,
+          levelKey,
         });
       });
     };
