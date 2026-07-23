@@ -1,10 +1,23 @@
+// PhaserGame.jsx
 import { useEffect, useRef } from 'react';
 import * as Phaser from 'phaser';
+import PreloadScene from './PreloadScene';
 import NumberOrderScene from './NumberOrderScene';
+import { logPlaySession } from '../logPlaySession';
 
-export default function PhaserGame() {
+export default function PhaserGame({ playerName }) {
   const containerRef = useRef(null);
   const gameRef = useRef(null);
+
+  // The completion handler is registered once, inside the mount effect
+  // below, so it closes over whatever `playerName` was at that instant.
+  // Reading it through a ref instead means a later re-render with a new
+  // name still logs correctly, without needing to tear down and recreate
+  // the whole Phaser game just to rebind one listener.
+  const playerNameRef = useRef(playerName);
+  useEffect(() => {
+    playerNameRef.current = playerName;
+  }, [playerName]);
 
   useEffect(() => {
     if (gameRef.current) return;
@@ -39,7 +52,24 @@ export default function PhaserGame() {
           mode: Phaser.Scale.FIT,
           autoCenter: Phaser.Scale.CENTER_BOTH,
         },
-        scene: [NumberOrderScene],
+        scene: [PreloadScene, NumberOrderScene],
+      });
+
+      // One log per finished run — the scene emits this exactly once, right
+      // when the 10th bubble pops in order (see showComplete() in
+      // NumberOrderScene.js). "Play again" calls scene.restart(), which
+      // runs create() again and can fire a fresh 'numberpop-complete' event
+      // on its own next finish, so no "already logged" guard is needed here
+      // the way the round-based games need one.
+      gameRef.current.events.on('numberpop-complete', ({ elapsedSeconds, mistakes }) => {
+        logPlaySession({
+          game: 'bonusGame1',
+          playerName: playerNameRef.current || 'Guest',
+          stars: 1,
+          totalRounds: 1,
+          elapsedSeconds,
+          mistakes,
+        });
       });
     };
 
@@ -53,6 +83,7 @@ export default function PhaserGame() {
 
     return () => {
       cancelled = true;
+      gameRef.current?.events.off('numberpop-complete');
       gameRef.current?.destroy(true);
       gameRef.current = null;
     };

@@ -1,7 +1,20 @@
+// PhaserDemo.jsx
 import { Link } from 'react-router-dom';
 import PhaserGame from './PhaserGame';
+import NameGate from '../NameGate';
+import { usePlayerStore } from '../playerStore';
 
 export default function PhaserDemo() {
+  return (
+    <NameGate gameLabel="Bonus Game: Number Pop">
+      <PhaserDemoInner />
+    </NameGate>
+  );
+}
+
+function PhaserDemoInner() {
+  const playerName = usePlayerStore((s) => s.playerName);
+
   return (
     <div className="relative flex min-h-[100dvh] w-full flex-col items-center overflow-hidden bg-gradient-to-b from-[#3FB6EA] via-[#8FE0FA] to-[#FFE9A8] px-4 pb-6 pt-4 sm:pt-6">
       <link
@@ -56,7 +69,7 @@ export default function PhaserDemo() {
         <h1 className="font-heading animate-pop-in text-center text-[clamp(1.6rem,5vw,2.75rem)] font-bold leading-tight text-white drop-shadow-[0_3px_0_rgba(0,0,0,0.15)]">
           🔢 Number Pop!
         </h1>
-        <PhaserGame />
+        <PhaserGame playerName={playerName} />
       </div>
     </div>
   );

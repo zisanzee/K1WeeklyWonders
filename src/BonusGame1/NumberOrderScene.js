@@ -1,3 +1,4 @@
+// NumberOrderScene.js
 import * as Phaser from 'phaser';
 
 const NUMBER_COLORS = [
@@ -226,19 +227,23 @@ function makeConfettiTexture(scene) {
   g.destroy();
   return key;
 }
+function makeConfettiSquareTexture(scene) {
+  const key = 'confetti-square';
+  if (scene.textures.exists(key)) return key;
+  const g = scene.make.graphics({ x: 0, y: 0, add: false });
+  g.fillStyle(0xffffff, 1);
+  g.fillRect(0, 0, 8, 8);
+  g.generateTexture(key, 8, 8);
+  g.destroy();
+  return key;
+}
 
 export default class NumberOrderScene extends Phaser.Scene {
   constructor() {
     super('NumberOrderScene');
   }
 
-  preload() {
-    this.load.audio('pop1', '/PhaserAssets/pop_fx/pop-1.mp3');
-    this.load.audio('pop2', '/PhaserAssets/pop_fx/pop-2.mp3');
-    this.load.audio('pop3', '/PhaserAssets/pop_fx/pop-3.mp3');
-    this.load.audio('wrong', '/PhaserAssets/wrong.wav');
-    this.load.audio('bgMusic', '/PhaserAssets/bg_music.m4a');
-  }
+
 
   // ---------------------------------------------------------------------
   // Reusable rounded "pill" button/chip — Phaser's built-in Text
@@ -385,6 +390,7 @@ if (interactive && !simple) {
 
     this.nextExpected = 1;
     this.elapsedSeconds = 0;
+    this.mistakes = 0;
     this.finished = false;
     this.locked = true;
     this.muted = false;
@@ -392,7 +398,7 @@ if (interactive && !simple) {
     // Guard against a leftover instance from a previous "Play again" —
     // scene.restart() re-runs create(), and without this a second overlap
     // would start playing alongside the new one.
-    this.sound.stopByKey('bgMusic');
+    this.sound.removeByKey('bgMusic');
     this.bgMusic = this.sound.add('bgMusic', { loop: true, volume: 0.32 });
 
     const bgKey = makeBackgroundTexture(this, width, height);
@@ -737,6 +743,7 @@ this.muteBtn = this.createPillButton(16 + ICON_BTN_SIZE + 12, 16, '🔊', {
   }
 
   wrongTap(bubble) {
+    this.mistakes += 1;
     this.sound.play('wrong', { volume: 0.55 });
     this.cameras.main.shake(180, 0.006);
     this.cameras.main.flash(120, 255, 60, 60);
@@ -776,26 +783,53 @@ this.muteBtn = this.createPillButton(16 + ICON_BTN_SIZE + 12, 16, '🔊', {
   showComplete() {
     const { width, height } = this.scale;
 
+    // Hand the finished run's numbers off to React — this scene doesn't
+    // know the player's name or how to log a session, it just reports what
+    // happened. `this.game.events` is the one event bus that's reachable
+    // from both sides: Phaser exposes it on every Scene as `this.game`, and
+    // PhaserGame.jsx holds the same Game instance in `gameRef.current`.
+    this.game.events.emit('numberpop-complete', {
+      elapsedSeconds: this.elapsedSeconds,
+      mistakes: this.mistakes,
+    });
+
     this.bgMusic?.stop();
 
     const flash = this.add.rectangle(width / 2, height / 2, width, height, 0xffffff, 1).setDepth(60);
     this.tweens.add({ targets: flash, alpha: 0, duration: 400, onComplete: () => flash.destroy() });
 
-    const confettiKey = makeConfettiTexture(this);
-const confetti = this.add.particles(0, 0, confettiKey, {
-  x: { min: width / 2 , max: width / 2 + 40 },
+const confettiRectKey = makeConfettiTexture(this);
+const confettiSquareKey = makeConfettiSquareTexture(this);
+
+// Shared between both shapes so they fall in sync as one cohesive shower
+// rather than two visually-different effects layered on top of each other.
+const confettiConfig = {
+  x: { min: 0, max: width },       // full width, not a 40px band
   y: -20,
-  quantity: 4,
-  frequency: 40,
-  lifespan: 1700,
-  speedY: { min: 180, max: 280 },
-  speedX: { min: -120, max: 120 },
-  rotate: { min: 0, max: 360 },
-  scale: { start: 1.8, end: 1.3 },
+  quantity: 2,
+  frequency: 35,
+  lifespan: { min: 1600, max: 2400 },  // slight variance so pieces don't
+                                        // all vanish in the same instant
+  speedY: { min: 60, max: 140 },   // gentler initial speed -- gravity
+  speedX: { min: -70, max: 70 },   // below does the rest of the work
+  gravityY: 240,                   // real acceleration, not constant fall
+  rotate: { start: 0, end: 360 },  // actually spins over its lifetime,
+                                    // rather than freezing at one angle
+  scale: { start: 1.3, end: 0.7 },
   alpha: { start: 1, end: 0 },
   tint: NUMBER_COLORS,
-}).setDepth(61);
-    this.time.delayedCall(2200, () => confetti.destroy());
+  duration: 1400,                  // stops spawning after 1.4s; particles
+                                    // already in flight keep falling
+};
+
+const confettiRects = this.add.particles(0, 0, confettiRectKey, confettiConfig).setDepth(61);
+const confettiSquares = this.add.particles(0, 0, confettiSquareKey, confettiConfig).setDepth(61);
+
+// Fires once every already-emitted particle has actually finished falling
+// and faded out -- not a guessed timeout, so it can't clip particles that
+// happen to be near the end of a longer lifespan roll.
+confettiRects.once('complete', () => confettiRects.destroy());
+confettiSquares.once('complete', () => confettiSquares.destroy());
 
     const overlay = this.add.rectangle(width / 2, height / 2, width, height, 0x0f3d5c, 0.55)
       .setDepth(55).setAlpha(0);

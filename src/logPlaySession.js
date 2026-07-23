@@ -39,13 +39,38 @@ function detectDevice() {
   return { kind, os, browser, userAgent: ua.slice(0, 300) };
 }
 
-export async function logPlaySession({ game, playerName = 'Guest', stars, totalRounds, peakStreak = 0 }) {
+export async function logPlaySession({
+  game,
+  playerName = 'Guest',
+  stars,
+  totalRounds,
+  peakStreak = 0,
+  elapsedSeconds,
+  mistakes,
+}) {
   try {
-    await fetch(`${API_BASE}/api/plays`, {
+    const res = await fetch(`${API_BASE}/api/plays`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ game, playerName, stars, totalRounds, peakStreak, device: detectDevice() }),
+      body: JSON.stringify({
+        game,
+        playerName,
+        stars,
+        totalRounds,
+        peakStreak,
+        elapsedSeconds,
+        mistakes,
+        device: detectDevice(),
+      }),
     });
+    if (!res.ok) {
+      // A non-2xx response (e.g. an unrecognized `game` slug) still counts
+      // as a "successful" fetch as far as try/catch is concerned — this is
+      // what actually surfaces a rejected save instead of it vanishing
+      // silently the way it did before.
+      const body = await res.text().catch(() => '');
+      console.warn(`[logPlaySession] Server rejected the play session: ${res.status} ${res.statusText}`, body);
+    }
   } catch (err) {
     // A logging failure should never break the game itself.
     console.warn('Could not log play session', err);

@@ -109,6 +109,13 @@ function HomeContent() {
       />
 
       <style>{`
+      @keyframes golden-glow {
+  0%, 100% { opacity: 0.5; transform: scale(1); }
+  50% { opacity: 0.85; transform: scale(1.05); }
+}
+
+.animate-golden-glow { animation: golden-glow 2.4s ease-in-out infinite; }
+.animate-golden-shimmer { animation: golden-shimmer 2.6s ease-in-out infinite; }
         @keyframes float-slow {
           0%, 100% { transform: translateY(0px) translateX(0px); }
           50% { transform: translateY(-20px) translateX(10px); }
@@ -288,12 +295,13 @@ function HomeContent() {
               to="/bonus-game1"
               emoji="9️⃣"
               title="Number Pop!"
-              subtitle={`Bonus Game 1\n (not finished / optimized yet)`}
-              color="from-blue-400 via-orange-500 to-blue-500 "
+              subtitle={`Bonus Game 1`}
+              color="from-blue-400  to-red-500 "
               ring="ring-sky-200"
               delay={0.2}
               open={isGameUnlocked('b1', isTeacher)}
               progress={progressByGame.game2}
+              shine
             />
             <GameCard
               to="/Game3"
@@ -355,56 +363,77 @@ function HomeContent() {
   );
 }
 
-const GameCard = React.memo(function GameCard({ to, emoji, title, subtitle, color, ring, delay, open, progress }) {
+const GameCard = React.memo(function GameCard({ to, emoji, title, subtitle, color, ring, delay, open, progress, shine }) {
+  const isShiny = shine && open;
+
   return (
-    <MotionLink
-      to={open ? to : "#"}
-      aria-disabled={!open}
-      tabIndex={open ? 0 : -1}
-      onClick={(e) => {
-        if (!open) e.preventDefault();
-      }}
-      style={{ animationDelay: `${delay}s` }}
-      whileHover={open ? { y: -8, rotate: -1 } : {}}
-      whileTap={open ? { y: 2, scale: 0.98 } : {}}
-      className={`group animate-pop-in relative flex w-[78vw] max-w-[260px] flex-col items-center overflow-hidden rounded-[2rem] bg-gradient-to-b p-6 shadow-[0_10px_0_rgba(0,0,0,0.15)] ring-8 transition-shadow focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-white/80 sm:w-56 sm:p-7 md:w-64 lg:w-72 lg:p-8 xl:w-80 ${
-        open ? `${color} ${ring}` : "from-slate-400 to-slate-500 ring-white/40 cursor-not-allowed"
-      }`}
-    >
-      {open && (
-        <span className="pointer-events-none absolute inset-y-0 -left-1/2 z-10 w-1/2 -skew-x-12 bg-white/25 transition-transform duration-700 ease-out group-hover:translate-x-[250%]" />
+    <div className="relative">
+      {isShiny && (
+        <span
+          aria-hidden="true"
+          className="animate-golden-glow pointer-events-none absolute -inset-3 rounded-[2.5rem] bg-gradient-to-br from-yellow-300 via-amber-400 to-yellow-200 blur-xl"
+        />
       )}
 
-      {!open && (
-        <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-white/25 backdrop-blur-[2px]">
-          <span className="animate-bob text-6xl drop-shadow sm:text-7xl">🔒</span>
-          <span className="font-body rounded-full bg-white/90 px-4 py-1 text-xs font-extrabold text-slate-600 shadow sm:text-sm">
-            Coming soon ✨
-          </span>
-        </div>
-      )}
-
-      <div
-        className={`mb-3 text-6xl transition-transform duration-300 sm:text-7xl ${
-          open ? "group-hover:scale-125 group-hover:rotate-6" : "opacity-40"
-        }`}
+      <MotionLink
+        to={open ? to : "#"}
+        aria-disabled={!open}
+        tabIndex={open ? 0 : -1}
+        onClick={(e) => {
+          if (!open) e.preventDefault();
+        }}
+        style={{ animationDelay: `${delay}s` }}
+        whileHover={open ? { y: -8, rotate: -1 } : {}}
+        whileTap={open ? { y: 2, scale: 0.98 } : {}}
+        className={`group animate-pop-in relative flex w-[78vw] max-w-[260px] flex-col items-center overflow-hidden rounded-[2rem] bg-gradient-to-b p-6 shadow-[0_10px_0_rgba(0,0,0,0.15)] ring-8 transition-shadow focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-white/80 sm:w-56 sm:p-7 md:w-64 lg:w-72 lg:p-8 xl:w-80 ${
+          open ? `${color} ${ring}` : "from-slate-400 to-slate-500 ring-white/40 cursor-not-allowed"
+        } ${isShiny ? "ring-yellow-300" : ""}`}
       >
-        {emoji}
-      </div>
+        {isShiny && (
+          <span className="pointer-events-none absolute right-[-2.6rem] top-3 z-30 w-40 rotate-45 bg-gradient-to-r from-yellow-400 to-amber-500 py-1 text-center text-[11px] font-extrabold uppercase tracking-wide text-white shadow-md">
+            ✨ New
+          </span>
+        )}
 
-      <p className={`font-heading text-xl font-bold sm:text-xl ${open ? "text-slate-900" : "text-white/55"}`}>
-        {title}
-      </p>
+        {open && (
+          <span
+            className={`pointer-events-none absolute inset-y-0 -left-1/2 z-10 w-1/2 -skew-x-12 transition-transform duration-700 ease-out group-hover:translate-x-[250%] ${
+              isShiny ? "animate-golden-shimmer bg-white/40" : "bg-white/25"
+            }`}
+          />
+        )}
 
-      <p className={` whitespace-pre-line font-body mt-1 text-center text-sm font-semibold sm:text-base ${open ? "text-white/90" : "text-white/40"}`}>
-        {subtitle}
-      </p>
+        {!open && (
+          <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-white/25 backdrop-blur-[2px]">
+            <span className="animate-bob text-6xl drop-shadow sm:text-7xl">🔒</span>
+            <span className="font-body rounded-full bg-white/90 px-4 py-1 text-xs font-extrabold text-slate-600 shadow sm:text-sm">
+              Coming soon ✨
+            </span>
+          </div>
+        )}
 
-      {open && (
-        <span className="font-body mt-4 rounded-full bg-white/90 px-5 py-1.5 text-sm font-extrabold text-slate-700 shadow group-hover:bg-white">
-          Play now →
-        </span>
-      )}
-    </MotionLink>
+        <div
+          className={`mb-3 text-6xl transition-transform duration-300 sm:text-7xl ${
+            open ? "group-hover:scale-125 group-hover:rotate-6" : "opacity-40"
+          }`}
+        >
+          {emoji}
+        </div>
+
+        <p className={`font-heading text-xl font-bold sm:text-xl ${open ? "text-slate-900" : "text-white/55"}`}>
+          {title}
+        </p>
+
+        <p className={` whitespace-pre-line font-body mt-1 text-center text-sm font-semibold sm:text-base ${open ? "text-white/90" : "text-white/40"}`}>
+          {subtitle}
+        </p>
+
+        {open && (
+          <span className="font-body mt-4 rounded-full bg-white/90 px-5 py-1.5 text-sm font-extrabold text-slate-700 shadow group-hover:bg-white">
+            Play now →
+          </span>
+        )}
+      </MotionLink>
+    </div>
   );
 });

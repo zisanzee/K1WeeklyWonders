@@ -13,7 +13,7 @@ const GAME_LABELS = {
   game7: "🗝️ name not set yet",
   game8: "🗝️ name not set yet",
   game9: "🗝️ name not set yet",
-  bonusGame1: "🗝️ name not set yet",
+  bonusGame1: "9️⃣ Number Pop",
 };
 
 // New games "just work" here: known slugs get their custom emoji/name above,
@@ -30,11 +30,49 @@ function gameSortValue(key) {
   const match = key.match(/\d+/);
   return match ? Number(match[0]) : key;
 }
+function filterPillLabel(key) {
+  const num = key.match(/\d+/)?.[0];
+  if (!num) return key;
+  return isBonusGame(key) ? `B${num}` : num;
+}
 
 // Formats a play's score consistently across the summary and all-plays views.
 function formatStars(stars, totalRounds) {
   if (stars == null) return '—';
   return totalRounds ? `${stars}/${totalRounds} ⭐` : `${stars} ⭐`;
+}
+
+// Bonus games (the Phaser time-trials) don't fit the round/star/streak shape
+// the numbered games use — "streak" is always 0 and "stars" is always 1/1
+// for them, so the panel shows time-taken in those spots instead.
+function isBonusGame(gameKey) {
+  return /^bonusGame/i.test(gameKey || '');
+}
+
+// Average of each player's best streak for a game — computed from the
+// already-loaded summary rows, no extra fetch needed.
+function avgStreakForGame(summaryRows, gameKey) {
+  const rows = summaryRows.filter((r) => r.game === gameKey);
+  if (rows.length === 0) return null;
+  return rows.reduce((sum, r) => sum + (r.bestStreak || 0), 0) / rows.length;
+}
+
+// Average completion time for a bonus game. elapsedSeconds only exists on
+// raw play documents (the server's /api/stats and /api/summary aggregates
+// don't include it), so this needs `allPlays` — which may still be loading,
+// hence the undefined/null distinction: undefined = "still loading",
+// null = "loaded, but nothing to average".
+function avgTimeForGame(allPlaysRows, gameKey) {
+  if (allPlaysRows === null) return undefined;
+  const rows = allPlaysRows.filter((r) => r.game === gameKey && typeof r.elapsedSeconds === 'number');
+  if (rows.length === 0) return null;
+  return rows.reduce((sum, r) => sum + r.elapsedSeconds, 0) / rows.length;
+}
+
+function formatAvgTime(value) {
+  if (value === undefined) return '…';
+  if (value === null) return '—';
+  return `${value.toFixed(1)}s`;
 }
 
 const DEVICE_ICONS = { mobile: '📱', tablet: '💻', desktop: '🖥️', unknown: '❔' };
@@ -92,8 +130,10 @@ export default function StatsPanel({ onClose }) {
   const [sortDir, setSortDir] = useState('desc');
 
   // "Show all plays" reveals every individual session instead of the
-  // one-row-per-player+game summary. Fetched lazily on first toggle and
-  // cached — cheap to flip back and forth without re-hitting the server.
+  // one-row-per-player+game summary. Also doubles as the only source of
+  // elapsedSeconds (see avgTimeForGame above), so it's fetched in the
+  // background as soon as any bonus game shows up in stats.perGame — not
+  // just lazily on toggle anymore — but still cached the same way.
   const [showAll, setShowAll] = useState(false);
   const [allPlays, setAllPlays] = useState(null);
   const [allStatus, setAllStatus] = useState('idle'); // idle | loading | error | ready
@@ -108,35 +148,6 @@ export default function StatsPanel({ onClose }) {
   const slowTimerRef = useRef(null);
   const allSlowTimerRef = useRef(null);
   const confirmTimerRef = useRef(null);
-
-  const load = async () => {
-    setStatus('loading');
-    setSlow(false);
-    slowTimerRef.current = setTimeout(() => setSlow(true), SLOW_THRESHOLD_MS);
-
-    try {
-      const [statsData, summaryData] = await Promise.all([fetchStats(), fetchSummary()]);
-      setStats(statsData);
-      setSummary(summaryData);
-      setStatus('ready');
-    } catch (err) {
-      console.error(err);
-      setStatus('error');
-    } finally {
-      clearTimeout(slowTimerRef.current);
-      setSlow(false);
-    }
-  };
-
-  useEffect(() => {
-    if (!teacherName) return undefined;
-    load();
-    return () => {
-      clearTimeout(slowTimerRef.current);
-      clearTimeout(allSlowTimerRef.current);
-      clearTimeout(confirmTimerRef.current);
-    };
-  }, [teacherName]);
 
   const loadAllPlays = async () => {
     setAllStatus('loading');
@@ -155,6 +166,42 @@ export default function StatsPanel({ onClose }) {
       setAllSlow(false);
     }
   };
+
+  const load = async () => {
+    setStatus('loading');
+    setSlow(false);
+    slowTimerRef.current = setTimeout(() => setSlow(true), SLOW_THRESHOLD_MS);
+
+    try {
+      const [statsData, summaryData] = await Promise.all([fetchStats(), fetchSummary()]);
+      setStats(statsData);
+      setSummary(summaryData);
+      setStatus('ready');
+
+      // The per-game cards need elapsedSeconds for any bonus game, and that
+      // only lives on raw play documents — so quietly pull those in too,
+      // rather than waiting for the teacher to tap "Show all plays".
+      if (statsData.perGame.some((g) => isBonusGame(g._id))) {
+        loadAllPlays();
+      }
+    } catch (err) {
+      console.error(err);
+      setStatus('error');
+    } finally {
+      clearTimeout(slowTimerRef.current);
+      setSlow(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!teacherName) return undefined;
+    load();
+    return () => {
+      clearTimeout(slowTimerRef.current);
+      clearTimeout(allSlowTimerRef.current);
+      clearTimeout(confirmTimerRef.current);
+    };
+  }, [teacherName]);
 
   const handleToggleShowAll = () => {
     setShowAll((prev) => {
@@ -220,10 +267,8 @@ export default function StatsPanel({ onClose }) {
     setDeletingKey(key);
     try {
       await deletePlayerGame(row.game, row.playerName);
-      await load();
-      // The cached raw play list would now show sessions that no longer
-      // exist — clear it so the next "show all" toggle refetches fresh.
       setAllPlays(null);
+      await load();
     } catch (err) {
       console.error(err);
       setDeleteError(`Couldn't delete ${row.playerName}'s ${gameLabel(row.game)} record — try again.`);
@@ -292,10 +337,15 @@ export default function StatsPanel({ onClose }) {
 
   const activeGameStats = filter === 'all' ? null : stats?.perGame.find((g) => g._id === filter);
   const activeGamePlayers = filter === 'all' ? null : summary.filter((row) => row.game === filter).length;
+  const activeIsBonus = filter !== 'all' && isBonusGame(filter);
   const columnCount = filter === 'all' ? 5 : 4;
   // The all-plays table swaps the Actions column for Stars *and* adds a
   // Device column, so it has one more column than the summary table.
   const columnCountAll = columnCount + 1;
+  // When a single game is filtered the column can say exactly what it shows;
+  // mixed ("all games") rows can be either kind, so the header stays neutral
+  // and each cell decides for itself.
+  const streakOrTimeHeader = filter === 'all' ? 'Streak / Time' : activeIsBonus ? 'Time' : 'Streak';
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-3 sm:p-4" onClick={onClose}>
@@ -368,7 +418,7 @@ export default function StatsPanel({ onClose }) {
                   onClick={() => setFilter(g._id)}
                   label={gameLabel(g._id)}
                 >
-                  {gameSortValue(g._id)}
+                  {filterPillLabel(g._id)}
                 </FilterPill>
               ))}
             </div>
@@ -485,7 +535,15 @@ export default function StatsPanel({ onClose }) {
                       <StatCard label={gameLabel(filter)} value={activeGameStats.plays} sub="total plays" />
                       <StatCard label="Players" value={activeGamePlayers} />
                       <StatCard label="Avg score" value={activeGameStats.avgStars.toFixed(1)} sub="★ per play" />
-                      <StatCard label="Best streak" value={activeGameStats.bestStreak} sub="🔥 in a row" />
+                      {activeIsBonus ? (
+                        <StatCard label="Avg time" value={formatAvgTime(avgTimeForGame(allPlays, filter))} sub="⏱️ per play" />
+                      ) : (
+                        <StatCard
+                          label="Avg streak"
+                          value={(avgStreakForGame(summary, filter) ?? 0).toFixed(1)}
+                          sub="🔥 per player"
+                        />
+                      )}
                     </>
                   ) : (
                     <StatCard label={gameLabel(filter)} value={0} sub="no plays yet" />
@@ -660,6 +718,7 @@ export default function StatsPanel({ onClose }) {
                           ) : (
                             sortedAllPlays.map((row, i) => {
                               const device = formatDevice(row.device);
+                              const bonus = isBonusGame(row.game);
                               return (
                                 <div
                                   key={`${row.playerName}::${row.game}::${row.completedAt}::${i}`}
@@ -670,8 +729,14 @@ export default function StatsPanel({ onClose }) {
                                     <p className="mt-0.5 text-xs font-semibold text-slate-500">{gameLabel(row.game)}</p>
                                   )}
                                   <div className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-semibold text-slate-500">
-                                    <span>{formatStars(row.stars, row.totalRounds)}</span>
-                                    <span>🔥 {row.peakStreak}</span>
+                                    {bonus ? (
+                                      <span>⏱️ {row.elapsedSeconds != null ? `${row.elapsedSeconds}s` : '—'}</span>
+                                    ) : (
+                                      <>
+                                        <span>{formatStars(row.stars, row.totalRounds)}</span>
+                                        <span>🔥 {row.peakStreak}</span>
+                                      </>
+                                    )}
                                     <span>
                                       {new Date(row.completedAt).toLocaleString(undefined, {
                                         dateStyle: 'medium',
@@ -698,7 +763,7 @@ export default function StatsPanel({ onClose }) {
                                   <SortHeader label="Game" sortKey="game" current={sortKeyAll} dir={sortDirAll} onSort={handleSortAll} align="center" />
                                 )}
                                 <SortHeader label="Stars" sortKey="stars" current={sortKeyAll} dir={sortDirAll} onSort={handleSortAll} align="center" />
-                                <SortHeader label="Streak" sortKey="peakStreak" current={sortKeyAll} dir={sortDirAll} onSort={handleSortAll} align="center" />
+                                <SortHeader label={streakOrTimeHeader} sortKey="peakStreak" current={sortKeyAll} dir={sortDirAll} onSort={handleSortAll} align="center" />
                                 <SortHeader label="Played at" sortKey="completedAt" current={sortKeyAll} dir={sortDirAll} onSort={handleSortAll} align="center" />
                                 <SortHeader label="Device" sortKey="deviceKind" current={sortKeyAll} dir={sortDirAll} onSort={handleSortAll} align="center" />
                               </tr>
@@ -717,6 +782,7 @@ export default function StatsPanel({ onClose }) {
                               ) : (
                                 sortedAllPlays.map((row, i) => {
                                   const device = formatDevice(row.device);
+                                  const bonus = isBonusGame(row.game);
                                   return (
                                     <tr
                                       key={`${row.playerName}::${row.game}::${row.completedAt}::${i}`}
@@ -727,7 +793,9 @@ export default function StatsPanel({ onClose }) {
                                         <td className="px-4 py-3.5 text-center text-slate-600">{gameLabel(row.game)}</td>
                                       )}
                                       <td className="px-4 py-3.5 text-center text-slate-600">{formatStars(row.stars, row.totalRounds)}</td>
-                                      <td className="px-4 py-3.5 text-center text-slate-600">🔥{row.peakStreak}</td>
+                                      <td className="px-4 py-3.5 text-center text-slate-600">
+                                        {bonus ? `⏱️ ${row.elapsedSeconds != null ? `${row.elapsedSeconds}s` : '—'}` : `🔥${row.peakStreak}`}
+                                      </td>
                                       <td className="px-4 py-3.5 text-center text-slate-500">
                                         {new Date(row.completedAt).toLocaleString(undefined, {
                                           dateStyle: 'medium',
@@ -782,13 +850,16 @@ function EmptyState({ search, filter }) {
 }
 
 function FilterPill({ active, onClick, children, label }) {
+  const isCompact = String(children).length > 1;
   return (
     <button
       onClick={onClick}
       aria-label={label}
       title={label}
       style={{ fontFamily: "'Fredoka', sans-serif" }}
-      className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-base font-bold transition-all active:scale-90 sm:h-11 sm:w-11 sm:text-lg ${
+      className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full font-bold transition-all active:scale-90 sm:h-11 sm:w-11 ${
+        isCompact ? 'text-xs sm:text-sm' : 'text-base sm:text-lg'
+      } ${
         active
           ? 'bg-gradient-to-r from-pink-500 to-purple-500 text-white shadow-md'
           : 'bg-slate-100 text-slate-600 active:bg-slate-200 sm:hover:bg-slate-200'
