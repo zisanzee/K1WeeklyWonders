@@ -335,25 +335,25 @@ function Game2Inner() {
       `}</style>
 
       <div className="pointer-events-none absolute inset-0">
-        <div className="absolute left-[6%] top-[6%] text-4xl sm:text-5xl animate-float-slow">☁️</div>
-        <div className="absolute right-[8%] top-[10%] text-3xl sm:text-4xl animate-float-slower">☁️</div>
-        <div className="absolute right-[10%] top-[40%] text-xl sm:text-2xl animate-sparkle">✨</div>
-        <div className="absolute left-[8%] top-[35%] text-xl sm:text-2xl animate-sparkle" style={{ animationDelay: '0.5s' }}>⭐</div>
-        <div className="absolute right-[6%] top-[3%] text-5xl sm:text-6xl opacity-90 animate-sun-pulse">☀️</div>
-        <div className="absolute left-[4%] bottom-[10%] text-3xl sm:text-4xl animate-float-slow" style={{ animationDelay: '1s' }}>🎈</div>
+        <div className="absolute left-[6%] top-[6%] text-4xl [@media(min-width:640px)_and_(min-height:720px)]:text-5xl animate-float-slow">☁️</div>
+        <div className="absolute right-[8%] top-[10%] text-3xl [@media(min-width:640px)_and_(min-height:720px)]:text-4xl animate-float-slower">☁️</div>
+        <div className="absolute right-[10%] top-[40%] text-xl [@media(min-width:640px)_and_(min-height:720px)]:text-2xl animate-sparkle">✨</div>
+        <div className="absolute left-[8%] top-[35%] text-xl [@media(min-width:640px)_and_(min-height:720px)]:text-2xl animate-sparkle" style={{ animationDelay: '0.5s' }}>⭐</div>
+        <div className="absolute right-[6%] top-[3%] text-5xl [@media(min-width:640px)_and_(min-height:720px)]:text-6xl opacity-90 animate-sun-pulse">☀️</div>
+        <div className="absolute left-[4%] bottom-[10%] text-3xl [@media(min-width:640px)_and_(min-height:720px)]:text-4xl animate-float-slow" style={{ animationDelay: '1s' }}>🎈</div>
       </div>
 
-      <div className="relative z-10 mx-auto flex h-full max-w-5xl flex-col items-center overflow-y-auto px-3 py-2.5 sm:px-4 sm:py-4">
+      <div className="relative z-10 mx-auto flex h-full max-w-5xl flex-col items-center overflow-y-auto px-3 py-2.5 [@media(min-width:640px)_and_(min-height:720px)]:px-4 [@media(min-width:640px)_and_(min-height:720px)]:py-4">
         <TopBar totalRounds={TOTAL_ROUNDS} stars={stars} muted={muted} onToggleMute={() => setMuted((m) => !m)} />
 
         {phase === 'complete' ? (
           <CompletionScreen stars={stars} total={TOTAL_ROUNDS} onPlayAgain={playAgain} />
         ) : (
           <>
-            <h1 className="font-heading mt-1.5 text-lg font-bold text-white/95 drop-shadow sm:mt-2 sm:text-2xl">
+            <h1 className="font-heading mt-1.5 text-lg font-bold text-white/95 drop-shadow [@media(min-width:640px)_and_(min-height:720px)]:mt-2 [@media(min-width:640px)_and_(min-height:720px)]:text-2xl">
               🧺 Teddy's Picnic Adventure!
             </h1>
-            <p className="font-body text-xs font-bold text-white/80 sm:text-base">
+            <p className="font-body text-xs font-bold text-white/80 [@media(min-width:640px)_and_(min-height:720px)]:text-base">
               Round {roundIndex + 1} of {TOTAL_ROUNDS} {isNumeralRound && <span className="opacity-80">· Numbers round 🔢</span>}
             </p>
             <RoundDots total={TOTAL_ROUNDS} current={roundIndex} halfMark={6} />
@@ -362,13 +362,13 @@ function Game2Inner() {
 
             {round.type === 'same' && <ReferenceBasket category={round.category} target={round.target} />}
 
-            <div className="mt-3 flex w-full flex-1 items-center justify-center px-1 sm:mt-5 sm:px-4">
+            <div className="mt-3 flex w-full flex-1 items-center justify-center px-1 [@media(min-width:640px)_and_(min-height:720px)]:mt-5 [@media(min-width:640px)_and_(min-height:720px)]:px-4">
               <div
                 className={cn(
-                  'grid w-full gap-2 sm:gap-4 md:gap-5',
+                  'grid w-full gap-2 [@media(min-width:640px)_and_(min-height:720px)]:gap-4 [@media(min-width:768px)_and_(min-height:780px)]:gap-5',
                   round.baskets.length === 3
-                    ? 'grid-cols-3 max-w-sm sm:max-w-xl md:max-w-2xl'
-                    : 'grid-cols-2 max-w-[19rem] sm:max-w-lg md:max-w-xl'
+                    ? 'grid-cols-3 max-w-sm [@media(min-width:640px)_and_(min-height:720px)]:max-w-xl [@media(min-width:768px)_and_(min-height:780px)]:max-w-2xl'
+                    : 'grid-cols-2 max-w-[19rem] [@media(min-width:640px)_and_(min-height:720px)]:max-w-lg [@media(min-width:768px)_and_(min-height:780px)]:max-w-xl'
                 )}
               >
                 {round.baskets.map((basket, i) => (
@@ -407,13 +407,13 @@ function Game2Inner() {
               </div>
             </div>
 
-            <div className="mt-2 flex min-h-[2.75rem] flex-col items-center gap-1.5 pb-2 sm:mt-4">
+            <div className="mt-2 flex min-h-[2.75rem] flex-col items-center gap-1.5 pb-2 [@media(min-width:640px)_and_(min-height:720px)]:mt-4">
               {phase === 'playing' && (
                 <button
                   type="button"
                   onClick={() => setShowHint(true)}
                   disabled={showHint}
-                  className="font-body rounded-full bg-white/85 px-4 py-1.5 text-xs font-extrabold text-slate-600 shadow-[0_4px_0_rgba(0,0,0,0.12)] transition-transform hover:-translate-y-0.5 active:translate-y-1 active:shadow-none disabled:cursor-default disabled:opacity-50 sm:px-5 sm:py-2 sm:text-base"
+                  className="font-body rounded-full bg-white/85 px-4 py-1.5 text-xs font-extrabold text-slate-600 shadow-[0_4px_0_rgba(0,0,0,0.12)] transition-transform hover:-translate-y-0.5 active:translate-y-1 active:shadow-none disabled:cursor-default disabled:opacity-50 [@media(min-width:640px)_and_(min-height:720px)]:px-5 [@media(min-width:640px)_and_(min-height:720px)]:py-2 [@media(min-width:640px)_and_(min-height:720px)]:text-base"
                 >
                   {isNumeralRound
                     ? showHint
@@ -453,21 +453,21 @@ export default function Game2() {
 
 const TeddyPrompt = React.memo(function TeddyPrompt({ promptParts, streak, isWrong }) {
   return (
-    <div className="mt-2 flex flex-col items-center gap-1.5 sm:mt-4 sm:gap-2">
+    <div className="mt-2 flex flex-col items-center gap-1.5 [@media(min-width:640px)_and_(min-height:720px)]:mt-4 [@media(min-width:640px)_and_(min-height:720px)]:gap-2">
       <div className="relative">
-        <span className={`inline-block text-4xl sm:text-6xl md:text-7xl ${isWrong ? 'animate-shake' : 'animate-bob'}`}>🧸</span>
+        <span className={`inline-block text-4xl [@media(min-width:640px)_and_(min-height:720px)]:text-6xl [@media(min-width:768px)_and_(min-height:780px)]:text-7xl ${isWrong ? 'animate-shake' : 'animate-bob'}`}>🧸</span>
         {streak >= 2 && (
-          <span className="font-body animate-pop-in absolute -right-2 -top-1.5 rounded-full bg-orange-400 px-1.5 py-0.5 text-[10px] font-extrabold text-white shadow sm:-right-3 sm:-top-2 sm:px-2 sm:text-xs">
+          <span className="font-body animate-pop-in absolute -right-2 -top-1.5 rounded-full bg-orange-400 px-1.5 py-0.5 text-[10px] font-extrabold text-white shadow [@media(min-width:640px)_and_(min-height:720px)]:-right-3 [@media(min-width:640px)_and_(min-height:720px)]:-top-2 [@media(min-width:640px)_and_(min-height:720px)]:px-2 [@media(min-width:640px)_and_(min-height:720px)]:text-xs">
             🔥{streak}
           </span>
         )}
       </div>
-      <div className="animate-pop-in relative max-w-[15rem] rounded-2xl bg-white px-3.5 py-2 text-center shadow-[0_5px_0_rgba(0,0,0,0.1)] sm:max-w-sm sm:rounded-3xl sm:px-5 sm:py-3">
-        <span className="absolute -top-1.5 left-1/2 h-3 w-3 -translate-x-1/2 rotate-45 bg-white sm:-top-2 sm:h-4 sm:w-4" />
+      <div className="animate-pop-in relative max-w-[15rem] rounded-2xl bg-white px-3.5 py-2 text-center shadow-[0_5px_0_rgba(0,0,0,0.1)] [@media(min-width:640px)_and_(min-height:720px)]:max-w-sm [@media(min-width:640px)_and_(min-height:720px)]:rounded-3xl [@media(min-width:640px)_and_(min-height:720px)]:px-5 [@media(min-width:640px)_and_(min-height:720px)]:py-3">
+        <span className="absolute -top-1.5 left-1/2 h-3 w-3 -translate-x-1/2 rotate-45 bg-white [@media(min-width:640px)_and_(min-height:720px)]:-top-2 [@media(min-width:640px)_and_(min-height:720px)]:h-4 [@media(min-width:640px)_and_(min-height:720px)]:w-4" />
         {isWrong ? (
-          <p className="font-body text-xs font-bold text-orange-600 sm:text-base">Not quite! Try again 💪</p>
+          <p className="font-body text-xs font-bold text-orange-600 [@media(min-width:640px)_and_(min-height:720px)]:text-base">Not quite! Try again 💪</p>
         ) : (
-          <p className="font-body text-xs font-bold text-slate-700 sm:text-base">
+          <p className="font-body text-xs font-bold text-slate-700 [@media(min-width:640px)_and_(min-height:720px)]:text-base">
             {promptParts.before} <span className="text-pink-500">{promptParts.keyword}</span> {promptParts.after}
           </p>
         )}
@@ -486,17 +486,17 @@ const ReferenceBasket = React.memo(function ReferenceBasket({ category, target }
     [target]
   );
   return (
-    <div className="animate-pop-in mt-2 flex flex-col items-center gap-1 sm:mt-4 sm:gap-1.5">
-      <span className="font-body rounded-full bg-white/90 px-2.5 py-0.5 text-[10px] font-extrabold text-slate-600 shadow sm:px-3 sm:text-sm">
+    <div className="animate-pop-in mt-2 flex flex-col items-center gap-1 [@media(min-width:640px)_and_(min-height:720px)]:mt-4 [@media(min-width:640px)_and_(min-height:720px)]:gap-1.5">
+      <span className="font-body rounded-full bg-white/90 px-2.5 py-0.5 text-[10px] font-extrabold text-slate-600 shadow [@media(min-width:640px)_and_(min-height:720px)]:px-3 [@media(min-width:640px)_and_(min-height:720px)]:text-sm">
         🧸 Teddy's basket
       </span>
-      <div className="relative flex min-h-[3rem] w-full max-w-[8rem] flex-wrap content-start items-start justify-center gap-1 rounded-b-[1.5rem] rounded-t-lg border-4 border-cyan-800/70 bg-gradient-to-b from-cyan-200 to-cyan-400 p-2 shadow-inner sm:min-h-[4rem] sm:max-w-[11rem] sm:p-2.5">
-        <span className="absolute -top-2 left-1/2 h-2.5 w-6 -translate-x-1/2 rounded-t-full border-4 border-b-0 border-cyan-800/70 sm:-top-2.5 sm:h-3 sm:w-8" />
+      <div className="relative flex min-h-[3rem] w-full max-w-[8rem] flex-wrap content-start items-start justify-center gap-1 rounded-b-[1.5rem] rounded-t-lg border-4 border-cyan-800/70 bg-gradient-to-b from-cyan-200 to-cyan-400 p-2 shadow-inner [@media(min-width:640px)_and_(min-height:720px)]:min-h-[4rem] [@media(min-width:640px)_and_(min-height:720px)]:max-w-[11rem] [@media(min-width:640px)_and_(min-height:720px)]:p-2.5">
+        <span className="absolute -top-2 left-1/2 h-2.5 w-6 -translate-x-1/2 rounded-t-full border-4 border-b-0 border-cyan-800/70 [@media(min-width:640px)_and_(min-height:720px)]:-top-2.5 [@media(min-width:640px)_and_(min-height:720px)]:h-3 [@media(min-width:640px)_and_(min-height:720px)]:w-8" />
         {items.map((it, i) => (
           <span
             key={it.id}
             style={{ rotate: `${it.rotation}deg`, animationDelay: `${(i % 4) * 0.25}s` }}
-            className="animate-float-slower flex h-6 w-6 items-center justify-center text-base sm:h-9 sm:w-9 sm:text-2xl"
+            className="animate-float-slower flex h-6 w-6 items-center justify-center text-base [@media(min-width:640px)_and_(min-height:720px)]:h-9 [@media(min-width:640px)_and_(min-height:720px)]:w-9 [@media(min-width:640px)_and_(min-height:720px)]:text-2xl"
           >
             {category.emoji}
           </span>
@@ -542,7 +542,7 @@ const BasketCard = React.memo(function BasketCard({ basket, category, onTap, dis
       onClick={onTap}
       disabled={disabled}
       className={cn(
-        'group relative flex h-full w-full flex-wrap content-center items-center justify-center gap-1 rounded-b-[2.25rem] rounded-t-xl border-4 border-lime-700/70 bg-gradient-to-b from-violet-200 to-lime-200 p-2 shadow-[0_8px_0_rgba(0,0,0,0.18)] transition-transform duration-200 ease-out sm:gap-2 sm:p-4',
+        'group relative flex h-full w-full flex-wrap content-center items-center justify-center gap-1 rounded-b-[2.25rem] rounded-t-xl border-4 border-lime-700/70 bg-gradient-to-b from-violet-200 to-lime-200 p-2 shadow-[0_8px_0_rgba(0,0,0,0.18)] transition-transform duration-200 ease-out [@media(min-width:640px)_and_(min-height:720px)]:gap-2 [@media(min-width:640px)_and_(min-height:720px)]:p-4',
         disabled ? 'cursor-default' : 'cursor-pointer hover:-translate-y-1 active:translate-y-1 active:shadow-[0_3px_0_rgba(0,0,0,0.18)]',
         stateAnim,
         isDimmed && 'opacity-40 grayscale-[30%]'
@@ -582,7 +582,7 @@ const NumeralCard = React.memo(function NumeralCard({ value, category, onTap, di
       onClick={onTap}
       disabled={disabled}
       className={cn(
-        'group relative flex h-full w-full flex-col items-center justify-center gap-1 rounded-b-[2.25rem] rounded-t-xl border-4 border-lime-700/70 bg-gradient-to-b from-violet-200 to-lime-200 p-2 shadow-[0_8px_0_rgba(0,0,0,0.18)] transition-transform duration-200 ease-out sm:gap-2 sm:p-4',
+        'group relative flex h-full w-full flex-col items-center justify-center gap-1 rounded-b-[2.25rem] rounded-t-xl border-4 border-lime-700/70 bg-gradient-to-b from-violet-200 to-lime-200 p-2 shadow-[0_8px_0_rgba(0,0,0,0.18)] transition-transform duration-200 ease-out [@media(min-width:640px)_and_(min-height:720px)]:gap-2 [@media(min-width:640px)_and_(min-height:720px)]:p-4',
         disabled ? 'cursor-default' : 'cursor-pointer hover:-translate-y-1 active:translate-y-1 active:shadow-[0_3px_0_rgba(0,0,0,0.18)]',
         stateAnim,
         isDimmed && 'opacity-40 grayscale-[30%]'
@@ -602,9 +602,9 @@ const NumeralCard = React.memo(function NumeralCard({ value, category, onTap, di
         {value}
       </span>
       {showObjectHint && (
-        <div className="animate-pop-in flex max-w-[85%] flex-wrap items-center justify-center gap-0.5 rounded-xl bg-white/70 p-1 sm:p-1.5">
+        <div className="animate-pop-in flex max-w-[85%] flex-wrap items-center justify-center gap-0.5 rounded-xl bg-white/70 p-1 [@media(min-width:640px)_and_(min-height:720px)]:p-1.5">
           {Array.from({ length: value }).map((_, i) => (
-            <span key={i} className="text-xs sm:text-base">
+            <span key={i} className="text-xs [@media(min-width:640px)_and_(min-height:720px)]:text-base">
               {category.emoji}
             </span>
           ))}
@@ -619,17 +619,17 @@ const TopBar = React.memo(function TopBar({ totalRounds, stars, muted, onToggleM
     <div className="flex w-full items-center justify-between">
       <Link
         to="/"
-        className="font-body flex items-center gap-1 rounded-full bg-white/90 px-3 py-1.5 text-xs font-extrabold text-slate-700 shadow-[0_4px_0_rgba(0,0,0,0.15)] transition-transform hover:-translate-y-0.5 active:translate-y-1 active:shadow-none sm:px-4 sm:py-2 sm:text-base"
+        className="font-body flex items-center gap-1 rounded-full bg-white/90 px-3 py-1.5 text-xs font-extrabold text-slate-700 shadow-[0_4px_0_rgba(0,0,0,0.15)] transition-transform hover:-translate-y-0.5 active:translate-y-1 active:shadow-none [@media(min-width:640px)_and_(min-height:720px)]:px-4 [@media(min-width:640px)_and_(min-height:720px)]:py-2 [@media(min-width:640px)_and_(min-height:720px)]:text-base"
       >
         ⬅️ Home
       </Link>
 
-      <div className="flex items-center gap-2 sm:gap-3">
+      <div className="flex items-center gap-2 [@media(min-width:640px)_and_(min-height:720px)]:gap-3">
         <StarMeter stars={stars} total={totalRounds} />
         <button
           onClick={onToggleMute}
           aria-label={muted ? 'Unmute sound' : 'Mute sound'}
-          className="flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-base shadow-[0_4px_0_rgba(0,0,0,0.15)] active:translate-y-0.5 active:shadow-none sm:h-9 sm:w-9 sm:text-lg"
+          className="flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-base shadow-[0_4px_0_rgba(0,0,0,0.15)] active:translate-y-0.5 active:shadow-none [@media(min-width:640px)_and_(min-height:720px)]:h-9 [@media(min-width:640px)_and_(min-height:720px)]:w-9 [@media(min-width:640px)_and_(min-height:720px)]:text-lg"
         >
           {muted ? '🔇' : '🔊'}
         </button>
@@ -642,8 +642,8 @@ const StarMeter = React.memo(function StarMeter({ stars, total, dark }) {
   const pct = total > 0 ? Math.round((stars / total) * 100) : 0;
   return (
     <div className="flex items-center gap-2" aria-label={`${stars} out of ${total} stars earned`}>
-      <span className="text-xl sm:text-2xl">⭐</span>
-      <div className={`h-2.5 w-16 overflow-hidden rounded-full sm:w-24 ${dark ? 'bg-slate-200' : 'bg-white/40'}`}>
+      <span className="text-xl [@media(min-width:640px)_and_(min-height:720px)]:text-2xl">⭐</span>
+      <div className={`h-2.5 w-16 overflow-hidden rounded-full [@media(min-width:640px)_and_(min-height:720px)]:w-24 ${dark ? 'bg-slate-200' : 'bg-white/40'}`}>
         <div
           className="relative h-full overflow-hidden rounded-full bg-gradient-to-r from-yellow-300 to-orange-400 transition-all duration-500"
           style={{ width: `${pct}%` }}
@@ -652,7 +652,7 @@ const StarMeter = React.memo(function StarMeter({ stars, total, dark }) {
         </div>
       </div>
       <span
-        className={`font-body text-xs font-extrabold sm:text-sm ${dark ? 'text-slate-700' : 'text-white drop-shadow'}`}
+        className={`font-body text-xs font-extrabold [@media(min-width:640px)_and_(min-height:720px)]:text-sm ${dark ? 'text-slate-700' : 'text-white drop-shadow'}`}
       >
         {stars}/{total}
       </span>
@@ -667,7 +667,7 @@ const RoundDots = React.memo(function RoundDots({ total, current, halfMark }) {
         <React.Fragment key={i}>
           {halfMark && i === halfMark && <span className="mx-1 h-3 w-px bg-white/40" />}
           <span
-            className={`h-1.5 w-1.5 rounded-full transition-colors sm:h-2 sm:w-2 ${
+            className={`h-1.5 w-1.5 rounded-full transition-colors [@media(min-width:640px)_and_(min-height:720px)]:h-2 [@media(min-width:640px)_and_(min-height:720px)]:w-2 ${
               i < current ? 'bg-white' : i === current ? 'animate-sparkle bg-yellow-300' : 'bg-white/30'
             }`}
           />
@@ -683,10 +683,10 @@ function SuccessOverlay({ message, isLastRound, streak, onNext }) {
       <Confetti pieces={streak >= 3 ? 50 : 30} />
       <div className="animate-pop-in relative flex max-w-sm flex-col items-center rounded-[2.5rem] bg-white px-8 py-8 text-center shadow-2xl">
         <div className="text-6xl">{streak >= 3 ? '🌟' : '🎉'}</div>
-        <p className="font-heading mt-2 text-2xl font-bold text-amber-500 sm:text-3xl">
+        <p className="font-heading mt-2 text-2xl font-bold text-amber-500 [@media(min-width:640px)_and_(min-height:720px)]:text-3xl">
           {streak >= 3 ? 'On a streak!' : 'Well done!'}
         </p>
-        <p className="font-body mt-2 text-base font-semibold text-slate-500 sm:text-lg">{message}</p>
+        <p className="font-body mt-2 text-base font-semibold text-slate-500 [@media(min-width:640px)_and_(min-height:720px)]:text-lg">{message}</p>
         <button
           onClick={onNext}
           className="font-heading mt-6 rounded-full bg-gradient-to-b from-green-400 to-green-500 px-7 py-3 text-lg font-bold text-white shadow-[0_6px_0_rgba(0,0,0,0.2)] transition-transform hover:-translate-y-0.5 active:translate-y-1 active:shadow-none"
@@ -700,26 +700,26 @@ function SuccessOverlay({ message, isLastRound, streak, onNext }) {
 
 function CompletionScreen({ stars, total, onPlayAgain }) {
   return (
-    <div className="relative mt-3 flex flex-col items-center rounded-[2.5rem] bg-white/90 px-5 py-5 text-center shadow-2xl sm:mt-10 sm:px-14 sm:py-10">
+    <div className="relative mt-3 flex flex-col items-center rounded-[2.5rem] bg-white/90 px-5 py-5 text-center shadow-2xl [@media(min-width:640px)_and_(min-height:720px)]:mt-10 [@media(min-width:640px)_and_(min-height:720px)]:px-14 [@media(min-width:640px)_and_(min-height:720px)]:py-10">
       <Confetti pieces={40} />
-      <div className="animate-bob text-5xl sm:text-7xl">🧺🏆</div>
-      <h2 className="font-heading mt-2 text-xl font-bold text-slate-800 sm:mt-3 sm:text-4xl">Picnic packed perfectly!</h2>
-      <p className="font-body mt-1 text-sm font-semibold text-slate-500 sm:mt-2 sm:text-lg">
+      <div className="animate-bob text-5xl [@media(min-width:640px)_and_(min-height:720px)]:text-7xl">🧺🏆</div>
+      <h2 className="font-heading mt-2 text-xl font-bold text-slate-800 [@media(min-width:640px)_and_(min-height:720px)]:mt-3 [@media(min-width:640px)_and_(min-height:720px)]:text-4xl">Picnic packed perfectly!</h2>
+      <p className="font-body mt-1 text-sm font-semibold text-slate-500 [@media(min-width:640px)_and_(min-height:720px)]:mt-2 [@media(min-width:640px)_and_(min-height:720px)]:text-lg">
         You earned {stars} out of {total} stars
       </p>
-      <div className="mt-2 sm:mt-3">
+      <div className="mt-2 [@media(min-width:640px)_and_(min-height:720px)]:mt-3">
         <StarMeter stars={stars} total={total} dark />
       </div>
-      <div className="mt-4 flex flex-col gap-2 sm:mt-8 sm:flex-row sm:gap-3">
+      <div className="mt-4 flex flex-col gap-2 [@media(min-width:640px)_and_(min-height:720px)]:mt-8 [@media(min-width:640px)_and_(min-height:720px)]:flex-row [@media(min-width:640px)_and_(min-height:720px)]:gap-3">
         <button
           onClick={onPlayAgain}
-          className="font-heading rounded-full bg-gradient-to-b from-pink-400 to-pink-500 px-5 py-2 text-base font-bold text-white shadow-[0_6px_0_rgba(0,0,0,0.15)] transition-transform hover:-translate-y-0.5 active:translate-y-1 active:shadow-none sm:px-6 sm:py-3 sm:text-lg"
+          className="font-heading rounded-full bg-gradient-to-b from-pink-400 to-pink-500 px-5 py-2 text-base font-bold text-white shadow-[0_6px_0_rgba(0,0,0,0.15)] transition-transform hover:-translate-y-0.5 active:translate-y-1 active:shadow-none [@media(min-width:640px)_and_(min-height:720px)]:px-6 [@media(min-width:640px)_and_(min-height:720px)]:py-3 [@media(min-width:640px)_and_(min-height:720px)]:text-lg"
         >
           🔁 Play again
         </button>
         <Link
           to="/"
-          className="font-heading rounded-full bg-gradient-to-b from-sky-400 to-sky-500 px-5 py-2 text-base font-bold text-white shadow-[0_6px_0_rgba(0,0,0,0.15)] transition-transform hover:-translate-y-0.5 active:translate-y-1 active:shadow-none sm:px-6 sm:py-3 sm:text-lg"
+          className="font-heading rounded-full bg-gradient-to-b from-sky-400 to-sky-500 px-5 py-2 text-base font-bold text-white shadow-[0_6px_0_rgba(0,0,0,0.15)] transition-transform hover:-translate-y-0.5 active:translate-y-1 active:shadow-none [@media(min-width:640px)_and_(min-height:720px)]:px-6 [@media(min-width:640px)_and_(min-height:720px)]:py-3 [@media(min-width:640px)_and_(min-height:720px)]:text-lg"
         >
           🏠 Back home
         </Link>

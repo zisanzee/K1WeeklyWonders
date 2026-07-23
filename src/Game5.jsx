@@ -34,8 +34,8 @@ function cn(...inputs) {
 const NumberChip = React.memo(function NumberChip({ value, size = 'md', tone = 'amber' }) {
   const sizeClasses =
     size === 'lg'
-      ? 'min-w-[3.25rem] px-3 py-1.5 text-4xl sm:min-w-[4rem] sm:px-4 sm:py-2 sm:text-5xl'
-      : 'min-w-[2.5rem] px-2 py-1 text-2xl sm:min-w-[3rem] sm:px-2.5 sm:py-1.5 sm:text-3xl';
+      ? 'min-w-[3.25rem] px-3 py-1.5 text-4xl [@media(min-width:640px)_and_(min-height:720px)]:min-w-[4rem] [@media(min-width:640px)_and_(min-height:720px)]:px-4 [@media(min-width:640px)_and_(min-height:720px)]:py-2 [@media(min-width:640px)_and_(min-height:720px)]:text-5xl'
+      : 'min-w-[2.5rem] px-2 py-1 text-2xl [@media(min-width:640px)_and_(min-height:720px)]:min-w-[3rem] [@media(min-width:640px)_and_(min-height:720px)]:px-2.5 [@media(min-width:640px)_and_(min-height:720px)]:py-1.5 [@media(min-width:640px)_and_(min-height:720px)]:text-3xl';
   const toneClasses =
     tone === 'white'
       ? 'bg-white text-amber-900 shadow-[0_3px_0_rgba(0,0,0,0.15)]'
@@ -359,21 +359,21 @@ function Game5Inner() {
 
       <PirateBackdrop />
 
-      <div className="relative z-10 mx-auto flex h-full max-w-5xl flex-col items-center overflow-y-auto px-3 py-2 sm:px-4 sm:py-3">
+      <div className="relative z-10 mx-auto flex h-full max-w-5xl flex-col items-center overflow-y-auto px-3 py-2 [@media(min-width:640px)_and_(min-height:720px)]:px-4 [@media(min-width:640px)_and_(min-height:720px)]:py-3">
         <TopBar totalRounds={TOTAL_ROUNDS} stars={stars} muted={muted} onToggleMute={() => setMuted((m) => !m)} />
 
         {phase === 'complete' ? (
           <CompletionScreen stars={stars} total={TOTAL_ROUNDS} playerName={playerName} onPlayAgain={playAgain} />
         ) : (
           <>
-            <div className="mt-1 flex flex-col items-center gap-0.5 sm:mt-2">
+            <div className="mt-1 flex flex-col items-center gap-0.5 [@media(min-width:640px)_and_(min-height:720px)]:mt-2">
               <div className="flex items-center gap-1.5">
-                <span className="text-lg sm:text-xl">🏴‍☠️</span>
-                <p className="font-heading text-sm font-bold text-amber-900/90 drop-shadow-sm sm:text-base">
+                <span className="text-lg [@media(min-width:640px)_and_(min-height:720px)]:text-xl">🏴‍☠️</span>
+                <p className="font-heading text-sm font-bold text-amber-900/90 drop-shadow-sm [@media(min-width:640px)_and_(min-height:720px)]:text-base">
                   Polly's Treasure Quest
                 </p>
               </div>
-              <p className="font-body text-[11px] font-bold text-amber-900/70 sm:text-xs">
+              <p className="font-body text-[11px] font-bold text-amber-900/70 [@media(min-width:640px)_and_(min-height:720px)]:text-xs">
                 Round {roundIndex + 1} of {TOTAL_ROUNDS}
               </p>
               <RoundDots total={TOTAL_ROUNDS} current={roundIndex} markers={[5]} />
@@ -409,9 +409,9 @@ function Game5Inner() {
               />
             )}
 
-            <div className="mt-2 flex min-h-[2.5rem] flex-col items-center gap-1.5 pb-2 sm:mt-3">
+            <div className="mt-2 flex min-h-[2.5rem] flex-col items-center gap-1.5 pb-2 [@media(min-width:640px)_and_(min-height:720px)]:mt-3">
               {feedback && (
-                <p className="font-body animate-pop-in rounded-full bg-white/90 px-4 py-1.5 text-xs font-bold text-amber-800 shadow sm:text-sm">
+                <p className="font-body animate-pop-in rounded-full bg-white/90 px-4 py-1.5 text-xs font-bold text-amber-800 shadow [@media(min-width:640px)_and_(min-height:720px)]:text-sm">
                   {feedback.msg}
                 </p>
               )}
@@ -446,15 +446,15 @@ export default function Game5() {
 function PirateBackdrop() {
   return (
     <div className="pointer-events-none absolute inset-0 overflow-hidden">
-      <div className="absolute left-[8%] top-[8%] animate-float-slow text-3xl opacity-90 sm:text-4xl">☁️</div>
-      <div className="absolute right-[10%] top-[14%] animate-float-slow text-2xl opacity-80 sm:text-3xl" style={{ animationDelay: '1.5s' }}>
+      <div className="absolute left-[8%] top-[8%] animate-float-slow text-3xl opacity-90 [@media(min-width:640px)_and_(min-height:720px)]:text-4xl">☁️</div>
+      <div className="absolute right-[10%] top-[14%] animate-float-slow text-2xl opacity-80 [@media(min-width:640px)_and_(min-height:720px)]:text-3xl" style={{ animationDelay: '1.5s' }}>
         ☁️
       </div>
-      <div className="absolute right-[14%] top-[26%] animate-bob-slow text-3xl opacity-90 sm:text-4xl">⛵</div>
-      <div className="absolute left-[6%] top-[36%] text-2xl opacity-80 sm:text-3xl">🦅</div>
+      <div className="absolute right-[14%] top-[26%] animate-bob-slow text-3xl opacity-90 [@media(min-width:640px)_and_(min-height:720px)]:text-4xl">⛵</div>
+      <div className="absolute left-[6%] top-[36%] text-2xl opacity-80 [@media(min-width:640px)_and_(min-height:720px)]:text-3xl">🦅</div>
       <div className="absolute bottom-0 left-0 right-0 h-1/3 bg-gradient-to-t from-amber-200/80 to-transparent" />
-      <div className="absolute bottom-2 left-[10%] text-4xl opacity-90 sm:bottom-3 sm:text-5xl">🌴</div>
-      <div className="absolute bottom-2 right-[8%] text-3xl opacity-80 sm:bottom-3 sm:text-4xl">🏝️</div>
+      <div className="absolute bottom-2 left-[10%] text-4xl opacity-90 [@media(min-width:640px)_and_(min-height:720px)]:bottom-3 [@media(min-width:640px)_and_(min-height:720px)]:text-5xl">🌴</div>
+      <div className="absolute bottom-2 right-[8%] text-3xl opacity-80 [@media(min-width:640px)_and_(min-height:720px)]:bottom-3 [@media(min-width:640px)_and_(min-height:720px)]:text-4xl">🏝️</div>
     </div>
   );
 }
@@ -464,17 +464,17 @@ function TopBar({ totalRounds, stars, muted, onToggleMute }) {
     <div className="flex w-full items-center justify-between">
       <Link
         to="/"
-        className="font-body flex items-center gap-1 rounded-full bg-white/90 px-3 py-1.5 text-xs font-extrabold text-slate-700 shadow-[0_4px_0_rgba(0,0,0,0.15)] transition-transform hover:-translate-y-0.5 active:translate-y-1 active:shadow-none sm:px-4 sm:py-2 sm:text-base"
+        className="font-body flex items-center gap-1 rounded-full bg-white/90 px-3 py-1.5 text-xs font-extrabold text-slate-700 shadow-[0_4px_0_rgba(0,0,0,0.15)] transition-transform hover:-translate-y-0.5 active:translate-y-1 active:shadow-none [@media(min-width:640px)_and_(min-height:720px)]:px-4 [@media(min-width:640px)_and_(min-height:720px)]:py-2 [@media(min-width:640px)_and_(min-height:720px)]:text-base"
       >
         ⬅️ Home
       </Link>
 
-      <div className="flex items-center gap-2 sm:gap-3">
+      <div className="flex items-center gap-2 [@media(min-width:640px)_and_(min-height:720px)]:gap-3">
         <StarMeter stars={stars} total={totalRounds} />
         <button
           onClick={onToggleMute}
           aria-label={muted ? 'Unmute sound' : 'Mute sound'}
-          className="flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-base shadow-[0_4px_0_rgba(0,0,0,0.15)] active:translate-y-0.5 active:shadow-none sm:h-9 sm:w-9 sm:text-lg"
+          className="flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-base shadow-[0_4px_0_rgba(0,0,0,0.15)] active:translate-y-0.5 active:shadow-none [@media(min-width:640px)_and_(min-height:720px)]:h-9 [@media(min-width:640px)_and_(min-height:720px)]:w-9 [@media(min-width:640px)_and_(min-height:720px)]:text-lg"
         >
           {muted ? '🔇' : '🔊'}
         </button>
@@ -487,8 +487,8 @@ const StarMeter = React.memo(function StarMeter({ stars, total, dark }) {
   const pct = total > 0 ? Math.round((stars / total) * 100) : 0;
   return (
     <div className="flex items-center gap-2" aria-label={`${stars} out of ${total} stars earned`}>
-      <span className="text-xl sm:text-2xl">⭐</span>
-      <div className={`h-2.5 w-16 overflow-hidden rounded-full sm:w-24 ${dark ? 'bg-slate-200' : 'bg-white/50'}`}>
+      <span className="text-xl [@media(min-width:640px)_and_(min-height:720px)]:text-2xl">⭐</span>
+      <div className={`h-2.5 w-16 overflow-hidden rounded-full [@media(min-width:640px)_and_(min-height:720px)]:w-24 ${dark ? 'bg-slate-200' : 'bg-white/50'}`}>
         <div
           className="relative h-full overflow-hidden rounded-full bg-gradient-to-r from-yellow-300 to-orange-400 transition-all duration-500"
           style={{ width: `${pct}%` }}
@@ -496,7 +496,7 @@ const StarMeter = React.memo(function StarMeter({ stars, total, dark }) {
           <span className="animate-shimmer absolute inset-0 bg-gradient-to-r from-transparent via-white/60 to-transparent" />
         </div>
       </div>
-      <span className={`font-body text-xs font-extrabold sm:text-sm ${dark ? 'text-slate-700' : 'text-amber-900 drop-shadow-sm'}`}>
+      <span className={`font-body text-xs font-extrabold [@media(min-width:640px)_and_(min-height:720px)]:text-sm ${dark ? 'text-slate-700' : 'text-amber-900 drop-shadow-sm'}`}>
         {stars}/{total}
       </span>
     </div>
@@ -510,7 +510,7 @@ const RoundDots = React.memo(function RoundDots({ total, current, markers = [] }
         <React.Fragment key={i}>
           {markers.includes(i) && <span className="mx-1 h-3 w-px bg-amber-900/30" />}
           <span
-            className={`h-1.5 w-1.5 rounded-full transition-colors sm:h-2 sm:w-2 ${
+            className={`h-1.5 w-1.5 rounded-full transition-colors [@media(min-width:640px)_and_(min-height:720px)]:h-2 [@media(min-width:640px)_and_(min-height:720px)]:w-2 ${
               i < current ? 'bg-amber-800' : i === current ? 'animate-twinkle bg-yellow-400' : 'bg-amber-900/25'
             }`}
           />
@@ -522,9 +522,9 @@ const RoundDots = React.memo(function RoundDots({ total, current, markers = [] }
 
 function PollyPrompt({ round, streak, isWrong }) {
   return (
-    <div className="mt-1 flex flex-col items-center gap-1 sm:mt-2">
+    <div className="mt-1 flex flex-col items-center gap-1 [@media(min-width:640px)_and_(min-height:720px)]:mt-2">
       <div className="relative">
-        <span className={cn('inline-block text-4xl sm:text-5xl', isWrong ? 'animate-shake' : 'animate-mascot-idle')}>
+        <span className={cn('inline-block text-4xl [@media(min-width:640px)_and_(min-height:720px)]:text-5xl', isWrong ? 'animate-shake' : 'animate-mascot-idle')}>
           🦜
         </span>
         {streak >= 2 && (
@@ -533,16 +533,16 @@ function PollyPrompt({ round, streak, isWrong }) {
           </span>
         )}
       </div>
-      <div className="animate-pop-in relative max-w-xs rounded-2xl bg-white px-4 py-2 text-center shadow-[0_5px_0_rgba(0,0,0,0.12)] sm:max-w-sm">
+      <div className="animate-pop-in relative max-w-xs rounded-2xl bg-white px-4 py-2 text-center shadow-[0_5px_0_rgba(0,0,0,0.12)] [@media(min-width:640px)_and_(min-height:720px)]:max-w-sm">
         <span className="absolute -top-1.5 left-1/2 h-3 w-3 -translate-x-1/2 rotate-45 bg-white" />
         {isWrong ? (
-          <p className="font-body text-xs font-bold text-orange-600 sm:text-sm">Arr, not that one! 🦜</p>
+          <p className="font-body text-xs font-bold text-orange-600 [@media(min-width:640px)_and_(min-height:720px)]:text-sm">Arr, not that one! 🦜</p>
         ) : round.type === 'part' ? (
-          <p className="font-body text-xs font-bold text-slate-700 sm:text-sm">
+          <p className="font-body text-xs font-bold text-slate-700 [@media(min-width:640px)_and_(min-height:720px)]:text-sm">
             Find the key that makes <span className="text-amber-600">{formatNumber(round.whole, round.format)}</span>!
           </p>
         ) : (
-          <p className="font-body text-xs font-bold text-slate-700 sm:text-sm">Which chest holds both keys?</p>
+          <p className="font-body text-xs font-bold text-slate-700 [@media(min-width:640px)_and_(min-height:720px)]:text-sm">Which chest holds both keys?</p>
         )}
       </div>
     </div>
@@ -557,7 +557,7 @@ const DotRow = React.memo(function DotRow({ value, small }) {
       aria-hidden="true"
     >
       {Array.from({ length: value }).map((_, i) => (
-        <span key={i} className={cn('rounded-full bg-amber-800/70', small ? 'h-1.5 w-1.5' : 'h-2 w-2 sm:h-2.5 sm:w-2.5')} />
+        <span key={i} className={cn('rounded-full bg-amber-800/70', small ? 'h-1.5 w-1.5' : 'h-2 w-2 [@media(min-width:640px)_and_(min-height:720px)]:h-2.5 [@media(min-width:640px)_and_(min-height:720px)]:w-2.5')} />
       ))}
     </div>
   );
@@ -569,9 +569,9 @@ function PartRoundContent({ round, filled, chosenValue, wrongChoiceId, disabled 
   const targetLabel = filled ? formatNumber(chosenValue, round.format) : '?';
 
   return (
-    <div className="mt-1 flex w-full flex-1 flex-col items-center gap-2.5 sm:mt-2 sm:gap-4">
+    <div className="mt-1 flex w-full flex-1 flex-col items-center gap-2.5 [@media(min-width:640px)_and_(min-height:720px)]:mt-2 [@media(min-width:640px)_and_(min-height:720px)]:gap-4">
       <div className="flex flex-col items-center gap-1.5">
-        <span className="font-body flex items-center gap-1.5 rounded-full bg-white/90 py-1 pl-3 pr-1.5 text-xs font-extrabold text-amber-800 shadow sm:text-base">
+        <span className="font-body flex items-center gap-1.5 rounded-full bg-white/90 py-1 pl-3 pr-1.5 text-xs font-extrabold text-amber-800 shadow [@media(min-width:640px)_and_(min-height:720px)]:text-base">
           Chest needs <NumberChip value={wholeLabel} tone="white" /> keys!
         </span>
         <img
@@ -584,9 +584,9 @@ function PartRoundContent({ round, filled, chosenValue, wrongChoiceId, disabled 
         <DotRow value={round.whole} />
       </div>
 
-      <div className="flex items-center justify-center gap-3 sm:gap-5">
+      <div className="flex items-center justify-center gap-3 [@media(min-width:640px)_and_(min-height:720px)]:gap-5">
         <FixedKeySlot label="This key" value={fixedLabel} dotValue={round.fixedPart} />
-        <span className="font-body rounded-full bg-amber-100 px-2.5 py-1 text-xs font-extrabold text-amber-700 sm:text-sm">
+        <span className="font-body rounded-full bg-amber-100 px-2.5 py-1 text-xs font-extrabold text-amber-700 [@media(min-width:640px)_and_(min-height:720px)]:text-sm">
           and
         </span>
         <TargetKeySlot label="Mystery key" value={targetLabel} dotValue={filled ? chosenValue : null} filled={filled} />
@@ -602,11 +602,11 @@ function PartRoundContent({ round, filled, chosenValue, wrongChoiceId, disabled 
 const FixedKeySlot = React.memo(function FixedKeySlot({ label, value, dotValue }) {
   return (
     <div className="flex flex-col items-center gap-1.5">
-      <span className="font-body text-[9px] font-extrabold uppercase tracking-wide text-amber-800/70 sm:text-xs">
+      <span className="font-body text-[9px] font-extrabold uppercase tracking-wide text-amber-800/70 [@media(min-width:640px)_and_(min-height:720px)]:text-xs">
         {label}
       </span>
-      <div className="flex h-14 w-14 items-center justify-center rounded-2xl border-4 border-amber-700 bg-gradient-to-b from-amber-200 to-amber-400 shadow-[0_4px_0_rgba(0,0,0,0.2)] sm:h-16 sm:w-16">
-        <span className="text-2xl sm:text-3xl">🗝️</span>
+      <div className="flex h-14 w-14 items-center justify-center rounded-2xl border-4 border-amber-700 bg-gradient-to-b from-amber-200 to-amber-400 shadow-[0_4px_0_rgba(0,0,0,0.2)] [@media(min-width:640px)_and_(min-height:720px)]:h-16 [@media(min-width:640px)_and_(min-height:720px)]:w-16">
+        <span className="text-2xl [@media(min-width:640px)_and_(min-height:720px)]:text-3xl">🗝️</span>
       </div>
       <NumberChip value={value} />
       <DotRow value={dotValue} />
@@ -618,17 +618,17 @@ function TargetKeySlot({ label, value, dotValue, filled }) {
   const { isOver, setNodeRef } = useDroppable({ id: 'slot' });
   return (
     <div className="flex flex-col items-center gap-1.5">
-      <span className="font-body text-[9px] font-extrabold uppercase tracking-wide text-amber-800/70 sm:text-xs">
+      <span className="font-body text-[9px] font-extrabold uppercase tracking-wide text-amber-800/70 [@media(min-width:640px)_and_(min-height:720px)]:text-xs">
         {label}
       </span>
       <div
         ref={setNodeRef}
         className={cn(
-          'flex h-14 w-14 items-center justify-center rounded-2xl border-4 border-dashed shadow-inner transition-colors sm:h-16 sm:w-16',
+          'flex h-14 w-14 items-center justify-center rounded-2xl border-4 border-dashed shadow-inner transition-colors [@media(min-width:640px)_and_(min-height:720px)]:h-16 [@media(min-width:640px)_and_(min-height:720px)]:w-16',
           filled ? 'border-emerald-500 bg-emerald-100' : isOver ? 'border-yellow-400 bg-white/70' : 'border-amber-500/60 bg-white/30'
         )}
       >
-        <span className="text-2xl sm:text-3xl">{filled ? '🗝️' : '❓'}</span>
+        <span className="text-2xl [@media(min-width:640px)_and_(min-height:720px)]:text-3xl">{filled ? '🗝️' : '❓'}</span>
       </div>
       <NumberChip value={value} tone={filled ? 'amber' : 'white'} />
       <DotRow value={dotValue} />
@@ -638,7 +638,7 @@ function TargetKeySlot({ label, value, dotValue, filled }) {
 
 function KeyTray({ choices, format, disabled, wrongChoiceId }) {
   return (
-    <div className="mt-1 flex w-full flex-wrap items-end justify-center gap-2.5 rounded-[1.5rem] border-4 border-dashed border-amber-400/60 bg-white/25 p-2.5 sm:gap-4 sm:p-4">
+    <div className="mt-1 flex w-full flex-wrap items-end justify-center gap-2.5 rounded-[1.5rem] border-4 border-dashed border-amber-400/60 bg-white/25 p-2.5 [@media(min-width:640px)_and_(min-height:720px)]:gap-4 [@media(min-width:640px)_and_(min-height:720px)]:p-4">
       {choices.map((c) => (
         <DraggableKey
           key={c.id}
@@ -665,13 +665,13 @@ const DraggableKey = React.memo(function DraggableKey({ id, value, dotValue, dis
         touchAction: 'none',
       }}
       className={cn(
-        'flex flex-col items-center gap-1.5 rounded-2xl border-4 border-amber-700 bg-gradient-to-b from-yellow-100 to-amber-200 px-2.5 py-2.5 shadow-[0_5px_0_rgba(0,0,0,0.2)] transition-opacity sm:px-3.5 sm:py-3',
+        'flex flex-col items-center gap-1.5 rounded-2xl border-4 border-amber-700 bg-gradient-to-b from-yellow-100 to-amber-200 px-2.5 py-2.5 shadow-[0_5px_0_rgba(0,0,0,0.2)] transition-opacity [@media(min-width:640px)_and_(min-height:720px)]:px-3.5 [@media(min-width:640px)_and_(min-height:720px)]:py-3',
         disabled ? 'cursor-default' : 'cursor-grab active:cursor-grabbing',
         isDragging && 'opacity-0',
         isWrong && 'animate-shake'
       )}
     >
-      <span className="text-2xl sm:text-3xl">🗝️</span>
+      <span className="text-2xl [@media(min-width:640px)_and_(min-height:720px)]:text-3xl">🗝️</span>
       <NumberChip value={value} tone="white" />
       <DotRow value={dotValue}  />
     </div>
@@ -682,28 +682,28 @@ function WholeRoundContent({ round, chosenChestId, wrongChestId, disabled, onSel
   const partALabel = formatNumber(round.partA, round.format);
   const partBLabel = formatNumber(round.partB, round.format);
   return (
-    <div className="mt-1 flex w-full flex-1 flex-col items-center gap-3 sm:mt-2 sm:gap-5">
-      <div className="flex items-center justify-center gap-2 rounded-[1.5rem] bg-white/90 px-4 py-3 shadow-[0_6px_0_rgba(0,0,0,0.15)] sm:gap-3.5 sm:px-6">
+    <div className="mt-1 flex w-full flex-1 flex-col items-center gap-3 [@media(min-width:640px)_and_(min-height:720px)]:mt-2 [@media(min-width:640px)_and_(min-height:720px)]:gap-5">
+      <div className="flex items-center justify-center gap-2 rounded-[1.5rem] bg-white/90 px-4 py-3 shadow-[0_6px_0_rgba(0,0,0,0.15)] [@media(min-width:640px)_and_(min-height:720px)]:gap-3.5 [@media(min-width:640px)_and_(min-height:720px)]:px-6">
         <div className="flex flex-col items-center gap-1">
-          <span className="text-2xl sm:text-3xl">🗝️</span>
+          <span className="text-2xl [@media(min-width:640px)_and_(min-height:720px)]:text-3xl">🗝️</span>
           <NumberChip value={partALabel} tone="white" />
           <DotRow value={round.partA} />
         </div>
-        <span className="font-body rounded-full bg-amber-100 px-2.5 py-1 text-xs font-extrabold text-amber-700 sm:text-sm">
+        <span className="font-body rounded-full bg-amber-100 px-2.5 py-1 text-xs font-extrabold text-amber-700 [@media(min-width:640px)_and_(min-height:720px)]:text-sm">
           and
         </span>
         <div className="flex flex-col items-center gap-1">
-          <span className="text-2xl sm:text-3xl">🗝️</span>
+          <span className="text-2xl [@media(min-width:640px)_and_(min-height:720px)]:text-3xl">🗝️</span>
           <NumberChip value={partBLabel} tone="white" />
           <DotRow value={round.partB} />
         </div>
-        <span className="text-xl text-amber-700/60 sm:text-2xl">➡️</span>
-        <span className="text-3xl sm:text-4xl">❓</span>
+        <span className="text-xl text-amber-700/60 [@media(min-width:640px)_and_(min-height:720px)]:text-2xl">➡️</span>
+        <span className="text-3xl [@media(min-width:640px)_and_(min-height:720px)]:text-4xl">❓</span>
       </div>
 
-      <p className="font-body text-[11px] font-bold text-amber-900/80 sm:text-sm">Tap the chest with the right number!</p>
+      <p className="font-body text-[11px] font-bold text-amber-900/80 [@media(min-width:640px)_and_(min-height:720px)]:text-sm">Tap the chest with the right number!</p>
 
-      <div className="flex flex-wrap items-start justify-center gap-3 sm:gap-6">
+      <div className="flex flex-wrap items-start justify-center gap-3 [@media(min-width:640px)_and_(min-height:720px)]:gap-6">
         {round.chestOptions.map((c) => (
           <ChestOption
             key={c.id}
@@ -766,13 +766,13 @@ function SuccessOverlay({ round, value, isLastRound, streak, onNext }) {
         initial={{ scale: 0.7, y: 20, opacity: 0 }}
         animate={{ scale: 1, y: 0, opacity: 1 }}
         transition={{ type: 'spring', stiffness: 300, damping: 22 }}
-        className="relative flex max-w-sm flex-col items-center rounded-[2.5rem] bg-white px-8 py-6 text-center shadow-2xl sm:py-8"
+        className="relative flex max-w-sm flex-col items-center rounded-[2.5rem] bg-white px-8 py-6 text-center shadow-2xl [@media(min-width:640px)_and_(min-height:720px)]:py-8"
       >
-        <img src="/chest_open.png" alt="Open treasure chest" className="w-24 select-none drop-shadow-lg sm:w-28" draggable={false} />
-        <p className="font-heading mt-1 text-2xl font-bold text-amber-500 sm:text-3xl">
+        <img src="/chest_open.png" alt="Open treasure chest" className="w-24 select-none drop-shadow-lg [@media(min-width:640px)_and_(min-height:720px)]:w-28" draggable={false} />
+        <p className="font-heading mt-1 text-2xl font-bold text-amber-500 [@media(min-width:640px)_and_(min-height:720px)]:text-3xl">
           {streak >= 3 ? 'Treasure streak!' : 'Chest unlocked!'}
         </p>
-        <p className="font-body mt-2 text-base font-semibold text-slate-500 sm:text-lg">{message}</p>
+        <p className="font-body mt-2 text-base font-semibold text-slate-500 [@media(min-width:640px)_and_(min-height:720px)]:text-lg">{message}</p>
         <button
           onClick={onNext}
           className="font-heading mt-6 rounded-full bg-gradient-to-b from-green-400 to-green-500 px-7 py-3 text-lg font-bold text-white shadow-[0_6px_0_rgba(0,0,0,0.2)] transition-transform hover:-translate-y-0.5 active:translate-y-1 active:shadow-none"
@@ -787,7 +787,7 @@ function SuccessOverlay({ round, value, isLastRound, streak, onNext }) {
 function CompletionScreen({ stars, total, playerName, onPlayAgain }) {
   const { width, height } = useWindowSize();
   return (
-    <div className="relative mt-3 flex flex-col items-center rounded-[2.5rem] bg-white/90 px-6 py-6 text-center shadow-2xl sm:mt-6 sm:px-14 sm:py-10">
+    <div className="relative mt-3 flex flex-col items-center rounded-[2.5rem] bg-white/90 px-6 py-6 text-center shadow-2xl [@media(min-width:640px)_and_(min-height:720px)]:mt-6 [@media(min-width:640px)_and_(min-height:720px)]:px-14 [@media(min-width:640px)_and_(min-height:720px)]:py-10">
       <Confetti
         width={width}
         height={height}
@@ -797,26 +797,26 @@ function CompletionScreen({ stars, total, playerName, onPlayAgain }) {
         colors={['#F59E0B', '#FBBF24', '#34D399', '#60A5FA', '#F472B6']}
         style={{ position: 'fixed', inset: 0, zIndex: 20, pointerEvents: 'none' }}
       />
-      <img src="/chest_open.png" alt="Open treasure chest" className="w-20 select-none drop-shadow-lg sm:w-28" draggable={false} />
-      <h2 className="font-heading mt-2 text-2xl font-bold text-slate-800 sm:mt-3 sm:text-4xl">
+      <img src="/chest_open.png" alt="Open treasure chest" className="w-20 select-none drop-shadow-lg [@media(min-width:640px)_and_(min-height:720px)]:w-28" draggable={false} />
+      <h2 className="font-heading mt-2 text-2xl font-bold text-slate-800 [@media(min-width:640px)_and_(min-height:720px)]:mt-3 [@media(min-width:640px)_and_(min-height:720px)]:text-4xl">
         Quest complete, {playerName}!
       </h2>
-      <p className="font-body mt-1 text-base font-semibold text-slate-500 sm:mt-2 sm:text-lg">
+      <p className="font-body mt-1 text-base font-semibold text-slate-500 [@media(min-width:640px)_and_(min-height:720px)]:mt-2 [@media(min-width:640px)_and_(min-height:720px)]:text-lg">
         You earned {stars} out of {total} stars
       </p>
-      <div className="mt-2 sm:mt-3">
+      <div className="mt-2 [@media(min-width:640px)_and_(min-height:720px)]:mt-3">
         <StarMeter stars={stars} total={total} dark />
       </div>
-      <div className="mt-5 flex flex-col gap-2.5 sm:mt-8 sm:flex-row sm:gap-3">
+      <div className="mt-5 flex flex-col gap-2.5 [@media(min-width:640px)_and_(min-height:720px)]:mt-8 [@media(min-width:640px)_and_(min-height:720px)]:flex-row [@media(min-width:640px)_and_(min-height:720px)]:gap-3">
         <button
           onClick={onPlayAgain}
-          className="font-heading rounded-full bg-gradient-to-b from-pink-400 to-pink-500 px-6 py-2.5 text-base font-bold text-white shadow-[0_6px_0_rgba(0,0,0,0.15)] transition-transform hover:-translate-y-0.5 active:translate-y-1 active:shadow-none sm:py-3 sm:text-lg"
+          className="font-heading rounded-full bg-gradient-to-b from-pink-400 to-pink-500 px-6 py-2.5 text-base font-bold text-white shadow-[0_6px_0_rgba(0,0,0,0.15)] transition-transform hover:-translate-y-0.5 active:translate-y-1 active:shadow-none [@media(min-width:640px)_and_(min-height:720px)]:py-3 [@media(min-width:640px)_and_(min-height:720px)]:text-lg"
         >
           🔁 Play again
         </button>
         <Link
           to="/"
-          className="font-heading rounded-full bg-gradient-to-b from-sky-400 to-sky-500 px-6 py-2.5 text-base font-bold text-white shadow-[0_6px_0_rgba(0,0,0,0.15)] transition-transform hover:-translate-y-0.5 active:translate-y-1 active:shadow-none sm:py-3 sm:text-lg"
+          className="font-heading rounded-full bg-gradient-to-b from-sky-400 to-sky-500 px-6 py-2.5 text-base font-bold text-white shadow-[0_6px_0_rgba(0,0,0,0.15)] transition-transform hover:-translate-y-0.5 active:translate-y-1 active:shadow-none [@media(min-width:640px)_and_(min-height:720px)]:py-3 [@media(min-width:640px)_and_(min-height:720px)]:text-lg"
         >
           🏠 Back home
         </Link>

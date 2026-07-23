@@ -6,17 +6,13 @@ import { usePlayerStore } from '../playerStore';
 import { useState } from 'react';
 
 import { motion, AnimatePresence } from "motion/react";
+import clsx from 'clsx';
+import { twMerge } from 'tailwind-merge';
 
-export default function PhaserDemo() {
-  return (
-    <NameGate gameLabel="Bonus Game: Number Pop">
-      <PhaserDemoInner />
-    </NameGate>
-  );
+function cn(...inputs) {
+  return twMerge(clsx(inputs));
 }
 
-function PhaserDemoInner() {
-  const playerName = usePlayerStore((s) => s.playerName);
 const numberWords = [
   "One",
   "Two",
@@ -29,7 +25,31 @@ const numberWords = [
   "Nine",
   "Ten",
 ];
-const [selectedNumber, setSelectedNumber] = useState(null);
+
+// Stagger the 1-10 buttons in as a little cascade instead of popping in
+// all at once — reads as far more intentional/designed.
+const gridVariants = {
+  hidden: {},
+  show: { transition: { staggerChildren: 0.04, delayChildren: 0.15 } },
+};
+
+const buttonVariants = {
+  hidden: { opacity: 0, scale: 0.4, y: 10 },
+  show: { opacity: 1, scale: 1, y: 0, transition: { type: 'spring', stiffness: 420, damping: 22 } },
+};
+
+export default function PhaserDemo() {
+  return (
+    <NameGate gameLabel="Bonus Game: Number Pop">
+      <PhaserDemoInner />
+    </NameGate>
+  );
+}
+
+function PhaserDemoInner() {
+  const playerName = usePlayerStore((s) => s.playerName);
+  const [selectedNumber, setSelectedNumber] = useState(null);
+
   return (
     <div className="relative flex min-h-[100dvh] w-full flex-col items-center overflow-hidden bg-gradient-to-b from-[#3FB6EA] via-[#8FE0FA] to-[#FFE9A8] px-4 pb-6 pt-4 sm:pt-6">
       <link
@@ -43,6 +63,7 @@ const [selectedNumber, setSelectedNumber] = useState(null);
         @keyframes spin-slow { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
         @keyframes sparkle { 0%, 100% { opacity: 0.3; transform: scale(0.8); } 50% { opacity: 1; transform: scale(1.15); } }
         @keyframes pop-in { 0% { transform: scale(0.7) translateY(14px); opacity: 0; } 100% { transform: scale(1) translateY(0); opacity: 1; } }
+        @keyframes shimmer { 0% { transform: translateX(-100%); } 100% { transform: translateX(220%); } }
         .font-heading { font-family: 'Fredoka', sans-serif; }
         .font-body { font-family: 'Nunito', sans-serif; }
         .animate-float-slow { animation: float-slow 6s ease-in-out infinite; will-change: transform; }
@@ -50,6 +71,7 @@ const [selectedNumber, setSelectedNumber] = useState(null);
         .animate-spin-slow { animation: spin-slow 50s linear infinite; will-change: transform; }
         .animate-sparkle { animation: sparkle 1.8s ease-in-out infinite; will-change: transform, opacity; }
         .animate-pop-in { animation: pop-in 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+        .animate-shimmer { animation: shimmer 2.2s linear infinite; will-change: transform; }
       `}</style>
 
       {/* Sun, top corner — same treatment as the homepage for visual continuity */}
@@ -80,56 +102,93 @@ const [selectedNumber, setSelectedNumber] = useState(null);
         ⬅️ Home
       </Link>
 
-      <div className="relative  w-full z-10 flex  min-h-full flex-1 flex-col md:flex-row items-center justify-center gap-3 sm:gap-5">
- <div className="flex flex-wrap sm:min-w-20 justify-center gap-1 rounded md:flex-col md:items-center">
-  {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((i) => {
-    const isSelected = selectedNumber === i;
-
-    return (
-      <motion.button
-        layout
-        key={i}
-        type="button"
-        onClick={() => setSelectedNumber(isSelected ? null : i)}
-        initial={false}
-        animate={{
-          scale: isSelected ? 1.05 : 1,
-          backgroundColor: isSelected ? "#facc15" : "#fbbf24",
-        }}
-        whileHover={{ scale: isSelected ? 1.06 : 1.03 }}
-        whileTap={{ scale: 0.97 }}
-        transition={{ type: "spring", stiffness: 500, damping: 32 }}
-        className="flex items-center justify-center overflow-hidden rounded-sm  p-1 font-bold shadow-sm md:flex-col"
-      >
-        <AnimatePresence initial={false} mode="popLayout">
-          {isSelected && (
-            <motion.div
-              key="word"
-              layout
-              initial={{ opacity: 0, x: -8, width: 0 }}
-              animate={{ opacity: 1, x: 0, width: "auto" }}
-              exit={{ opacity: 0, x: -8, width: 0 }}
-              transition={{ type: "spring", stiffness: 500, damping: 35 }}
-              className="overflow-hidden whitespace-nowrap  p-1 text-left text-slate-700"
-            >
-              {numberWords[i - 1]}
-            </motion.div>
-          )}
-        </AnimatePresence>
-
+      <div className="relative z-10 flex w-full min-h-full flex-1 flex-col items-center justify-center gap-3 md:flex-row md:items-center md:gap-6">
+        {/* Number rail — a horizontal strip above the game on phones/tablets,
+            a vertical strip along the left on wider screens. Same panel,
+            just re-flowed via the grid + flex direction below. */}
         <motion.div
-          layout
-          className="px-2 py-1 text-right text-xl text-slate-700"
+          initial={{ opacity: 0, y: -18 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.45, ease: 'easeOut' }}
+          className="font-body order-1 flex w-full max-w-md flex-col items-center gap-2 rounded-[1.75rem] bg-white/85 px-3 py-2.5 shadow-[0_6px_0_rgba(0,0,0,0.12)] backdrop-blur-sm sm:gap-2.5 sm:px-4 sm:py-3 md:order-none md:w-24 md:max-w-none md:justify-center md:gap-3 md:self-stretch md:px-2.5 md:py-4"
         >
-          {i}
-        </motion.div>
-      </motion.button>
-    );
-  })}
-</div>
+          <p className="font-heading text-center text-[11px] font-bold uppercase tracking-wide text-slate-500 sm:text-xs">
+            🔢 Pick a number
+          </p>
 
-  <PhaserGame playerName={playerName} />
-</div>
+          {/* Fixed-height readout so picking a number never shoves the
+              buttons around. */}
+          <div className="flex h-8 items-center justify-center sm:h-9">
+            <AnimatePresence mode="wait">
+              {selectedNumber === null ? (
+                <motion.p
+                  key="hint"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="text-[11px] font-semibold text-slate-300 sm:text-xs"
+                >
+                  Tap a number below
+                </motion.p>
+              ) : (
+                <motion.span
+                  key={selectedNumber}
+                  initial={{ opacity: 0, scale: 0.6, y: 8 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.8, y: -8 }}
+                  transition={{ type: 'spring', stiffness: 500, damping: 24 }}
+                  className="rounded-full bg-amber-50 px-3.5 py-1 font-heading text-sm font-bold text-orange-600 shadow-inner sm:text-base"
+                >
+                  {numberWords[selectedNumber - 1]}
+                </motion.span>
+              )}
+            </AnimatePresence>
+          </div>
+
+          <motion.div
+            variants={gridVariants}
+            initial="hidden"
+            animate="show"
+            className="grid grid-cols-5 gap-1.5 sm:gap-2 md:grid-cols-1 md:gap-1.5"
+          >
+            {Array.from({ length: 10 }, (_, idx) => idx + 1).map((i) => {
+              const isSelected = selectedNumber === i;
+              return (
+                <motion.button
+                  key={i}
+                  type="button"
+                  variants={buttonVariants}
+                  onClick={() => setSelectedNumber(isSelected ? null : i)}
+                  aria-pressed={isSelected}
+                  aria-label={`Show ${i} spelled out`}
+                  whileHover={{ scale: isSelected ? 1.08 : 1.1, y: -2 }}
+                  whileTap={{ scale: 0.9 }}
+                  animate={{ scale: isSelected ? 1.1 : 1, y: isSelected ? -2 : 0 }}
+                  transition={{ type: 'spring', stiffness: 420, damping: 22 }}
+                  className={cn(
+                    'font-heading relative flex aspect-square items-center justify-center rounded-xl text-base font-bold shadow-[0_3px_0_rgba(0,0,0,0.15)] transition-colors sm:rounded-2xl sm:text-lg md:h-10 md:w-10',
+                    isSelected
+                      ? 'bg-gradient-to-b from-amber-300 to-orange-400 text-white ring-2 ring-amber-200 ring-offset-1'
+                      : 'bg-white text-slate-600 hover:bg-amber-50'
+                  )}
+                >
+                  {isSelected && (
+                    <motion.span
+                      layoutId="number-glow"
+                      className="absolute -inset-1.5 -z-10 rounded-xl bg-amber-300/40 blur-md sm:rounded-2xl"
+                      transition={{ type: 'spring', stiffness: 420, damping: 26 }}
+                    />
+                  )}
+                  {i}
+                </motion.button>
+              );
+            })}
+          </motion.div>
+        </motion.div>
+
+        <PhaserGame playerName={playerName} />
+      </div>
     </div>
   );
 }
