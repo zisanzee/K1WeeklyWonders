@@ -3,6 +3,9 @@ import { Link } from 'react-router-dom';
 import PhaserGame from './PhaserGame';
 import NameGate from '../NameGate';
 import { usePlayerStore } from '../playerStore';
+import { useState } from 'react';
+
+import { motion, AnimatePresence } from "motion/react";
 
 export default function PhaserDemo() {
   return (
@@ -14,7 +17,19 @@ export default function PhaserDemo() {
 
 function PhaserDemoInner() {
   const playerName = usePlayerStore((s) => s.playerName);
-
+const numberWords = [
+  "One",
+  "Two",
+  "Three",
+  "Four",
+  "Five",
+  "Six",
+  "Seven",
+  "Eight",
+  "Nine",
+  "Ten",
+];
+const [selectedNumber, setSelectedNumber] = useState(null);
   return (
     <div className="relative flex min-h-[100dvh] w-full flex-col items-center overflow-hidden bg-gradient-to-b from-[#3FB6EA] via-[#8FE0FA] to-[#FFE9A8] px-4 pb-6 pt-4 sm:pt-6">
       <link
@@ -60,17 +75,61 @@ function PhaserDemoInner() {
 
       <Link
         to="/"
-        className="font-body relative z-20 mb-2 flex items-center gap-1 self-start rounded-full bg-white/90 px-3 py-1.5 text-xs font-extrabold text-slate-700 shadow-[0_4px_0_rgba(0,0,0,0.15)] transition-transform hover:-translate-y-0.5 active:translate-y-1 active:shadow-none sm:px-4 sm:py-2 sm:text-sm md:text-base"
+        className="font-body relative z-20  flex items-center gap-1 self-start rounded-full bg-white/90  font-extrabold text-slate-700 shadow-[0_4px_0_rgba(0,0,0,0.15)] transition-transform hover:-translate-y-0.5 active:translate-y-1 active:shadow-none px-4 py-2 text-sm md:text-base"
       >
         ⬅️ Home
       </Link>
 
-      <div className="relative z-10 flex w-full flex-1 flex-col items-center justify-center gap-3 sm:gap-5">
-        <h1 className="font-heading animate-pop-in text-center text-[clamp(1.6rem,5vw,2.75rem)] font-bold leading-tight text-white drop-shadow-[0_3px_0_rgba(0,0,0,0.15)]">
-          🔢 Number Pop!
-        </h1>
-        <PhaserGame playerName={playerName} />
-      </div>
+      <div className="relative  w-full z-10 flex  min-h-full flex-1 flex-col md:flex-row items-center justify-center gap-3 sm:gap-5">
+ <div className="flex flex-wrap sm:min-w-20 justify-center gap-1 rounded md:flex-col md:items-center">
+  {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((i) => {
+    const isSelected = selectedNumber === i;
+
+    return (
+      <motion.button
+        layout
+        key={i}
+        type="button"
+        onClick={() => setSelectedNumber(isSelected ? null : i)}
+        initial={false}
+        animate={{
+          scale: isSelected ? 1.05 : 1,
+          backgroundColor: isSelected ? "#facc15" : "#fbbf24",
+        }}
+        whileHover={{ scale: isSelected ? 1.06 : 1.03 }}
+        whileTap={{ scale: 0.97 }}
+        transition={{ type: "spring", stiffness: 500, damping: 32 }}
+        className="flex items-center justify-center overflow-hidden rounded-sm  p-1 font-bold shadow-sm md:flex-col"
+      >
+        <AnimatePresence initial={false} mode="popLayout">
+          {isSelected && (
+            <motion.div
+              key="word"
+              layout
+              initial={{ opacity: 0, x: -8, width: 0 }}
+              animate={{ opacity: 1, x: 0, width: "auto" }}
+              exit={{ opacity: 0, x: -8, width: 0 }}
+              transition={{ type: "spring", stiffness: 500, damping: 35 }}
+              className="overflow-hidden whitespace-nowrap  p-1 text-left text-slate-700"
+            >
+              {numberWords[i - 1]}
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <motion.div
+          layout
+          className="px-2 py-1 text-right text-xl text-slate-700"
+        >
+          {i}
+        </motion.div>
+      </motion.button>
+    );
+  })}
+</div>
+
+  <PhaserGame playerName={playerName} />
+</div>
     </div>
   );
 }

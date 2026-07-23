@@ -28,6 +28,8 @@ export function createPillButton(scene, x, y, initialLabel, opts = {}) {
     interactive = true,
     minWidth = 0,
     simple = false,
+    minHeight = 0,
+circle = false,
   } = opts;
 
   const text = scene.add.text(0, 0, initialLabel, {
@@ -37,9 +39,16 @@ export function createPillButton(scene, x, y, initialLabel, opts = {}) {
     fontStyle: 'bold',
   }).setOrigin(0.5);
 
-  let w = Math.max(text.width + paddingX * 2, minWidth);
-  let h = text.height + paddingY * 2;
-  const radius = h / 2;
+let w = Math.max(text.width + paddingX * 2, minWidth);
+let h = Math.max(text.height + paddingY * 2, minHeight);
+
+if (circle) {
+  const size = Math.max(w, h);
+  w = size;
+  h = size;
+}
+
+const radius = h / 2;
   let currentBg = bgColor;
 
   // ox/oy = where the pill's CENTER sits, relative to the container's
@@ -56,18 +65,51 @@ export function createPillButton(scene, x, y, initialLabel, opts = {}) {
   const bgGfx = scene.add.graphics();
 
   const redraw = () => {
-    shadow.clear();
-    shadow.fillStyle(0x000000, 0.18);
-    shadow.fillRoundedRect(ox - w / 2, oy - h / 2 + 4, w, h, radius);
+  shadow.clear();
+  bgGfx.clear();
 
-    bgGfx.clear();
+  shadow.fillStyle(0x000000, 0.18);
+
+  if (circle) {
+    shadow.fillCircle(ox, oy + 4, w / 2);
+
     bgGfx.fillStyle(currentBg, 1);
-    bgGfx.fillRoundedRect(ox - w / 2, oy - h / 2, w, h, radius);
+    bgGfx.fillCircle(ox, oy, w / 2);
+
     if (borderColor !== null) {
       bgGfx.lineStyle(3, borderColor, 1);
-      bgGfx.strokeRoundedRect(ox - w / 2, oy - h / 2, w, h, radius);
+      bgGfx.strokeCircle(ox, oy, w / 2 - 1.5);
     }
-  };
+  } else {
+    shadow.fillRoundedRect(
+      ox - w / 2,
+      oy - h / 2 + 4,
+      w,
+      h,
+      radius
+    );
+
+    bgGfx.fillStyle(currentBg, 1);
+    bgGfx.fillRoundedRect(
+      ox - w / 2,
+      oy - h / 2,
+      w,
+      h,
+      radius
+    );
+
+    if (borderColor !== null) {
+      bgGfx.lineStyle(3, borderColor, 1);
+      bgGfx.strokeRoundedRect(
+        ox - w / 2,
+        oy - h / 2,
+        w,
+        h,
+        radius
+      );
+    }
+  }
+};
   redraw();
 
   const container = scene.add.container(x, y, [shadow, bgGfx, text]).setDepth(depth);
@@ -124,7 +166,14 @@ export function createPillButton(scene, x, y, initialLabel, opts = {}) {
     width: () => w,
     setText: (str) => {
       text.setText(str);
-      w = Math.max(text.width + paddingX * 2, minWidth);
+    w = Math.max(text.width + paddingX * 2, minWidth);
+h = Math.max(text.height + paddingY * 2, minHeight);
+
+if (circle) {
+  const size = Math.max(w, h);
+  w = size;
+  h = size;
+}
       ({ ox, oy } = offsetFor(w));
       text.setPosition(ox, oy);
       redraw();

@@ -43,7 +43,7 @@ export default function PhaserGame({ playerName }) {
         // but taps land as if they were somewhere else. The 720x960 base
         // resolution already gives plenty of sharpness on its own.
         width: 720,
-        height: 960,
+        height: 1080,
         backgroundColor: '#8fe0fa',
         physics: {
           default: 'arcade',
@@ -61,18 +61,20 @@ export default function PhaserGame({ playerName }) {
       // in NumberOrderScene.js). With 4 levels now, this can fire up to 4
       // times per visit (once per level cleared), plus again on any replay,
       // so `level`/`levelKey` are included to tell those runs apart. `stars`
-      // scales with the level itself — Level 1 reports 1 star, Level 2
-      // reports 2, and so on — rather than a flat 1 every time.
+      // and `totalRounds` both scale with the level itself — Level 1 sends
+      // 1/1, Level 2 sends 2/2, and so on. They have to move together: the
+      // server clamps stars to totalRounds, so leaving totalRounds at a
+      // flat 1 would silently cap every level's stars back down to 1.
       // "Play again" / "Next Level" both restart or start a scene, which
       // runs create() again and can fire a fresh 'numberpop-complete' event
       // on its own next finish, so no "already logged" guard is needed here
       // the way the round-based games need one.
-      gameRef.current.events.on('numberpop-complete', ({ elapsedSeconds, mistakes, level, levelKey, stars }) => {
+      gameRef.current.events.on('numberpop-complete', ({ elapsedSeconds, mistakes, level, levelKey, stars, totalRounds }) => {
         logPlaySession({
           game: 'bonusGame1',
           playerName: playerNameRef.current || 'Guest',
           stars,
-          totalRounds: 1,
+          totalRounds,
           elapsedSeconds,
           mistakes,
           level,
@@ -98,13 +100,13 @@ export default function PhaserGame({ playerName }) {
   }, []);
 
   return (
-    <div className="relative mx-auto w-[min(94vw,46rem,calc(75dvh*3/4))]">
+    <div className="relative  w-[min(calc(80dvh*3/4),98vw)]">
       {/* Soft glow behind the frame — cheap (one blurred div, no animation
           cost) but reads as much more "designed" than a bare canvas. */}
-      <div className="pointer-events-none absolute -inset-3 rounded-[2.5rem] bg-gradient-to-br from-white/50 via-yellow-100/40 to-sky-200/50 blur-xl" />
+      <div className="pointer-events-none absolute  rounded-[2.5rem] bg-gradient-to-br from-white/50 via-yellow-100/40 to-sky-200/50 blur-xl" />
       <div
         ref={containerRef}
-        className="relative aspect-[3/4] w-full overflow-hidden rounded-[2rem] border-[6px] border-white/80 shadow-2xl ring-4 ring-white/30"
+        className="relative aspect-[2/3] w-full overflow-hidden rounded-[2rem] border-[6px] border-white/80 shadow-2xl ring-4 ring-white/30"
       />
     </div>
   );

@@ -80,28 +80,71 @@ export default class NumberOrderScene extends Phaser.Scene {
 
     // Small "Level N" chip + back-to-menu affordance up top, so it's always
     // clear which level is active without cluttering the main title.
-    this.add.text(width / 2, 34, level.title, {
-      fontSize: '28px',
-      fontFamily: 'Fredoka, sans-serif',
-      color: '#0f3d5c',
-      fontStyle: 'bold',
-      align: 'center',
-      wordWrap: { width: width - 40 },
-    }).setOrigin(0.5);
+const titleStyle = {
+  fontFamily: 'Fredoka, sans-serif',
+  fontStyle: 'bold',
+  stroke: '#ffffff',
+  strokeThickness: 6,
+  shadow: {
+    offsetX: 0,
+    offsetY: 3,
+    color: '#00000055',
+    blur: 4,
+    fill: true,
+  },
+};
 
-    this.nextChip = this.createPillButton(width / 2, 82, `Next: ${this.labelFor(1)}`, {
-      fontSize: '26px',
-      paddingX: 18,
-      paddingY: 10,
-      interactive: false,
-      minWidth: 170,
-      depth: 15,
-    });
+this.add.text(width / 2, 34, 'Tap the numbers from', {
+  ...titleStyle,
+  fontSize: '28px',
+  color: '#1f4f7a',
+}).setOrigin(0.5);
 
-    this.timerChip = this.createPillButton(width - 16, 16, '0s', {
+const smallest = this.add.text(width / 2 - 110, 74, 'smallest', {
+  ...titleStyle,
+  fontSize: '34px',
+  color: '#4CAF50',
+}).setOrigin(0.5);
+
+this.add.text(width / 2, 74, 'to', {
+  ...titleStyle,
+  fontSize: '28px',
+  color: '#1f4f7a',
+}).setOrigin(0.5);
+
+const biggest = this.add.text(width / 2 + 110, 74, 'biggest', {
+  ...titleStyle,
+  fontSize: '34px',
+  color: '#FF7043',
+}).setOrigin(0.5);
+
+// Gentle idle animation
+[this.add, smallest, biggest];
+
+this.tweens.add({
+  targets: [smallest, biggest],
+  scale: { from: 1, to: 1.06 },
+  duration: 700,
+  yoyo: true,
+  repeat: -1,
+  ease: 'Sine.InOut',
+});
+
+this.nextChip = this.createPillButton(width - 55, 100, '', {
+  fontSize: '42px',
+  minWidth: 72,
+  minHeight: 72,
+  circle: true,
+  bgColor: 0xffd93d,      // bright gold
+  borderColor: 0xffffff,  // thick white rim
+  textColor: '#0f3d5c',
+  interactive: false,
+  depth: 20,
+});
+    this.timerChip = this.createPillButton(width - 22, 16, '0s', {
       fontSize: '20px',
-      paddingX: 14,
-      paddingY: 7,
+      paddingX: 20,
+      paddingY: 10,
       anchor: 'topRight',
       interactive: false,
       depth: 15,
@@ -112,24 +155,17 @@ export default class NumberOrderScene extends Phaser.Scene {
     // minWidth here rather than relying on the emoji's measured text
     // width, which some browsers under-report for color emoji glyphs —
     // that was causing these to crowd/overlap each other.
-    const ICON_BTN_SIZE = 64;
+    const ICON_BTN_SIZE = 86;
     const ICON_BTN_GAP = 12;
 
-    this.restartBtn = this.createPillButton(16, 16, '🔁', {
-      fontSize: '24px',
-      paddingX: 10,
-      paddingY: 8,
-      minWidth: ICON_BTN_SIZE,
-      anchor: 'topLeft',
-      depth: 20,
-      simple: true,
-    });
-    this.restartBtn.on('pointerdown', () => this.scene.restart({ levelIndex: this.levelIndex }));
 
-    this.muteBtn = this.createPillButton(16 + (ICON_BTN_SIZE + ICON_BTN_GAP), 16, '🔊', {
+
+
+    
+    this.muteBtn = this.createPillButton(16, 16, '🔊', {
       fontSize: '24px',
-      paddingX: 10,
-      paddingY: 8,
+      paddingX: 4,
+      paddingY: 4,
       minWidth: ICON_BTN_SIZE,
       anchor: 'topLeft',
       depth: 20,
@@ -140,17 +176,6 @@ export default class NumberOrderScene extends Phaser.Scene {
       this.sound.mute = this.muted;
       this.muteBtn.setText(this.muted ? '🔇' : '🔊');
     });
-
-    this.homeBtn = this.createPillButton(16 + (ICON_BTN_SIZE + ICON_BTN_GAP) * 2, 16, '🏠', {
-      fontSize: '24px',
-      paddingX: 10,
-      paddingY: 8,
-      minWidth: ICON_BTN_SIZE,
-      anchor: 'topLeft',
-      depth: 20,
-      simple: true,
-    });
-    this.homeBtn.on('pointerdown', () => this.scene.start('LevelSelectScene'));
 
     const dotG = this.make.graphics({ x: 0, y: 0, add: false });
     dotG.fillStyle(0xffffff, 1);
@@ -184,7 +209,7 @@ export default class NumberOrderScene extends Phaser.Scene {
 
     const dim = this.add.rectangle(width / 2, height / 2, width, height, 0x0f3d5c, 0.35).setDepth(40);
 
-    const title = this.add.text(width / 2, height / 2 - 70, `${this.level.icon} ${this.level.name}\nReady?`, {
+    const title = this.add.text(width / 2, height / 2 - 80, `${this.level.icon} ${this.level.name}\n  Ready?`, {
       fontSize: '34px',
       fontFamily: 'Fredoka, sans-serif',
       color: '#ffffff',
@@ -323,7 +348,8 @@ export default class NumberOrderScene extends Phaser.Scene {
       bubble.body.setCollideWorldBounds(true);
       bubble.body.setBounce(1, 1);
 
-      const speed = Phaser.Math.Between(70, 130);
+      const speed = Phaser.Math.Between(50, 100);
+      bubble.body.setMaxVelocity(120, 120);
       const angle = Phaser.Math.FloatBetween(0, Math.PI * 2);
       bubble.body.setVelocity(Math.cos(angle) * speed, Math.sin(angle) * speed);
 
@@ -367,7 +393,7 @@ export default class NumberOrderScene extends Phaser.Scene {
         this.timerEvent.remove();
         this.time.delayedCall(300, () => this.showComplete());
       } else {
-        this.nextChip.setText(`Next: ${this.labelFor(this.nextExpected)}`);
+        this.nextChip.setText(`${this.labelFor(this.nextExpected - 1)}`);
         this.tweens.add({
           targets: this.nextChip.container,
           scale: { from: 1.3, to: 1 },
@@ -472,13 +498,18 @@ export default class NumberOrderScene extends Phaser.Scene {
     // from both sides: Phaser exposes it on every Scene as `this.game`, and
     // PhaserGame.jsx holds the same Game instance in `gameRef.current`.
     // `stars` scales with the level itself (Level 1 → 1 star, Level 2 → 2
-    // stars, etc.) rather than always being a flat 1.
+    // stars, etc.) rather than always being a flat 1. `totalRounds` has to
+    // scale right alongside it — the server clamps
+    // `stars = min(stars, totalRounds)`, so leaving totalRounds at a flat 1
+    // would silently cap every level's stars back down to 1 regardless of
+    // what's sent here.
     this.game.events.emit('numberpop-complete', {
       elapsedSeconds: this.elapsedSeconds,
       mistakes: this.mistakes,
       level: this.levelIndex + 1,
       levelKey: level.key,
       stars: this.levelIndex + 1,
+      totalRounds: this.levelIndex + 1,
     });
 
     this.bgMusic?.stop();
@@ -523,32 +554,36 @@ export default class NumberOrderScene extends Phaser.Scene {
       .setDepth(55).setAlpha(0);
     this.tweens.add({ targets: overlay, alpha: 1, duration: 250 });
 
-    const panelW = 340;
-    const panelH = 380;
+    // Panel is sized relative to the scene so it scales sensibly across
+    // different canvas sizes, but with a floor so it still reads as a
+    // proper "complete" screen on small canvases, and a cap so it doesn't
+    // swallow the whole scene on big ones.
+    const panelW = Phaser.Math.Clamp(width * 0.82, 360, 460);
+    const panelH = Phaser.Math.Clamp(height * 0.72, 520, 620);
     const panel = this.add.container(width / 2, height / 2).setDepth(56).setScale(0.3).setAlpha(0);
     const panelBg = this.add.graphics();
     panelBg.fillStyle(0xffffff, 1);
-    panelBg.fillRoundedRect(-panelW / 2, -panelH / 2, panelW, panelH, 28);
-    panelBg.lineStyle(6, 0xffd93d, 1);
-    panelBg.strokeRoundedRect(-panelW / 2, -panelH / 2, panelW, panelH, 28);
+    panelBg.fillRoundedRect(-panelW / 2, -panelH / 2, panelW, panelH, 32);
+    panelBg.lineStyle(7, 0xffd93d, 1);
+    panelBg.strokeRoundedRect(-panelW / 2, -panelH / 2, panelW, panelH, 32);
 
-    const title = this.add.text(0, -panelH / 2 + 46, `${level.icon} ${level.name} complete!`, {
-      fontSize: '26px',
+    const title = this.add.text(0, -panelH / 2 + 58, `${level.icon} ${level.name} complete!`, {
+      fontSize: '32px',
       fontFamily: 'Fredoka, sans-serif',
       color: '#0f3d5c',
       fontStyle: 'bold',
       align: 'center',
-      wordWrap: { width: panelW - 30 },
+      wordWrap: { width: panelW - 40 },
     }).setOrigin(0.5);
 
     const leftPart = this.add.text(0, 0, 'You did it in ', {
-      fontSize: '18px',
+      fontSize: '22px',
       fontFamily: 'Nunito, sans-serif',
       color: '#0f3d5c',
     }).setOrigin(0, 0.5);
 
-    const scorePart = this.add.text(0, 0, `${this.elapsedSeconds}s`, {
-      fontSize: '28px',
+    const scorePart = this.add.text(0, 0, `${this.elapsedSeconds} seconds`, {
+      fontSize: '34px',
       fontFamily: 'Fredoka, sans-serif',
       fontStyle: 'bold',
       color: '#ff7a00',
@@ -558,56 +593,71 @@ export default class NumberOrderScene extends Phaser.Scene {
     leftPart.setPosition(-totalWidth / 2, 0);
     scorePart.setPosition(-totalWidth / 2 + leftPart.width, 0);
 
-    const subtitle = this.add.container(0, -panelH / 2 + 92, [leftPart, scorePart]);
+    const subtitle = this.add.container(0, -panelH / 2 + 128, [leftPart, scorePart]);
 
-    const star = this.add.text(0, -panelH / 2 + 134, '⭐', { fontSize: '40px' }).setOrigin(0.5).setScale(0);
-    const starLabel = this.add.text(0, -panelH / 2 + 168, `⭐ ${totalStars()}/${LEVELS.length} stars total`, {
-      fontSize: '16px',
+    const star = this.add.text(0, -panelH / 2 + 178, '⭐', { fontSize: '48px' }).setOrigin(0.5).setScale(0);
+    const starLabel = this.add.text(0, -panelH / 2 + 222, `⭐ ${totalStars()}/${LEVELS.length} stars total`, {
+      fontSize: '19px',
       fontFamily: 'Nunito, sans-serif',
       fontStyle: 'bold',
       color: '#4a6478',
     }).setOrigin(0.5);
 
+    // Three stacked buttons: primary progression action, restart-this-level,
+    // and back-to-menu — in that priority order top to bottom.
+    const BTN_MIN_W = Math.min(panelW - 60, 320);
     let primary;
+    let restartBtn;
     let secondary;
 
     if (nextUnlocked) {
-      primary = this.createPillButton(0, panelH / 2 - 104, `▶️ Next: ${LEVELS[nextIndex].name}`, {
-        fontSize: '22px',
-        paddingX: 20,
-        paddingY: 14,
-        bgColor: 0x22b8cf,
+      primary = this.createPillButton(0, panelH / 2 - 210, `▶️ Next: ${LEVELS[nextIndex].name}`, {
+        fontSize: '24px',
+        paddingX: 22,
+        paddingY: 16,
+        bgColor: 0x51cf66,
         textColor: '#ffffff',
-        minWidth: 270,
+        minWidth: BTN_MIN_W,
         depth: 0,
       });
       primary.on('pointerdown', () => this.scene.start('NumberOrderScene', { levelIndex: nextIndex }));
     } else {
-      primary = this.createPillButton(0, panelH / 2 - 104, '🏆 All levels complete!', {
-        fontSize: '19px',
-        paddingX: 20,
-        paddingY: 14,
+      primary = this.createPillButton(0, panelH / 2 - 210, '🏆 All levels complete!', {
+        fontSize: '20px',
+        paddingX: 22,
+        paddingY: 16,
         bgColor: 0xffd93d,
         textColor: '#173b59',
-        minWidth: 270,
+        minWidth: BTN_MIN_W,
         depth: 0,
         interactive: false,
       });
     }
 
-    secondary = this.createPillButton(0, panelH / 2 - 46, '🏠 Level Select', {
-      fontSize: '20px',
-      paddingX: 20,
-      paddingY: 12,
+    restartBtn = this.createPillButton(0, panelH / 2 - 140, '🔄 Play Again', {
+      fontSize: '22px',
+      paddingX: 22,
+      paddingY: 14,
+      bgColor: 0x22b8cf,
+      textColor: '#ffffff',
+      minWidth: BTN_MIN_W,
+      depth: 0,
+    });
+    restartBtn.on('pointerdown', () => this.scene.restart({ levelIndex: this.levelIndex }));
+
+    secondary = this.createPillButton(0, panelH / 2 - 74, '🏠 Level Select', {
+      fontSize: '22px',
+      paddingX: 22,
+      paddingY: 14,
       bgColor: 0xffffff,
       textColor: '#173b59',
       borderColor: 0x173b59,
-      minWidth: 270,
+      minWidth: BTN_MIN_W,
       depth: 0,
     });
     secondary.on('pointerdown', () => this.scene.start('LevelSelectScene'));
 
-    panel.add([panelBg, title, subtitle, star, starLabel, primary.container, secondary.container]);
+    panel.add([panelBg, title, subtitle, star, starLabel, primary.container, restartBtn.container, secondary.container]);
 
     this.tweens.add({
       targets: panel,

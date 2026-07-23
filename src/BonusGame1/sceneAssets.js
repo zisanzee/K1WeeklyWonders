@@ -199,31 +199,35 @@ export function makeItemTexture(scene, level, levelIndex, value) {
     ctx.shadowBlur = 8;
     ctx.shadowOffsetX = 1;
     ctx.shadowOffsetY = 3;
-    ctx.font = `${Math.round(radius * 1.9)}px sans-serif`;
+    // Emoji scale is intentionally decoupled from radius growth (1.55x
+    // instead of scaling 1:1 with the bubble) so bumping itemRadius up in
+    // levels.js — to make bubbles and the label text bigger — doesn't also
+    // balloon the emoji itself.
+    ctx.font = `${Math.round(radius * 1.55)}px sans-serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(emoji, c, c - radius * 0.05);
     ctx.restore();
 
     // ---------- Label badge, overlaid on the lower part of the object ----------
-    const badgeFont = level.labelType === 'word' ? 'bold 19px Fredoka, sans-serif' : 'bold 25px Fredoka, sans-serif';
+    const badgeFont = level.labelType === 'word' ? 'bold 30px Fredoka, sans-serif' : 'bold 32px Fredoka, sans-serif';
     ctx.font = badgeFont;
     const textW = ctx.measureText(label).width;
-    const badgeH = level.labelType === 'word' ? 30 : 34;
-    const badgeW = Math.max(textW + 24, badgeH);
-    const badgeY = c + radius * 0.62;
+    const badgeH = level.labelType === 'word' ? 40 : 44;
+    const badgeW = Math.max(textW + 10, badgeH );
+    const badgeY = c + radius * 0.62 + (level.badgeOffsetY ?? 0);
 
     ctx.save();
     ctx.shadowColor = 'rgba(0,0,0,0.25)';
     ctx.shadowBlur = 5;
     ctx.shadowOffsetY = 1.5;
-    ctx.fillStyle = '#ffffff';
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.38)';
     drawRoundedRectPath(ctx, c - badgeW / 2, badgeY - badgeH / 2, badgeW, badgeH, badgeH / 2);
     ctx.fill();
     ctx.restore();
 
     drawRoundedRectPath(ctx, c - badgeW / 2, badgeY - badgeH / 2, badgeW, badgeH, badgeH / 2);
-    ctx.lineWidth = 2.5;
+    ctx.lineWidth = 3;
     ctx.strokeStyle = hexToCss(colorHex);
     ctx.stroke();
 
@@ -278,11 +282,11 @@ export function makeItemTexture(scene, level, levelIndex, value) {
     ctx.fill();
 
     // ---------- Digit, large and centered ----------
-    ctx.font = 'bold 36px Fredoka, sans-serif';
+    ctx.font = 'bold 46px Fredoka, sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.lineJoin = 'round';
-    ctx.lineWidth = 3;
+    ctx.lineWidth = 4;
     ctx.strokeStyle = '#ffffff';
     ctx.strokeText(label, c, c + 2);
     ctx.fillStyle = '#173b59';

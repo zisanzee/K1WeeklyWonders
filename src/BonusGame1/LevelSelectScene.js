@@ -38,12 +38,36 @@ export default class LevelSelectScene extends Phaser.Scene {
       });
     });
 
-    this.add.text(width / 2, 56, 'Choose a Level!', {
-      fontSize: '32px',
-      fontFamily: 'Fredoka, sans-serif',
-      color: '#0f3d5c',
-      fontStyle: 'bold',
-    }).setOrigin(0.5);
+const title = this.add.text(width / 2, 56, 'NUMBER POP!', {
+  fontSize: '44px',
+  fontFamily: 'Fredoka',
+  fontStyle: '900',
+  color: '#FFE14A',          // Bright golden yellow
+  stroke: '#1E4F8A',         // Deep blue outline
+  strokeThickness: 8,
+  letterSpacing: 3,
+  align: 'center',
+}).setOrigin(0.5);
+title.setOrigin(0.5, 0.5);
+title.updateDisplayOrigin();
+
+title.setShadow(
+  0,
+  6,
+  '#18406f',
+  0,
+  false,
+  true
+);
+this.tweens.add({
+  targets: title,
+ 
+  angle: 2.5,          // Rotate slightly clockwise
+  duration: 1200,
+  yoyo: true,
+  repeat: -1,
+  ease: 'Sine.InOut',
+});
 
     createPillButton(this, width - 16, 16, `⭐ ${totalStars()}/${LEVELS.length}`, {
       fontSize: '20px',
@@ -96,15 +120,15 @@ export default class LevelSelectScene extends Phaser.Scene {
 
     const emoji = this.add.text(0, -h / 2 + 54, level.icon, { fontSize: '50px' }).setOrigin(0.5);
     const name = this.add.text(0, -h / 2 + 108, level.name, {
-      fontSize: '23px',
+      fontSize: '32px',
       fontFamily: 'Fredoka, sans-serif',
       color: '#0f3d5c',
       fontStyle: 'bold',
       align: 'center',
     }).setOrigin(0.5);
     const sub = this.add.text(0, -h / 2 + 140, level.subtitle, {
-      fontSize: '15px',
-      fontFamily: 'Nunito, sans-serif',
+      fontSize: '18px',
+      fontFamily: 'Fredoka, sans-serif',
       color: '#4a6478',
       align: 'center',
       wordWrap: { width: w - 30 },

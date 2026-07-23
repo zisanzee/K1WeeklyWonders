@@ -154,7 +154,7 @@ function HomeContent() {
           50% { transform: translate(8px, -12px) rotate(6deg); }
         }
         .font-heading { font-family: 'Fredoka', sans-serif; }
-        .font-body { font-family: 'Nunito', sans-serif; }
+        
         .animate-float-slow { animation: float-slow 6s ease-in-out infinite; will-change: transform; }
         .animate-float-slower { animation: float-slower 8s ease-in-out infinite; will-change: transform; }
         .animate-wiggle { animation: wiggle 2.5s ease-in-out infinite; will-change: transform; }
@@ -272,9 +272,10 @@ function HomeContent() {
           <div className="relative z-10 flex flex-col items-center gap-6 sm:flex-row sm:flex-wrap sm:justify-center sm:gap-8 md:gap-10 lg:gap-14">
             <GameCard
               to="/Game1"
+              number="1"
               emoji="🧺"
               title="Count & Win!"
-              subtitle="Game 1"
+              subtitle={`Numeral & Number Word \n (Counting)`}
               color="from-teal-400 to-emerald-500"
               ring="ring-teal-200"
               delay={0.1}
@@ -283,32 +284,36 @@ function HomeContent() {
             />
             <GameCard
               to="/Game2"
+              number="2"
               emoji="🧸"
-              title="Compare Quantity!"
-              subtitle="Game 2"
+              title="Comparing Quantities"
+              subtitle={`Comparing 2 Sets \n(More, Fewer, Same)`}
               color="from-sky-400 to-blue-500"
               ring="ring-sky-200"
               delay={0.2}
               open={isGameUnlocked(2, isTeacher)}
               progress={progressByGame.game2}
+              shine
             />
             <GameCard
               to="/bonus-game1"
+              number="B"
               emoji="9️⃣"
               title="Number Pop!"
-              subtitle={`Bonus Game 1`}
+              subtitle={`Numeral & Number Word \n (Ascending & Descending Order)`}
               color="from-blue-400  to-red-500 "
               ring="ring-sky-200"
               delay={0.2}
               open={isGameUnlocked('b1', isTeacher)}
               progress={progressByGame.game2}
-              shine
+              
             />
             <GameCard
               to="/Game3"
+              number="3"
               emoji="🐙"
-              title="Around the Number!"
-              subtitle="Game 3"
+              title="Which Number?"
+              subtitle={`Numeral & Number Word \n (Before & After Ed.)`}
               color="from-violet-400 to-fuchsia-500"
               ring="ring-violet-200"
               delay={0.3}
@@ -317,9 +322,10 @@ function HomeContent() {
             />
             <GameCard
               to="/Game4"
+              number="4"
               emoji="🚀"
-              title="Splits and Groups!"
-              subtitle="Game 4"
+              title="Making & Splitting Groups"
+              subtitle={`Number Bonds \n (1-5)`}
               color="from-amber-400 to-orange-500"
               ring="ring-amber-200"
               delay={0.4}
@@ -329,9 +335,10 @@ function HomeContent() {
 
             <GameCard
               to="/Game5"
+              number="5"
               emoji="🗝️"
               title="Part-Part-Whole!"
-              subtitle="Game 5"
+              subtitle={`Number Bonds \n (1-10)`}
               color="from-rose-400 to-pink-500"
               ring="ring-rose-200"
               delay={0.5}
@@ -371,8 +378,8 @@ function HomeContent() {
           K1 Weekly Wonders
         </p>
 
-        <p className="font-body text-sm font-semibold text-slate-800 sm:text-base">
-          © {new Date().getFullYear()} · Developed by Towhid · Educational Content by Siti Soleha
+        <p className="font-body text-sm  text-slate-800 sm:text-base">
+          © {new Date().getFullYear()} · Created by Towhid Hossain and Siti Soleha
         </p>
 
         <p className="font-body text-xs font-medium text-slate-700/80 sm:text-sm">
@@ -386,7 +393,7 @@ function HomeContent() {
   );
 }
 
-const GameCard = React.memo(function GameCard({ to, emoji, title, subtitle, color, ring, delay, open, progress, shine }) {
+const GameCard = React.memo(function GameCard({ to, emoji, title, subtitle, color, ring, delay, open, progress, shine, number }) {
   const isShiny = shine && open;
 
   return (
@@ -397,6 +404,15 @@ const GameCard = React.memo(function GameCard({ to, emoji, title, subtitle, colo
           className="animate-golden-glow pointer-events-none absolute -inset-3 rounded-[2.5rem] bg-gradient-to-br from-yellow-300 via-amber-400 to-yellow-200 blur-xl"
         />
       )}
+      
+      {
+        number !== 'B' && (
+          <div className="absolute top-2 left-2 z-20 flex h-8 min-w-8 items-center justify-center text-2xl rounded-full backdrop-blur-md bg-white/30 font-extrabold text-slate-900/60 shadow-md "
+      >
+        {number}
+      </div>)
+      }
+      
 
       <MotionLink
         to={open ? to : "#"}
@@ -408,13 +424,18 @@ const GameCard = React.memo(function GameCard({ to, emoji, title, subtitle, colo
         style={{ animationDelay: `${delay}s` }}
         whileHover={open ? { y: -8, rotate: -1 } : {}}
         whileTap={open ? { y: 2, scale: 0.98 } : {}}
-        className={`group animate-pop-in relative flex w-[78vw] max-w-[260px] flex-col items-center overflow-hidden rounded-[2rem] bg-gradient-to-b p-6 shadow-[0_10px_0_rgba(0,0,0,0.15)] ring-8 transition-shadow focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-white/80 sm:w-56 sm:p-7 md:w-64 lg:w-72 lg:p-8 xl:w-80 ${
+        className={`group animate-pop-in font-['fredoka'] relative flex w-[78vw] max-w-[260px] flex-col items-center overflow-hidden rounded-[2rem] bg-gradient-to-b p-6 shadow-[0_10px_0_rgba(0,0,0,0.15)] ring-8 transition-shadow focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-white/80 sm:w-56 sm:p-7 md:w-64 lg:w-72 lg:p-8 xl:w-80 ${
           open ? `${color} ${ring}` : "from-slate-400 to-slate-500 ring-white/40 cursor-not-allowed"
         } ${isShiny ? "ring-yellow-300" : ""}`}
       >
         {isShiny && (
           <span className="pointer-events-none absolute right-[-2.6rem] top-3 z-30 w-40 rotate-45 bg-gradient-to-r from-yellow-400 to-amber-500 py-1 text-center text-[11px] font-extrabold uppercase tracking-wide text-white shadow-md">
             ✨ New
+          </span>
+        )}
+        {number == 'B' && (
+          <span className="pointer-events-none absolute left-0 right-0 top-0 z-30 w-full  bg-gradient-to-r from-sky-400/50 to-red-500/50 py-1 text-center text-[11px]  uppercase tracking-wide text-white shadow-md ">
+          Bonus 
           </span>
         )}
 
@@ -447,12 +468,12 @@ const GameCard = React.memo(function GameCard({ to, emoji, title, subtitle, colo
           {title}
         </p>
 
-        <p className={` whitespace-pre-line font-body mt-1 text-center text-sm font-semibold sm:text-base ${open ? "text-white/90" : "text-white/40"}`}>
+        <p className={` whitespace-pre-line font-body mt-1 text-center text-sm   ${open ? "text-white/90" : "text-white/40"}`}>
           {subtitle}
         </p>
 
         {open && (
-          <span className="font-body mt-4 rounded-full bg-white/90 px-5 py-1.5 text-sm font-extrabold text-slate-700 shadow group-hover:bg-white">
+          <span  className="font-body  mt-4 rounded-full bg-white/90 px-5 py-1.5 text-sm font-extrabold text-slate-700 shadow group-hover:bg-white">
             Play now →
           </span>
         )}
