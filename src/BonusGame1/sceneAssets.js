@@ -73,6 +73,88 @@ export function makeBackgroundTexture(scene, width, height, level, key) {
   return key;
 }
 
+// ---------------------------------------------------------------------
+// "smallest to biggest" / "biggest to smallest" title line — baked into
+// a single canvas texture instead of three separate Phaser Text objects.
+// Three separate Text objects, each positioned by reading .width off the
+// *other* objects, can drift out of alignment: the very first time a
+// given font/size/weight combo is requested, the browser may still be
+// finishing loading that specific font, so Phaser's layout math and the
+// eventual painted glyphs can end up using different metrics (this is
+// what caused "biggest" and "to" to visually collide). Measuring and
+// drawing on the very same canvas 2D context sidesteps that entirely —
+// whatever font ctx.measureText() sees is exactly what ctx.fillText()
+// paints, so the gaps can never disagree with the render.
+// ---------------------------------------------------------------------
+const ORDER_WORD_STYLE = {
+  smallest: { fontSize: 42, color: '#4CAF50' },
+  biggest: { fontSize: 58, color: '#FF7043' },
+};
+const ORDER_TO_STYLE = { fontSize: 48, color: '#1f4f7a' };
+const ORDER_WORD_GAP = 22;
+const ORDER_STROKE_WIDTH = 6;
+const ORDER_STROKE_COLOR = '#ffffff';
+
+export function makeOrderTitleTexture(scene, minWidth, direction, key) {
+  if (scene.textures.exists(key)) return key;
+
+  const isDesc = direction === 'desc';
+  const firstWord = isDesc ? 'biggest' : 'smallest';
+  const secondWord = isDesc ? 'smallest' : 'biggest';
+  const fontFor = (size) => `bold ${size}px Fredoka, sans-serif`;
+
+  // Measure first, on a throwaway context, before committing to a canvas
+  // size — same font strings we draw with below, so widths are exact.
+  const measureCtx = document.createElement('canvas').getContext('2d');
+  const widthOf = (text, size) => {
+    measureCtx.font = fontFor(size);
+    return measureCtx.measureText(text).width;
+  };
+  const firstWidth = widthOf(firstWord, ORDER_WORD_STYLE[firstWord].fontSize);
+  const toWidth = widthOf('to', ORDER_TO_STYLE.fontSize);
+  const secondWidth = widthOf(secondWord, ORDER_WORD_STYLE[secondWord].fontSize);
+  const totalWidth = firstWidth + ORDER_WORD_GAP + toWidth + ORDER_WORD_GAP + secondWidth;
+
+  const sidePadding = 24;
+  const canvasWidth = Math.max(minWidth, Math.ceil(totalWidth) + sidePadding * 2);
+  const canvasHeight = 110;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = canvasWidth;
+  canvas.height = canvasHeight;
+  const ctx = canvas.getContext('2d');
+  ctx.textBaseline = 'middle';
+  ctx.textAlign = 'left';
+  ctx.lineJoin = 'round';
+
+  let x = (canvasWidth - totalWidth) / 2;
+  const y = canvasHeight / 2;
+
+  const drawWord = (text, size, color) => {
+    ctx.font = fontFor(size);
+    ctx.save();
+    ctx.shadowColor = 'rgba(0,0,0,0.35)';
+    ctx.shadowBlur = 4;
+    ctx.shadowOffsetY = 3;
+    ctx.lineWidth = ORDER_STROKE_WIDTH;
+    ctx.strokeStyle = ORDER_STROKE_COLOR;
+    ctx.strokeText(text, x, y);
+    ctx.restore();
+    ctx.fillStyle = color;
+    ctx.fillText(text, x, y);
+    x += ctx.measureText(text).width;
+  };
+
+  drawWord(firstWord, ORDER_WORD_STYLE[firstWord].fontSize, ORDER_WORD_STYLE[firstWord].color);
+  x += ORDER_WORD_GAP;
+  drawWord('to', ORDER_TO_STYLE.fontSize, ORDER_TO_STYLE.color);
+  x += ORDER_WORD_GAP;
+  drawWord(secondWord, ORDER_WORD_STYLE[secondWord].fontSize, ORDER_WORD_STYLE[secondWord].color);
+
+  scene.textures.addCanvas(key, canvas);
+  return key;
+}
+
 export function makeCloudTexture(scene) {
   const key = 'cloud-puff';
   if (scene.textures.exists(key)) return key;

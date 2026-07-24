@@ -9,8 +9,10 @@ import {
   makeConfettiTexture,
   makeConfettiSquareTexture,
   makeItemTexture,
+  makeOrderTitleTexture,
 } from './sceneAssets';
 import { completeLevel, isLevelUnlocked, totalStars } from './starProgress';
+import { speak } from './speech';
 
 const TEXTURE_PADDING = 4;
 const SPLAT_HOLD_MS = 3000; // how long a splat sits at full strength before fading
@@ -154,45 +156,19 @@ this.add.text(width / 2, 30, 'Tap the numbers from', {
 }).setOrigin(0.5);
 
 // 'smallest' always renders green/smaller, 'biggest' always renders
-// orange/bigger — only which SIDE (and which is first vs second) changes
-// with the level's direction, so ascending levels read "smallest to
-// biggest" and descending ones read "biggest to smallest".
-const isDesc = this.direction === 'desc';
-const wordStyle = {
-  smallest: { fontSize: '42px', color: '#4CAF50' },
-  biggest: { fontSize: '58px', color: '#FF7043' },
-};
-const firstWord = isDesc ? 'biggest' : 'smallest';
-const secondWord = isDesc ? 'smallest' : 'biggest';
+// orange/bigger, and which one comes first flips with the level's
+// direction — but rather than lay the three pieces out as separate
+// Phaser Text objects (which can drift out of alignment, see
+// makeOrderTitleTexture's comment for why), the whole "X to Y" line is
+// baked into one canvas texture with the gaps measured and drawn in the
+// same pass, so they can never disagree with what's on screen.
+const orderTitleKey = makeOrderTitleTexture(this, width, this.direction, `order-title-${this.direction}`);
+const orderTitle = this.add.image(width / 2, 82, orderTitleKey).setOrigin(0.5);
 
-const firstLabel = this.add.text(0, 80, firstWord, {
-  ...titleStyle,
-  ...wordStyle[firstWord],
-}).setOrigin(0.5);
-
-const toLabel = this.add.text(width / 2, 80, 'to', {
-  ...titleStyle,
-  fontSize: '48px',
-  color: '#1f4f7a',
-}).setOrigin(0.5);
-
-const secondLabel = this.add.text(0, 80, secondWord, {
-  ...titleStyle,
-  ...wordStyle[secondWord],
-}).setOrigin(0.5);
-
-// Fixed offsets (width/2 ± 140) worked fine when "biggest" only ever sat
-// on the right, but once it can land on the left too its wider 58px glyph
-// ate into the gap before "to". Spacing both words off "to"'s own
-// *measured* width/gap instead keeps an even, consistent gap on both
-// sides no matter which word (and which font size) lands on which side.
-const wordGap = 22;
-firstLabel.setX(toLabel.x - toLabel.width / 2 - wordGap - firstLabel.width / 2);
-secondLabel.setX(toLabel.x + toLabel.width / 2 + wordGap + secondLabel.width / 2);
-
-// Gentle idle animation
+// Gentle idle animation — the whole line breathes together now that it's
+// one image, rather than just the two colored words independently.
 this.tweens.add({
-  targets: [firstLabel, secondLabel],
+  targets: orderTitle,
   scale: { from: 1, to: 1.06 },
   duration: 700,
   yoyo: true,
@@ -273,6 +249,14 @@ this.nextChip = this.createLastTappedChip(width / 2, 152);
     // The game no longer starts itself — bubbles pop in and sit here,
     // gently breathing, behind a Play button until the player taps it.
     this.showPlayOverlay();
+
+    // Stop any in-flight utterance (e.g. "Good job!" still talking) if the
+    // player backs out to the level select screen or restarts mid-speech.
+    this.events.once('shutdown', () => {
+      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+      }
+    });
   }
 
   showPlayOverlay() {
@@ -365,6 +349,8 @@ this.nextChip = this.createLastTappedChip(width / 2, 152);
     this.locked = false;
     this.physics.world.resume();
     this.enableBubbleInput();
+
+    speak(this.direction === 'desc' ? 'Tap the numbers from biggest to smallest!' : 'Tap the numbers from smallest to biggest!', this.muted);
 
     this.timerEvent = this.time.addEvent({
       delay: 1000,
@@ -560,6 +546,8 @@ this.nextChip = this.createLastTappedChip(width / 2, 152);
   showComplete() {
     const { width, height } = this.scale;
     const level = this.level;
+
+    speak('Good job!', this.muted);
 
     // Award the star + unlock the next level before anything below reads
     // progress back out (the total-stars chip, the "Next Level" button's
