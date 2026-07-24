@@ -318,7 +318,7 @@ function Game5Inner() {
     <div className="relative h-[100dvh] w-full overflow-hidden bg-gradient-to-b from-[#3FB6EA] via-[#8FE0FA] to-[#F4D9A0]">
       <link
         rel="stylesheet"
-        href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;700&family=Nunito:wght@600;800&display=swap"
+        href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap"
       />
         <Helmet>
           <title>Part-Part-Whole | K1 Weekly Wonders</title>
@@ -339,7 +339,7 @@ function Game5Inner() {
         @keyframes mascot-idle { 0%, 100% { transform: rotate(-4deg) translateY(0); } 50% { transform: rotate(4deg) translateY(-5px); } }
         @keyframes twinkle { 0%, 100% { opacity: 0.35; transform: scale(0.85); } 50% { opacity: 1; transform: scale(1.1); } }
         .font-heading { font-family: 'Fredoka', sans-serif; }
-        .font-body { font-family: 'Nunito', sans-serif; }
+        .font-body { font-family: 'Fredoka', sans-serif; }
         .animate-float-slow { animation: float-slow 6s ease-in-out infinite; will-change: transform; }
         .animate-bob-slow { animation: bob-slow 4.5s ease-in-out infinite; will-change: transform; }
         .animate-pop-in { animation: pop-in 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both; }

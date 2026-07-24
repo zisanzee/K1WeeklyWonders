@@ -247,7 +247,7 @@ function Game3Inner() {
     <div className="relative min-h-[100dvh] w-full overflow-hidden bg-gradient-to-b from-[#8FE9E4] via-[#2FA8C9] to-[#123A6B]">
       <link
         rel="stylesheet"
-        href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;700&family=Nunito:wght@600;800&display=swap"
+        href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap"
       />
         <Helmet>
           <title>Around the Number | K1 Weekly Wonders</title>
@@ -267,7 +267,7 @@ function Game3Inner() {
         @keyframes rise-bubble { 0% { transform: translateY(0); opacity: 0; } 8% { opacity: 0.8; } 92% { opacity: 0.8; } 100% { transform: translateY(-115vh); opacity: 0; } }
         @keyframes swim-fish { 0% { transform: translateX(110vw); } 100% { transform: translateX(-110vw); } }
         .font-heading { font-family: 'Fredoka', sans-serif; }
-        .font-body { font-family: 'Nunito', sans-serif; }
+        .font-body { font-family: 'Fredoka', sans-serif; }
         .animate-pop-in { animation: pop-in 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
         .animate-sparkle { animation: sparkle 1.8s ease-in-out infinite; will-change: transform, opacity; }
         .animate-shake { animation: shake 0.4s ease-in-out; }
