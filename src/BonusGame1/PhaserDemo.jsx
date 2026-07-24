@@ -51,7 +51,7 @@ function PhaserDemoInner() {
   const [selectedNumber, setSelectedNumber] = useState(null);
 
   return (
-    <div className="relative flex h-[100dvh] w-full flex-col items-center overflow-hidden bg-gradient-to-b from-[#3FB6EA] via-[#8FE0FA] to-[#FFE9A8] px-3 pb-2 pt-2 sm:px-4 sm:pb-4 sm:pt-3">
+    <div className="relative flex h-[100dvh] w-full flex-col items-center overflow-hidden bg-gradient-to-b from-[#3FB6EA] via-[#8FE0FA] to-[#FFE9A8] px-2 pb-1 pt-1 sm:px-4 sm:pb-4 sm:pt-3">
       <link
         rel="stylesheet"
         href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;700&family=Nunito:wght@600;800&display=swap"
@@ -97,12 +97,12 @@ function PhaserDemoInner() {
 
       <Link
         to="/"
-        className="font-body relative z-20  flex items-center gap-1 self-start rounded-full bg-white/90  font-extrabold text-slate-700 shadow-[0_4px_0_rgba(0,0,0,0.15)] transition-transform hover:-translate-y-0.5 active:translate-y-1 active:shadow-none px-4 py-2 text-sm md:text-base"
+        className="font-body relative z-20  flex items-center gap-1 self-start rounded-full bg-white/90  font-extrabold text-slate-700 shadow-[0_4px_0_rgba(0,0,0,0.15)] transition-transform hover:-translate-y-0.5 active:translate-y-1 active:shadow-none px-3 py-1.5 text-xs sm:px-4 sm:py-2 sm:text-sm md:text-base"
       >
         ⬅️ Home
       </Link>
 
-      <div className="relative z-10 flex w-full min-h-0 flex-1 flex-col items-center justify-center max-w-2xl gap-2 md:flex-row md:items-center md:gap-6">
+      <div className="relative z-10 flex w-full min-h-0 flex-1 flex-col items-center justify-center max-w-2xl gap-1 md:flex-row md:items-center md:gap-6">
         {/* Number rail — a horizontal strip above the game on phones/tablets,
             a vertical strip along the left on wider screens. Same panel,
             just re-flowed via the grid + flex direction below. */}
@@ -110,7 +110,7 @@ function PhaserDemoInner() {
           initial={{ opacity: 0, y: -18 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.45, ease: 'easeOut' }}
-          className="font-body relative order-1 flex w-full max-w-md flex-none flex-col items-center gap-1.5 rounded-[1.5rem] bg-white/85 px-2.5 py-1.5 shadow-[0_5px_0_rgba(0,0,0,0.12)] backdrop-blur-sm sm:rounded-[1.75rem] sm:px-3 sm:py-2 md:order-none md:w-24 md:max-w-none md:flex-1 md:justify-center md:gap-3 md:self-stretch md:px-2.5 md:py-4"
+          className="font-body relative order-1 flex w-full max-w-md flex-none flex-col items-center gap-1 rounded-[1.25rem] bg-white/85 px-2 py-1 shadow-[0_5px_0_rgba(0,0,0,0.12)] backdrop-blur-sm sm:gap-1.5 sm:rounded-[1.75rem] sm:px-3 sm:py-2 md:order-none md:w-20 md:max-w-none md:flex-none md:justify-center md:gap-3 md:self-stretch md:px-2 md:py-4"
         >
           {/* Selected word — floats above the rail on mobile so it never
               adds height (and never causes scroll); sits inline in the
@@ -177,7 +177,7 @@ function PhaserDemoInner() {
           </motion.div>
         </motion.div>
 
-        <div className="flex w-full min-h-0 flex-1 items-center justify-center">
+        <div className="flex w-full min-h-0 flex-1 items-center justify-center self-stretch">
           <PhaserGame playerName={playerName} />
         </div>
       </div>

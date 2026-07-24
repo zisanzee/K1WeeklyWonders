@@ -323,7 +323,7 @@ function Game4Inner() {
     <div className="relative h-[100dvh] w-full overflow-hidden bg-gradient-to-b from-[#0B1130] via-[#1B1F52] to-[#3A2A6B]">
       <link
         rel="stylesheet"
-        href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;700&family=Nunito:wght@600;800&display=swap"
+        href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap"
       />
         <Helmet>
           <title>Splits and Groups | K1 Weekly Wonders</title>
@@ -346,7 +346,7 @@ function Game4Inner() {
         @keyframes flame { 0%, 100% { transform: scaleY(1) scaleX(1) translateY(0); opacity: 1; } 30% { transform: scaleY(1.3) scaleX(0.9) translateY(-2px); opacity: 0.9; } 60% { transform: scaleY(0.85) scaleX(1.1) translateY(1px); opacity: 1; } }
         @keyframes flame2 { 0%, 100% { transform: scaleY(0.9) scaleX(1.1) translateY(0); opacity: 0.7; } 40% { transform: scaleY(1.2) scaleX(0.85) translateY(-3px); opacity: 0.5; } 70% { transform: scaleY(1) scaleX(1) translateY(1px); opacity: 0.75; } }
         .font-heading { font-family: 'Fredoka', sans-serif; }
-        .font-body { font-family: 'Nunito', sans-serif; }
+        .font-body { font-family: 'Fredoka', sans-serif; }
         .animate-twinkle { animation: twinkle 2.4s ease-in-out infinite; will-change: opacity; }
         .animate-drift { animation: drift 7s ease-in-out infinite; will-change: transform; }
         .animate-pop-in { animation: pop-in 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
@@ -700,12 +700,12 @@ const CargoBay = React.memo(function CargoBay({ items, count, cargo, disabled, p
         `,
       }}
       className={cn(
-        'relative mt-2 flex min-h-[clamp(4rem,13vh,7rem)] w-full flex-col items-center gap-1 rounded-[1.75rem] border-4 border-dashed border-indigo-300/50 bg-white/10 p-2 pt-7 shadow-inner backdrop-blur-sm transition-shadow [@media(min-width:640px)_and_(min-height:720px)]:mt-4 [@media(min-width:640px)_and_(min-height:720px)]:gap-2 [@media(min-width:640px)_and_(min-height:720px)]:p-4 [@media(min-width:640px)_and_(min-height:720px)]:pt-8',
+        'relative mt-2 flex min-h-[clamp(4rem,13vh,7rem)] w-full flex-col items-center justify-center gap-1 overflow-hidden rounded-[1.75rem] border-4 border-dashed border-indigo-300/50 bg-white/10 p-2 pt-7 shadow-inner backdrop-blur-sm transition-shadow [@media(min-width:640px)_and_(min-height:720px)]:mt-4 [@media(min-width:640px)_and_(min-height:720px)]:min-h-[clamp(7rem,20vh,11rem)] [@media(min-width:640px)_and_(min-height:720px)]:gap-2 [@media(min-width:640px)_and_(min-height:720px)]:p-4 [@media(min-width:640px)_and_(min-height:720px)]:pt-8',
         isOver && 'border-yellow-300 bg-white/20',
         pulse && 'animate-glow-pulse'
       )}
     >
-      <span className="font-body absolute -top-3 left-4 rounded-full bg-white/90 px-3 py-0.5 text-xs font-extrabold text-slate-600 shadow [@media(min-width:640px)_and_(min-height:720px)]:text-sm">
+      <span className="font-body absolute -top-3 left-4 mt-3 rounded-full bg-white/90 px-3 py-0.5 text-xs font-extrabold text-slate-600 shadow [@media(min-width:640px)_and_(min-height:720px)]:text-sm">
         🛰️ Cargo Bay
       </span>
       <BigNumber value={count} className="text-indigo-100" />
@@ -826,12 +826,10 @@ const DraggableCargo = React.memo(function DraggableCargo({ id, emoji, rotation,
 // never reads as "the Blue rocket" by accident.
 const NumberHelper = React.memo(function NumberHelper({ selected, onSelect }) {
   return (
-    <div className="animate-pop-in mt-2 w-full max-w-2xl rounded-[1.5rem] bg-white/90 px-3 py-3 shadow-[0_6px_0_rgba(0,0,0,0.15)] [@media(min-width:640px)_and_(min-height:720px)]:mt-4 [@media(min-width:640px)_and_(min-height:720px)]:px-5 [@media(min-width:640px)_and_(min-height:720px)]:py-4">
-      <p className="font-body text-center text-xs font-bold text-slate-500 [@media(min-width:640px)_and_(min-height:720px)]:text-sm">
-        🔤 Not sure what a number looks like spelled out? Tap one to check!
-      </p>
+    <div className="animate-pop-in mt-2 w-full max-w-2xl rounded-[1.5rem] bg-white/90 px-3 py-3 shadow-[0_6px_0_rgba(0,0,0,0.15)] [@media(min-width:640px)_and_(min-height:720px)]:mt-4 [@media(min-width:640px)_and_(min-height:720px)]:max-w-xs [@media(min-width:640px)_and_(min-height:720px)]:px-4 [@media(min-width:640px)_and_(min-height:720px)]:py-3">
+      
 
-      <div className="mt-2 flex h-14 items-center justify-center [@media(min-width:640px)_and_(min-height:720px)]:h-16">
+      <div className="mt-2 flex h-14 items-center justify-center">
         <AnimatePresence mode="wait">
           {selected === null ? (
             <motion.p
@@ -853,7 +851,7 @@ const NumberHelper = React.memo(function NumberHelper({ selected, onSelect }) {
               transition={{ type: 'spring', stiffness: 500, damping: 24 }}
               className="rounded-2xl bg-indigo-50 px-5 py-1.5 shadow-inner"
             >
-              <span className="font-heading text-xl font-bold text-indigo-600 [@media(min-width:640px)_and_(min-height:720px)]:text-2xl">
+              <span className="font-heading text-xl font-bold text-indigo-600">
                 {numberWords[selected]}
               </span>
             </motion.div>
@@ -875,7 +873,7 @@ const NumberHelper = React.memo(function NumberHelper({ selected, onSelect }) {
               animate={{ scale: active ? 1.08 : 1 }}
               transition={{ type: 'spring', stiffness: 400, damping: 20 }}
               className={cn(
-                'font-heading aspect-square rounded-xl text-base font-bold shadow-sm transition-colors [@media(min-width:640px)_and_(min-height:720px)]:text-lg',
+                'font-heading aspect-square rounded-xl text-base font-bold shadow-sm transition-colors [@media(min-width:640px)_and_(min-height:720px)]:text-sm',
                 active
                   ? 'bg-indigo-500 text-white ring-4 ring-indigo-200'
                   : 'bg-slate-100 text-slate-500 hover:bg-slate-200'

@@ -210,10 +210,10 @@ export function makeItemTexture(scene, level, levelIndex, value) {
     ctx.restore();
 
     // ---------- Label badge, overlaid on the lower part of the object ----------
-    const badgeFont = level.labelType === 'word' ? 'bold 30px Fredoka, sans-serif' : 'bold 32px Fredoka, sans-serif';
+    const badgeFont = level.labelType === 'word' ? 'bold 34px Fredoka, sans-serif' : 'bold 36px Fredoka, sans-serif';
     ctx.font = badgeFont;
     const textW = ctx.measureText(label).width;
-    const badgeH = level.labelType === 'word' ? 40 : 44;
+    const badgeH = level.labelType === 'word' ? 44 : 48;
     const badgeW = Math.max(textW + 10, badgeH );
     const badgeY = c + radius * 0.62 + (level.badgeOffsetY ?? 0);
 
@@ -282,7 +282,7 @@ export function makeItemTexture(scene, level, levelIndex, value) {
     ctx.fill();
 
     // ---------- Digit, large and centered ----------
-    ctx.font = 'bold 46px Fredoka, sans-serif';
+    ctx.font = 'bold 52px Fredoka, sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.lineJoin = 'round';

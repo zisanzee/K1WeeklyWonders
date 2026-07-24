@@ -94,27 +94,27 @@ const titleStyle = {
   },
 };
 
-this.add.text(width / 2, 34, 'Tap the numbers from', {
+this.add.text(width / 2, 30, 'Tap the numbers from', {
   ...titleStyle,
-  fontSize: '28px',
+  fontSize: '34px',
   color: '#1f4f7a',
 }).setOrigin(0.5);
 
-const smallest = this.add.text(width / 2 - 110, 74, 'smallest', {
+const smallest = this.add.text(width / 2 - 128, 80, 'smallest', {
   ...titleStyle,
-  fontSize: '34px',
+  fontSize: '42px',
   color: '#4CAF50',
 }).setOrigin(0.5);
 
-this.add.text(width / 2, 74, 'to', {
+this.add.text(width / 2, 80, 'to', {
   ...titleStyle,
-  fontSize: '28px',
+  fontSize: '34px',
   color: '#1f4f7a',
 }).setOrigin(0.5);
 
-const biggest = this.add.text(width / 2 + 110, 74, 'biggest', {
+const biggest = this.add.text(width / 2 + 128, 80, 'biggest', {
   ...titleStyle,
-  fontSize: '34px',
+  fontSize: '42px',
   color: '#FF7043',
 }).setOrigin(0.5);
 
@@ -130,10 +130,10 @@ this.tweens.add({
   ease: 'Sine.InOut',
 });
 
-this.nextChip = this.createPillButton(width - 55, 100, '', {
-  fontSize: '42px',
-  minWidth: 72,
-  minHeight: 72,
+this.nextChip = this.createPillButton(width - 64, 112, '', {
+  fontSize: '50px',
+  minWidth: 86,
+  minHeight: 86,
   circle: true,
   bgColor: 0xffd93d,      // bright gold
   borderColor: 0xffffff,  // thick white rim
@@ -142,9 +142,9 @@ this.nextChip = this.createPillButton(width - 55, 100, '', {
   depth: 20,
 });
     this.timerChip = this.createPillButton(width - 22, 16, '0s', {
-      fontSize: '20px',
-      paddingX: 20,
-      paddingY: 10,
+      fontSize: '24px',
+      paddingX: 24,
+      paddingY: 13,
       anchor: 'topRight',
       interactive: false,
       depth: 15,
@@ -155,7 +155,7 @@ this.nextChip = this.createPillButton(width - 55, 100, '', {
     // minWidth here rather than relying on the emoji's measured text
     // width, which some browsers under-report for color emoji glyphs —
     // that was causing these to crowd/overlap each other.
-    const ICON_BTN_SIZE = 86;
+    const ICON_BTN_SIZE = 96;
     const ICON_BTN_GAP = 12;
 
 
@@ -163,7 +163,7 @@ this.nextChip = this.createPillButton(width - 55, 100, '', {
 
     
     this.muteBtn = this.createPillButton(16, 16, '🔊', {
-      fontSize: '24px',
+      fontSize: '28px',
       paddingX: 4,
       paddingY: 4,
       minWidth: ICON_BTN_SIZE,
@@ -192,7 +192,7 @@ this.nextChip = this.createPillButton(width - 55, 100, '', {
       emitting: false,
     }).setDepth(15);
 
-    this.physics.world.setBounds(0, 100, width, height - 110);
+    this.physics.world.setBounds(0, 160, width, height - 170);
 
     this.bubbles = this.createBubbles(width, height);
     this.physics.add.collider(this.bubbles);
@@ -210,7 +210,7 @@ this.nextChip = this.createPillButton(width - 55, 100, '', {
     const dim = this.add.rectangle(width / 2, height / 2, width, height, 0x0f3d5c, 0.35).setDepth(40);
 
     const title = this.add.text(width / 2, height / 2 - 80, `${this.level.icon} ${this.level.name}\n  Ready?`, {
-      fontSize: '34px',
+      fontSize: '40px',
       fontFamily: 'Fredoka, sans-serif',
       color: '#ffffff',
       fontStyle: 'bold',
@@ -218,9 +218,9 @@ this.nextChip = this.createPillButton(width - 55, 100, '', {
     }).setOrigin(0.5).setDepth(41);
 
     const playBtn = this.createPillButton(width / 2, height / 2 + 30, '▶️ Play', {
-      fontSize: '34px',
-      paddingX: 36,
-      paddingY: 20,
+      fontSize: '40px',
+      paddingX: 42,
+      paddingY: 24,
       bgColor: 0xffd93d,
       textColor: '#0f3d5c',
       depth: 41,
@@ -327,7 +327,7 @@ this.nextChip = this.createPillButton(width - 55, 100, '', {
       let x, y, tries = 0;
       do {
         x = Phaser.Math.Between(this.itemRadius + 10, width - this.itemRadius - 10);
-        y = Phaser.Math.Between(this.itemRadius + 110, height - this.itemRadius - 10);
+        y = Phaser.Math.Between(this.itemRadius + 165, height - this.itemRadius - 10);
         tries += 1;
       } while (
         tries < 30 &&
@@ -458,7 +458,7 @@ this.nextChip = this.createPillButton(width - 55, 100, '', {
     });
 
     const xMark = this.add.text(bubble.x, bubble.y - 50, '✗', {
-      fontSize: '34px',
+      fontSize: '40px',
       color: '#ff4d4f',
       fontStyle: 'bold',
     }).setOrigin(0.5).setScale(0).setDepth(20);
@@ -558,8 +558,8 @@ this.nextChip = this.createPillButton(width - 55, 100, '', {
     // different canvas sizes, but with a floor so it still reads as a
     // proper "complete" screen on small canvases, and a cap so it doesn't
     // swallow the whole scene on big ones.
-    const panelW = Phaser.Math.Clamp(width * 0.82, 360, 460);
-    const panelH = Phaser.Math.Clamp(height * 0.72, 520, 620);
+    const panelW = Phaser.Math.Clamp(width * 0.85, 380, 480);
+    const panelH = Phaser.Math.Clamp(height * 0.74, 560, 660);
     const panel = this.add.container(width / 2, height / 2).setDepth(56).setScale(0.3).setAlpha(0);
     const panelBg = this.add.graphics();
     panelBg.fillStyle(0xffffff, 1);
@@ -567,8 +567,8 @@ this.nextChip = this.createPillButton(width - 55, 100, '', {
     panelBg.lineStyle(7, 0xffd93d, 1);
     panelBg.strokeRoundedRect(-panelW / 2, -panelH / 2, panelW, panelH, 32);
 
-    const title = this.add.text(0, -panelH / 2 + 58, `${level.icon} ${level.name} complete!`, {
-      fontSize: '32px',
+    const title = this.add.text(0, -panelH / 2 + 60, `${level.icon} ${level.name} complete!`, {
+      fontSize: '36px',
       fontFamily: 'Fredoka, sans-serif',
       color: '#0f3d5c',
       fontStyle: 'bold',
@@ -577,13 +577,13 @@ this.nextChip = this.createPillButton(width - 55, 100, '', {
     }).setOrigin(0.5);
 
     const leftPart = this.add.text(0, 0, 'You did it in ', {
-      fontSize: '22px',
+      fontSize: '24px',
       fontFamily: 'Nunito, sans-serif',
       color: '#0f3d5c',
     }).setOrigin(0, 0.5);
 
     const scorePart = this.add.text(0, 0, `${this.elapsedSeconds} seconds`, {
-      fontSize: '34px',
+      fontSize: '38px',
       fontFamily: 'Fredoka, sans-serif',
       fontStyle: 'bold',
       color: '#ff7a00',
@@ -593,11 +593,11 @@ this.nextChip = this.createPillButton(width - 55, 100, '', {
     leftPart.setPosition(-totalWidth / 2, 0);
     scorePart.setPosition(-totalWidth / 2 + leftPart.width, 0);
 
-    const subtitle = this.add.container(0, -panelH / 2 + 128, [leftPart, scorePart]);
+    const subtitle = this.add.container(0, -panelH / 2 + 134, [leftPart, scorePart]);
 
-    const star = this.add.text(0, -panelH / 2 + 178, '⭐', { fontSize: '48px' }).setOrigin(0.5).setScale(0);
-    const starLabel = this.add.text(0, -panelH / 2 + 222, `⭐ ${totalStars()}/${LEVELS.length} stars total`, {
-      fontSize: '19px',
+    const star = this.add.text(0, -panelH / 2 + 186, '⭐', { fontSize: '52px' }).setOrigin(0.5).setScale(0);
+    const starLabel = this.add.text(0, -panelH / 2 + 232, `⭐ ${totalStars()}/${LEVELS.length} stars total`, {
+      fontSize: '22px',
       fontFamily: 'Nunito, sans-serif',
       fontStyle: 'bold',
       color: '#4a6478',
@@ -605,16 +605,16 @@ this.nextChip = this.createPillButton(width - 55, 100, '', {
 
     // Three stacked buttons: primary progression action, restart-this-level,
     // and back-to-menu — in that priority order top to bottom.
-    const BTN_MIN_W = Math.min(panelW - 60, 320);
+    const BTN_MIN_W = Math.min(panelW - 60, 340);
     let primary;
     let restartBtn;
     let secondary;
 
     if (nextUnlocked) {
-      primary = this.createPillButton(0, panelH / 2 - 210, `▶️ Next: ${LEVELS[nextIndex].name}`, {
-        fontSize: '24px',
-        paddingX: 22,
-        paddingY: 16,
+      primary = this.createPillButton(0, panelH / 2 - 222, `▶️ Next: ${LEVELS[nextIndex].name}`, {
+        fontSize: '27px',
+        paddingX: 24,
+        paddingY: 18,
         bgColor: 0x51cf66,
         textColor: '#ffffff',
         minWidth: BTN_MIN_W,
@@ -622,10 +622,10 @@ this.nextChip = this.createPillButton(width - 55, 100, '', {
       });
       primary.on('pointerdown', () => this.scene.start('NumberOrderScene', { levelIndex: nextIndex }));
     } else {
-      primary = this.createPillButton(0, panelH / 2 - 210, '🏆 All levels complete!', {
-        fontSize: '20px',
-        paddingX: 22,
-        paddingY: 16,
+      primary = this.createPillButton(0, panelH / 2 - 222, '🏆 All levels complete!', {
+        fontSize: '23px',
+        paddingX: 24,
+        paddingY: 18,
         bgColor: 0xffd93d,
         textColor: '#173b59',
         minWidth: BTN_MIN_W,
@@ -634,10 +634,10 @@ this.nextChip = this.createPillButton(width - 55, 100, '', {
       });
     }
 
-    restartBtn = this.createPillButton(0, panelH / 2 - 140, '🔄 Play Again', {
-      fontSize: '22px',
-      paddingX: 22,
-      paddingY: 14,
+    restartBtn = this.createPillButton(0, panelH / 2 - 148, '🔄 Play Again', {
+      fontSize: '25px',
+      paddingX: 24,
+      paddingY: 16,
       bgColor: 0x22b8cf,
       textColor: '#ffffff',
       minWidth: BTN_MIN_W,
@@ -645,10 +645,10 @@ this.nextChip = this.createPillButton(width - 55, 100, '', {
     });
     restartBtn.on('pointerdown', () => this.scene.restart({ levelIndex: this.levelIndex }));
 
-    secondary = this.createPillButton(0, panelH / 2 - 74, '🏠 Level Select', {
-      fontSize: '22px',
-      paddingX: 22,
-      paddingY: 14,
+    secondary = this.createPillButton(0, panelH / 2 - 78, '🏠 Level Select', {
+      fontSize: '25px',
+      paddingX: 24,
+      paddingY: 16,
       bgColor: 0xffffff,
       textColor: '#173b59',
       borderColor: 0x173b59,
