@@ -37,6 +37,55 @@ export default class NumberOrderScene extends Phaser.Scene {
     return labelForValue(this.level, value);
   }
 
+  // A single big number/word — no caption, no label — showing whatever the
+  // player just correctly tapped. Built by hand (rather than
+  // createPillButton) purely so the value text can run large and the chip
+  // can resize itself around each new value, including the longest spelled
+  // words in the word-based levels.
+  createLastTappedChip(x, y) {
+    const paddingX = 26;
+    const height = 74;
+    const minWidth = 90;
+
+    const value = this.add.text(0, 1, '–', {
+      fontSize: '40px',
+      fontFamily: 'Fredoka, sans-serif',
+      fontStyle: 'bold',
+      color: '#0f3d5c',
+    }).setOrigin(0.5);
+
+    const shadow = this.add.graphics();
+    const bg = this.add.graphics();
+    let currentBg = 0xffd93d; // bright gold, matches the rest of the UI's accent color
+
+    const redraw = () => {
+      const w = Math.max(value.width + paddingX * 2, minWidth);
+      shadow.clear();
+      bg.clear();
+      shadow.fillStyle(0x000000, 0.18);
+      shadow.fillRoundedRect(-w / 2, -height / 2 + 4, w, height, 26);
+      bg.fillStyle(currentBg, 1);
+      bg.fillRoundedRect(-w / 2, -height / 2, w, height, 26);
+      bg.lineStyle(3, 0xffffff, 1);
+      bg.strokeRoundedRect(-w / 2, -height / 2, w, height, 26);
+    };
+    redraw();
+
+    const container = this.add.container(x, y, [shadow, bg, value]).setDepth(20);
+
+    return {
+      container,
+      setValue: (label) => {
+        value.setText(label);
+        redraw();
+      },
+      setBg: (colorHex) => {
+        currentBg = colorHex;
+        redraw();
+      },
+    };
+  }
+
   create() {
     const { width, height } = this.scale;
     const level = this.level;
@@ -44,7 +93,11 @@ export default class NumberOrderScene extends Phaser.Scene {
     this.itemRadius = level.itemRadius;
     this.textureSize = (this.itemRadius + TEXTURE_PADDING) * 2;
 
-    this.nextExpected = 1;
+    // 'asc' levels count 1 -> totalNumbers; 'desc' levels count the other
+    // way, totalNumbers -> 1. Falls back to 'asc' if a level config is
+    // ever missing the field.
+    this.direction = level.direction === 'desc' ? 'desc' : 'asc';
+    this.nextExpected = this.direction === 'asc' ? 1 : level.totalNumbers;
     this.elapsedSeconds = 0;
     this.mistakes = 0;
     this.finished = false;
@@ -96,33 +149,50 @@ const titleStyle = {
 
 this.add.text(width / 2, 30, 'Tap the numbers from', {
   ...titleStyle,
-  fontSize: '34px',
+  fontSize: '48px',
   color: '#1f4f7a',
 }).setOrigin(0.5);
 
-const smallest = this.add.text(width / 2 - 128, 80, 'smallest', {
+// 'smallest' always renders green/smaller, 'biggest' always renders
+// orange/bigger — only which SIDE (and which is first vs second) changes
+// with the level's direction, so ascending levels read "smallest to
+// biggest" and descending ones read "biggest to smallest".
+const isDesc = this.direction === 'desc';
+const wordStyle = {
+  smallest: { fontSize: '42px', color: '#4CAF50' },
+  biggest: { fontSize: '58px', color: '#FF7043' },
+};
+const firstWord = isDesc ? 'biggest' : 'smallest';
+const secondWord = isDesc ? 'smallest' : 'biggest';
+
+const firstLabel = this.add.text(0, 80, firstWord, {
   ...titleStyle,
-  fontSize: '42px',
-  color: '#4CAF50',
+  ...wordStyle[firstWord],
 }).setOrigin(0.5);
 
-this.add.text(width / 2, 80, 'to', {
+const toLabel = this.add.text(width / 2, 80, 'to', {
   ...titleStyle,
-  fontSize: '34px',
+  fontSize: '48px',
   color: '#1f4f7a',
 }).setOrigin(0.5);
 
-const biggest = this.add.text(width / 2 + 128, 80, 'biggest', {
+const secondLabel = this.add.text(0, 80, secondWord, {
   ...titleStyle,
-  fontSize: '42px',
-  color: '#FF7043',
+  ...wordStyle[secondWord],
 }).setOrigin(0.5);
+
+// Fixed offsets (width/2 ± 140) worked fine when "biggest" only ever sat
+// on the right, but once it can land on the left too its wider 58px glyph
+// ate into the gap before "to". Spacing both words off "to"'s own
+// *measured* width/gap instead keeps an even, consistent gap on both
+// sides no matter which word (and which font size) lands on which side.
+const wordGap = 22;
+firstLabel.setX(toLabel.x - toLabel.width / 2 - wordGap - firstLabel.width / 2);
+secondLabel.setX(toLabel.x + toLabel.width / 2 + wordGap + secondLabel.width / 2);
 
 // Gentle idle animation
-[this.add, smallest, biggest];
-
 this.tweens.add({
-  targets: [smallest, biggest],
+  targets: [firstLabel, secondLabel],
   scale: { from: 1, to: 1.06 },
   duration: 700,
   yoyo: true,
@@ -130,17 +200,13 @@ this.tweens.add({
   ease: 'Sine.InOut',
 });
 
-this.nextChip = this.createPillButton(width - 64, 112, '', {
-  fontSize: '50px',
-  minWidth: 86,
-  minHeight: 86,
-  circle: true,
-  bgColor: 0xffd93d,      // bright gold
-  borderColor: 0xffffff,  // thick white rim
-  textColor: '#0f3d5c',
-  interactive: false,
-  depth: 20,
-});
+// Centered under the title rather than tucked in the top-left corner —
+// that spot used to collide with the mute button (both were fighting
+// over the same top-left corner), and centering also gives it room to
+// grow for the longest spelled-out words ("Seven", "Eight") without
+// running off the left edge of the canvas.
+this.nextChip = this.createLastTappedChip(width / 2, 152);
+
     this.timerChip = this.createPillButton(width - 22, 16, '0s', {
       fontSize: '24px',
       paddingX: 24,
@@ -192,7 +258,12 @@ this.nextChip = this.createPillButton(width - 64, 112, '', {
       emitting: false,
     }).setDepth(15);
 
-    this.physics.world.setBounds(0, 160, width, height - 170);
+    // The next-up chip now sits at y=152 (bottom edge ~183) with the title
+    // above it, so the safe top boundary for bubbles is a bit lower than
+    // before (was 160) — this trims a little height off the top of the
+    // play area rather than let bubbles spawn or drift up underneath it.
+    this.playAreaTop = 191;
+    this.physics.world.setBounds(0, this.playAreaTop, width, height - this.playAreaTop - 10);
 
     this.bubbles = this.createBubbles(width, height);
     this.physics.add.collider(this.bubbles);
@@ -327,7 +398,7 @@ this.nextChip = this.createPillButton(width - 64, 112, '', {
       let x, y, tries = 0;
       do {
         x = Phaser.Math.Between(this.itemRadius + 10, width - this.itemRadius - 10);
-        y = Phaser.Math.Between(this.itemRadius + 165, height - this.itemRadius - 10);
+        y = Phaser.Math.Between(this.itemRadius + this.playAreaTop + 5, height - this.itemRadius - 10);
         tries += 1;
       } while (
         tries < 30 &&
@@ -385,21 +456,27 @@ this.nextChip = this.createPillButton(width - 64, 112, '', {
     if (this.locked || this.finished || !bubble.active) return;
 
     if (bubble.value === this.nextExpected) {
+      const justTapped = this.nextExpected;
       this.popBubble(bubble);
-      this.nextExpected += 1;
 
-      if (this.nextExpected > this.level.totalNumbers) {
+      this.nextChip.setValue(this.labelFor(justTapped));
+      this.tweens.add({
+        targets: this.nextChip.container,
+        scale: { from: 1.3, to: 1 },
+        duration: 240,
+        ease: 'Back.Out',
+      });
+
+      this.nextExpected += this.direction === 'asc' ? 1 : -1;
+
+      const isDone = this.direction === 'asc'
+        ? this.nextExpected > this.level.totalNumbers
+        : this.nextExpected < 1;
+
+      if (isDone) {
         this.finished = true;
         this.timerEvent.remove();
         this.time.delayedCall(300, () => this.showComplete());
-      } else {
-        this.nextChip.setText(`${this.labelFor(this.nextExpected - 1)}`);
-        this.tweens.add({
-          targets: this.nextChip.container,
-          scale: { from: 1.3, to: 1 },
-          duration: 240,
-          ease: 'Back.Out',
-        });
       }
     } else {
       this.wrongTap(bubble);
@@ -476,7 +553,7 @@ this.nextChip = this.createPillButton(width - 64, 112, '', {
     this.nextChip.setBg(0xff4d4f);
     this.time.delayedCall(200, () => {
       if (bubble.active) bubble.clearTint();
-      this.nextChip.setBg(0xffffff);
+      this.nextChip.setBg(0xffd93d);
     });
   }
 
