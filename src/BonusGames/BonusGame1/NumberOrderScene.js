@@ -35,6 +35,7 @@ function speak(text, muted = false) {
     speakAudioCache[text] = audio;
   }
 
+  audio.volume = 0.65; // was defaulting to 1.0 (full volume)
   audio.currentTime = 0;
   audio.play().catch((err) => {
     console.warn('[speak] playback failed:', err);
@@ -367,7 +368,7 @@ export default class NumberOrderScene extends BaseScene {
     // scene.restart() re-runs create(), and without this a second overlap
     // would start playing alongside the new one.
     this.sound.removeByKey('bgMusic');
-    this.bgMusic = this.sound.add('bgMusic', { loop: true, volume: 0.32 });
+    this.bgMusic = this.sound.add('bgMusic', { loop: true, volume: 0.62 });
 
     this.addSkyBackground(level, `bg-${level.key}`);
     this.addDriftingClouds([
