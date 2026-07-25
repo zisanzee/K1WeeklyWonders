@@ -1,21 +1,29 @@
-// Game.jsx — TODO: fill in Bubble Shooter's real asset manifest. Structure
-// mirrors BonusGame1/Game.jsx exactly, since both sit on the same shared
-// Phaser/BaseGame + Phaser/BasePreloadScene framework.
+// Game.jsx
 import BaseGame from '../../Phaser/BaseGame';
 import BasePreloadScene from '../../Phaser/BasePreloadScene';
-import BubbleShooterScene from './BubbleShooterScene';
+import LevelSelectScene from './LevelSelectScene';
+import CompareDiceScene from './CompareDiceScene';
+import { ASSET_MANIFEST } from './assets';
 import { logPlaySession } from '../../logPlaySession';
 
-const ASSETS = [
-  // { type: 'audio', key: 'pop', url: '/PhaserAssets/...' },
-];
-
 export default function Game({ playerName }) {
+  // Factory (not a static array) — BaseGame calls this once per mount so a
+  // fresh set of scene instances is created each time.
   const buildScenes = () => [
-    new BasePreloadScene({ key: 'PreloadScene', assets: ASSETS, nextSceneKey: 'BubbleShooterScene' }),
-    new BubbleShooterScene(),
+    new BasePreloadScene({
+      key: 'PreloadScene',
+      assets: ASSET_MANIFEST,
+      nextSceneKey: 'LevelSelectScene',
+      loadingEmoji: '🎲',
+      loadingText: 'Getting the dice ready...',
+    }),
+    new LevelSelectScene(),
+    new CompareDiceScene(),
   ];
 
+  // Fires once per finished level (pass or fail) — see finishLevel() in
+  // CompareDiceScene.js. stars/totalRounds scale with level progress the
+  // same way BonusGame1 does it (Level 1 -> 1/1, Level 2 -> 2/2).
   const handleComplete = (payload, currentPlayerName) => {
     logPlaySession({
       game: 'bonusGame2',
@@ -28,7 +36,7 @@ export default function Game({ playerName }) {
     <BaseGame
       playerName={playerName}
       buildScenes={buildScenes}
-      completeEventName="bubbleshooter-complete"
+      completeEventName="comparedice-complete"
       onComplete={handleComplete}
     />
   );

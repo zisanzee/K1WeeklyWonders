@@ -112,10 +112,11 @@ function PhaserDemoInner() {
           transition={{ duration: 0.45, ease: 'easeOut' }}
           className="font-body relative order-1 flex w-full max-w-md flex-none flex-col items-center gap-1 rounded-[1.25rem] bg-white/85 px-2 py-1 shadow-[0_5px_0_rgba(0,0,0,0.12)] backdrop-blur-sm sm:gap-1.5 sm:rounded-[1.75rem] sm:px-3 sm:py-2 md:order-none md:w-20 md:max-w-none md:flex-none md:justify-center md:gap-3 md:self-stretch md:px-2 md:py-4"
         >
-          {/* Selected word — floats above the rail on mobile so it never
-              adds height (and never causes scroll); sits inline in the
-              flow on the desktop rail, where there's room to spare. */}
-          <div className="pointer-events-none absolute -top-7 left-1/2 -translate-x-1/2 md:static md:order-first md:flex md:h-9 md:translate-x-0 md:items-center md:justify-center">
+          {/* Selected word — always reserves its own slot at the top of the
+              rail (in-flow, not floated) so it can never drift into the
+              game canvas below it, no matter how much vertical space the
+              browser/nav chrome eats into the viewport. */}
+          <div className="pointer-events-none relative z-10 order-first flex h-7 w-full flex-none items-center justify-center sm:h-8 md:h-9">
             <AnimatePresence mode="wait">
               {selectedNumber !== null && (
                 <motion.span

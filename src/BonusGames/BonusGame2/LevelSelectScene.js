@@ -1,0 +1,113 @@
+// LevelSelectScene.js
+import * as Phaser from 'phaser';
+import BaseScene from '../../Phaser/BaseScene';
+import { LEVELS, progress } from './levels';
+import { ensureBgMusic, addMuteButton } from './audioState';
+
+export default class LevelSelectScene extends BaseScene {
+  constructor() {
+    super('LevelSelectScene');
+  }
+
+  create() {
+    const { width, height } = this.scale;
+
+    ensureBgMusic(this);
+
+    // Real background art (per the design note: same image, tinted
+    // differently per context) — neutral/untinted here since the menu
+    // isn't "in" either level yet. Anchored from the TOP (originY: 0)
+    // rather than centered, so a cover-fit crop only trims the bottom of
+    // the art instead of trimming top and bottom equally — keeps the
+    // banner/chalkboard framing at the top fully visible.
+    const bg = this.add.image(width / 2, 0, 'background').setOrigin(0.5, 0).setDepth(0);
+    const cover = Math.max(width / bg.width, height / bg.height);
+    bg.setScale(cover);
+
+    const title = this.add.text(width / 2, 64, 'BIGGER OR SMALLER?', {
+      fontSize: '38px',
+      fontFamily: 'Fredoka',
+      fontStyle: '900',
+      color: '#FFE14A',
+      stroke: '#1E4F8A',
+      strokeThickness: 8,
+      align: 'center',
+      wordWrap: { width: width - 60 },
+    }).setOrigin(0.5);
+    title.setShadow(0, 6, '#18406f', 0, false, true);
+    this.tweens.add({
+      targets: title, angle: 2, duration: 1200, yoyo: true, repeat: -1, ease: 'Sine.InOut',
+    });
+
+    this.createPillButton(width - 16, 16, `⭐ ${progress.totalStars()}/${LEVELS.length}`, {
+      fontSize: '20px', paddingX: 16, paddingY: 10, anchor: 'topRight', interactive: false, depth: 15,
+    });
+    addMuteButton(this, 16, 16, { anchor: 'topLeft' });
+
+    const stars = progress.getAllStars();
+    const cardW = Math.min(420, width - 80);
+    const cardH = 240;
+    const gapY = 30;
+    const startY = 190;
+
+    LEVELS.forEach((level, i) => {
+      const cy = startY + i * (cardH + gapY) + cardH / 2;
+      const unlocked = progress.isLevelUnlocked(i);
+      this.buildLevelCard(width / 2, cy, cardW, cardH, level, i, unlocked, stars[i]);
+    });
+  }
+
+  buildLevelCard(cx, cy, w, h, level, index, unlocked, starEarned) {
+    const container = this.add.container(cx, cy).setDepth(10).setScale(0).setAlpha(0);
+    this.tweens.add({
+      targets: container, scale: 1, alpha: 1, delay: 150 + index * 120, duration: 380, ease: 'Back.Out',
+    });
+
+    const shadow = this.add.graphics();
+    shadow.fillStyle(0x000000, 0.15);
+    shadow.fillRoundedRect(-w / 2, -h / 2 + 5, w, h, 28);
+
+    const bg = this.add.graphics();
+    bg.fillStyle(0xffffff, unlocked ? 1 : 0.75);
+    bg.fillRoundedRect(-w / 2, -h / 2, w, h, 28);
+    bg.lineStyle(5, unlocked ? level.accentColor : 0xb9c4cc, 1);
+    bg.strokeRoundedRect(-w / 2, -h / 2, w, h, 28);
+
+    const emoji = this.add.text(-w / 2 + 70, 0, level.icon, { fontSize: '64px' }).setOrigin(0.5);
+    const name = this.add.text(-w / 2 + 150, -34, level.name, {
+      fontSize: '30px', fontFamily: 'Fredoka, sans-serif', color: '#0f3d5c', fontStyle: 'bold',
+    }).setOrigin(0, 0.5);
+    const sub = this.add.text(-w / 2 + 150, 4, level.subtitle, {
+      fontSize: '20px', fontFamily: 'Fredoka, sans-serif', color: '#4a6478', wordWrap: { width: w - 220 },
+    }).setOrigin(0, 0.5);
+    const starIcon = this.add.text(-w / 2 + 150, 42, starEarned ? '⭐ Complete!' : '☆ Not started', {
+      fontSize: '18px', fontFamily: 'Fredoka, sans-serif', color: '#8a97a3',
+    }).setOrigin(0, 0.5);
+
+    container.add([shadow, bg, emoji, name, sub, starIcon]);
+
+    if (!unlocked) {
+      const lockOverlay = this.add.rectangle(0, 0, w, h, 0x0f3d5c, 0.38).setOrigin(0.5);
+      const lock = this.add.text(w / 2 - 46, 0, '🔒', { fontSize: '40px' }).setOrigin(0.5);
+      container.add([lockOverlay, lock]);
+      return;
+    }
+
+    const hitRect = new Phaser.Geom.Rectangle(-w / 2, -h / 2, w, h);
+    container.setInteractive({
+      hitArea: hitRect, hitAreaCallback: Phaser.Geom.Rectangle.Contains, useHandCursor: true,
+    });
+
+    this.tweens.add({
+      targets: container, scale: { from: 1, to: 1.02 }, duration: 950 + index * 100, delay: 600, yoyo: true, repeat: -1, ease: 'Sine.easeInOut',
+    });
+
+    container.on('pointerdown', () => {
+      this.tweens.killTweensOf(container);
+      this.tweens.add({ targets: container, scale: 0.96, duration: 80 });
+    });
+    container.on('pointerup', () => {
+      this.scene.start('CompareDiceScene', { levelIndex: index });
+    });
+  }
+}

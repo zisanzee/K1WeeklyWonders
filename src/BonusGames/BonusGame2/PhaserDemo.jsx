@@ -1,13 +1,12 @@
-// PhaserDemo.jsx — TODO: build Bubble Shooter's real hosting page (side
-// rail, decorations, etc., following BonusGame1/PhaserDemo.jsx). This is a
-// minimal placeholder wired up to the shared framework so the game boots.
+// PhaserDemo.jsx
+import { Link } from 'react-router-dom';
 import Game from './Game';
 import NameGate from '../../NameGate';
 import { usePlayerStore } from '../../playerStore';
 
 export default function PhaserDemo() {
   return (
-    <NameGate gameLabel="Bonus Game: Bubble Shooter">
+    <NameGate gameLabel="Bonus Game: Compare Dice & Domino">
       <PhaserDemoInner />
     </NameGate>
   );
@@ -15,9 +14,24 @@ export default function PhaserDemo() {
 
 function PhaserDemoInner() {
   const playerName = usePlayerStore((s) => s.playerName);
+
   return (
-    <div className="flex h-[100dvh] w-full items-center justify-center bg-sky-100">
-      <Game playerName={playerName} />
+    <div className="relative flex h-[100dvh] w-full flex-col items-center overflow-hidden bg-gradient-to-b from-[#3FB6EA] via-[#8FE0FA] to-[#FFE9A8] px-2 pb-2 pt-2 sm:px-4 sm:pb-4 sm:pt-3">
+      <link
+        rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;700&family=Nunito:wght@600;800&display=swap"
+      />
+
+      <Link
+        to="/"
+        className="font-body relative z-20 flex items-center gap-1 self-start rounded-full bg-white/90 font-extrabold text-slate-700 shadow-[0_4px_0_rgba(0,0,0,0.15)] transition-transform hover:-translate-y-0.5 active:translate-y-1 active:shadow-none px-3 py-1.5 text-xs sm:px-4 sm:py-2 sm:text-sm md:text-base"
+      >
+        ⬅️ Home
+      </Link>
+
+      <div className="relative z-10 flex w-full min-h-0 flex-1 items-center justify-center">
+        <Game playerName={playerName} />
+      </div>
     </div>
   );
 }
