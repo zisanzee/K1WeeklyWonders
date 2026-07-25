@@ -8,8 +8,38 @@ import {
   makeConfettiTexture,
   makeConfettiSquareTexture,
 } from '../../Phaser/common/sceneAssets';
-import { speak } from '../../Phaser/common/speech';
 import { LEVELS, labelForValue, progress } from './levels';
+import { AUDIO } from './assets';
+
+// ---------------------------------------------------------------------
+// Audio-file based replacement for the old speechSynthesis `speak()`.
+// Looks the given line up in the AUDIO manifest (assets.js) and plays
+// the matching mp3 via a plain HTML5 Audio element. Elements are cached
+// per line so repeat calls (e.g. "Good job!" on every correct tap)
+// don't recreate a new Audio object each time.
+// ---------------------------------------------------------------------
+const speakAudioCache = {};
+
+function speak(text, muted = false) {
+  if (muted) return;
+
+  const src = AUDIO[text];
+  if (!src) {
+    console.warn(`[speak] No audio mapped for line: "${text}"`);
+    return;
+  }
+
+  let audio = speakAudioCache[text];
+  if (!audio) {
+    audio = new Audio(src);
+    speakAudioCache[text] = audio;
+  }
+
+  audio.currentTime = 0;
+  audio.play().catch((err) => {
+    console.warn('[speak] playback failed:', err);
+  });
+}
 
 const TEXTURE_PADDING = 4;
 const SPLAT_HOLD_MS = 3000; // how long a splat sits at full strength before fading

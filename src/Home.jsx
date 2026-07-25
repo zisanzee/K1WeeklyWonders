@@ -7,6 +7,7 @@ import { usePlayerStore } from "./playerStore";
 import { isGameUnlocked } from "./gameAccess";
 import { fetchSummary } from "./logPlaySession";
 import { Helmet } from "react-helmet-async";
+import NextGameTimer from "./NextGameTimer";
 
 export default function Home() {
   return (
@@ -246,6 +247,8 @@ function HomeContent() {
 
       {/* Content */}
       <div className="relative z-10 flex flex-1 flex-col items-center justify-center px-4 py-10 sm:px-8">
+       <NextGameTimer />
+       
         {/* Title */}
         <div className="animate-pop-in text-center">
           <h1 className="font-heading text-[clamp(2.4rem,7vw,6rem)] font-bold leading-tight drop-shadow-[0_4px_0_rgba(0,0,0,0.15)]">
