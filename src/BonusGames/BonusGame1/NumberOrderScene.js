@@ -35,7 +35,7 @@ function speak(text, muted = false) {
     speakAudioCache[text] = audio;
   }
 
-  audio.volume = 0.65; // was defaulting to 1.0 (full volume)
+  audio.volume = 0.55; // was defaulting to 1.0 (full volume)
   audio.currentTime = 0;
   audio.play().catch((err) => {
     console.warn('[speak] playback failed:', err);
