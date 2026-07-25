@@ -23,7 +23,7 @@ function getTimeParts(target) {
   };
 }
 
-export default function NextGameTimer() {
+export default function NextGameTimer({ withTopOffset = false }) {
   const [target, setTarget] = useState(getNextFriday);
   const [parts, setParts] = useState(() => getTimeParts(target));
 
@@ -54,7 +54,9 @@ export default function NextGameTimer() {
       initial={{ opacity: 0, y: -16 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5 }}
-      className="relative z-20 mx-auto flex w-fit max-w-[94vw] flex-wrap items-center justify-center gap-1.5 rounded-full border border-white/40 bg-white/85 px-3 py-1.5 shadow-[0_4px_0_rgba(0,0,0,0.1)] backdrop-blur-md sm:gap-3 sm:px-5 sm:py-2.5"
+      className={`relative z-20 mx-auto flex w-fit max-w-[94vw] flex-wrap items-center justify-center gap-1.5 rounded-full border border-white/40 bg-white/85 px-3 py-1.5 shadow-[0_4px_0_rgba(0,0,0,0.1)] backdrop-blur-md sm:gap-3 sm:px-5 sm:py-2.5 ${
+        withTopOffset ? "mt-12 sm:mt-0" : ""
+      }`}
     >
       <span className="text-base sm:text-xl">🎉</span>
       <span className="font-body text-[0.7rem] font-extrabold text-slate-700 sm:text-sm">

@@ -3,11 +3,11 @@ import { Link } from "react-router-dom";
 import { motion } from "motion/react";
 import StatsPanel from "./StatsPanel";
 import NameGate from "./NameGate";
+import NextGameTimer from "./NextGameTimer";
 import { usePlayerStore } from "./playerStore";
 import { isGameUnlocked } from "./gameAccess";
 import { fetchSummary } from "./logPlaySession";
 import { Helmet } from "react-helmet-async";
-import NextGameTimer from "./NextGameTimer";
 
 export default function Home() {
   return (
@@ -247,10 +247,10 @@ function HomeContent() {
 
       {/* Content */}
       <div className="relative z-10 flex flex-1 flex-col items-center justify-center px-4 py-10 sm:px-8">
-       <NextGameTimer />
-       
+        <NextGameTimer withTopOffset={isTeacher} />
+
         {/* Title */}
-        <div className="animate-pop-in text-center">
+        <div className="animate-pop-in mt-4 text-center">
           <h1 className="font-heading text-[clamp(2.4rem,7vw,6rem)] font-bold leading-tight drop-shadow-[0_4px_0_rgba(0,0,0,0.15)]">
             <span className="inline-block animate-wiggle text-yellow-300">K1</span>{" "}
             <span className="text-[#FFF6DA]">Weekly</span>{" "}
