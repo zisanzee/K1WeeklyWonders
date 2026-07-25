@@ -14,7 +14,7 @@ const Game1 = lazy(() => import("./Game1"));
 const Game2 = lazy(() => import("./Game2"));
 const Game3 = lazy(() => import("./Game3"));
 const Game4 = lazy(() => import("./Game4"));
-const PhaserDemo = lazy(() => import("./BonusGame1/PhaserDemo"));
+const PhaserDemo = lazy(() => import("./BonusGames/BonusGame1/PhaserDemo"));
 
 function GameLoading() {
   return (

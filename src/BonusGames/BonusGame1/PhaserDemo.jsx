@@ -1,8 +1,8 @@
 // PhaserDemo.jsx
 import { Link } from 'react-router-dom';
-import PhaserGame from './PhaserGame';
-import NameGate from '../NameGate';
-import { usePlayerStore } from '../playerStore';
+import Game from './Game';
+import NameGate from '../../NameGate';
+import { usePlayerStore } from '../../playerStore';
 import { useState } from 'react';
 
 import { motion, AnimatePresence } from "motion/react";
@@ -178,7 +178,7 @@ function PhaserDemoInner() {
         </motion.div>
 
         <div className="flex w-full min-h-0 flex-1 items-center justify-center self-stretch">
-          <PhaserGame playerName={playerName} />
+          <Game playerName={playerName} />
         </div>
       </div>
     </div>

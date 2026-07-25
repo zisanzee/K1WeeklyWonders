@@ -14,7 +14,6 @@
     rgba(0, 0, 0, 0.1) 0 10px 15px -3px,
     rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
 
-
   font: 18px/145% var(--sans);
   letter-spacing: 0.18px;
   color-scheme: light dark;
@@ -32,6 +31,7 @@
     font-size: 16px;
   }
 }
+
 html,
 body,
 #root {
@@ -115,6 +115,28 @@ body {
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
+
+  /* FIREFOX & ZEN BROWSER SCROLLBAR */
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+/* EDGE & CHROME SCROLLBAR */
+#root::-webkit-scrollbar {
+  width: 8px;
+}
+
+#root::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+#root::-webkit-scrollbar-thumb {
+  background-color: var(--border);
+  border-radius: 4px;
+}
+
+#root::-webkit-scrollbar-thumb:hover {
+  background-color: var(--text);
 }
 
 /*

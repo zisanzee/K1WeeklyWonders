@@ -21,10 +21,20 @@ import { usePlayerStore } from './playerStore';
 import { logPlaySession } from './logPlaySession';
 import { Helmet } from 'react-helmet-async';
 
-const TOTAL_ROUNDS = 12; // 3 free-split + 5 even-split + 4 target-split rounds
+const TOTAL_ROUNDS = 10; // 3 free-split + 2 even-split + 5 target-split rounds
 const FREE_TOTALS = [3, 4, 5];
-const HALF_TOTALS = [2, 4, 2, 4, 2];
-const TARGET_TOTALS = [2, 3, 4, 5];
+const HALF_TOTALS = [2, 4]; // only 2 and 4 split evenly within the friendly 1-5 range
+// Target-split rounds as [targetA, targetB] pairs. Only totals 2-5 fit the
+// friendly range (a total of 1 can't fill both rockets), so to reach 5
+// rounds without repeating a *combo*, total 4 is reused once with a
+// different split (1+3, then 2+2).
+const TARGET_PAIRS = [
+  [1, 1],
+  [1, 2],
+  [1, 3],
+  [2, 3],
+  [2, 2],
+];
 const numberWords = [
   "One",
   "Two",
@@ -56,10 +66,6 @@ function shuffle(arr) {
   return a;
 }
 
-function randInt(min, max) {
-  return Math.floor(Math.random() * (max - min + 1)) + min;
-}
-
 function speak(text, muted) {
   if (muted || typeof window === 'undefined' || !('speechSynthesis' in window)) return;
   window.speechSynthesis.cancel();
@@ -69,12 +75,12 @@ function speak(text, muted) {
   window.speechSynthesis.speak(utterance);
 }
 
-// Rounds 0-2: any two-way split. Rounds 3-7: split exactly in half (Red and
-// Blue must match). Rounds 8-11: load a specific target pair with totals kept
+// Rounds 0-2: any two-way split. Rounds 3-4: split exactly in half (Red and
+// Blue must match). Rounds 5-9: load a specific target pair with totals kept
 // inside the friendly 1-5 range.
 function modeForRound(index) {
   if (index < 3) return 'free';
-  if (index < 8) return 'half';
+  if (index < 5) return 'half';
   return 'target';
 }
 
@@ -87,7 +93,8 @@ function totalForRound(index, mode) {
   if (mode === 'half') {
     return HALF_TOTALS[index - 3];
   }
-  return TARGET_TOTALS[index - 8];
+  const [a, b] = TARGET_PAIRS[index - 5];
+  return a + b;
 }
 
 function generateRound(index, prevCargoKey) {
@@ -101,8 +108,7 @@ function generateRound(index, prevCargoKey) {
     targetA = total / 2;
     targetB = total / 2;
   } else if (mode === 'target') {
-    targetA = randInt(1, total - 1);
-    targetB = total - targetA;
+    [targetA, targetB] = TARGET_PAIRS[index - 5];
   }
   const items = Array.from({ length: total }, (_, i) => ({
     id: `r${index}-${i}-${Math.random().toString(36).slice(2, 7)}`,
@@ -388,7 +394,7 @@ function Game4Inner() {
               <p className="font-body text-[11px] font-bold text-white/80 [@media(min-width:640px)_and_(min-height:720px)]:text-xs">
                 Mission {roundIndex + 1} of {TOTAL_ROUNDS}
               </p>
-              <RoundDots total={TOTAL_ROUNDS} current={roundIndex} markers={[3, 8]} />
+              <RoundDots total={TOTAL_ROUNDS} current={roundIndex} markers={[3, 5]} />
             </div>
 
             <div className="mt-1 flex items-center justify-center gap-3 [@media(min-width:640px)_and_(min-height:720px)]:mt-2 [@media(min-width:640px)_and_(min-height:720px)]:gap-4">

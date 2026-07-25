@@ -1,9 +1,7 @@
 // LevelSelectScene.js
 import * as Phaser from 'phaser';
-import { LEVELS } from './levels';
-import { createPillButton } from './uiHelpers';
-import { makeCloudTexture, makeBackgroundTexture } from './sceneAssets';
-import { getAllStars, isLevelUnlocked, totalStars } from './starProgress';
+import BaseScene from '../../Phaser/BaseScene';
+import { LEVELS, progress } from './levels';
 
 // A neutral sky theme for the menu itself, independent of any one level.
 const MENU_THEME = {
@@ -11,7 +9,7 @@ const MENU_THEME = {
   groundColor: 'rgba(111, 207, 87, 0.85)',
 };
 
-export default class LevelSelectScene extends Phaser.Scene {
+export default class LevelSelectScene extends BaseScene {
   constructor() {
     super('LevelSelectScene');
   }
@@ -19,24 +17,11 @@ export default class LevelSelectScene extends Phaser.Scene {
   create() {
     const { width, height } = this.scale;
 
-    const bgKey = makeBackgroundTexture(this, width, height, MENU_THEME, 'bg-menu');
-    this.add.image(width / 2, height / 2, bgKey);
-
-    const cloudKey = makeCloudTexture(this);
-    [
-      [0.22, 0.055, 0.8],
-      [0.72, 0.09, 1.05],
-    ].forEach(([xr, yr, scale], i) => {
-      const cloud = this.add.image(width * xr, height * yr, cloudKey).setScale(scale).setAlpha(0.8);
-      this.tweens.add({
-        targets: cloud,
-        x: cloud.x + (i % 2 === 0 ? 22 : -18),
-        duration: 6500 + i * 1200,
-        yoyo: true,
-        repeat: -1,
-        ease: 'Sine.easeInOut',
-      });
-    });
+    this.addSkyBackground(MENU_THEME, 'bg-menu');
+    this.addDriftingClouds([
+      { xr: 0.22, yr: 0.055, scale: 0.8, alpha: 0.8, driftX: 22, duration: 6500 },
+      { xr: 0.72, yr: 0.09, scale: 1.05, alpha: 0.8, driftX: -18, duration: 7700 },
+    ]);
 
 const title = this.add.text(width / 2, 56, 'NUMBER POP!', {
   fontSize: '44px',
@@ -69,7 +54,7 @@ this.tweens.add({
   ease: 'Sine.InOut',
 });
 
-    createPillButton(this, width - 16, 16, `⭐ ${totalStars()}/${LEVELS.length}`, {
+    this.createPillButton(width - 16, 16, `⭐ ${progress.totalStars()}/${LEVELS.length}`, {
       fontSize: '20px',
       paddingX: 16,
       paddingY: 10,
@@ -78,7 +63,7 @@ this.tweens.add({
       depth: 15,
     });
 
-    const stars = getAllStars();
+    const stars = progress.getAllStars();
     const cardW = Math.min(290, (width - 60) / 2);
     const cardH = 230;
     const gapX = 20;
@@ -92,7 +77,7 @@ this.tweens.add({
       const row = Math.floor(i / 2);
       const cx = startX + col * (cardW + gapX) + cardW / 2;
       const cy = startY + row * (cardH + gapY) + cardH / 2;
-      const unlocked = isLevelUnlocked(i);
+      const unlocked = progress.isLevelUnlocked(i);
       this.buildLevelCard(cx, cy, cardW, cardH, level, i, unlocked, stars[i]);
     });
   }

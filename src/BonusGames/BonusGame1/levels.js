@@ -5,6 +5,8 @@
 // both read from this array instead of hard-coding any of it, so adding a
 // 5th level later just means pushing one more entry here.
 
+import { createStarProgress } from '../../Phaser/common/starProgress';
+
 export const NUMBER_WORDS = [
   'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten',
 ];
@@ -30,7 +32,6 @@ export const LEVELS = [
     key: 'level2',
     name: 'Level 2',
     subtitle: 'Numbers 1–10',
-    
     icon: '🍎',
     title: 'Tap the number from biggest to smallest  🍎',
     direction: 'desc',
@@ -57,7 +58,7 @@ export const LEVELS = [
     totalNumbers: 10,
     labelType: 'word',
     itemRadius: 62,
-    objectEmojis: ['🌸',  '🌺', '🪷'],
+    objectEmojis: ['🌸', '🌺', '🪷'],
     palette: [0xff6fa8, 0xb96bf0, 0xff8fc7, 0xff5c8a, 0xc65cd9],
     bgColors: ['#f9a8d4', '#fbcfe8', '#fff1f8'],
     groundColor: 'rgba(150, 190, 110, 0.6)',
@@ -67,14 +68,14 @@ export const LEVELS = [
     key: 'level4',
     name: 'Level 4',
     subtitle: 'Spelled words 1–10',
-     badgeOffsetY: -12,
+    badgeOffsetY: -12,
     icon: '🐠',
     title: 'Tap the number from biggest to smallest  🐠',
     direction: 'desc',
     totalNumbers: 10,
     labelType: 'word',
     itemRadius: 62,
-    objectEmojis: ['🐠',  '🐡', '🐟'],
+    objectEmojis: ['🐠', '🐡', '🐟'],
     palette: [
       0x0f9dc2, 0x22b8cf, 0x3bc9db, 0x4dabf7, 0x66d9e8,
       0x20c997, 0x38d9a9, 0x4dc9c9, 0x0ea5b7, 0x5eead4,
@@ -92,3 +93,12 @@ export function labelForValue(level, value) {
   }
   return String(value);
 }
+
+// One shared progress instance for this game — LevelSelectScene and
+// NumberOrderScene both import `progress` from here rather than each
+// building their own, so they always read/write the same localStorage
+// bucket.
+export const progress = createStarProgress({
+  storageKey: 'numberpop-progress-v1',
+  levelCount: LEVELS.length,
+});

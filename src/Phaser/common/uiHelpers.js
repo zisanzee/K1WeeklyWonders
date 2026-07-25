@@ -1,4 +1,4 @@
-// uiHelpers.js
+// Phaser/common/uiHelpers.js
 import * as Phaser from 'phaser';
 
 // ---------------------------------------------------------------------
@@ -12,8 +12,10 @@ import * as Phaser from 'phaser';
 // status chip (interactive: false) or a tappable button.
 //
 // Takes `scene` explicitly (instead of being a method that closes over
-// `this`) so both LevelSelectScene and NumberOrderScene can share one
-// implementation.
+// `this`) so it works as a bare function call from anywhere — every bonus
+// game's scenes share this one implementation. Phaser/BaseScene.js wraps
+// it as `this.createPillButton(...)` for scenes that extend it, but you
+// can also call createPillButton(scene, ...) directly.
 // ---------------------------------------------------------------------
 export function createPillButton(scene, x, y, initialLabel, opts = {}) {
   const {

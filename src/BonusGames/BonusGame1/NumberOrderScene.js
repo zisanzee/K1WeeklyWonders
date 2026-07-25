@@ -1,25 +1,258 @@
 // NumberOrderScene.js
 import * as Phaser from 'phaser';
-import { LEVELS, labelForValue } from './levels';
-import { createPillButton } from './uiHelpers';
+import BaseScene from '../../Phaser/BaseScene';
 import {
   makeBackgroundTexture,
   makeCloudTexture,
   makeSplatTexture,
   makeConfettiTexture,
   makeConfettiSquareTexture,
-  makeItemTexture,
-  makeOrderTitleTexture,
-} from './sceneAssets';
-import { completeLevel, isLevelUnlocked, totalStars } from './starProgress';
-import { speak } from './speech';
+} from '../../Phaser/common/sceneAssets';
+import { speak } from '../../Phaser/common/speech';
+import { LEVELS, labelForValue, progress } from './levels';
 
 const TEXTURE_PADDING = 4;
 const SPLAT_HOLD_MS = 3000; // how long a splat sits at full strength before fading
 const SPLAT_FADE_MS = 500;
 const POP_SOUND_KEYS = ['pop1', 'pop2', 'pop3'];
 
-export default class NumberOrderScene extends Phaser.Scene {
+function hexToCss(hex) {
+  return `#${hex.toString(16).padStart(6, '0')}`;
+}
+
+function drawRoundedRectPath(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+// ---------------------------------------------------------------------
+// Bubble/item texture — two looks depending on the level:
+//  - Levels with no objectEmojis (Level 1) keep the original plain
+//    colored bubble: drop shadow, radial lighting, white border, gloss,
+//    sparkle, digit centered.
+//  - Levels with objectEmojis (apples, flowers, sea creatures) draw the
+//    themed emoji itself AS the item — full size, no separate bubble
+//    shape underneath — with a small rounded label badge overlaid near
+//    its base showing the digit or spelled word. This is what makes the
+//    number/word read as "printed on the object" rather than tacked on
+//    as a decoration.
+// Cached per (levelIndex, value) since color/label/theme all vary by level.
+//
+// This (and makeOrderTitleTexture below) is specific to Number Pop's
+// idea of a "level" — numbered/labeled item bubbles and a "smallest to
+// biggest" title aren't a shape every future bonus game will share — so
+// unlike the generic generators in Phaser/common/sceneAssets.js, these
+// stay local to the one scene that uses them.
+// ---------------------------------------------------------------------
+function makeItemTexture(scene, level, levelIndex, value) {
+  const key = `item-${levelIndex}-${value}`;
+  if (scene.textures.exists(key)) return key;
+
+  const radius = level.itemRadius;
+  const size = (radius + TEXTURE_PADDING) * 2;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  const c = size / 2;
+  const colorHex = level.palette[(value - 1) % level.palette.length];
+  const label = labelForValue(level, value);
+
+  if (level.objectEmojis) {
+    // ---------- The object itself is the bubble ----------
+    const emoji = level.objectEmojis[(value - 1) % level.objectEmojis.length];
+
+    ctx.save();
+    ctx.shadowColor = 'rgba(0,0,0,0.25)';
+    ctx.shadowBlur = 8;
+    ctx.shadowOffsetX = 1;
+    ctx.shadowOffsetY = 3;
+    // Emoji scale is intentionally decoupled from radius growth (1.55x
+    // instead of scaling 1:1 with the bubble) so bumping itemRadius up in
+    // levels.js — to make bubbles and the label text bigger — doesn't also
+    // balloon the emoji itself.
+    ctx.font = `${Math.round(radius * 1.55)}px sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(emoji, c, c - radius * 0.05);
+    ctx.restore();
+
+    // ---------- Label badge, overlaid on the lower part of the object ----------
+    const badgeFont = level.labelType === 'word' ? 'bold 34px Fredoka, sans-serif' : 'bold 36px Fredoka, sans-serif';
+    ctx.font = badgeFont;
+    const textW = ctx.measureText(label).width;
+    const badgeH = level.labelType === 'word' ? 44 : 48;
+    const badgeW = Math.max(textW + 10, badgeH);
+    const badgeY = c + radius * 0.62 + (level.badgeOffsetY ?? 0);
+
+    ctx.save();
+    ctx.shadowColor = 'rgba(0,0,0,0.25)';
+    ctx.shadowBlur = 5;
+    ctx.shadowOffsetY = 1.5;
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.38)';
+    drawRoundedRectPath(ctx, c - badgeW / 2, badgeY - badgeH / 2, badgeW, badgeH, badgeH / 2);
+    ctx.fill();
+    ctx.restore();
+
+    drawRoundedRectPath(ctx, c - badgeW / 2, badgeY - badgeH / 2, badgeW, badgeH, badgeH / 2);
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = hexToCss(colorHex);
+    ctx.stroke();
+
+    ctx.font = badgeFont;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#173b59';
+    ctx.fillText(label, c, badgeY + 1);
+  } else {
+    // ---------- Plain colored bubble (Level 1) ----------
+    // ---------- Drop shadow ----------
+    ctx.save();
+    ctx.shadowColor = 'rgba(0,0,0,0.15)';
+    ctx.shadowBlur = 10;
+    ctx.shadowOffsetX = 1;
+    ctx.shadowOffsetY = 1;
+
+    ctx.beginPath();
+    ctx.arc(c, c, radius, 0, Math.PI * 2);
+    ctx.fillStyle = hexToCss(colorHex);
+    ctx.fill();
+    ctx.restore();
+
+    // ---------- Radial lighting ----------
+    const grad = ctx.createRadialGradient(c - radius * 0.35, c - radius * 0.4, radius * 0.18, c, c, radius);
+    grad.addColorStop(0, 'rgba(255,255,255,0.35)');
+    grad.addColorStop(0.45, 'rgba(255,255,255,0.08)');
+    grad.addColorStop(1, 'rgba(0,0,0,0.12)');
+
+    ctx.beginPath();
+    ctx.arc(c, c, radius, 0, Math.PI * 2);
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    // ---------- White border ----------
+    ctx.beginPath();
+    ctx.arc(c, c, radius - 1.5, 0, Math.PI * 2);
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+    ctx.stroke();
+
+    // ---------- Small glossy highlight ----------
+    ctx.fillStyle = 'rgba(255,255,255,0.25)';
+    ctx.beginPath();
+    ctx.ellipse(c - radius * 0.35, c - radius * 0.38, radius * 0.32, radius * 0.2, -0.4, 0, Math.PI * 2);
+    ctx.fill();
+
+    // ---------- Tiny sparkle ----------
+    ctx.fillStyle = 'rgba(255,255,255,0.9)';
+    ctx.beginPath();
+    ctx.arc(c - radius * 0.12, c - radius * 0.6, 2, 0, Math.PI * 2);
+    ctx.fill();
+
+    // ---------- Digit, large and centered ----------
+    ctx.font = 'bold 52px Fredoka, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.lineJoin = 'round';
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = '#ffffff';
+    ctx.strokeText(label, c, c + 2);
+    ctx.fillStyle = '#173b59';
+    ctx.fillText(label, c, c + 2);
+  }
+
+  scene.textures.addCanvas(key, canvas);
+  return key;
+}
+
+// ---------------------------------------------------------------------
+// "smallest to biggest" / "biggest to smallest" title line — baked into
+// a single canvas texture instead of three separate Phaser Text objects.
+// Three separate Text objects, each positioned by reading .width off the
+// *other* objects, can drift out of alignment: the very first time a
+// given font/size/weight combo is requested, the browser may still be
+// finishing loading that specific font, so Phaser's layout math and the
+// eventual painted glyphs can end up using different metrics (this is
+// what caused "biggest" and "to" to visually collide). Measuring and
+// drawing on the very same canvas 2D context sidesteps that entirely —
+// whatever font ctx.measureText() sees is exactly what ctx.fillText()
+// paints, so the gaps can never disagree with the render.
+// ---------------------------------------------------------------------
+const ORDER_WORD_STYLE = {
+  smallest: { fontSize: 42, color: '#4CAF50' },
+  biggest: { fontSize: 58, color: '#FF7043' },
+};
+const ORDER_TO_STYLE = { fontSize: 48, color: '#1f4f7a' };
+const ORDER_WORD_GAP = 22;
+const ORDER_STROKE_WIDTH = 6;
+const ORDER_STROKE_COLOR = '#ffffff';
+
+function makeOrderTitleTexture(scene, minWidth, direction, key) {
+  if (scene.textures.exists(key)) return key;
+
+  const isDesc = direction === 'desc';
+  const firstWord = isDesc ? 'biggest' : 'smallest';
+  const secondWord = isDesc ? 'smallest' : 'biggest';
+  const fontFor = (size) => `bold ${size}px Fredoka, sans-serif`;
+
+  // Measure first, on a throwaway context, before committing to a canvas
+  // size — same font strings we draw with below, so widths are exact.
+  const measureCtx = document.createElement('canvas').getContext('2d');
+  const widthOf = (text, size) => {
+    measureCtx.font = fontFor(size);
+    return measureCtx.measureText(text).width;
+  };
+  const firstWidth = widthOf(firstWord, ORDER_WORD_STYLE[firstWord].fontSize);
+  const toWidth = widthOf('to', ORDER_TO_STYLE.fontSize);
+  const secondWidth = widthOf(secondWord, ORDER_WORD_STYLE[secondWord].fontSize);
+  const totalWidth = firstWidth + ORDER_WORD_GAP + toWidth + ORDER_WORD_GAP + secondWidth;
+
+  const sidePadding = 24;
+  const canvasWidth = Math.max(minWidth, Math.ceil(totalWidth) + sidePadding * 2);
+  const canvasHeight = 110;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = canvasWidth;
+  canvas.height = canvasHeight;
+  const ctx = canvas.getContext('2d');
+  ctx.textBaseline = 'middle';
+  ctx.textAlign = 'left';
+  ctx.lineJoin = 'round';
+
+  let x = (canvasWidth - totalWidth) / 2;
+  const y = canvasHeight / 2;
+
+  const drawWord = (text, size, color) => {
+    ctx.font = fontFor(size);
+    ctx.save();
+    ctx.shadowColor = 'rgba(0,0,0,0.35)';
+    ctx.shadowBlur = 4;
+    ctx.shadowOffsetY = 3;
+    ctx.lineWidth = ORDER_STROKE_WIDTH;
+    ctx.strokeStyle = ORDER_STROKE_COLOR;
+    ctx.strokeText(text, x, y);
+    ctx.restore();
+    ctx.fillStyle = color;
+    ctx.fillText(text, x, y);
+    x += ctx.measureText(text).width;
+  };
+
+  drawWord(firstWord, ORDER_WORD_STYLE[firstWord].fontSize, ORDER_WORD_STYLE[firstWord].color);
+  x += ORDER_WORD_GAP;
+  drawWord('to', ORDER_TO_STYLE.fontSize, ORDER_TO_STYLE.color);
+  x += ORDER_WORD_GAP;
+  drawWord(secondWord, ORDER_WORD_STYLE[secondWord].fontSize, ORDER_WORD_STYLE[secondWord].color);
+
+  scene.textures.addCanvas(key, canvas);
+  return key;
+}
+
+export default class NumberOrderScene extends BaseScene {
   constructor() {
     super('NumberOrderScene');
   }
@@ -27,12 +260,6 @@ export default class NumberOrderScene extends Phaser.Scene {
   init(data) {
     this.levelIndex = Phaser.Math.Clamp(data?.levelIndex ?? 0, 0, LEVELS.length - 1);
     this.level = LEVELS[this.levelIndex];
-  }
-
-  // Thin wrapper so the rest of the class can keep calling
-  // this.createPillButton(...) like before.
-  createPillButton(x, y, initialLabel, opts = {}) {
-    return createPillButton(this, x, y, initialLabel, opts);
   }
 
   labelFor(value) {
@@ -112,24 +339,11 @@ export default class NumberOrderScene extends Phaser.Scene {
     this.sound.removeByKey('bgMusic');
     this.bgMusic = this.sound.add('bgMusic', { loop: true, volume: 0.32 });
 
-    const bgKey = makeBackgroundTexture(this, width, height, level, `bg-${level.key}`);
-    this.add.image(width / 2, height / 2, bgKey);
-
-    const cloudKey = makeCloudTexture(this);
-    const driftClouds = [
-      this.add.image(width * 0.24, height * 0.055, cloudKey).setScale(0.85).setAlpha(0.85),
-      this.add.image(width * 0.74, height * 0.1, cloudKey).setScale(1.1).setAlpha(0.7),
-    ];
-    driftClouds.forEach((cloud, i) => {
-      this.tweens.add({
-        targets: cloud,
-        x: cloud.x + (i % 2 === 0 ? 24 : -20),
-        duration: 6500 + i * 1500,
-        yoyo: true,
-        repeat: -1,
-        ease: 'Sine.easeInOut',
-      });
-    });
+    this.addSkyBackground(level, `bg-${level.key}`);
+    this.addDriftingClouds([
+      { xr: 0.24, yr: 0.055, scale: 0.85, alpha: 0.85, driftX: 24, duration: 6500 },
+      { xr: 0.74, yr: 0.1, scale: 1.1, alpha: 0.7, driftX: -20, duration: 8000 },
+    ]);
 
     makeSplatTexture(this);
 
@@ -200,10 +414,6 @@ this.nextChip = this.createLastTappedChip(width / 2, 152);
     const ICON_BTN_SIZE = 96;
     const ICON_BTN_GAP = 12;
 
-
-
-
-    
     this.muteBtn = this.createPillButton(16, 16, '🔊', {
       fontSize: '28px',
       paddingX: 4,
@@ -252,11 +462,7 @@ this.nextChip = this.createLastTappedChip(width / 2, 152);
 
     // Stop any in-flight utterance (e.g. "Good job!" still talking) if the
     // player backs out to the level select screen or restarts mid-speech.
-    this.events.once('shutdown', () => {
-      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-        window.speechSynthesis.cancel();
-      }
-    });
+    this.stopSpeechOnShutdown();
   }
 
   showPlayOverlay() {
@@ -552,19 +758,19 @@ this.nextChip = this.createLastTappedChip(width / 2, 152);
     // Award the star + unlock the next level before anything below reads
     // progress back out (the total-stars chip, the "Next Level" button's
     // availability, etc. all depend on this having already happened).
-    completeLevel(this.levelIndex);
+    progress.completeLevel(this.levelIndex);
     const isLastLevel = this.levelIndex === LEVELS.length - 1;
     const nextIndex = this.levelIndex + 1;
-    const nextUnlocked = !isLastLevel && isLevelUnlocked(nextIndex);
+    const nextUnlocked = !isLastLevel && progress.isLevelUnlocked(nextIndex);
 
     // Hand the finished run's numbers off to React — this scene doesn't
     // know the player's name or how to log a session, it just reports what
     // happened. `this.game.events` is the one event bus that's reachable
     // from both sides: Phaser exposes it on every Scene as `this.game`, and
-    // PhaserGame.jsx holds the same Game instance in `gameRef.current`.
-    // `stars` scales with the level itself (Level 1 → 1 star, Level 2 → 2
-    // stars, etc.) rather than always being a flat 1. `totalRounds` has to
-    // scale right alongside it — the server clamps
+    // BonusGame1/Game.jsx (via the shared Phaser/BaseGame.jsx) holds the
+    // same Game instance. `stars` scales with the level itself (Level 1 →
+    // 1 star, Level 2 → 2 stars, etc.) rather than always being a flat 1.
+    // `totalRounds` has to scale right alongside it — the server clamps
     // `stars = min(stars, totalRounds)`, so leaving totalRounds at a flat 1
     // would silently cap every level's stars back down to 1 regardless of
     // what's sent here.
@@ -661,7 +867,7 @@ this.nextChip = this.createLastTappedChip(width / 2, 152);
     const subtitle = this.add.container(0, -panelH / 2 + 134, [leftPart, scorePart]);
 
     const star = this.add.text(0, -panelH / 2 + 186, '⭐', { fontSize: '52px' }).setOrigin(0.5).setScale(0);
-    const starLabel = this.add.text(0, -panelH / 2 + 232, `⭐ ${totalStars()}/${LEVELS.length} stars total`, {
+    const starLabel = this.add.text(0, -panelH / 2 + 232, `⭐ ${progress.totalStars()}/${LEVELS.length} stars total`, {
       fontSize: '22px',
       fontFamily: 'Nunito, sans-serif',
       fontStyle: 'bold',
