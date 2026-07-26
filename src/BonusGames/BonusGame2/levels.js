@@ -17,11 +17,12 @@ export const LEVELS = [
     key: 'dice',
     name: 'Level 1',
     subtitle: 'Compare the Dice',
-    icon: '🎲',
+    icon: 'dice5',
+    iconSize: 82, // Dice-5.png
     itemType: 'dice',
     minValue: 1,
     maxValue: 5,
-    diffOptions: [1, 2],
+    diffOptions: [2, 3],
     biggerCount: 3,
     smallerCount: 3,
     passThreshold: 5,
@@ -30,12 +31,18 @@ export const LEVELS = [
     introVoice: { bigger: 'introBiggerDice', smaller: 'introSmallerDice' },
     accentColor: 0x3fb6ea,
     tint: 0xd7f0ff,
+    // Absolute px, against the fixed 720x1080 base resolution (this never
+    // changes at runtime — Phaser.Scale.FIT only rescales visually, so
+    // hardcoding here is safe and simpler than deriving from scene size).
+    boxWidth: 230,
+    boxHeight: 230,
   },
   {
     key: 'domino',
     name: 'Level 2',
     subtitle: 'Compare the Dominoes',
-    icon: '🁣',
+    icon: 'domino8', 
+    iconSize: 180,// Domino-8.png
     itemType: 'domino',
     minValue: 2,
     maxValue: 10,
@@ -48,6 +55,10 @@ export const LEVELS = [
     introVoice: { bigger: 'introBiggerDomino', smaller: 'introSmallerDomino' },
     accentColor: 0xff8f3f,
     tint: 0xffe6bf,
+    // Domino artwork reads as a tall rectangle (two pip groups stacked),
+    // so its box is both wider AND noticeably taller than the dice box.
+    boxWidth: 300,
+    boxHeight: 430,
   },
 ];
 

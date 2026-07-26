@@ -4,6 +4,7 @@ import BaseScene from '../../Phaser/BaseScene';
 import { LEVELS, progress } from './levels';
 import { ensureBgMusic, addMuteButton } from './audioState';
 
+
 export default class LevelSelectScene extends BaseScene {
   constructor() {
     super('LevelSelectScene');
@@ -13,13 +14,8 @@ export default class LevelSelectScene extends BaseScene {
     const { width, height } = this.scale;
 
     ensureBgMusic(this);
+    this.input.once('pointerdown', () => ensureBgMusic(this));
 
-    // Real background art (per the design note: same image, tinted
-    // differently per context) — neutral/untinted here since the menu
-    // isn't "in" either level yet. Anchored from the TOP (originY: 0)
-    // rather than centered, so a cover-fit crop only trims the bottom of
-    // the art instead of trimming top and bottom equally — keeps the
-    // banner/chalkboard framing at the top fully visible.
     const bg = this.add.image(width / 2, 0, 'background').setOrigin(0.5, 0).setDepth(0);
     const cover = Math.max(width / bg.width, height / bg.height);
     bg.setScale(cover);
@@ -34,14 +30,26 @@ export default class LevelSelectScene extends BaseScene {
       align: 'center',
       wordWrap: { width: width - 60 },
     }).setOrigin(0.5);
+
     title.setShadow(0, 6, '#18406f', 0, false, true);
     this.tweens.add({
-      targets: title, angle: 2, duration: 1200, yoyo: true, repeat: -1, ease: 'Sine.InOut',
+      targets: title,
+      angle: 2,
+      duration: 1200,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.InOut',
     });
 
     this.createPillButton(width - 16, 16, `⭐ ${progress.totalStars()}/${LEVELS.length}`, {
-      fontSize: '20px', paddingX: 16, paddingY: 10, anchor: 'topRight', interactive: false, depth: 15,
+      fontSize: '20px',
+      paddingX: 16,
+      paddingY: 10,
+      anchor: 'topRight',
+      interactive: false,
+      depth: 15,
     });
+
     addMuteButton(this, 16, 16, { anchor: 'topLeft' });
 
     const stars = progress.getAllStars();
@@ -59,8 +67,14 @@ export default class LevelSelectScene extends BaseScene {
 
   buildLevelCard(cx, cy, w, h, level, index, unlocked, starEarned) {
     const container = this.add.container(cx, cy).setDepth(10).setScale(0).setAlpha(0);
+
     this.tweens.add({
-      targets: container, scale: 1, alpha: 1, delay: 150 + index * 120, duration: 380, ease: 'Back.Out',
+      targets: container,
+      scale: 1,
+      alpha: 1,
+      delay: 150 + index * 120,
+      duration: 380,
+      ease: 'Back.Out',
     });
 
     const shadow = this.add.graphics();
@@ -73,18 +87,38 @@ export default class LevelSelectScene extends BaseScene {
     bg.lineStyle(5, unlocked ? level.accentColor : 0xb9c4cc, 1);
     bg.strokeRoundedRect(-w / 2, -h / 2, w, h, 28);
 
-    const emoji = this.add.text(-w / 2 + 70, 0, level.icon, { fontSize: '64px' }).setOrigin(0.5);
+    // Image icon instead of emoji text.
+    // IMPORTANT: level.icon must already be loaded as a Phaser texture key,
+    // or you should load it in your preload scene using the same key.
+   
+const icon = this.add.image(-w / 2 + 70, 0, level.icon)
+  .setOrigin(0.5);
+
+const maxSize = level.iconSize ?? 82;
+const scale = Math.min(maxSize / icon.width, maxSize / icon.height);
+icon.setScale(scale);
+
     const name = this.add.text(-w / 2 + 150, -34, level.name, {
-      fontSize: '30px', fontFamily: 'Fredoka, sans-serif', color: '#0f3d5c', fontStyle: 'bold',
-    }).setOrigin(0, 0.5);
-    const sub = this.add.text(-w / 2 + 150, 4, level.subtitle, {
-      fontSize: '20px', fontFamily: 'Fredoka, sans-serif', color: '#4a6478', wordWrap: { width: w - 220 },
-    }).setOrigin(0, 0.5);
-    const starIcon = this.add.text(-w / 2 + 150, 42, starEarned ? '⭐ Complete!' : '☆ Not started', {
-      fontSize: '18px', fontFamily: 'Fredoka, sans-serif', color: '#8a97a3',
+      fontSize: '30px',
+      fontFamily: 'Fredoka, sans-serif',
+      color: '#0f3d5c',
+      fontStyle: 'bold',
     }).setOrigin(0, 0.5);
 
-    container.add([shadow, bg, emoji, name, sub, starIcon]);
+    const sub = this.add.text(-w / 2 + 150, 4, level.subtitle, {
+      fontSize: '20px',
+      fontFamily: 'Fredoka, sans-serif',
+      color: '#4a6478',
+      wordWrap: { width: w - 120 },
+    }).setOrigin(0, 0.5);
+
+    const starIcon = this.add.text(-w / 2 + 150, 42, starEarned ? '⭐ Complete!' : '☆ Not started', {
+      fontSize: '18px',
+      fontFamily: 'Fredoka, sans-serif',
+      color: '#8a97a3',
+    }).setOrigin(0, 0.5);
+
+    container.add([shadow, bg, icon, name, sub, starIcon]);
 
     if (!unlocked) {
       const lockOverlay = this.add.rectangle(0, 0, w, h, 0x0f3d5c, 0.38).setOrigin(0.5);
@@ -95,17 +129,26 @@ export default class LevelSelectScene extends BaseScene {
 
     const hitRect = new Phaser.Geom.Rectangle(-w / 2, -h / 2, w, h);
     container.setInteractive({
-      hitArea: hitRect, hitAreaCallback: Phaser.Geom.Rectangle.Contains, useHandCursor: true,
+      hitArea: hitRect,
+      hitAreaCallback: Phaser.Geom.Rectangle.Contains,
+      useHandCursor: true,
     });
 
     this.tweens.add({
-      targets: container, scale: { from: 1, to: 1.02 }, duration: 950 + index * 100, delay: 600, yoyo: true, repeat: -1, ease: 'Sine.easeInOut',
+      targets: container,
+      scale: { from: 1, to: 1.02 },
+      duration: 950 + index * 100,
+      delay: 600,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut',
     });
 
     container.on('pointerdown', () => {
       this.tweens.killTweensOf(container);
       this.tweens.add({ targets: container, scale: 0.96, duration: 80 });
     });
+
     container.on('pointerup', () => {
       this.scene.start('CompareDiceScene', { levelIndex: index });
     });

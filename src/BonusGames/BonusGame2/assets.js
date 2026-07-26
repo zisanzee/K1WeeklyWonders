@@ -48,6 +48,15 @@ export const AUDIO = {
   winGoodJob: 'https://res.cloudinary.com/hijmipga/video/upload/v1784992846/goodJob_ltpu6t.mp3',
 };
 
+// Phaser's audio loader picks a codec/extension to trust from the URL
+// itself, and '.mp4' isn't in its default recognized-audio-extension list
+// the way '.mp3'/'.m4a'/'.ogg' are — with a bare URL string, it can
+// silently skip queuing the file entirely (no error, it just never loads,
+// which is why bgMusic never played). Overriding the type explicitly like
+// this forces Phaser to trust it as mp3-compatible regardless of the
+// URL's actual extension.
+const AUDIO_TYPE_OVERRIDES = { bgMusic: 'mp3' };
+
 // Flattened manifest for BasePreloadScene({ assets: ASSET_MANIFEST, ... }).
 export const ASSET_MANIFEST = [
   { type: 'image', key: 'background', url: IMAGES.background },
@@ -55,5 +64,12 @@ export const ASSET_MANIFEST = [
   ...Object.entries(IMAGES.domino).map(([value, url]) => ({ type: 'image', key: `domino${value}`, url })),
   { type: 'image', key: 'rollDiceButton', url: IMAGES.rollDiceButton },
   { type: 'image', key: 'rollDominoButton', url: IMAGES.rollDominoButton },
-  ...Object.entries(AUDIO).map(([key, url]) => ({ type: 'audio', key, url })),
+  ...Object.entries(AUDIO).map(([key, url]) => {
+    const overrideType = AUDIO_TYPE_OVERRIDES[key];
+    return {
+      type: 'audio',
+      key,
+      url: overrideType ? [{ type: overrideType, url }] : url,
+    };
+  }),
 ];
