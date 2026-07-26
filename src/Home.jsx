@@ -77,7 +77,10 @@ function HomeContent() {
       if (isGameUnlocked(1, isTeacher)) import("./Game1");
       if (isGameUnlocked(2, isTeacher)) import("./Game2");
       if (isGameUnlocked(3, isTeacher)) import("./Game3");
-      if (isGameUnlocked(4, isTeacher)) import("./Game5");
+      if (isGameUnlocked(4, isTeacher)) import("./BonusGames/Game4/PhaserDemo");
+      if (isGameUnlocked(5, isTeacher)) import("./Game5");
+      if (isGameUnlocked(6, isTeacher)) import("./Game6");
+      if (isGameUnlocked('b1', isTeacher)) import("./BonusGames/BonusGame1/PhaserDemo");
     };
 
     if (typeof window !== "undefined" && "requestIdleCallback" in window) {
@@ -368,8 +371,8 @@ function HomeContent() {
               gradient="linear-gradient(135deg, #A7EE7E 0%, #4DD4A6 55%, #2CB5D8 100%)"
               ring="ring-[#DCF8C6]"
               delay={0.4}
-              open={isGameUnlocked(4, isTeacher)}
-              progress={progressByGame.game4}
+              open={isGameUnlocked(5, isTeacher)}
+              progress={progressByGame.game5}
               onOpen={() => openGame("/Game5")}
             />
 
@@ -382,8 +385,8 @@ function HomeContent() {
               gradient="linear-gradient(135deg, #FF9AAE 0%, #FF6F91 55%, #FF4D6D 100%)"
               ring="ring-[#FFD6DE]"
               delay={0.45}
-              open={isGameUnlocked(5, isTeacher)}
-              progress={progressByGame.game5}
+              open={isGameUnlocked(6, isTeacher)}
+              progress={progressByGame.game6}
               onOpen={() => openGame("/Game6")}
             />
           </div>
