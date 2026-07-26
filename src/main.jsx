@@ -4,7 +4,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import "./index.css";
 
 import Home from "./Home";
-import Game5 from "./Game5";
+import Game6 from "./Game6";
 import { HelmetProvider } from "react-helmet-async";
 
 // Each game pulls in its own copy of framer-motion / dnd-kit / confetti and is
@@ -13,9 +13,9 @@ import { HelmetProvider } from "react-helmet-async";
 const Game1 = lazy(() => import("./Game1"));
 const Game2 = lazy(() => import("./Game2"));
 const Game3 = lazy(() => import("./Game3"));
-const Game4 = lazy(() => import("./Game4"));
+const Game5 = lazy(() => import("./Game5"));
 const PhaserDemo = lazy(() => import("./BonusGames/BonusGame1/PhaserDemo"));
-const PhaserDemo2 = lazy(() => import("./BonusGames/BonusGame2/PhaserDemo"));
+const Game4 = lazy(() => import("./BonusGames/Game4/PhaserDemo"));
 
 function GameLoading() {
   return (
@@ -60,8 +60,8 @@ ReactDOM.createRoot(document.getElementById("root")).render(
           <Route path="/game3" element={<Game3 />} />
           <Route path="/game4" element={<Game4 />} />
           <Route path="/game5" element={<Game5 />} />
+          <Route path="/game6" element={<Game6 />} />
           <Route path="/bonus-game1" element={<PhaserDemo />} />
-          <Route path="/bonus-game2" element={<PhaserDemo2 />} />
         </Routes>
       </Suspense>
     </BrowserRouter>

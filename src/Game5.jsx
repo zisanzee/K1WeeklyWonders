@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import {
   DndContext,
@@ -10,7 +10,7 @@ import {
   useSensors,
 } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from "motion/react";
 import Confetti from 'react-confetti';
 import { useWindowSize } from 'react-use';
 import clsx from 'clsx';
@@ -21,45 +21,41 @@ import { usePlayerStore } from './playerStore';
 import { logPlaySession } from './logPlaySession';
 import { Helmet } from 'react-helmet-async';
 
-const TOTAL_ROUNDS = 10;
-const NUMBER_WORDS = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
+const TOTAL_ROUNDS = 10; // 3 free-split + 2 even-split + 5 target-split rounds
+const FREE_TOTALS = [3, 4, 5];
+const HALF_TOTALS = [2, 4]; // only 2 and 4 split evenly within the friendly 1-5 range
+// Target-split rounds as [targetA, targetB] pairs. Only totals 2-5 fit the
+// friendly range (a total of 1 can't fill both rockets), so to reach 5
+// rounds without repeating a *combo*, total 4 is reused once with a
+// different split (1+3, then 2+2).
+const TARGET_PAIRS = [
+  [1, 1],
+  [1, 2],
+  [1, 3],
+  [2, 3],
+  [2, 2],
+];
+const numberWords = [
+  "One",
+  "Two",
+  "Three",
+  "Four",
+  "Five",
+];
+
 
 function cn(...inputs) {
   return twMerge(clsx(inputs));
 }
 
-// One consistent "big, highlighted number" treatment used everywhere a value
-// appears — keys, chests, choices — so numbers are always the loudest thing
-// on screen for little eyes to land on.
-const NumberChip = React.memo(function NumberChip({ value, size = 'md', tone = 'amber' }) {
-  const sizeClasses =
-    size === 'lg'
-      ? 'min-w-[3.25rem] px-3 py-1.5 text-4xl [@media(min-width:640px)_and_(min-height:720px)]:min-w-[4rem] [@media(min-width:640px)_and_(min-height:720px)]:px-4 [@media(min-width:640px)_and_(min-height:720px)]:py-2 [@media(min-width:640px)_and_(min-height:720px)]:text-5xl'
-      : 'min-w-[2.5rem] px-2 py-1 text-2xl [@media(min-width:640px)_and_(min-height:720px)]:min-w-[3rem] [@media(min-width:640px)_and_(min-height:720px)]:px-2.5 [@media(min-width:640px)_and_(min-height:720px)]:py-1.5 [@media(min-width:640px)_and_(min-height:720px)]:text-3xl';
-  const toneClasses =
-    tone === 'white'
-      ? 'bg-white text-amber-900 shadow-[0_3px_0_rgba(0,0,0,0.15)]'
-      : 'bg-gradient-to-b from-yellow-200 to-amber-300 text-amber-950 shadow-[0_3px_0_rgba(146,64,14,0.3)]';
-  return (
-    <span
-      className={cn(
-        'font-heading inline-flex items-center justify-center rounded-2xl border-[3px] border-amber-700 font-extrabold leading-none',
-        sizeClasses,
-        toneClasses
-      )}
-    >
-      {value}
-    </span>
-  );
-});
-
-function capitalize(s) {
-  return s.charAt(0).toUpperCase() + s.slice(1);
-}
-
-function formatNumber(value, format) {
-  return format === 'word' ? capitalize(NUMBER_WORDS[value]) : String(value);
-}
+const CARGO_TYPES = [
+  { key: 'alien', emoji: '👽', name: 'aliens' },
+  { key: 'star', emoji: '⭐', name: 'stars' },
+  { key: 'moonrock', emoji: '🪨', name: 'moon rocks' },
+  { key: 'comet', emoji: '☄️', name: 'comets' },
+  { key: 'ufo', emoji: '🛸', name: 'mini UFOs' },
+  { key: 'planet', emoji: '🪐', name: 'mini planets' },
+];
 
 function shuffle(arr) {
   const a = [...arr];
@@ -70,134 +66,94 @@ function shuffle(arr) {
   return a;
 }
 
-function randInt(min, max) {
-  return Math.floor(Math.random() * (max - min + 1)) + min;
-}
-
-function clamp(n, min, max) {
-  return Math.min(max, Math.max(min, n));
-}
-
 function speak(text, muted) {
   if (muted || typeof window === 'undefined' || !('speechSynthesis' in window)) return;
   window.speechSynthesis.cancel();
   const utterance = new SpeechSynthesisUtterance(text);
   utterance.rate = 1;
-  utterance.pitch = 1.15;
+  utterance.pitch = 1.3;
   window.speechSynthesis.speak(utterance);
 }
 
-// First 5 rounds are numerals, last 5 are spelled words. Exactly one round
-// in each half is a "find the whole" round (tap the matching chest);
-// everything else is a "find the missing key" round (drag the right part).
-function generateRoundPlan() {
-  const wholeIdxA = randInt(0, 4);
-  const wholeIdxB = 5 + randInt(0, 4);
-  return Array.from({ length: TOTAL_ROUNDS }, (_, i) => ({
-    format: i < 5 ? 'numeral' : 'word',
-    isWholeRound: i === wholeIdxA || i === wholeIdxB,
+// Rounds 0-2: any two-way split. Rounds 3-4: split exactly in half (Red and
+// Blue must match). Rounds 5-9: load a specific target pair with totals kept
+// inside the friendly 1-5 range.
+function modeForRound(index) {
+  if (index < 3) return 'free';
+  if (index < 5) return 'half';
+  return 'target';
+}
+
+// Totals are chosen from friendly 1-5 values and kept as distinct as
+// possible within each phase so the game stays varied and predictable.
+function totalForRound(index, mode) {
+  if (mode === 'free') {
+    return FREE_TOTALS[index];
+  }
+  if (mode === 'half') {
+    return HALF_TOTALS[index - 3];
+  }
+  const [a, b] = TARGET_PAIRS[index - 5];
+  return a + b;
+}
+
+function generateRound(index, prevCargoKey) {
+  const pool = CARGO_TYPES.filter((c) => c.key !== prevCargoKey);
+  const cargo = (pool.length ? pool : CARGO_TYPES)[Math.floor(Math.random() * (pool.length || CARGO_TYPES.length))];
+  const mode = modeForRound(index);
+  const total = totalForRound(index, mode);
+  let targetA = null;
+  let targetB = null;
+  if (mode === 'half') {
+    targetA = total / 2;
+    targetB = total / 2;
+  } else if (mode === 'target') {
+    [targetA, targetB] = TARGET_PAIRS[index - 5];
+  }
+  const items = Array.from({ length: total }, (_, i) => ({
+    id: `r${index}-${i}-${Math.random().toString(36).slice(2, 7)}`,
+    location: 'pool',
+    rotation: (Math.random() * 20 - 10).toFixed(1),
   }));
+  return { index, mode, cargo, total, targetA, targetB, items };
 }
 
-// Correct value plus up to two distractors: the fixed part itself (a classic
-// "just repeats a number I can see" trap) and the whole itself, falling back
-// to nearby random values so there are always exactly 3 distinct choices.
-function buildPartChoices(whole, fixedPart, correctPart) {
-  const values = new Set([correctPart]);
-  if (fixedPart !== correctPart) values.add(fixedPart);
-  if (whole !== correctPart && whole <= 9) values.add(whole);
-  let guard = 0;
-  while (values.size < 3 && guard < 30) {
-    guard += 1;
-    values.add(randInt(1, Math.max(1, whole - 1)));
+// One shared source of truth for what Nova should say at the start of a
+// round, so the mount effect, nextRound, and playAgain never drift apart.
+function missionSpeech(round) {
+  if (round.mode === 'free') {
+    return `Split the ${round.total} ${round.cargo.name} between the two rockets, any way you like!`;
   }
-  return shuffle(Array.from(values).slice(0, 3)).map((value, i) => ({
-    id: `choice-${i}-${Math.random().toString(36).slice(2, 7)}`,
-    value,
-  }));
-}
-
-function buildWholeChoices(whole) {
-  const values = new Set([whole]);
-  let guard = 0;
-  while (values.size < 3 && guard < 30) {
-    guard += 1;
-    const delta = randInt(1, 3) * (Math.random() < 0.5 ? -1 : 1);
-    values.add(clamp(whole + delta, 2, 10));
+  if (round.mode === 'half') {
+    return `Split the ${round.total} ${round.cargo.name} evenly. Red and Blue Need the same amount!`;
   }
-  return shuffle(Array.from(values).slice(0, 3)).map((value, i) => ({
-    id: `chest-${i}-${Math.random().toString(36).slice(2, 7)}`,
-    value,
-  }));
-}
-
-function generateRound(index, planEntry, prevWhole) {
-  const { format, isWholeRound } = planEntry;
-
-  if (!isWholeRound) {
-    let whole;
-    let guard = 0;
-    do {
-      whole = randInt(3, 10);
-      guard += 1;
-    } while (whole === prevWhole && guard < 10);
-    const fixedPart = randInt(1, whole - 1);
-    const correctPart = whole - fixedPart;
-    const choices = buildPartChoices(whole, fixedPart, correctPart);
-    return { index, type: 'part', format, whole, fixedPart, correctPart, choices };
-  }
-
-  let partA;
-  let partB;
-  let whole;
-  let guard = 0;
-  do {
-    partA = randInt(1, 6);
-    partB = randInt(1, 6);
-    whole = partA + partB;
-    guard += 1;
-  } while ((whole > 10 || whole === prevWhole) && guard < 20);
-  const chestOptions = buildWholeChoices(whole);
-  return { index, type: 'whole', format, partA, partB, whole, chestOptions };
-}
-
-function roundSpeech(round) {
-  if (round.type === 'part') {
-    return `Ahoy! This chest needs ${round.whole} in all. One key shows ${round.fixedPart}. Find the matching key!`;
-  }
-  return `Ahoy! These two keys go in the same chest. Which chest holds them both?`;
-}
-
-function successSpeech(round, value) {
-  if (round.type === 'part') {
-    return `Treasure found! ${round.fixedPart} and ${value} together make ${round.whole}!`;
-  }
-  return `Correct! ${round.partA} and ${round.partB} together make ${round.whole}!`;
+  return `Load ${round.targetA} into Red, and ${round.targetB} into Blue!`;
 }
 
 function Game5Inner() {
   const playerName = usePlayerStore((s) => s.playerName);
-  const planRef = useRef(generateRoundPlan());
   const [roundIndex, setRoundIndex] = useState(0);
-  const [round, setRound] = useState(() => generateRound(0, planRef.current[0], null));
+  const [round, setRound] = useState(() => generateRound(0, null));
   const [phase, setPhase] = useState('playing');
-  const [filled, setFilled] = useState(false);
-  const [chosenValue, setChosenValue] = useState(null);
-  const [chosenChestId, setChosenChestId] = useState(null);
-  const [wrongChoiceId, setWrongChoiceId] = useState(null);
-  const [wrongChestId, setWrongChestId] = useState(null);
   const [feedback, setFeedback] = useState(null);
   const [activeId, setActiveId] = useState(null);
   const [stars, setStars] = useState(0);
   const [streak, setStreak] = useState(0);
   const [hasErred, setHasErred] = useState(false);
   const [muted, setMuted] = useState(false);
+  const [redShake, setRedShake] = useState(false);
+  const [blueShake, setBlueShake] = useState(false);
+  const [bayPulse, setBayPulse] = useState(false);
+  const [selectedNumber, setSelectedNumber] = useState(null);
 
   const hasLoggedRef = useRef(false);
   const peakStreakRef = useRef(0);
-  const hasSpokenRef = useRef(false);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
+
+  const leftCount = useMemo(() => round.items.filter((it) => it.location === 'left').length, [round.items]);
+  const rightCount = useMemo(() => round.items.filter((it) => it.location === 'right').length, [round.items]);
+  const poolCount = round.items.length - leftCount - rightCount;
 
   useEffect(() => {
     return () => {
@@ -207,16 +163,43 @@ function Game5Inner() {
     };
   }, []);
 
-  if (!hasSpokenRef.current) {
-    hasSpokenRef.current = true;
-    speak(roundSpeech(round), muted);
-  }
+  useEffect(() => {
+    speak(missionSpeech(round), muted);
+    // Runs once, on mount, to announce the very first round.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (!feedback) return;
-    const t = setTimeout(() => setFeedback(null), 2600);
+    const t = setTimeout(() => setFeedback(null), 2800);
     return () => clearTimeout(t);
   }, [feedback]);
+
+  const handleDragStart = (event) => setActiveId(event.active.id);
+
+  const handleDragEnd = (event) => {
+    const { active, over } = event;
+    setActiveId(null);
+    if (!over) return;
+    const zone = over.id;
+    const current = round.items.find((it) => it.id === active.id);
+    if (!current || current.location === zone) return;
+
+    const updatedItems = round.items.map((it) => (it.id === active.id ? { ...it, location: zone } : it));
+    setRound((r) => ({ ...r, items: updatedItems }));
+
+    // Say the count and rocket color the moment the piece lands or leaves —
+    // e.g. "4 blue" — nothing more, so it stays quick and easy to follow.
+    if (zone === 'left' || zone === 'right') {
+      const newCount = updatedItems.filter((it) => it.location === zone).length;
+      const color = zone === 'left' ? 'red' : 'blue';
+      speak(`${newCount} ${color}`, muted);
+    } else if (zone === 'pool' && (current.location === 'left' || current.location === 'right')) {
+      const newCount = updatedItems.filter((it) => it.location === current.location).length;
+      const color = current.location === 'left' ? 'red' : 'blue';
+      speak(`${newCount} ${color}`, muted);
+    }
+  };
 
   const bumpStreak = () => {
     setStreak((s) => {
@@ -226,102 +209,130 @@ function Game5Inner() {
     });
   };
 
-  const handleDragStart = (event) => setActiveId(event.active.id);
+  const handleCheck = () => {
+    if (poolCount > 0) {
+      setFeedback({ type: 'incomplete', poolCount });
+      setHasErred(true);
+      setStreak(0);
+      setBayPulse(true);
+      setTimeout(() => setBayPulse(false), 900);
+      speak(`Place the last ${poolCount} cargo first!`, muted);
+      return;
+    }
 
-  const handleDragEnd = (event) => {
-    const { active, over } = event;
-    setActiveId(null);
-    if (!over || over.id !== 'slot' || filled || phase !== 'playing') return;
-    const choice = round.choices.find((c) => c.id === active.id);
-    if (!choice) return;
-
-    if (choice.value === round.correctPart) {
-      setFilled(true);
-      setChosenValue(choice.value);
+    if (round.mode === 'free') {
+      if (leftCount === 0 || rightCount === 0) {
+        setFeedback({ type: 'empty-side' });
+        setHasErred(true);
+        setStreak(0);
+        setRedShake(leftCount === 0);
+        setBlueShake(rightCount === 0);
+        setTimeout(() => {
+          setRedShake(false);
+          setBlueShake(false);
+        }, 500);
+        speak('Every rocket needs at least one!', muted);
+        return;
+      }
       setPhase('success');
       setStars((s) => s + 1);
       bumpStreak();
-      speak(successSpeech(round, choice.value), muted);
-    } else {
-      setWrongChoiceId(choice.id);
-      setHasErred(true);
-      setStreak(0);
-      setFeedback({ msg: 'Not quite! Try another key. 🗝️' });
-      speak('Not quite, try another key!', muted);
-      setTimeout(() => setWrongChoiceId(null), 500);
+      speak(`Great splitting! Red ${leftCount}, Blue ${rightCount}!`, muted);
+      return;
     }
-  };
 
-  const handleChestSelect = (chest) => {
-    if (filled || phase !== 'playing') return;
-    if (chest.value === round.whole) {
-      setFilled(true);
-      setChosenChestId(chest.id);
+    if (round.mode === 'half') {
+      if (leftCount !== rightCount) {
+        setFeedback({ type: 'uneven' });
+        setHasErred(true);
+        setStreak(0);
+        setRedShake(true);
+        setBlueShake(true);
+        setTimeout(() => {
+          setRedShake(false);
+          setBlueShake(false);
+        }, 500);
+        speak('Not even yet — make Red and Blue match!', muted);
+        return;
+      }
       setPhase('success');
       setStars((s) => s + 1);
       bumpStreak();
-      speak(successSpeech(round), muted);
-    } else {
-      setWrongChestId(chest.id);
+      speak(`Perfectly balanced! Red and Blue both have ${leftCount}!`, muted);
+      return;
+    }
+
+    // 'target' mode — the goal shown on each rocket is now specific to that
+    // rocket, so the match must be exact rather than either-order.
+    const matches = leftCount === round.targetA && rightCount === round.targetB;
+    if (!matches) {
+      setFeedback({ type: 'mismatch' });
       setHasErred(true);
       setStreak(0);
-      setFeedback({ msg: 'Not quite! Try another chest. 🏴‍☠️' });
-      speak('Not quite, try another chest!', muted);
-      setTimeout(() => setWrongChestId(null), 500);
+      setRedShake(true);
+      setBlueShake(true);
+      setTimeout(() => {
+        setRedShake(false);
+        setBlueShake(false);
+      }, 500);
+      speak(`Not quite! Red needs ${round.targetA}, Blue needs ${round.targetB}.`, muted);
+      return;
     }
+    setPhase('success');
+    setStars((s) => s + 1);
+    bumpStreak();
+    speak(`Perfect! Red ${round.targetA}, Blue ${round.targetB}!`, muted);
   };
 
   const nextRound = () => {
     const next = roundIndex + 1;
     if (next >= TOTAL_ROUNDS) {
       setPhase('complete');
-      speak(`Ye be a true treasure hunter, ${playerName}!`, muted);
+      speak(`Mission complete, ${playerName}! You're a splitting superstar!`, muted);
       if (!hasLoggedRef.current) {
         hasLoggedRef.current = true;
         logPlaySession({ game: 'game5', playerName, stars, totalRounds: TOTAL_ROUNDS, peakStreak: peakStreakRef.current });
       }
       return;
     }
-    const newRound = generateRound(next, planRef.current[next], round.whole);
+    const newRound = generateRound(next, round.cargo.key);
     setRoundIndex(next);
     setRound(newRound);
-    setFilled(false);
-    setChosenValue(null);
-    setChosenChestId(null);
-    setHasErred(false);
     setFeedback(null);
+    setHasErred(false);
     setPhase('playing');
-    speak(roundSpeech(newRound), muted);
+    setSelectedNumber(null);
+    speak(missionSpeech(newRound), muted);
   };
 
   const playAgain = () => {
-    planRef.current = generateRoundPlan();
-    const newRound = generateRound(0, planRef.current[0], null);
+    const newRound = generateRound(0, null);
     setRoundIndex(0);
     setRound(newRound);
-    setFilled(false);
-    setChosenValue(null);
-    setChosenChestId(null);
     setStars(0);
     setStreak(0);
     setHasErred(false);
     setFeedback(null);
     setPhase('playing');
+    setSelectedNumber(null);
     hasLoggedRef.current = false;
     peakStreakRef.current = 0;
-    speak(roundSpeech(newRound), muted);
+    speak(missionSpeech(newRound), muted);
   };
 
-  const activeChoice = round.type === 'part' ? round.choices.find((c) => c.id === activeId) : null;
+  const poolItems = useMemo(() => round.items.filter((it) => it.location === 'pool'), [round.items]);
+  const leftItems = useMemo(() => round.items.filter((it) => it.location === 'left'), [round.items]);
+  const rightItems = useMemo(() => round.items.filter((it) => it.location === 'right'), [round.items]);
+  const activeItem = round.items.find((it) => it.id === activeId);
 
   return (
-    <div className="relative h-[100dvh] w-full overflow-hidden bg-gradient-to-b from-[#3FB6EA] via-[#8FE0FA] to-[#F4D9A0]">
+    <div className="relative h-[100dvh] w-full overflow-hidden bg-gradient-to-b from-[#0B1130] via-[#1B1F52] to-[#3A2A6B]">
       <link
         rel="stylesheet"
         href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap"
       />
         <Helmet>
-          <title>Part-Part-Whole | K1 Weekly Wonders</title>
+          <title>Splits and Groups | K1 Weekly Wonders</title>
       
           <meta
             name="description"
@@ -330,34 +341,41 @@ function Game5Inner() {
         </Helmet>
 
       <style>{`
-        @keyframes float-slow { 0%, 100% { transform: translateY(0) translateX(0); } 50% { transform: translateY(-14px) translateX(8px); } }
-        @keyframes bob-slow { 0%, 100% { transform: translateY(0) rotate(-2deg); } 50% { transform: translateY(-8px) rotate(2deg); } }
+        @keyframes twinkle { 0%, 100% { opacity: 0.25; transform: scale(0.8); } 50% { opacity: 1; transform: scale(1.15); } }
+        @keyframes drift { 0%, 100% { transform: translate(0,0); } 50% { transform: translate(10px,-12px); } }
         @keyframes pop-in { 0% { transform: scale(0.6); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
         @keyframes shake { 0%, 100% { transform: translateX(0); } 20%, 60% { transform: translateX(-6px); } 40%, 80% { transform: translateX(6px); } }
         @keyframes wobble { 0%, 100% { transform: rotate(0deg) scale(1); } 25% { transform: rotate(-2deg) scale(1.03); } 75% { transform: rotate(2deg) scale(1.03); } }
+        @keyframes glow-pulse { 0%, 100% { box-shadow: 0 0 0 rgba(139,92,246,0); } 50% { box-shadow: 0 0 0 10px rgba(139,92,246,0.35); } }
         @keyframes shimmer { 0% { transform: translateX(-100%); } 100% { transform: translateX(220%); } }
-        @keyframes mascot-idle { 0%, 100% { transform: rotate(-4deg) translateY(0); } 50% { transform: rotate(4deg) translateY(-5px); } }
-        @keyframes twinkle { 0%, 100% { opacity: 0.35; transform: scale(0.85); } 50% { opacity: 1; transform: scale(1.1); } }
+        @keyframes flicker { 0%, 100% { transform: scaleY(1) translateY(0); opacity: 1; } 50% { transform: scaleY(1.25) translateY(2px); opacity: 0.8; } }
+        @keyframes flame { 0%, 100% { transform: scaleY(1) scaleX(1) translateY(0); opacity: 1; } 30% { transform: scaleY(1.3) scaleX(0.9) translateY(-2px); opacity: 0.9; } 60% { transform: scaleY(0.85) scaleX(1.1) translateY(1px); opacity: 1; } }
+        @keyframes flame2 { 0%, 100% { transform: scaleY(0.9) scaleX(1.1) translateY(0); opacity: 0.7; } 40% { transform: scaleY(1.2) scaleX(0.85) translateY(-3px); opacity: 0.5; } 70% { transform: scaleY(1) scaleX(1) translateY(1px); opacity: 0.75; } }
         .font-heading { font-family: 'Fredoka', sans-serif; }
         .font-body { font-family: 'Fredoka', sans-serif; }
-        .animate-float-slow { animation: float-slow 6s ease-in-out infinite; will-change: transform; }
-        .animate-bob-slow { animation: bob-slow 4.5s ease-in-out infinite; will-change: transform; }
+        .animate-twinkle { animation: twinkle 2.4s ease-in-out infinite; will-change: opacity; }
+        .animate-drift { animation: drift 7s ease-in-out infinite; will-change: transform; }
         .animate-pop-in { animation: pop-in 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
         .animate-shake { animation: shake 0.4s ease-in-out; }
-        .animate-wobble { animation: wobble 0.5s ease-in-out infinite; will-change: transform; }
+        .animate-wobble { animation: wobble 0.4s ease-in-out; }
+        .animate-glow-pulse { animation: glow-pulse 0.9s ease-in-out 2; }
         .animate-shimmer { animation: shimmer 2.2s linear infinite; will-change: transform; }
-        .animate-mascot-idle { animation: mascot-idle 3s ease-in-out infinite; will-change: transform; }
-        .animate-twinkle { animation: twinkle 2.2s ease-in-out infinite; will-change: transform, opacity; }
-        @media (prefers-reduced-motion: reduce) {
-          .animate-float-slow, .animate-bob-slow, .animate-wobble, .animate-shimmer,
-          .animate-mascot-idle, .animate-twinkle {
-            animation-duration: 0.001s !important;
-            animation-iteration-count: 1 !important;
-          }
-        }
+        .animate-flicker { animation: flicker 0.5s ease-in-out infinite; transform-origin: top center; will-change: transform; }
+        .animate-flame { animation: flame 0.45s ease-in-out infinite; transform-origin: top center; will-change: transform, opacity; }
+        .animate-flame2 { animation: flame2 0.6s ease-in-out infinite; animation-delay: 0.15s; transform-origin: top center; will-change: transform, opacity; }
       `}</style>
 
-      <PirateBackdrop />
+      <Starfield />
+
+      <div className="pointer-events-none absolute inset-0">
+        <div className="animate-drift absolute right-[8%] top-[8%] text-5xl opacity-90 [@media(min-width:640px)_and_(min-height:720px)]:text-6xl">🪐</div>
+        <div className="animate-drift absolute left-[6%] top-[18%] text-3xl opacity-80 [@media(min-width:640px)_and_(min-height:720px)]:text-4xl" style={{ animationDelay: '2s' }}>
+          🌙
+        </div>
+        <div className="animate-drift absolute bottom-[16%] right-[10%] text-2xl opacity-70 [@media(min-width:640px)_and_(min-height:720px)]:text-3xl" style={{ animationDelay: '1s' }}>
+          ☄️
+        </div>
+      </div>
 
       <div className="relative z-10 mx-auto flex h-full max-w-5xl flex-col items-center overflow-y-auto px-3 py-2 [@media(min-width:640px)_and_(min-height:720px)]:px-4 [@media(min-width:640px)_and_(min-height:720px)]:py-3">
         <TopBar totalRounds={TOTAL_ROUNDS} stars={stars} muted={muted} onToggleMute={() => setMuted((m) => !m)} />
@@ -368,59 +386,93 @@ function Game5Inner() {
           <>
             <div className="mt-1 flex flex-col items-center gap-0.5 [@media(min-width:640px)_and_(min-height:720px)]:mt-2">
               <div className="flex items-center gap-1.5">
-                <span className="text-lg [@media(min-width:640px)_and_(min-height:720px)]:text-xl">🏴‍☠️</span>
-                <p className="font-heading text-sm font-bold text-amber-900/90 drop-shadow-sm [@media(min-width:640px)_and_(min-height:720px)]:text-base">
-                  Polly's Treasure Quest
+                <span className="text-lg [@media(min-width:640px)_and_(min-height:720px)]:text-xl">🚀</span>
+                <p className="font-heading text-sm font-bold text-white/95 drop-shadow [@media(min-width:640px)_and_(min-height:720px)]:text-base">
+                  Captain Nova's Cargo Split
                 </p>
               </div>
-              <p className="font-body text-[11px] font-bold text-amber-900/70 [@media(min-width:640px)_and_(min-height:720px)]:text-xs">
-                Round {roundIndex + 1} of {TOTAL_ROUNDS}
+              <p className="font-body text-[11px] font-bold text-white/80 [@media(min-width:640px)_and_(min-height:720px)]:text-xs">
+                Mission {roundIndex + 1} of {TOTAL_ROUNDS}
               </p>
-              <RoundDots total={TOTAL_ROUNDS} current={roundIndex} markers={[5]} />
+              <RoundDots total={TOTAL_ROUNDS} current={roundIndex} markers={[3, 5]} />
             </div>
 
-            <PollyPrompt round={round} streak={streak} isWrong={!!feedback} />
+            <div className="mt-1 flex items-center justify-center gap-3 [@media(min-width:640px)_and_(min-height:720px)]:mt-2 [@media(min-width:640px)_and_(min-height:720px)]:gap-4">
+              <NovaPrompt round={round} streak={streak} isWrong={!!feedback} />
+              <MissionHeader round={round} />
+            </div>
 
-            {round.type === 'part' ? (
-              <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-                <PartRoundContent
-                  round={round}
-                  filled={filled}
-                  chosenValue={chosenValue}
-                  wrongChoiceId={wrongChoiceId}
+            {round.mode === 'half' && <BalanceScale leftCount={leftCount} rightCount={rightCount} />}
+
+            <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+              <CargoBay items={poolItems} count={poolCount} cargo={round.cargo} disabled={phase !== 'playing'} pulse={bayPulse} />
+
+              <div className="mt-2 flex w-full flex-1 flex-row items-start justify-center gap-2 [@media(min-width:640px)_and_(min-height:720px)]:mt-4 [@media(min-width:640px)_and_(min-height:720px)]:gap-4">
+                <RocketZone
+                  id="left"
+                  label="Red Rocket"
+                  color="red"
+                  count={leftCount}
+                  items={leftItems}
+                  cargo={round.cargo}
                   disabled={phase !== 'playing'}
+                  shake={redShake}
+                  goal={round.mode === 'target' ? round.targetA : null}
+                  matched={round.mode === 'target' && leftCount === round.targetA}
                 />
-                <DragOverlay>
-                  {activeChoice ? (
-                    <div className="pointer-events-none flex scale-110 flex-col items-center gap-1.5 rounded-2xl border-4 border-amber-700 bg-gradient-to-b from-yellow-100 to-amber-200 px-3 py-2.5 shadow-2xl">
-                      <span className="text-2xl">🗝️</span>
-                      <NumberChip value={formatNumber(activeChoice.value, round.format)} tone="white" />
-                    </div>
-                  ) : null}
-                </DragOverlay>
-              </DndContext>
-            ) : (
-              <WholeRoundContent
-                round={round}
-                chosenChestId={chosenChestId}
-                wrongChestId={wrongChestId}
-                disabled={phase !== 'playing'}
-                onSelect={handleChestSelect}
-              />
+                <RocketZone
+                  id="right"
+                  label="Blue Rocket"
+                  color="blue"
+                  count={rightCount}
+                  items={rightItems}
+                  cargo={round.cargo}
+                  disabled={phase !== 'playing'}
+                  shake={blueShake}
+                  goal={round.mode === 'target' ? round.targetB : null}
+                  matched={round.mode === 'target' && rightCount === round.targetB}
+                />
+              </div>
+
+              <DragOverlay>
+                {activeItem ? (
+                  <div className="pointer-events-none flex h-12 w-12 scale-125 items-center justify-center rounded-2xl bg-white/50 text-3xl shadow-2xl [@media(min-width:640px)_and_(min-height:720px)]:h-16 [@media(min-width:640px)_and_(min-height:720px)]:w-16 [@media(min-width:640px)_and_(min-height:720px)]:text-4xl">
+                    {round.cargo.emoji}
+                  </div>
+                ) : null}
+              </DragOverlay>
+            </DndContext>
+
+            {round.mode === 'target' && (
+              <NumberHelper selected={selectedNumber} onSelect={setSelectedNumber} />
             )}
 
-            <div className="mt-2 flex min-h-[2.5rem] flex-col items-center gap-1.5 pb-2 [@media(min-width:640px)_and_(min-height:720px)]:mt-3">
+            <div className="mt-2 flex flex-col items-center gap-1.5 pb-2 [@media(min-width:640px)_and_(min-height:720px)]:mt-3">
               {feedback && (
-                <p className="font-body animate-pop-in rounded-full bg-white/90 px-4 py-1.5 text-xs font-bold text-amber-800 shadow [@media(min-width:640px)_and_(min-height:720px)]:text-sm">
-                  {feedback.msg}
+                <p className="font-body animate-pop-in rounded-full bg-white/90 px-4 py-1.5 text-xs font-bold text-indigo-700 shadow [@media(min-width:640px)_and_(min-height:720px)]:text-sm">
+                  {feedback.type === 'incomplete' && `🛰️ ${feedback.poolCount} more cargo to place!`}
+                  {feedback.type === 'empty-side' && '🚀 Every rocket needs at least one!'}
+                  {feedback.type === 'uneven' && '⚖️ Not even yet — keep balancing!'}
+                  {feedback.type === 'mismatch' && `Try Red ${round.targetA} and Blue ${round.targetB}!`}
                 </p>
+              )}
+              {phase === 'playing' && (
+                <button
+                  onClick={handleCheck}
+                  className="font-heading rounded-full bg-gradient-to-b from-pink-400 to-pink-500 px-7 py-2.5 text-base font-bold text-white shadow-[0_6px_0_rgba(0,0,0,0.2)] transition-transform hover:-translate-y-0.5 active:translate-y-1 active:shadow-none [@media(min-width:640px)_and_(min-height:720px)]:px-8 [@media(min-width:640px)_and_(min-height:720px)]:py-3 [@media(min-width:640px)_and_(min-height:720px)]:text-lg"
+                >
+                  Check my split! 🚀
+                </button>
               )}
             </div>
 
             {phase === 'success' && (
               <SuccessOverlay
-                round={round}
-                value={chosenValue}
+                leftCount={leftCount}
+                rightCount={rightCount}
+                total={round.total}
+                cargo={round.cargo}
+                mode={round.mode}
                 isLastRound={roundIndex + 1 >= TOTAL_ROUNDS}
                 streak={streak}
                 onNext={nextRound}
@@ -428,6 +480,7 @@ function Game5Inner() {
             )}
           </>
         )}
+        
       </div>
     </div>
   );
@@ -435,31 +488,47 @@ function Game5Inner() {
 
 export default function Game5() {
   return (
-    <NameGate gameLabel="Game 5: Polly's Treasure Quest">
-      <GameAccessGate gameNumber={5} gameLabel="Game 5: Polly's Treasure Quest">
+    <NameGate gameLabel="Game 5: Cargo Split">
+      <GameAccessGate gameNumber={5} gameLabel="Game 5: Cargo Split">
         <Game5Inner />
       </GameAccessGate>
     </NameGate>
   );
 }
 
-function PirateBackdrop() {
+function Starfield() {
+  const stars = useMemo(
+    () =>
+      Array.from({ length: 26 }, (_, i) => ({
+        id: i,
+        left: Math.random() * 100,
+        top: Math.random() * 90,
+        size: 4 + Math.random() * 6,
+        delay: Math.random() * 2.4,
+      })),
+    []
+  );
   return (
-    <div className="pointer-events-none absolute inset-0 overflow-hidden">
-      <div className="absolute left-[8%] top-[8%] animate-float-slow text-3xl opacity-90 [@media(min-width:640px)_and_(min-height:720px)]:text-4xl">☁️</div>
-      <div className="absolute right-[10%] top-[14%] animate-float-slow text-2xl opacity-80 [@media(min-width:640px)_and_(min-height:720px)]:text-3xl" style={{ animationDelay: '1.5s' }}>
-        ☁️
-      </div>
-      <div className="absolute right-[14%] top-[26%] animate-bob-slow text-3xl opacity-90 [@media(min-width:640px)_and_(min-height:720px)]:text-4xl">⛵</div>
-      <div className="absolute left-[6%] top-[36%] text-2xl opacity-80 [@media(min-width:640px)_and_(min-height:720px)]:text-3xl">🦅</div>
-      <div className="absolute bottom-0 left-0 right-0 h-1/3 bg-gradient-to-t from-amber-200/80 to-transparent" />
-      <div className="absolute bottom-2 left-[10%] text-4xl opacity-90 [@media(min-width:640px)_and_(min-height:720px)]:bottom-3 [@media(min-width:640px)_and_(min-height:720px)]:text-5xl">🌴</div>
-      <div className="absolute bottom-2 right-[8%] text-3xl opacity-80 [@media(min-width:640px)_and_(min-height:720px)]:bottom-3 [@media(min-width:640px)_and_(min-height:720px)]:text-4xl">🏝️</div>
+    <div className="pointer-events-none absolute inset-0">
+      {stars.map((s) => (
+        <span
+          key={s.id}
+          className="animate-twinkle absolute rounded-full bg-white"
+          style={{
+            left: `${s.left}%`,
+            top: `${s.top}%`,
+            width: s.size,
+            height: s.size,
+            animationDelay: `${s.delay}s`,
+          }}
+        />
+      ))}
     </div>
   );
 }
 
-function TopBar({ totalRounds, stars, muted, onToggleMute }) {
+
+const TopBar = React.memo(function TopBar({ totalRounds, stars, muted, onToggleMute }) {
   return (
     <div className="flex w-full items-center justify-between">
       <Link
@@ -481,14 +550,14 @@ function TopBar({ totalRounds, stars, muted, onToggleMute }) {
       </div>
     </div>
   );
-}
+});
 
 const StarMeter = React.memo(function StarMeter({ stars, total, dark }) {
   const pct = total > 0 ? Math.round((stars / total) * 100) : 0;
   return (
     <div className="flex items-center gap-2" aria-label={`${stars} out of ${total} stars earned`}>
       <span className="text-xl [@media(min-width:640px)_and_(min-height:720px)]:text-2xl">⭐</span>
-      <div className={`h-2.5 w-16 overflow-hidden rounded-full [@media(min-width:640px)_and_(min-height:720px)]:w-24 ${dark ? 'bg-slate-200' : 'bg-white/50'}`}>
+      <div className={`h-2.5 w-16 overflow-hidden rounded-full [@media(min-width:640px)_and_(min-height:720px)]:w-24 ${dark ? 'bg-slate-200' : 'bg-white/40'}`}>
         <div
           className="relative h-full overflow-hidden rounded-full bg-gradient-to-r from-yellow-300 to-orange-400 transition-all duration-500"
           style={{ width: `${pct}%` }}
@@ -496,7 +565,7 @@ const StarMeter = React.memo(function StarMeter({ stars, total, dark }) {
           <span className="animate-shimmer absolute inset-0 bg-gradient-to-r from-transparent via-white/60 to-transparent" />
         </div>
       </div>
-      <span className={`font-body text-xs font-extrabold [@media(min-width:640px)_and_(min-height:720px)]:text-sm ${dark ? 'text-slate-700' : 'text-amber-900 drop-shadow-sm'}`}>
+      <span className={`font-body text-xs font-extrabold [@media(min-width:640px)_and_(min-height:720px)]:text-sm ${dark ? 'text-slate-700' : 'text-white drop-shadow'}`}>
         {stars}/{total}
       </span>
     </div>
@@ -508,10 +577,10 @@ const RoundDots = React.memo(function RoundDots({ total, current, markers = [] }
     <div className="mt-1.5 flex flex-wrap items-center justify-center gap-1">
       {Array.from({ length: total }).map((_, i) => (
         <React.Fragment key={i}>
-          {markers.includes(i) && <span className="mx-1 h-3 w-px bg-amber-900/30" />}
+          {markers.includes(i) && <span className="mx-1 h-3 w-px bg-white/40" />}
           <span
             className={`h-1.5 w-1.5 rounded-full transition-colors [@media(min-width:640px)_and_(min-height:720px)]:h-2 [@media(min-width:640px)_and_(min-height:720px)]:w-2 ${
-              i < current ? 'bg-amber-800' : i === current ? 'animate-twinkle bg-yellow-400' : 'bg-amber-900/25'
+              i < current ? 'bg-white' : i === current ? 'animate-twinkle bg-yellow-300' : 'bg-white/30'
             }`}
           />
         </React.Fragment>
@@ -520,140 +589,223 @@ const RoundDots = React.memo(function RoundDots({ total, current, markers = [] }
   );
 });
 
-function PollyPrompt({ round, streak, isWrong }) {
+const NovaPrompt = React.memo(function NovaPrompt({ round, streak, isWrong }) {
   return (
-    <div className="mt-1 flex flex-col items-center gap-1 [@media(min-width:640px)_and_(min-height:720px)]:mt-2">
-      <div className="relative">
-        <span className={cn('inline-block text-4xl [@media(min-width:640px)_and_(min-height:720px)]:text-5xl', isWrong ? 'animate-shake' : 'animate-mascot-idle')}>
-          🦜
-        </span>
-        {streak >= 2 && (
-          <span className="font-body animate-pop-in absolute -right-2 -top-1 rounded-full bg-orange-400 px-1.5 py-0.5 text-[10px] font-extrabold text-white shadow">
-            🔥{streak}
-          </span>
-        )}
-      </div>
-      <div className="animate-pop-in relative max-w-xs rounded-2xl bg-white px-4 py-2 text-center shadow-[0_5px_0_rgba(0,0,0,0.12)] [@media(min-width:640px)_and_(min-height:720px)]:max-w-sm">
-        <span className="absolute -top-1.5 left-1/2 h-3 w-3 -translate-x-1/2 rotate-45 bg-white" />
-        {isWrong ? (
-          <p className="font-body text-xs font-bold text-orange-600 [@media(min-width:640px)_and_(min-height:720px)]:text-sm">Arr, not that one! 🦜</p>
-        ) : round.type === 'part' ? (
-          <p className="font-body text-xs font-bold text-slate-700 [@media(min-width:640px)_and_(min-height:720px)]:text-sm">
-            Find the key that makes <span className="text-amber-600">{formatNumber(round.whole, round.format)}</span>!
-          </p>
-        ) : (
-          <p className="font-body text-xs font-bold text-slate-700 [@media(min-width:640px)_and_(min-height:720px)]:text-sm">Which chest holds both keys?</p>
-        )}
-      </div>
-    </div>
-  );
-}
-
-const DotRow = React.memo(function DotRow({ value, small }) {
-  if (value == null) return null;
-  return (
-    <div
-      className={cn('flex flex-wrap items-center justify-center gap-0.5', small ? 'max-w-[3.2rem]' : 'max-w-[4.5rem]')}
-      aria-hidden="true"
-    >
-      {Array.from({ length: value }).map((_, i) => (
-        <span key={i} className={cn('rounded-full bg-amber-800/70', small ? 'h-1.5 w-1.5' : 'h-2 w-2 [@media(min-width:640px)_and_(min-height:720px)]:h-2.5 [@media(min-width:640px)_and_(min-height:720px)]:w-2.5')} />
-      ))}
-    </div>
-  );
-});
-
-function PartRoundContent({ round, filled, chosenValue, wrongChoiceId, disabled }) {
-  const wholeLabel = formatNumber(round.whole, round.format);
-  const fixedLabel = formatNumber(round.fixedPart, round.format);
-  const targetLabel = filled ? formatNumber(chosenValue, round.format) : '?';
-
-  return (
-    <div className="mt-1 flex w-full flex-1 flex-col items-center gap-2.5 [@media(min-width:640px)_and_(min-height:720px)]:mt-2 [@media(min-width:640px)_and_(min-height:720px)]:gap-4">
-      <div className="flex flex-col items-center gap-1.5">
-        <span className="font-body flex items-center gap-1.5 rounded-full bg-white/90 py-1 pl-3 pr-1.5 text-xs font-extrabold text-amber-800 shadow [@media(min-width:640px)_and_(min-height:720px)]:text-base">
-          Chest needs <NumberChip value={wholeLabel} tone="white" /> keys!
-        </span>
-        <img
-          src={filled ? '/chest_open.png' : '/chest_closed.png'}
-          alt={filled ? 'Open treasure chest' : 'Closed treasure chest'}
-          className="w-[clamp(5rem,17vw,7.5rem)] select-none drop-shadow-lg"
-          decoding="async"
-          draggable={false}
-        />
-        <DotRow value={round.whole} />
-      </div>
-
-      <div className="flex items-center justify-center gap-3 [@media(min-width:640px)_and_(min-height:720px)]:gap-5">
-        <FixedKeySlot label="This key" value={fixedLabel} dotValue={round.fixedPart} />
-        <span className="font-body rounded-full bg-amber-100 px-2.5 py-1 text-xs font-extrabold text-amber-700 [@media(min-width:640px)_and_(min-height:720px)]:text-sm">
-          and
-        </span>
-        <TargetKeySlot label="Mystery key" value={targetLabel} dotValue={filled ? chosenValue : null} filled={filled} />
-      </div>
-
-      {!filled && (
-        <KeyTray choices={round.choices} format={round.format} disabled={disabled} wrongChoiceId={wrongChoiceId} />
+    <div className="relative shrink-0">
+      <motion.span
+        className="inline-block text-4xl [@media(min-width:640px)_and_(min-height:720px)]:text-5xl"
+        animate={isWrong ? { x: [0, -6, 6, -6, 6, 0] } : { rotate: [-4, 4, -4], y: [0, -4, 0] }}
+        transition={isWrong ? { duration: 0.4 } : { duration: 3, repeat: Infinity, ease: 'easeInOut' }}
+      >
+        🧑‍🚀
+      </motion.span>
+      {streak >= 2 && (
+        <motion.span
+          initial={{ scale: 0 }}
+          animate={{ scale: 1 }}
+          className="font-body absolute -right-2 -top-1 rounded-full bg-orange-400 px-1.5 py-0.5 text-[10px] font-extrabold text-white shadow"
+        >
+          🔥{streak}
+        </motion.span>
       )}
     </div>
   );
+});
+
+// A big, bouncy number — the one shared "language" used everywhere instead
+// of any +/= notation: the bay's count, and each rocket's count.
+function BigNumber({ value, className }) {
+  return (
+    <motion.span
+      key={value}
+      initial={{ scale: 0.5, opacity: 0 }}
+      animate={{ scale: 1, opacity: 1 }}
+      transition={{ type: 'spring', stiffness: 420, damping: 16 }}
+      className={cn('font-heading text-4xl font-bold drop-shadow [@media(min-width:640px)_and_(min-height:720px)]:text-5xl', className)}
+    >
+      {value}
+    </motion.span>
+  );
 }
 
-const FixedKeySlot = React.memo(function FixedKeySlot({ label, value, dotValue }) {
+const MissionHeader = React.memo(function MissionHeader({ round }) {
   return (
-    <div className="flex flex-col items-center gap-1.5">
-      <span className="font-body text-[9px] font-extrabold uppercase tracking-wide text-amber-800/70 [@media(min-width:640px)_and_(min-height:720px)]:text-xs">
-        {label}
-      </span>
-      <div className="flex h-14 w-14 items-center justify-center rounded-2xl border-4 border-amber-700 bg-gradient-to-b from-amber-200 to-amber-400 shadow-[0_4px_0_rgba(0,0,0,0.2)] [@media(min-width:640px)_and_(min-height:720px)]:h-16 [@media(min-width:640px)_and_(min-height:720px)]:w-16">
-        <span className="text-2xl [@media(min-width:640px)_and_(min-height:720px)]:text-3xl">🗝️</span>
+    <div className="animate-pop-in flex flex-col items-center gap-0.5 rounded-[1.5rem] bg-white/90 px-4 py-2 text-center shadow-[0_6px_0_rgba(0,0,0,0.15)] [@media(min-width:640px)_and_(min-height:720px)]:px-5 [@media(min-width:640px)_and_(min-height:720px)]:py-2.5">
+      <div className="flex items-center gap-1.5">
+        <span className="font-heading text-3xl font-bold text-indigo-600 [@media(min-width:640px)_and_(min-height:720px)]:text-4xl">{round.mode === 'target' ? numberWords[round.total - 1] : round.total}</span>
+        <span className="text-2xl [@media(min-width:640px)_and_(min-height:720px)]:text-3xl">{round.cargo.emoji}</span>
       </div>
-      <NumberChip value={value} />
-      <DotRow value={dotValue} />
+      <p className="font-body text-xs font-bold text-slate-600 [@media(min-width:640px)_and_(min-height:720px)]:text-sm">
+  {round.mode === 'free' && `Split the ${round.cargo.name} any way you like!`}
+
+{round.mode === 'half' && (
+  <>
+    Split the {round.cargo.name} evenly!
+    <br />
+    The <span className='text-red-600 text-lg font-bold'>Red</span> and <span className='text-blue-600 text-lg font-bold'>Blue</span> rockets need the same amount!
+  </>
+)}
+
+  {round.mode === 'target' && (
+    <>
+      <span className='text-red-600 text-lg'>Red</span> needs{' '}
+      <span className="text-lg font-extrabold text-red-600 [@media(min-width:640px)_and_(min-height:720px)]:text-xl">
+        {numberWords[round.targetA - 1]}
+      </span>
+      , <span className='text-blue-600 text-lg'>Blue</span> needs{' '}
+      <span className="text-lg font-extrabold text-blue-600 [@media(min-width:640px)_and_(min-height:720px)]:text-xl">
+        {numberWords[round.targetB - 1]}
+      </span>
+      
+    </>
+  )}
+</p>
     </div>
   );
 });
 
-function TargetKeySlot({ label, value, dotValue, filled }) {
-  const { isOver, setNodeRef } = useDroppable({ id: 'slot' });
+// A literal seesaw: it visibly tilts toward whichever rocket has more, and
+// levels out the moment Red and Blue match — no numbers needed to "get" it.
+const BalanceScale = React.memo(function BalanceScale({ leftCount, rightCount }) {
+  const diff = Math.max(-4, Math.min(4, rightCount - leftCount));
+  const angle = diff * 6;
+  const balanced = leftCount === rightCount && leftCount > 0;
   return (
-    <div className="flex flex-col items-center gap-1.5">
-      <span className="font-body text-[9px] font-extrabold uppercase tracking-wide text-amber-800/70 [@media(min-width:640px)_and_(min-height:720px)]:text-xs">
-        {label}
+    <div className="animate-pop-in mt-1 flex flex-col items-center [@media(min-width:640px)_and_(min-height:720px)]:mt-2">
+      <svg viewBox="0 0 160 90" className="h-11 w-24 [@media(min-width:640px)_and_(min-height:720px)]:h-14 [@media(min-width:640px)_and_(min-height:720px)]:w-28">
+        <line x1="80" y1="88" x2="80" y2="30" stroke="#C4B5FD" strokeWidth="6" strokeLinecap="round" />
+        <polygon points="80,10 66,30 94,30" fill="#A78BFA" />
+        <g style={{ transform: `rotate(${angle}deg)`, transformOrigin: '80px 30px', transition: 'transform 0.4s ease' }}>
+          <line x1="20" y1="30" x2="140" y2="30" stroke="#8B5CF6" strokeWidth="5" strokeLinecap="round" />
+          <circle cx="20" cy="42" r="11" fill="#F87171" />
+          <circle cx="140" cy="42" r="11" fill="#60A5FA" />
+        </g>
+      </svg>
+      <p className={cn('font-body mt-1 text-xs font-bold', balanced ? 'text-emerald-300' : 'text-white/70')}>
+        {balanced ? '⚖️ Balanced!' : 'Make them match!'}
+      </p>
+    </div>
+  );
+});
+
+const CargoBay = React.memo(function CargoBay({ items, count, cargo, disabled, pulse }) {
+  const { isOver, setNodeRef } = useDroppable({ id: 'pool' });
+  return (
+    <div
+      ref={setNodeRef}
+      style={{
+        backgroundImage: `
+          linear-gradient(to bottom, rgba(255,255,255,0.08), rgba(0,0,0,0.08)),
+          repeating-linear-gradient(
+            135deg,
+            rgba(255,255,255,0.06) 0px,
+            rgba(255,255,255,0.06) 3px,
+            transparent 3px,
+            transparent 16px
+          )
+        `,
+      }}
+      className={cn(
+        'relative mt-2 flex min-h-[clamp(4rem,13vh,7rem)] w-full flex-col items-center justify-center gap-1 overflow-hidden rounded-[1.75rem] border-4 border-dashed border-indigo-300/50 bg-white/10 p-2 pt-7 shadow-inner backdrop-blur-sm transition-shadow [@media(min-width:640px)_and_(min-height:720px)]:mt-4 [@media(min-width:640px)_and_(min-height:720px)]:min-h-[clamp(7rem,20vh,11rem)] [@media(min-width:640px)_and_(min-height:720px)]:gap-2 [@media(min-width:640px)_and_(min-height:720px)]:p-4 [@media(min-width:640px)_and_(min-height:720px)]:pt-8',
+        isOver && 'border-yellow-300 bg-white/20',
+        pulse && 'animate-glow-pulse'
+      )}
+    >
+      <span className="font-body absolute -top-3 left-4 mt-3 rounded-full bg-white/90 px-3 py-0.5 text-xs font-extrabold text-slate-600 shadow [@media(min-width:640px)_and_(min-height:720px)]:text-sm">
+        🛰️ Cargo Bay
       </span>
+      <BigNumber value={count} className="text-indigo-100" />
+      <div className="flex flex-wrap content-start items-start justify-center gap-1 [@media(min-width:640px)_and_(min-height:720px)]:gap-2">
+        {items.length === 0 && <span className="font-body text-sm font-bold text-white/70">All loaded!</span>}
+        {items.map((it) => (
+          <DraggableCargo key={it.id} id={it.id} emoji={cargo.emoji} rotation={it.rotation} disabled={disabled} />
+        ))}
+      </div>
+    </div>
+  );
+});
+
+const ROCKET_THEME = {
+  red: {
+    label: '🔴 Red Rocket',
+    body: 'from-rose-300 to-rose-500 border-rose-800/70',
+    ring: 'ring-rose-200',
+    finLeft: 'bg-rose-600',
+    finRight: 'bg-rose-700',
+  },
+  blue: {
+    label: '🔵 Blue Rocket',
+    body: 'from-sky-300 to-sky-500 border-sky-800/70',
+    ring: 'ring-sky-200',
+    finLeft: 'bg-sky-600',
+    finRight: 'bg-sky-700',
+  },
+};
+
+const RocketZone = React.memo(function RocketZone({ id, count, items, cargo, disabled, shake, color, goal, matched }) {
+  const { isOver, setNodeRef } = useDroppable({ id });
+  const theme = ROCKET_THEME[color];
+  return (
+    <div className="flex flex-1 flex-col items-center">
       <div
         ref={setNodeRef}
+        style={{
+          backgroundImage: `
+            linear-gradient(to bottom, rgba(255,255,255,0.18), rgba(0,0,0,0.1)),
+            repeating-linear-gradient(
+              0deg,
+              rgba(255,255,255,0.1) 0px,
+              rgba(255,255,255,0.1) 3px,
+              transparent 3px,
+              transparent 13px
+            )
+          `,
+        }}
         className={cn(
-          'flex h-14 w-14 items-center justify-center rounded-2xl border-4 border-dashed shadow-inner transition-colors [@media(min-width:640px)_and_(min-height:720px)]:h-16 [@media(min-width:640px)_and_(min-height:720px)]:w-16',
-          filled ? 'border-emerald-500 bg-emerald-100' : isOver ? 'border-yellow-400 bg-white/70' : 'border-amber-500/60 bg-white/30'
+          'relative flex min-h-[clamp(5rem,17vh,8.5rem)] w-full flex-col items-center gap-1 overflow-hidden rounded-t-[2.5rem] rounded-b-2xl border-4 bg-gradient-to-b p-2 pt-8 shadow-inner transition-shadow [@media(min-width:640px)_and_(min-height:720px)]:gap-2 [@media(min-width:640px)_and_(min-height:720px)]:p-4 [@media(min-width:640px)_and_(min-height:720px)]:pt-9',
+          theme.body,
+          isOver && `ring-4 ${theme.ring}`,
+          shake && 'animate-shake',
+          matched && 'ring-4 ring-emerald-300'
         )}
       >
-        <span className="text-2xl [@media(min-width:640px)_and_(min-height:720px)]:text-3xl">{filled ? '🗝️' : '❓'}</span>
-      </div>
-      <NumberChip value={value} tone={filled ? 'amber' : 'white'} />
-      <DotRow value={dotValue} />
-    </div>
-  );
-}
-
-function KeyTray({ choices, format, disabled, wrongChoiceId }) {
-  return (
-    <div className="mt-1 flex w-full flex-wrap items-end justify-center gap-2.5 rounded-[1.5rem] border-4 border-dashed border-amber-400/60 bg-white/25 p-2.5 [@media(min-width:640px)_and_(min-height:720px)]:gap-4 [@media(min-width:640px)_and_(min-height:720px)]:p-4">
-      {choices.map((c) => (
-        <DraggableKey
-          key={c.id}
-          id={c.id}
-          value={formatNumber(c.value, format)}
-          dotValue={c.value}
-          disabled={disabled}
-          isWrong={wrongChoiceId === c.id}
+        {/* Decorative porthole window — sits behind the cargo so it never
+            blocks a drop target or a drag gesture. */}
+        <span
+          className="pointer-events-none absolute left-1/2 top-3 h-6 w-6 -translate-x-1/2 rounded-full border-2 border-white/70 bg-gradient-to-br from-white/80 via-sky-100/40 to-transparent shadow-inner [@media(min-width:640px)_and_(min-height:720px)]:h-8 [@media(min-width:640px)_and_(min-height:720px)]:w-8"
+          aria-hidden="true"
         />
-      ))}
+        <span className="font-body absolute -top-3 left-1/2 z-10 mt-3 -translate-x-1/2 whitespace-nowrap rounded-full bg-white/95 px-2.5 py-0.5 text-[11px] font-extrabold text-slate-600 shadow [@media(min-width:640px)_and_(min-height:720px)]:px-3 [@media(min-width:640px)_and_(min-height:720px)]:text-sm">
+          {theme.label}
+        </span>
+        <div className="mt-2 [@media(min-width:640px)_and_(min-height:720px)]:mt-2.5">
+          <BigNumber value={count} className="text-white" />
+        </div>
+        
+        <div className="flex flex-wrap content-start items-start justify-center gap-1 [@media(min-width:640px)_and_(min-height:720px)]:gap-2">
+          {items.length === 0 && <span className="font-body text-xs font-bold text-white/80 [@media(min-width:640px)_and_(min-height:720px)]:text-sm">Drop cargo here!</span>}
+          {items.map((it) => (
+            <DraggableCargo key={it.id} id={it.id} emoji={cargo.emoji} rotation={it.rotation} disabled={disabled} />
+          ))}
+        </div>
+      </div>
+
+      {/* Fins — a couple of clipped triangles bracketing the engine, purely
+          decorative and cheap (no extra animation, just static shapes). */}
+      <div className="relative flex w-full items-start justify-center">
+        <span className={cn('absolute -top-1 h-4 w-6 [@media(min-width:640px)_and_(min-height:720px)]:h-5 [@media(min-width:640px)_and_(min-height:720px)]:w-7', theme.finLeft)} style={{ left: '14%', clipPath: 'polygon(100% 0, 100% 100%, 0 100%)' }} />
+        <span className={cn('absolute -top-1 h-4 w-6 [@media(min-width:640px)_and_(min-height:720px)]:h-5 [@media(min-width:640px)_and_(min-height:720px)]:w-7', theme.finRight)} style={{ right: '14%', clipPath: 'polygon(0 0, 100% 100%, 0 100%)' }} />
+      </div>
+
+      <div className="relative flex justify-center rotate-180">
+        <span className="animate-flame mt-9 text-2xl">🔥</span>
+        <span className="animate-flame2 absolute mt-5 text-xl opacity-70">🔥</span>
+      </div>
     </div>
   );
-}
+});
 
-const DraggableKey = React.memo(function DraggableKey({ id, value, dotValue, disabled, isWrong }) {
+const DraggableCargo = React.memo(function DraggableCargo({ id, emoji, rotation, disabled }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id, disabled });
   return (
     <div
@@ -662,122 +814,117 @@ const DraggableKey = React.memo(function DraggableKey({ id, value, dotValue, dis
       {...attributes}
       style={{
         transform: transform ? CSS.Translate.toString(transform) : undefined,
+        rotate: `${rotation}deg`,
         touchAction: 'none',
       }}
-      className={cn(
-        'flex flex-col items-center gap-1.5 rounded-2xl border-4 border-amber-700 bg-gradient-to-b from-yellow-100 to-amber-200 px-2.5 py-2.5 shadow-[0_5px_0_rgba(0,0,0,0.2)] transition-opacity [@media(min-width:640px)_and_(min-height:720px)]:px-3.5 [@media(min-width:640px)_and_(min-height:720px)]:py-3',
-        disabled ? 'cursor-default' : 'cursor-grab active:cursor-grabbing',
-        isDragging && 'opacity-0',
-        isWrong && 'animate-shake'
-      )}
+      className={`flex h-8 w-8 items-center justify-center rounded-2xl text-base transition-opacity duration-150 [@media(min-width:640px)_and_(min-height:720px)]:h-12 [@media(min-width:640px)_and_(min-height:720px)]:w-12 [@media(min-width:640px)_and_(min-height:720px)]:text-2xl ${
+        disabled ? 'cursor-default' : 'cursor-grab active:cursor-grabbing'
+      } ${isDragging ? 'opacity-0' : 'opacity-100'}`}
     >
-      <span className="text-2xl [@media(min-width:640px)_and_(min-height:720px)]:text-3xl">🗝️</span>
-      <NumberChip value={value} tone="white" />
-      <DotRow value={dotValue}  />
+      {emoji}
     </div>
   );
 });
 
-function WholeRoundContent({ round, chosenChestId, wrongChestId, disabled, onSelect }) {
-  const partALabel = formatNumber(round.partA, round.format);
-  const partBLabel = formatNumber(round.partB, round.format);
+// A standalone "look up any number" tool, shown during target rounds. Kept
+// visually consistent with MissionHeader (same white card, same rounded
+// corners) and uses indigo for its selected state rather than blue, so it
+// never reads as "the Blue rocket" by accident.
+const NumberHelper = React.memo(function NumberHelper({ selected, onSelect }) {
   return (
-    <div className="mt-1 flex w-full flex-1 flex-col items-center gap-3 [@media(min-width:640px)_and_(min-height:720px)]:mt-2 [@media(min-width:640px)_and_(min-height:720px)]:gap-5">
-      <div className="flex items-center justify-center gap-2 rounded-[1.5rem] bg-white/90 px-4 py-3 shadow-[0_6px_0_rgba(0,0,0,0.15)] [@media(min-width:640px)_and_(min-height:720px)]:gap-3.5 [@media(min-width:640px)_and_(min-height:720px)]:px-6">
-        <div className="flex flex-col items-center gap-1">
-          <span className="text-2xl [@media(min-width:640px)_and_(min-height:720px)]:text-3xl">🗝️</span>
-          <NumberChip value={partALabel} tone="white" />
-          <DotRow value={round.partA} />
-        </div>
-        <span className="font-body rounded-full bg-amber-100 px-2.5 py-1 text-xs font-extrabold text-amber-700 [@media(min-width:640px)_and_(min-height:720px)]:text-sm">
-          and
-        </span>
-        <div className="flex flex-col items-center gap-1">
-          <span className="text-2xl [@media(min-width:640px)_and_(min-height:720px)]:text-3xl">🗝️</span>
-          <NumberChip value={partBLabel} tone="white" />
-          <DotRow value={round.partB} />
-        </div>
-        <span className="text-xl text-amber-700/60 [@media(min-width:640px)_and_(min-height:720px)]:text-2xl">➡️</span>
-        <span className="text-3xl [@media(min-width:640px)_and_(min-height:720px)]:text-4xl">❓</span>
+    <div className="animate-pop-in mt-2 w-full max-w-2xl rounded-[1.5rem] bg-white/90 px-3 py-3 shadow-[0_6px_0_rgba(0,0,0,0.15)] [@media(min-width:640px)_and_(min-height:720px)]:mt-4 [@media(min-width:640px)_and_(min-height:720px)]:max-w-xs [@media(min-width:640px)_and_(min-height:720px)]:px-4 [@media(min-width:640px)_and_(min-height:720px)]:py-3">
+      
+
+      <div className="mt-2 flex h-14 items-center justify-center">
+        <AnimatePresence mode="wait">
+          {selected === null ? (
+            <motion.p
+              key="hint"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="font-body text-xs font-semibold text-slate-300 [@media(min-width:640px)_and_(min-height:720px)]:text-sm"
+            >
+              Pick a number below 👇
+            </motion.p>
+          ) : (
+            <motion.div
+              key={selected}
+              initial={{ opacity: 0, scale: 0.6, y: 8 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.8, y: -8 }}
+              transition={{ type: 'spring', stiffness: 500, damping: 24 }}
+              className="rounded-2xl bg-indigo-50 px-5 py-1.5 shadow-inner"
+            >
+              <span className="font-heading text-xl font-bold text-indigo-600">
+                {numberWords[selected]}
+              </span>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
-      <p className="font-body text-[11px] font-bold text-amber-900/80 [@media(min-width:640px)_and_(min-height:720px)]:text-sm">Tap the chest with the right number!</p>
-
-      <div className="flex flex-wrap items-start justify-center gap-3 [@media(min-width:640px)_and_(min-height:720px)]:gap-6">
-        {round.chestOptions.map((c) => (
-          <ChestOption
-            key={c.id}
-            value={formatNumber(c.value, round.format)}
-            dotValue={c.value}
-            isChosen={chosenChestId === c.id}
-            isWrong={wrongChestId === c.id}
-            disabled={disabled}
-            onTap={() => onSelect(c)}
-          />
-        ))}
+      <div className="mt-2 grid grid-cols-5 gap-1.5 [@media(min-width:640px)_and_(min-height:720px)]:gap-2">
+        {numberWords.map((_, i) => {
+          const active = selected === i;
+          return (
+            <motion.button
+              key={i}
+              type="button"
+              onClick={() => onSelect(i)}
+              aria-pressed={active}
+              aria-label={`Show ${i + 1} spelled out`}
+              whileTap={{ scale: 0.9 }}
+              animate={{ scale: active ? 1.08 : 1 }}
+              transition={{ type: 'spring', stiffness: 400, damping: 20 }}
+              className={cn(
+                'font-heading aspect-square rounded-xl text-base font-bold shadow-sm transition-colors [@media(min-width:640px)_and_(min-height:720px)]:text-sm',
+                active
+                  ? 'bg-indigo-500 text-white ring-4 ring-indigo-200'
+                  : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+              )}
+            >
+              {i + 1}
+            </motion.button>
+          );
+        })}
       </div>
     </div>
   );
-}
-
-const ChestOption = React.memo(function ChestOption({ value, dotValue, isChosen, isWrong, disabled, onTap }) {
-  return (
-    <button
-      type="button"
-      onClick={onTap}
-      disabled={disabled || isChosen}
-      className={cn(
-        'flex flex-col items-center gap-1.5 rounded-2xl p-1 transition-transform',
-        !disabled && !isChosen && 'hover:-translate-y-1 active:translate-y-0.5',
-        isWrong && 'animate-shake'
-      )}
-    >
-      {!isChosen && <NumberChip value={value} tone="white" />}
-      <img
-        src={isChosen ? '/chest_open.png' : '/chest_closed.png'}
-        alt="Treasure chest"
-        className="w-[clamp(3.75rem,13vw,5.5rem)] select-none drop-shadow-lg"
-        decoding="async"
-        draggable={false}
-      />
-      <DotRow value={dotValue} small />
-    </button>
-  );
 });
 
-function SuccessOverlay({ round, value, isLastRound, streak, onNext }) {
+function SuccessOverlay({ leftCount, rightCount, total, cargo, isLastRound, streak, onNext }) {
   const { width, height } = useWindowSize();
-  const message =
-    round.type === 'part'
-      ? `${round.fixedPart} and ${value} together make ${round.whole}!`
-      : `${round.partA} and ${round.partB} together make ${round.whole}!`;
   return (
     <div className="fixed inset-0 z-30 flex items-center justify-center bg-black/30 p-4">
       <Confetti
         width={width}
         height={height}
-        numberOfPieces={streak >= 3 ? 130 : 80}
+        numberOfPieces={streak >= 3 ? 160 : 90}
         recycle={false}
         gravity={0.24}
-        colors={['#F59E0B', '#FBBF24', '#34D399', '#60A5FA', '#F472B6']}
+        colors={['#F87171', '#60A5FA', '#FCD34D', '#A78BFA', '#34D399']}
         style={{ position: 'fixed', inset: 0, zIndex: 20, pointerEvents: 'none' }}
       />
       <motion.div
         initial={{ scale: 0.7, y: 20, opacity: 0 }}
         animate={{ scale: 1, y: 0, opacity: 1 }}
         transition={{ type: 'spring', stiffness: 300, damping: 22 }}
-        className="relative flex max-w-sm flex-col items-center rounded-[2.5rem] bg-white px-8 py-6 text-center shadow-2xl [@media(min-width:640px)_and_(min-height:720px)]:py-8"
+        className="relative flex max-w-sm flex-col items-center rounded-[2.5rem] bg-white px-8 py-8 text-center shadow-2xl"
       >
-        <img src="/chest_open.png" alt="Open treasure chest" className="w-24 select-none drop-shadow-lg [@media(min-width:640px)_and_(min-height:720px)]:w-28" draggable={false} />
-        <p className="font-heading mt-1 text-2xl font-bold text-amber-500 [@media(min-width:640px)_and_(min-height:720px)]:text-3xl">
-          {streak >= 3 ? 'Treasure streak!' : 'Chest unlocked!'}
+        <div className="text-6xl">{streak >= 3 ? '🌟' : '🚀'}</div>
+        <p className="font-heading mt-2 text-2xl font-bold text-amber-500 [@media(min-width:640px)_and_(min-height:720px)]:text-3xl">
+          {streak >= 3 ? 'On a streak!' : 'Blast off!'}
         </p>
-        <p className="font-body mt-2 text-base font-semibold text-slate-500 [@media(min-width:640px)_and_(min-height:720px)]:text-lg">{message}</p>
+        <p className="font-body mt-2 text-base font-semibold text-slate-500 [@media(min-width:640px)_and_(min-height:720px)]:text-lg">
+          {total} can be split into {leftCount} and {rightCount}!
+        </p>
         <button
           onClick={onNext}
           className="font-heading mt-6 rounded-full bg-gradient-to-b from-green-400 to-green-500 px-7 py-3 text-lg font-bold text-white shadow-[0_6px_0_rgba(0,0,0,0.2)] transition-transform hover:-translate-y-0.5 active:translate-y-1 active:shadow-none"
         >
-          {isLastRound ? 'See my results! 🏆' : 'Next chest ➡️'}
+          {isLastRound ? 'See my results! 🏆' : 'Next mission ➡️'}
         </button>
       </motion.div>
     </div>
@@ -791,15 +938,21 @@ function CompletionScreen({ stars, total, playerName, onPlayAgain }) {
       <Confetti
         width={width}
         height={height}
-        numberOfPieces={130}
+        numberOfPieces={160}
         recycle={false}
         gravity={0.2}
-        colors={['#F59E0B', '#FBBF24', '#34D399', '#60A5FA', '#F472B6']}
+        colors={['#F87171', '#60A5FA', '#FCD34D', '#A78BFA', '#34D399']}
         style={{ position: 'fixed', inset: 0, zIndex: 20, pointerEvents: 'none' }}
       />
-      <img src="/chest_open.png" alt="Open treasure chest" className="w-20 select-none drop-shadow-lg [@media(min-width:640px)_and_(min-height:720px)]:w-28" draggable={false} />
+      <motion.div
+        animate={{ y: [0, -10, 0] }}
+        transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+        className="text-5xl [@media(min-width:640px)_and_(min-height:720px)]:text-7xl"
+      >
+        🚀
+      </motion.div>
       <h2 className="font-heading mt-2 text-2xl font-bold text-slate-800 [@media(min-width:640px)_and_(min-height:720px)]:mt-3 [@media(min-width:640px)_and_(min-height:720px)]:text-4xl">
-        Quest complete, {playerName}!
+        Mission complete, {playerName}!
       </h2>
       <p className="font-body mt-1 text-base font-semibold text-slate-500 [@media(min-width:640px)_and_(min-height:720px)]:mt-2 [@media(min-width:640px)_and_(min-height:720px)]:text-lg">
         You earned {stars} out of {total} stars

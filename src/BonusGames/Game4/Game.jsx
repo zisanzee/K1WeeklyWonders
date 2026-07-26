@@ -26,7 +26,7 @@ export default function Game({ playerName }) {
   // same way BonusGame1 does it (Level 1 -> 1/1, Level 2 -> 2/2).
   const handleComplete = (payload, currentPlayerName) => {
     logPlaySession({
-      game: 'bonusGame2',
+      game: 'game4',
       playerName: currentPlayerName || 'Guest',
       ...payload,
     });

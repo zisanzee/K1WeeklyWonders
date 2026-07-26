@@ -5,11 +5,11 @@ import { usePlayerStore } from './playerStore';
 
 const GAME_LABELS = {
   game1: '🧺 Count & Win',
-  game2: '🧸 Compare Quantity',
-  game3: '🐙 Around the Number',
-  game4: '🚀 Splits and Groups',
-  game5: "🗝️ Part-Part-Whole",
-  game6: "🗝️ name not set yet",
+  game2: '🧸 Compare Quantities',
+  game3: '🐙 Which Number?',
+  game4: '🎲 Compare Die and Dominoes',
+  game5: '🚀 Making & Splitting Groups',
+  game6: "🗝️ Part-Part-Whole",
   game7: "🗝️ name not set yet",
   game8: "🗝️ name not set yet",
   game9: "🗝️ name not set yet",

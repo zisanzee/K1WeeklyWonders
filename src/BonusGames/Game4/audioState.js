@@ -32,7 +32,7 @@ export function ensureBgMusic(scene) {
 
   let music = scene.sound.get('bgMusic');
   if (!music && scene.cache.audio.exists('bgMusic')) {
-    music = scene.sound.add('bgMusic', { loop: true, volume: 0.22 });
+    music = scene.sound.add('bgMusic', { loop: true, volume: 0.42 });
   }
   if (!music) return null;
 

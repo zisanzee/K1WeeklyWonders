@@ -89,7 +89,7 @@ function HomeContent() {
       if (isGameUnlocked(1, isTeacher)) import("./Game1");
       if (isGameUnlocked(2, isTeacher)) import("./Game2");
       if (isGameUnlocked(3, isTeacher)) import("./Game3");
-      if (isGameUnlocked(4, isTeacher)) import("./Game4");
+      if (isGameUnlocked(4, isTeacher)) import("./Game5");
     };
 
     if (typeof window !== "undefined" && "requestIdleCallback" in window) {
@@ -326,6 +326,18 @@ function HomeContent() {
             <GameCard
               to="/Game4"
               number="4"
+              emoji="🎲"
+              title="Compare Die and Dominoes"
+              subtitle={`Comparing 2 Sets \n(subitising)`}
+              color="from-sky-400 to-blue-500"
+              ring="ring-sky-200"
+              delay={0.3}
+              open={isGameUnlocked(4, isTeacher)}
+              progress={progressByGame.game4}
+            />
+            <GameCard
+              to="/Game5"
+              number="5"
               emoji="🚀"
               title="Making & Splitting Groups"
               subtitle={`Number Bonds \n (1-5)`}
@@ -337,8 +349,8 @@ function HomeContent() {
             />
 
             <GameCard
-              to="/Game5"
-              number="5"
+              to="/Game6"
+              number="6"
               emoji="🗝️"
               title="Part-Part-Whole!"
               subtitle={`Number Bonds \n (1-10)`}
