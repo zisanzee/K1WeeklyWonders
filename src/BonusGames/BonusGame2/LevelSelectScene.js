@@ -20,16 +20,27 @@ export default class LevelSelectScene extends BaseScene {
     const cover = Math.max(width / bg.width, height / bg.height);
     bg.setScale(cover);
 
-    const title = this.add.text(width / 2, 64, 'BIGGER OR SMALLER?', {
-      fontSize: '38px',
-      fontFamily: 'Fredoka',
-      fontStyle: '900',
-      color: '#FFE14A',
-      stroke: '#1E4F8A',
-      strokeThickness: 8,
-      align: 'center',
-      wordWrap: { width: width - 60 },
-    }).setOrigin(0.5);
+const title = this.add.text(width / 2, 164, 'Bigger or Smaller?', {
+  fontSize: '64px',
+  fontFamily: 'Fredoka, sans-serif',
+  fontStyle: 'bold',
+  color: '#FFF176',
+  stroke: '#1E4F8A',
+  strokeThickness: 10,
+  align: 'center',
+  wordWrap: { width: width - 60 },
+  shadow: {
+    offsetX: 0,
+    offsetY: 5,
+    color: '#18406f',
+    blur: 0,
+    stroke: true,
+    fill: true,
+  },
+  padding: { top: 6, bottom: 6, left: 10, right: 10 },
+}).setOrigin(0.5).setDepth(20);
+
+
 
     title.setShadow(0, 6, '#18406f', 0, false, true);
     this.tweens.add({
@@ -53,13 +64,13 @@ export default class LevelSelectScene extends BaseScene {
     addMuteButton(this, 16, 16, { anchor: 'topLeft' });
 
     const stars = progress.getAllStars();
-    const cardW = Math.min(420, width - 80);
-    const cardH = 240;
-    const gapY = 30;
-    const startY = 190;
+    const cardW = Math.min(520, width - 10);
+    const cardH = 300;
+    const gapY = 50;
+    const startY = 200;
 
     LEVELS.forEach((level, i) => {
-      const cy = startY + i * (cardH + gapY) + cardH / 2;
+      const cy = startY + i * (cardH + gapY) + cardH / 1.5;
       const unlocked = progress.isLevelUnlocked(i);
       this.buildLevelCard(width / 2, cy, cardW, cardH, level, i, unlocked, stars[i]);
     });
@@ -99,14 +110,14 @@ const scale = Math.min(maxSize / icon.width, maxSize / icon.height);
 icon.setScale(scale);
 
     const name = this.add.text(-w / 2 + 150, -34, level.name, {
-      fontSize: '30px',
+      fontSize: '40px',
       fontFamily: 'Fredoka, sans-serif',
       color: '#0f3d5c',
       fontStyle: 'bold',
     }).setOrigin(0, 0.5);
 
     const sub = this.add.text(-w / 2 + 150, 4, level.subtitle, {
-      fontSize: '20px',
+      fontSize: '30px',
       fontFamily: 'Fredoka, sans-serif',
       color: '#4a6478',
       wordWrap: { width: w - 120 },

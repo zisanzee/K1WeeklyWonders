@@ -18,7 +18,7 @@ export const LEVELS = [
     name: 'Level 1',
     subtitle: 'Compare the Dice',
     icon: 'dice5',
-    iconSize: 82, // Dice-5.png
+    iconSize: 102, // Dice-5.png
     itemType: 'dice',
     minValue: 1,
     maxValue: 5,
@@ -42,7 +42,7 @@ export const LEVELS = [
     name: 'Level 2',
     subtitle: 'Compare the Dominoes',
     icon: 'domino8', 
-    iconSize: 180,// Domino-8.png
+    iconSize: 200,// Domino-8.png
     itemType: 'domino',
     minValue: 2,
     maxValue: 10,
