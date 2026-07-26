@@ -8,16 +8,20 @@ export const usePlayerStore = create(
     (set) => ({
       playerName: null,
       isTeacher: false,
+      teacherCode: null,
       setPlayerName: (name) => {
         const trimmed = (name || '').toString().trim().slice(0, 40);
-        set({ playerName: trimmed.length > 0 ? trimmed : 'Guest', isTeacher: false });
+        set({ playerName: trimmed.length > 0 ? trimmed : 'Guest', isTeacher: false, teacherCode: null });
       },
       // Called once a teacher code has been verified against TEACHER_CODES.
-      // Grants access to every game and the stats dashboard.
-      setTeacher: (name) => {
-        set({ playerName: name, isTeacher: true });
+      // Grants access to every game and the stats dashboard. The code
+      // itself is kept (not just the name) so authenticated requests —
+      // like locking/unlocking a game — can be re-sent to the server
+      // without asking the teacher to type it in again every time.
+      setTeacher: (name, code) => {
+        set({ playerName: name, isTeacher: true, teacherCode: code });
       },
-      resetPlayer: () => set({ playerName: null, isTeacher: false }),
+      resetPlayer: () => set({ playerName: null, isTeacher: false, teacherCode: null }),
     }),
     { name: 'k1weekly-player' }
   )

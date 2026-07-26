@@ -1,6 +1,7 @@
+import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { usePlayerStore } from './playerStore';
-import { isGameUnlocked } from './gameAccess';
+import { useGameAccessStore, useIsGameUnlocked } from './gameAccess';
 
 // Wrap a game's inner content with this (inside NameGate). It re-checks
 // the same unlock rules the homepage cards use, so someone who types a
@@ -8,8 +9,22 @@ import { isGameUnlocked } from './gameAccess';
 // screen instead of the game itself — teachers still get straight in.
 export default function GameAccessGate({ gameNumber, gameLabel, children }) {
   const isTeacher = usePlayerStore((s) => s.isTeacher);
+  const loaded = useGameAccessStore((s) => s.loaded);
+  const fetchGameAccess = useGameAccessStore((s) => s.fetchGameAccess);
+  const unlocked = useIsGameUnlocked(gameNumber, isTeacher);
 
-  if (isGameUnlocked(gameNumber, isTeacher)) return children;
+  // Someone may land here directly (e.g. a bookmarked /Game3 URL) without
+  // ever hitting the homepage, so this can't assume access data is loaded.
+  useEffect(() => {
+    if (!loaded) fetchGameAccess();
+  }, [loaded, fetchGameAccess]);
+
+  // Teachers always get straight in, even before the fetch resolves.
+  // Players wait for the real answer instead of briefly seeing "not out
+  // yet" while data is still loading.
+  if (isTeacher) return children;
+  if (!loaded) return null;
+  if (unlocked) return children;
 
   return (
     <div className="relative flex min-h-[100dvh] w-full flex-col items-center justify-center gap-4 overflow-hidden bg-gradient-to-b from-[#48BFEE] via-[#8FE0FA] to-[#FFE9A8] px-4 text-center">

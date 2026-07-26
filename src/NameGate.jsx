@@ -47,7 +47,7 @@ const handleNameSubmit = (e) => {
       setCodeError("That code doesn't match — check with the office and try again.");
       return;
     }
-    setTeacher(name);
+    setTeacher(name, codeDraft.trim());
   };
 
   return (

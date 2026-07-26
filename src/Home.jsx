@@ -2,10 +2,11 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion } from "motion/react";
 import StatsPanel from "./StatsPanel";
+import GameAccessPanel from "./GameAccessPanel";
 import NameGate from "./NameGate";
 import NextGameTimer from "./NextGameTimer";
 import { usePlayerStore } from "./playerStore";
-import { isGameUnlocked } from "./gameAccess";
+import { useGameAccessStore, useIsGameUnlocked, isGameUnlockedNow } from "./gameAccess";
 import { fetchSummary } from "./logPlaySession";
 import { Helmet } from "react-helmet-async";
 
@@ -52,8 +53,24 @@ function HomeContent() {
   const isTeacher = usePlayerStore((s) => s.isTeacher);
   const resetPlayer = usePlayerStore((s) => s.resetPlayer);
   const [showStats, setShowStats] = useState(false);
+  const [showAccessPanel, setShowAccessPanel] = useState(false);
   const [progressByGame, setProgressByGame] = useState({});
   const [loadingTo, setLoadingTo] = useState(null);
+
+  const gameAccessLoaded = useGameAccessStore((s) => s.loaded);
+  const fetchGameAccess = useGameAccessStore((s) => s.fetchGameAccess);
+
+  useEffect(() => {
+    fetchGameAccess();
+  }, [fetchGameAccess]);
+
+  const game1Open = useIsGameUnlocked(1, isTeacher);
+  const game2Open = useIsGameUnlocked(2, isTeacher);
+  const game3Open = useIsGameUnlocked(3, isTeacher);
+  const game4Open = useIsGameUnlocked(4, isTeacher);
+  const game5Open = useIsGameUnlocked(5, isTeacher);
+  const game6Open = useIsGameUnlocked(6, isTeacher);
+  const bonus1Open = useIsGameUnlocked("b1", isTeacher);
 
   useEffect(() => {
     let cancelled = false;
@@ -74,13 +91,13 @@ function HomeContent() {
 
   useEffect(() => {
     const prefetchGames = () => {
-      if (isGameUnlocked(1, isTeacher)) import("./Game1");
-      if (isGameUnlocked(2, isTeacher)) import("./Game2");
-      if (isGameUnlocked(3, isTeacher)) import("./Game3");
-      if (isGameUnlocked(4, isTeacher)) import("./BonusGames/Game4/PhaserDemo");
-      if (isGameUnlocked(5, isTeacher)) import("./Game5");
-      if (isGameUnlocked(6, isTeacher)) import("./Game6");
-      if (isGameUnlocked('b1', isTeacher)) import("./BonusGames/BonusGame1/PhaserDemo");
+      if (isGameUnlockedNow(1, isTeacher)) import("./Game1");
+      if (isGameUnlockedNow(2, isTeacher)) import("./Game2");
+      if (isGameUnlockedNow(3, isTeacher)) import("./Game3");
+      if (isGameUnlockedNow(4, isTeacher)) import("./BonusGames/Game4/PhaserDemo");
+      if (isGameUnlockedNow(5, isTeacher)) import("./Game5");
+      if (isGameUnlockedNow(6, isTeacher)) import("./Game6");
+      if (isGameUnlockedNow('b1', isTeacher)) import("./BonusGames/BonusGame1/PhaserDemo");
     };
 
     if (typeof window !== "undefined" && "requestIdleCallback" in window) {
@@ -89,7 +106,9 @@ function HomeContent() {
     }
     const t = setTimeout(prefetchGames, 800);
     return () => clearTimeout(t);
-  }, [isTeacher]);
+    // Re-run once real access data arrives (initial render only knows about
+    // teachers, since the unlocked map starts empty) and whenever it changes.
+  }, [isTeacher, gameAccessLoaded]);
 
   const greeting = useMemo(() => timeGreeting(), []);
 
@@ -189,6 +208,16 @@ function HomeContent() {
             📊 View Stats
           </motion.button>
 
+          <motion.button
+            type="button"
+            onClick={() => setShowAccessPanel(true)}
+            whileHover={{ y: -2 }}
+            whileTap={{ y: 1 }}
+            className="font-body fixed right-4 top-16 z-20 flex items-center gap-1.5 rounded-full bg-white/90 px-4 py-2 text-sm font-extrabold text-slate-700 shadow-[0_4px_0_rgba(0,0,0,0.15)] sm:top-4 sm:right-40 sm:text-base"
+          >
+            🔓 Game Access
+          </motion.button>
+
           <Link
             to="/phaser-demo"
             className="hidden font-body fixed left-4 top-4 z-20 items-center gap-1.5 rounded-full bg-white/90 px-4 py-2 text-sm font-extrabold text-slate-700 shadow-[0_4px_0_rgba(0,0,0,0.15)] sm:text-base"
@@ -199,6 +228,7 @@ function HomeContent() {
       )}
 
       {showStats && <StatsPanel onClose={() => setShowStats(false)} />}
+      {showAccessPanel && <GameAccessPanel onClose={() => setShowAccessPanel(false)} />}
 
       <div className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 sm:h-44 sm:w-44 md:h-56 md:w-56">
         <svg viewBox="0 0 200 200" className="absolute inset-0 h-full w-full animate-spin-slow">
@@ -300,7 +330,7 @@ function HomeContent() {
               gradient="linear-gradient(135deg, #8FECCB 0%, #36D4B3 55%, #18B79D 100%)"
               ring="ring-[#D7FFF3]"
               delay={0.1}
-              open={isGameUnlocked(1, isTeacher)}
+              open={game1Open}
               progress={progressByGame.game1}
               onOpen={() => openGame("/Game1")}
             />
@@ -314,7 +344,7 @@ function HomeContent() {
               gradient="linear-gradient(135deg, #88DAFF 0%, #4AA8FF 55%, #5B7CFF 100%)"
               ring="ring-[#D9F2FF]"
               delay={0.2}
-              open={isGameUnlocked(2, isTeacher)}
+              open={game2Open}
               progress={progressByGame.game2}
               shine
               onOpen={() => openGame("/Game2")}
@@ -329,7 +359,7 @@ function HomeContent() {
               gradient="linear-gradient(135deg, #FF9ED1 0%, #FF6FB1 55%, #9B5CFF 100%)"
               ring="ring-[#FFD8EE]"
               delay={0.25}
-              open={isGameUnlocked("b1", isTeacher)}
+              open={bonus1Open}
               progress={progressByGame.game2}
               onOpen={() => openGame("/bonus-game1")}
             />
@@ -343,7 +373,7 @@ function HomeContent() {
               gradient="linear-gradient(135deg, #C7A6FF 0%, #9A7BFF 55%, #FF7AD9 100%)"
               ring="ring-[#EAD9FF]"
               delay={0.3}
-              open={isGameUnlocked(3, isTeacher)}
+              open={game3Open}
               progress={progressByGame.game3}
               onOpen={() => openGame("/Game3")}
             />
@@ -357,7 +387,7 @@ function HomeContent() {
               gradient="linear-gradient(135deg, #FFD76A 0%, #FFB347 55%, #FF7A59 100%)"
               ring="ring-[#FFEBC0]"
               delay={0.35}
-              open={isGameUnlocked(4, isTeacher)}
+              open={game4Open}
               progress={progressByGame.game4}
               onOpen={() => openGame("/Game4")}
             />
@@ -371,7 +401,7 @@ function HomeContent() {
               gradient="linear-gradient(135deg, #A7EE7E 0%, #4DD4A6 55%, #2CB5D8 100%)"
               ring="ring-[#DCF8C6]"
               delay={0.4}
-              open={isGameUnlocked(5, isTeacher)}
+              open={game5Open}
               progress={progressByGame.game5}
               onOpen={() => openGame("/Game5")}
             />
@@ -385,7 +415,7 @@ function HomeContent() {
               gradient="linear-gradient(135deg, #FF9AAE 0%, #FF6F91 55%, #FF4D6D 100%)"
               ring="ring-[#FFD6DE]"
               delay={0.45}
-              open={isGameUnlocked(6, isTeacher)}
+              open={game6Open}
               progress={progressByGame.game6}
               onOpen={() => openGame("/Game6")}
             />
