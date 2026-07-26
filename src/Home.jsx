@@ -497,7 +497,7 @@ const GameCard = React.memo(function GameCard({
         }}
         whileHover={open ? { y: -8, rotate: -1 } : {}}
         whileTap={open ? { y: 2, scale: 0.98 } : {}}
-        className={`group animate-pop-in relative flex h-[16rem] w-[86vw] min-w-[260px] max-w-[300px] flex-col overflow-hidden rounded-[2.25rem] p-6 shadow-[0_14px_0_rgba(0,0,0,0.16)] ring-8 transition-shadow focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-white/80 sm:h-[24.5rem] sm:w-[18rem] md:w-[19rem] lg:w-[20rem] ${
+        className={`group animate-pop-in relative flex h-[20rem] w-[86vw] min-w-[260px] max-w-[300px] flex-col overflow-hidden rounded-[2.25rem] p-6 shadow-[0_14px_0_rgba(0,0,0,0.16)] ring-8 transition-shadow focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-white/80 sm:h-[24.5rem] sm:w-[18rem] md:w-[19rem] lg:w-[20rem] ${
           open ? ring : "ring-white/40 cursor-not-allowed"
         } ${isShiny ? "ring-yellow-200" : ""}`}
       >
