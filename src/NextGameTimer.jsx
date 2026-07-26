@@ -40,10 +40,10 @@ export default function NextGameTimer({ withTopOffset = false }) {
 
   const Unit = ({ value, label }) => (
     <div className="flex flex-col items-center leading-none">
-      <span className="font-heading text-sm font-extrabold text-slate-800 sm:text-base">
+      <span className="font-heading text-base font-extrabold text-slate-800 sm:text-lg">
         {String(value).padStart(2, "0")}
       </span>
-      <span className="font-body text-[0.55rem] font-bold uppercase tracking-wide text-slate-500 sm:text-[0.6rem]">
+      <span className="font-body text-[0.80rem] font-bold uppercase tracking-wide text-slate-500 sm:text-[0.9rem]">
         {label}
       </span>
     </div>
@@ -54,15 +54,15 @@ export default function NextGameTimer({ withTopOffset = false }) {
       initial={{ opacity: 0, y: -16 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5 }}
-      className={`relative z-20 mx-auto flex w-fit max-w-[94vw] flex-wrap items-center justify-center gap-1.5 rounded-full border border-white/40 bg-white/85 px-3 py-1.5 shadow-[0_4px_0_rgba(0,0,0,0.1)] backdrop-blur-md sm:gap-3 sm:px-5 sm:py-2.5 ${
+      className={`relative z-20 mx-auto flex w-fit max-w-[94vw] flex-wrap items-center justify-center gap-1.5 rounded-full border border-white/40 bg-white/60  px-3 py-1.5 shadow-[0_4px_0_rgba(0,0,0,0.1)] backdrop-blur-md sm:gap-3 sm:px-5 sm:py-2.5 ${
         withTopOffset ? "mt-12 sm:mt-0" : ""
       }`}
     >
       <span className="text-base sm:text-xl">🎉</span>
-      <span className="font-body text-[0.7rem] font-extrabold text-slate-700 sm:text-sm">
+      <span className="font-body text-[1rem] font-extrabold text-slate-700 sm:text-lg">
         New game every Friday!
       </span>
-      <span className="hidden h-4 w-px bg-slate-300 sm:block" />
+      <span className=" h-4 w-[3px] mx-2 bg-slate-300 sm:block" />
       <div className="flex items-center gap-1 sm:gap-2">
         <Unit value={parts.days} label="days" />
         <span className="font-heading text-slate-400">:</span>
