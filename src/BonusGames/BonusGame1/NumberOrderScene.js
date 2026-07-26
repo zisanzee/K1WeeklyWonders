@@ -8,7 +8,7 @@ import {
   makeConfettiTexture,
   makeConfettiSquareTexture,
 } from '../../Phaser/common/sceneAssets';
-import { LEVELS, labelForValue, progress } from './levels';
+import { LEVELS, NUMBER_WORDS, labelForValue, progress } from './levels';
 import { AUDIO } from './assets';
 
 // ---------------------------------------------------------------------
@@ -297,29 +297,46 @@ export default class NumberOrderScene extends BaseScene {
     return labelForValue(this.level, value);
   }
 
-  // A single big number/word — no caption, no label — showing whatever the
-  // player just correctly tapped. Built by hand (rather than
-  // createPillButton) purely so the value text can run large and the chip
+  // A pill showing whatever the player just correctly tapped — always as
+  // BOTH the numeral and the spelled-out word side by side (e.g. "7 Seven"),
+  // regardless of whether the current level's own bubbles are labeled with
+  // numerals or words. Built by hand (rather than createPillButton) so it
   // can resize itself around each new value, including the longest spelled
-  // words in the word-based levels.
+  // words ("Seven", "Eight").
   createLastTappedChip(x, y) {
     const paddingX = 26;
+    const innerGap = 14;
     const height = 74;
     const minWidth = 90;
 
-    const value = this.add.text(0, 1, '–', {
+    const numeralText = this.add.text(0, 2, '–', {
       fontSize: '40px',
       fontFamily: 'Fredoka, sans-serif',
       fontStyle: 'bold',
       color: '#0f3d5c',
-    }).setOrigin(0.5);
+    }).setOrigin(0, 0.5);
+
+    const wordText = this.add.text(0, 3, '', {
+      fontSize: '34px',
+      fontFamily: 'Nunito, sans-serif',
+      fontStyle: 'bold',
+      color: '#4a6478',
+    }).setOrigin(0, 0.5);
 
     const shadow = this.add.graphics();
     const bg = this.add.graphics();
     let currentBg = 0xffd93d; // bright gold, matches the rest of the UI's accent color
 
     const redraw = () => {
-      const w = Math.max(value.width + paddingX * 2, minWidth);
+      const contentW = numeralText.width + (wordText.text ? innerGap + wordText.width : 0);
+      const w = Math.max(contentW + paddingX * 2, minWidth);
+
+      // Lay the two labels out left-to-right, then center that whole group
+      // inside the pill — origin(0, 0.5) on each Text lets us position by
+      // left edge without fighting each other's width as they change.
+      numeralText.x = -contentW / 2;
+      wordText.x = numeralText.x + numeralText.width + innerGap;
+
       shadow.clear();
       bg.clear();
       shadow.fillStyle(0x000000, 0.18);
@@ -331,12 +348,17 @@ export default class NumberOrderScene extends BaseScene {
     };
     redraw();
 
-    const container = this.add.container(x, y, [shadow, bg, value]).setDepth(20);
+    const container = this.add.container(x, y, [shadow, bg, numeralText, wordText]).setDepth(20);
 
     return {
       container,
-      setValue: (label) => {
-        value.setText(label);
+      // Takes the raw numeric value (1-10), not a pre-formatted label —
+      // the chip derives both the numeral and word forms itself so it
+      // never depends on the current level's labelType.
+      setValue: (numericValue) => {
+        numeralText.setText(String(numericValue));
+        const word = NUMBER_WORDS[numericValue - 1];
+        wordText.setText(word.charAt(0).toUpperCase() + word.slice(1));
         redraw();
       },
       setBg: (colorHex) => {
@@ -362,13 +384,19 @@ export default class NumberOrderScene extends BaseScene {
     this.mistakes = 0;
     this.finished = false;
     this.locked = true;
-    this.muted = false;
 
-    // Guard against a leftover instance from a previous "Play again" —
-    // scene.restart() re-runs create(), and without this a second overlap
-    // would start playing alongside the new one.
-    this.sound.removeByKey('bgMusic');
-    this.bgMusic = this.sound.add('bgMusic', { loop: true, volume: 0.62 });
+    // Mute state now lives on the (game-wide) sound manager instead of a
+    // local `this.muted` flag — this.sound is shared by every scene in
+    // this Game instance, so a mute toggled here or back on
+    // LevelSelectScene always reads the same value, and a re-entrant
+    // create() (scene.restart()/scene.start() for "Play again"/"Next
+    // Level") never silently resets it back to unmuted.
+
+    // Background music is started once, at LevelSelectScene, and kept
+    // alive from there — reuse that same Sound instance if it's still
+    // around (arriving from the menu, or from "Next Level"/"Play Again")
+    // instead of tearing it down and rebuilding it every time.
+    this.bgMusic = this.sound.get('bgMusic') || this.sound.add('bgMusic', { loop: true, volume: 0.62 });
 
     this.addSkyBackground(level, `bg-${level.key}`);
     this.addDriftingClouds([
@@ -445,7 +473,7 @@ this.nextChip = this.createLastTappedChip(width / 2, 152);
     const ICON_BTN_SIZE = 96;
     const ICON_BTN_GAP = 12;
 
-    this.muteBtn = this.createPillButton(16, 16, '🔊', {
+    this.muteBtn = this.createPillButton(16, 16, this.sound.mute ? '🔇' : '🔊', {
       fontSize: '28px',
       paddingX: 4,
       paddingY: 4,
@@ -455,9 +483,8 @@ this.nextChip = this.createLastTappedChip(width / 2, 152);
       simple: true,
     });
     this.muteBtn.on('pointerdown', () => {
-      this.muted = !this.muted;
-      this.sound.mute = this.muted;
-      this.muteBtn.setText(this.muted ? '🔇' : '🔊');
+      this.sound.mute = !this.sound.mute;
+      this.muteBtn.setText(this.sound.mute ? '🔇' : '🔊');
     });
 
     const dotG = this.make.graphics({ x: 0, y: 0, add: false });
@@ -530,7 +557,16 @@ this.nextChip = this.createLastTappedChip(width / 2, 152);
     });
 
     playBtn.on('pointerdown', () => {
-      if (!this.muted) this.bgMusic.play();
+      // Previously gated on `!this.muted`, which meant muting *before*
+      // hitting Play skipped this .play() call entirely — and since
+      // nothing else ever called it, unmuting afterwards had no playing
+      // Sound to un-silence, so the music stayed off for the rest of the
+      // session. this.sound.mute already controls actual audibility on
+      // its own, so play() should always fire here regardless of mute
+      // state. In practice the music is usually already playing by the
+      // time a player reaches this screen (it starts back on
+      // LevelSelectScene), so this is mostly a safety net.
+      if (!this.bgMusic.isPlaying) this.bgMusic.play();
 
       dim.destroy();
       title.destroy();
@@ -587,7 +623,7 @@ this.nextChip = this.createLastTappedChip(width / 2, 152);
     this.physics.world.resume();
     this.enableBubbleInput();
 
-    speak(this.direction === 'desc' ? 'Tap the numbers from biggest to smallest!' : 'Tap the numbers from smallest to biggest!', this.muted);
+    speak(this.direction === 'desc' ? 'Tap the numbers from biggest to smallest!' : 'Tap the numbers from smallest to biggest!', this.sound.mute);
 
     this.timerEvent = this.time.addEvent({
       delay: 1000,
@@ -682,7 +718,7 @@ this.nextChip = this.createLastTappedChip(width / 2, 152);
       const justTapped = this.nextExpected;
       this.popBubble(bubble);
 
-      this.nextChip.setValue(this.labelFor(justTapped));
+      this.nextChip.setValue(justTapped);
       this.tweens.add({
         targets: this.nextChip.container,
         scale: { from: 1.3, to: 1 },
@@ -784,7 +820,7 @@ this.nextChip = this.createLastTappedChip(width / 2, 152);
     const { width, height } = this.scale;
     const level = this.level;
 
-    speak('Good job!', this.muted);
+    speak('Good job!', this.sound.mute);
 
     // Award the star + unlock the next level before anything below reads
     // progress back out (the total-stars chip, the "Next Level" button's

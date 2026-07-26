@@ -18,6 +18,79 @@ const HEADLINE_STYLE = {
   strokeThickness: 7,
 };
 
+// Per-word look for the round prompt's emphasized word. 'bigger' reads as
+// warm, loud, and large; 'smaller' as cool, quiet, and — on purpose —
+// small, so the two prompts are distinguishable at a glance even before
+// reading them, not just by color.
+const PROMPT_WORD_STYLE = {
+  bigger: { label: 'Bigger', color: '#ff5c35', size: 50 },
+  smaller: { label: 'smaller', color: '#3aa6ff', size: 30 },
+};
+const PROMPT_FILLER_STYLE = { color: '#0f3d5c', size: 40 };
+const PROMPT_FONT_WEIGHT = '900';
+const PROMPT_FONT_FAMILY = 'Fredoka, sans-serif';
+const PROMPT_STROKE_COLOR = '#ffffff';
+const PROMPT_STROKE_WIDTH = 6;
+const PROMPT_GAP = 12;
+
+// Phaser's Text objects can't mix font sizes/colors within one line, and
+// this prompt needs both ("Tap the" / emphasized word / "one!" each have
+// their own size+color) — so it's baked into one canvas texture instead,
+// the same trick BonusGame1 uses for its mixed-style order title. Redrawn
+// fresh each round rather than cached, since which word is emphasized
+// changes every time.
+function makePromptTexture(scene, promptWord, key) {
+  const emphasis = PROMPT_WORD_STYLE[promptWord] ?? PROMPT_WORD_STYLE.bigger;
+  const parts = [
+    { text: 'Tap the', ...PROMPT_FILLER_STYLE },
+    { text: emphasis.label, color: emphasis.color, size: emphasis.size },
+    { text: 'one!', ...PROMPT_FILLER_STYLE },
+  ];
+
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  const fontFor = (p) => `${PROMPT_FONT_WEIGHT} ${p.size}px ${PROMPT_FONT_FAMILY}`;
+
+  // First pass: measure each part at its own font size so wildly
+  // different sizes (30px "smaller" vs 80px "BIGGER") still line up on a
+  // shared baseline instead of each centering on its own box.
+  let totalWidth = 0;
+  let maxAscent = 0;
+  let maxDescent = 0;
+  parts.forEach((p) => {
+    ctx.font = fontFor(p);
+    const m = ctx.measureText(p.text);
+    totalWidth += m.width;
+    maxAscent = Math.max(maxAscent, m.actualBoundingBoxAscent || p.size * 0.8);
+    maxDescent = Math.max(maxDescent, m.actualBoundingBoxDescent || p.size * 0.25);
+  });
+  totalWidth += PROMPT_GAP * (parts.length - 1);
+
+  const pad = PROMPT_STROKE_WIDTH + 8;
+  canvas.width = Math.ceil(totalWidth) + pad * 2;
+  canvas.height = Math.ceil(maxAscent + maxDescent) + pad * 2;
+  const baselineY = pad + maxAscent;
+
+  ctx.textBaseline = 'alphabetic';
+  ctx.textAlign = 'left';
+  ctx.lineJoin = 'round';
+
+  let x = pad;
+  parts.forEach((p) => {
+    ctx.font = fontFor(p);
+    ctx.lineWidth = PROMPT_STROKE_WIDTH;
+    ctx.strokeStyle = PROMPT_STROKE_COLOR;
+    ctx.strokeText(p.text, x, baselineY);
+    ctx.fillStyle = p.color;
+    ctx.fillText(p.text, x, baselineY);
+    x += ctx.measureText(p.text).width + PROMPT_GAP;
+  });
+
+  if (scene.textures.exists(key)) scene.textures.remove(key);
+  scene.textures.addCanvas(key, canvas);
+  return key;
+}
+
 export default class CompareDiceScene extends BaseScene {
   constructor() {
     super('CompareDiceScene');
@@ -174,12 +247,65 @@ img._baseScale = s;
     return `${level.imagePrefix}${value}`;
   }
 
+  // Plain single-color/single-size messages ('Rolling...', 'Tap Roll to
+  // start!', etc.) — swaps back to the regular Phaser Text object and
+  // hides/stops the emphasized round-prompt image if it was showing.
+  showPlainPrompt(text) {
+    if (this.promptEmphasisImg) {
+      this.tweens.killTweensOf(this.promptEmphasisImg);
+      this.promptEmphasisImg.setVisible(false);
+    }
+    this.promptText.setVisible(true);
+    this.promptText.setText(text);
+  }
+
+  // The "Tap the Bigger/Smaller one!" round prompt — rendered as a single
+  // composited image (see makePromptTexture) so the emphasized word can
+  // run at its own size and color, then popped in with a little
+  // overshoot and left gently pulsing while the player is choosing.
+  showRoundPrompt(promptWord) {
+    this.promptText.setVisible(false);
+
+    const key = makePromptTexture(this, promptWord, 'prompt-emphasis');
+    if (!this.promptEmphasisImg) {
+      this.promptEmphasisImg = this.add.image(this.promptText.x, this.promptText.y, key)
+        .setOrigin(0.5)
+        .setDepth(20);
+    } else {
+      this.promptEmphasisImg.setTexture(key);
+    }
+    this.promptEmphasisImg.setVisible(true);
+
+    this.tweens.killTweensOf(this.promptEmphasisImg);
+    this.promptEmphasisImg.setAngle(promptWord === 'bigger' ? -6 : 6);
+    this.promptEmphasisImg.setScale(0);
+    this.tweens.add({
+      targets: this.promptEmphasisImg,
+      scale: 1,
+      angle: 0,
+      duration: 420,
+      ease: 'Back.Out',
+      onComplete: () => {
+        // Gentle idle pulse while the player is still choosing — stops as
+        // soon as showPlainPrompt/another showRoundPrompt kills it.
+        this.tweens.add({
+          targets: this.promptEmphasisImg,
+          scale: { from: 1, to: 1.05 },
+          duration: 620,
+          yoyo: true,
+          repeat: -1,
+          ease: 'Sine.easeInOut',
+        });
+      },
+    });
+  }
+
   onRollButtonPressed() {
     ensureBgMusic(this);
     if (this.phase !== 'idle') return;
     this.phase = 'rolling';
     this.rollBtn.disableInteractive();
-    this.promptText.setText('Rolling...');
+    this.showPlainPrompt('Rolling...');
     this.playSound('rollVoice');
 
     // Punchy press feedback on the button itself before the dice start.
@@ -288,7 +414,7 @@ img._baseScale = s;
 
     const prompt = this.rounds[this.roundIndex];
     this.currentPrompt = prompt;
-    this.promptText.setText(prompt === 'bigger' ? 'Tap the Bigger one!' : 'Tap the Smaller one!');
+    this.showRoundPrompt(prompt);
     this.playSound(this.level.introVoice[prompt]);
 
     this.leftSlot.zone.setInteractive();
@@ -468,7 +594,7 @@ img._baseScale = s;
     this.tweens.add({ targets: this.roundPill.container, scale: 1.15, duration: 150, yoyo: true, ease: 'Sine.easeInOut' });
 
     this.phase = 'idle';
-    this.promptText.setText('Tap Roll for the next round!');
+    this.showPlainPrompt('Tap Roll for the next round!');
     this.checkBtn.container.setVisible(false);
     this.rollBtn.setVisible(true);
     this.rollBtn.setInteractive({ useHandCursor: true });

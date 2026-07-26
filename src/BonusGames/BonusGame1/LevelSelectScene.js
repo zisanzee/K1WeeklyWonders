@@ -17,6 +17,16 @@ export default class LevelSelectScene extends BaseScene {
   create() {
     const { width, height } = this.scale;
 
+    // Background music starts here, at the menu, so it's the very first
+    // thing a player hears rather than staying silent until they've
+    // already picked a level. this.sound is the Phaser SoundManager for
+    // the whole Game instance (shared across every scene), so if
+    // NumberOrderScene already created/started this same 'bgMusic'
+    // instance — e.g. the player tapped "Level Select" mid-song — reuse
+    // it and leave it playing instead of restarting it from the top.
+    this.bgMusic = this.sound.get('bgMusic') || this.sound.add('bgMusic', { loop: true, volume: 0.62 });
+    if (!this.bgMusic.isPlaying) this.bgMusic.play();
+
     this.addSkyBackground(MENU_THEME, 'bg-menu');
     this.addDriftingClouds([
       { xr: 0.22, yr: 0.055, scale: 0.8, alpha: 0.8, driftX: 22, duration: 6500 },
@@ -61,6 +71,23 @@ this.tweens.add({
       anchor: 'topRight',
       interactive: false,
       depth: 15,
+    });
+
+    // Mute toggle, mirroring the one on NumberOrderScene — both just flip
+    // this.sound.mute directly (rather than a separate scene-local flag),
+    // so muting here or mid-level always stays in sync everywhere.
+    const muteBtn = this.createPillButton(16, 16, this.sound.mute ? '🔇' : '🔊', {
+      fontSize: '28px',
+      paddingX: 4,
+      paddingY: 4,
+      minWidth: 96,
+      anchor: 'topLeft',
+      depth: 20,
+      simple: true,
+    });
+    muteBtn.on('pointerdown', () => {
+      this.sound.mute = !this.sound.mute;
+      muteBtn.setText(this.sound.mute ? '🔇' : '🔊');
     });
 
     const stars = progress.getAllStars();

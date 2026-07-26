@@ -40,7 +40,7 @@ export const AUDIO = {
   bgMusic: 'https://res.cloudinary.com/hijmipga/video/upload/v1784991848/bgMusic_uxk0fy.mp4',
   rollVoice: 'https://res.cloudinary.com/hijmipga/video/upload/v1784992857/roll_fzmhog.mp3',
   correctVoice: 'https://res.cloudinary.com/hijmipga/video/upload/v1784992855/correct_qbtbkr.mp3',
-  wrongVoice: 'https://res.cloudinary.com/hijmipga/video/upload/v1784992853/wrong_fle0ur.mp3',
+  wrongVoice: 'https://res.cloudinary.com/hijmipga/video/upload/v1785085334/wrong_irekpp.mp3',
   introBiggerDice: 'https://res.cloudinary.com/hijmipga/video/upload/v1784992850/biggerDice_oft3hg.mp3',
   introSmallerDice: 'https://res.cloudinary.com/hijmipga/video/upload/v1784992848/smallerDice_ukxt9s.mp3',
   introBiggerDomino: 'https://res.cloudinary.com/hijmipga/video/upload/v1784992852/biggerDomino_kcltnq.mp3',

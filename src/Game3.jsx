@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'motion/react';
 import Confetti from 'react-confetti';
@@ -145,6 +145,7 @@ function getResultMessage(round) {
     ? `${correctWord} comes right before ${refWord}!`
     : `${correctWord} comes right after ${refWord}!`;
 }
+
 function getSliderPrompt(blockIndex) {
   switch (blockIndex) {
     case 0:
@@ -156,6 +157,21 @@ function getSliderPrompt(blockIndex) {
     default:
       return '🐚 Slide to find the shell';
   }
+}
+
+function useIsMobile() {
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 639px)');
+    const update = () => setIsMobile(mq.matches);
+
+    update();
+    mq.addEventListener('change', update);
+    return () => mq.removeEventListener('change', update);
+  }, []);
+
+  return isMobile;
 }
 
 function Game3Inner() {
@@ -244,19 +260,19 @@ function Game3Inner() {
   };
 
   return (
-    <div className="relative min-h-[100dvh] w-full overflow-hidden bg-gradient-to-b from-[#8FE9E4] via-[#2FA8C9] to-[#123A6B]">
+    <div className="relative h-[100dvh] w-full overflow-hidden bg-gradient-to-b from-[#8FE9E4] via-[#2FA8C9] to-[#123A6B]">
       <link
         rel="stylesheet"
         href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap"
       />
-        <Helmet>
-          <title>Around the Number | K1 Weekly Wonders</title>
-      
-          <meta
-            name="description"
-            content="Practice counting through an interactive game designed for Kindergarten students."
-          />
-        </Helmet>
+      <Helmet>
+        <title>Around the Number | K1 Weekly Wonders</title>
+
+        <meta
+          name="description"
+          content="Practice counting through an interactive game designed for Kindergarten students."
+        />
+      </Helmet>
 
       <style>{`
         @keyframes pop-in { 0% { transform: scale(0.6); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
@@ -283,30 +299,34 @@ function Game3Inner() {
 
       {celebrate && <Celebration onDone={() => setCelebrate(false)} />}
 
-      <div className="relative z-10 mx-auto flex min-h-[100dvh] max-w-5xl flex-col items-center px-4 py-5 [@media(min-width:640px)_and_(min-height:720px)]:py-8">
-        <TopBar totalRounds={TOTAL_ROUNDS} stars={stars} muted={muted} onToggleMute={() => setMuted((m) => !m)} />
+      <div className="relative z-10 mx-auto flex h-full max-w-5xl flex-col items-center overflow-hidden px-4 py-2 [@media(min-width:640px)_and_(min-height:560px)]:py-4">
+        <div className="flex w-full flex-none items-center justify-between">
+          <TopBar totalRounds={TOTAL_ROUNDS} stars={stars} muted={muted} onToggleMute={() => setMuted((m) => !m)} />
+        </div>
 
         {phase === 'complete' ? (
-          <CompletionScreen stars={stars} total={TOTAL_ROUNDS} onPlayAgain={playAgain} />
+          <div className="flex w-full flex-1 min-h-0 items-center justify-center overflow-y-auto">
+            <CompletionScreen stars={stars} total={TOTAL_ROUNDS} onPlayAgain={playAgain} />
+          </div>
         ) : (
-          <>
-            <h1 className="font-heading mt-2 text-xl font-bold text-white/95 drop-shadow [@media(min-width:640px)_and_(min-height:720px)]:text-2xl">
+          <div className="flex w-full flex-1 min-h-0 flex-col items-center justify-center overflow-y-auto">
+            <h1 className="font-heading mt-1 flex-none text-lg font-bold text-white/95 drop-shadow [@media(min-width:640px)_and_(min-height:560px)]:mt-2 [@media(min-width:640px)_and_(min-height:560px)]:text-2xl">
               🐙 Ollie's Number Reef
             </h1>
-            <p className="font-body text-sm font-bold text-white/80 [@media(min-width:640px)_and_(min-height:720px)]:text-base">
+            <p className="font-body flex-none text-xs font-bold text-white/80 [@media(min-width:640px)_and_(min-height:560px)]:text-base">
               Round {roundIndex + 1} of {TOTAL_ROUNDS}
             </p>
-            <span className="font-body mt-0.5 rounded-full bg-white/20 px-3 py-0.5 text-[11px] font-extrabold uppercase tracking-wide text-white/85 [@media(min-width:640px)_and_(min-height:720px)]:text-xs">
+            <span className="font-body mt-0.5 flex-none rounded-full bg-white/20 px-3 py-0.5 text-[11px] font-extrabold uppercase tracking-wide text-white/85 [@media(min-width:640px)_and_(min-height:560px)]:text-xs">
               {levelTheme.label}
             </span>
             <RoundDots total={TOTAL_ROUNDS} current={roundIndex} />
 
             <OllieBubble promptParts={promptParts} isWrong={!!wrongValue} />
 
-            <div className="mt-5 flex flex-col items-center gap-2">
-              <span className="font-body rounded-full bg-white/85 px-3 py-0.5 text-xs font-extrabold text-teal-700 shadow [@media(min-width:640px)_and_(min-height:720px)]:text-sm">
-  {getSliderPrompt(blockIndex)}
-</span>
+            <div className="mt-2 flex flex-none flex-col items-center gap-1.5 [@media(min-width:640px)_and_(min-height:560px)]:mt-5 [@media(min-width:640px)_and_(min-height:560px)]:gap-2">
+              <span className="font-body rounded-full bg-white/85 px-3 py-0.5 text-xs font-extrabold text-teal-700 shadow [@media(min-width:640px)_and_(min-height:560px)]:text-sm">
+                {getSliderPrompt(blockIndex)}
+              </span>
               <NumberSlider
                 highlighted={highlighted}
                 onChange={setHighlighted}
@@ -316,7 +336,7 @@ function Game3Inner() {
               />
             </div>
 
-            <div className="mt-6 flex flex-wrap items-center justify-center gap-3 [@media(min-width:640px)_and_(min-height:720px)]:gap-4">
+            <div className="mt-3 flex flex-none flex-wrap items-center justify-center gap-2 [@media(min-width:640px)_and_(min-height:560px)]:mt-6 [@media(min-width:640px)_and_(min-height:560px)]:gap-4">
               {round.options.map((opt) => (
                 <AnswerPill
                   key={opt.value}
@@ -341,7 +361,7 @@ function Game3Inner() {
                 onNext={nextRound}
               />
             )}
-          </>
+          </div>
         )}
       </div>
     </div>
@@ -359,8 +379,10 @@ export default function Game3() {
 }
 
 function NumberSlider({ highlighted, onChange, showAllWords, referenceNumber, disabled }) {
+  const isMobile = useIsMobile();
+  const tileWidth = isMobile ? 54 : TILE_WIDTH;
   const windowStart = getWindowStart(highlighted);
-  const offsetPx = (windowStart - MIN_NUM) * TILE_WIDTH;
+  const offsetPx = (windowStart - MIN_NUM) * tileWidth;
   const dragRef = useRef({ dragging: false, startX: 0, startHighlighted: highlighted });
 
   const handlePointerDown = (e) => {
@@ -372,7 +394,7 @@ function NumberSlider({ highlighted, onChange, showAllWords, referenceNumber, di
   const handlePointerMove = (e) => {
     if (!dragRef.current.dragging) return;
     const dx = e.clientX - dragRef.current.startX;
-    const deltaTiles = Math.round(-dx / TILE_WIDTH);
+    const deltaTiles = Math.round(-dx / tileWidth);
     const next = clamp(dragRef.current.startHighlighted + deltaTiles, MIN_NUM, MAX_NUM);
     if (next !== highlighted) onChange(next);
   };
@@ -387,15 +409,19 @@ function NumberSlider({ highlighted, onChange, showAllWords, referenceNumber, di
   };
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex origin-center scale-[0.82] items-center gap-0.5 sm:scale-100 sm:gap-2">
       <SliderArrow
         direction="left"
         onClick={() => onChange(clamp(highlighted - 1, MIN_NUM, MAX_NUM))}
         disabled={disabled || highlighted <= MIN_NUM}
       />
+
       <div
         className="relative touch-none select-none overflow-hidden rounded-3xl border-4 border-white/70 bg-white/20 shadow-inner"
-        style={{ width: TILE_WIDTH * WINDOW_SIZE, height: 96 }}
+        style={{
+          width: tileWidth * WINDOW_SIZE,
+          height: 82,
+        }}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
@@ -409,6 +435,7 @@ function NumberSlider({ highlighted, onChange, showAllWords, referenceNumber, di
           {Array.from({ length: MAX_NUM }, (_, i) => i + 1).map((n) => (
             <SliderTile
               key={n}
+              width={tileWidth}
               n={n}
               isHighlighted={n === highlighted}
               isReference={n === referenceNumber && n !== highlighted}
@@ -418,6 +445,7 @@ function NumberSlider({ highlighted, onChange, showAllWords, referenceNumber, di
           ))}
         </motion.div>
       </div>
+
       <SliderArrow
         direction="right"
         onClick={() => onChange(clamp(highlighted + 1, MIN_NUM, MAX_NUM))}
@@ -427,12 +455,12 @@ function NumberSlider({ highlighted, onChange, showAllWords, referenceNumber, di
   );
 }
 
-function SliderTile({ n, isHighlighted, isReference, showWord, onTap }) {
+function SliderTile({ width, n, isHighlighted, isReference, showWord, onTap }) {
   return (
     <button
       type="button"
       onClick={onTap}
-      style={{ width: TILE_WIDTH }}
+      style={{ width }}
       className="relative flex h-full flex-shrink-0 flex-col items-center justify-center"
     >
       {showWord && (
@@ -481,7 +509,7 @@ function AnswerPill({ option, emoji, baseClass, onTap, disabled, isWrong, isCorr
       onClick={onTap}
       disabled={disabled}
       className={clsx(
-        'font-heading rounded-full border-4 px-6 py-3 text-lg font-bold shadow-[0_6px_0_rgba(0,0,0,0.15)] transition-all duration-200 [@media(min-width:640px)_and_(min-height:720px)]:text-xl',
+        'font-heading rounded-full border-4 px-6 py-3 text-lg font-bold shadow-[0_6px_0_rgba(0,0,0,0.15)] transition-all duration-200 [@media(min-width:640px)_and_(min-height:560px)]:text-xl',
         disabled ? 'cursor-default' : 'cursor-pointer hover:-translate-y-1 active:translate-y-1 active:shadow-[0_2px_0_rgba(0,0,0,0.15)]',
         isWrong && 'animate-shake border-red-300 bg-red-100 text-red-500',
         isCorrectChosen && 'animate-wobble border-green-300 bg-green-100 text-green-600 ring-8 ring-green-200',
@@ -498,18 +526,18 @@ function OllieBubble({ promptParts, isWrong }) {
   return (
     <div className="mt-4 flex flex-col items-center gap-2">
       <motion.span
-        className="inline-block text-6xl [@media(min-width:640px)_and_(min-height:720px)]:text-7xl"
+        className="inline-block text-6xl [@media(min-width:640px)_and_(min-height:560px)]:text-7xl"
         animate={isWrong ? { x: [0, -6, 6, -6, 6, 0] } : { rotate: [-4, 4, -4], y: [0, -6, 0] }}
         transition={isWrong ? { duration: 0.4 } : { duration: 3, repeat: Infinity, ease: 'easeInOut' }}
       >
         🐙
       </motion.span>
-      <div className="animate-pop-in relative max-w-xs rounded-3xl bg-white px-5 py-3 text-center shadow-[0_6px_0_rgba(0,0,0,0.1)] [@media(min-width:640px)_and_(min-height:720px)]:max-w-sm">
+      <div className="animate-pop-in relative max-w-xs rounded-3xl bg-white px-5 py-3 text-center shadow-[0_6px_0_rgba(0,0,0,0.1)] [@media(min-width:640px)_and_(min-height:560px)]:max-w-sm">
         <span className="absolute -top-2 left-1/2 h-4 w-4 -translate-x-1/2 rotate-45 bg-white" />
         {isWrong ? (
-          <p className="font-body text-sm font-bold text-orange-600 [@media(min-width:640px)_and_(min-height:720px)]:text-base">Not quite! Try again 💪</p>
+          <p className="font-body text-sm font-bold text-orange-600 [@media(min-width:640px)_and_(min-height:560px)]:text-base">Not quite! Try again 💪</p>
         ) : (
-          <p className="font-body text-sm font-bold text-slate-700 [@media(min-width:640px)_and_(min-height:720px)]:text-base">
+          <p className="font-body text-sm font-bold text-slate-700 [@media(min-width:640px)_and_(min-height:560px)]:text-base">
             {promptParts.before} <span className="text-teal-600">{promptParts.keyword}</span> {promptParts.after}
           </p>
         )}
@@ -563,7 +591,7 @@ function SwimmingFish() {
       {fish.map((f, i) => (
         <span
           key={i}
-          className="animate-swim-fish absolute text-3xl [@media(min-width:640px)_and_(min-height:720px)]:text-4xl"
+          className="animate-swim-fish absolute text-3xl [@media(min-width:640px)_and_(min-height:560px)]:text-4xl"
           style={{
             top: `${f.top}%`,
             animationDuration: `${f.duration}s`,
@@ -579,19 +607,19 @@ function SwimmingFish() {
 
 function SeaFloor() {
   return (
-    <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 [@media(min-width:640px)_and_(min-height:720px)]:h-24 [@media(min-width:768px)_and_(min-height:780px)]:h-32">
+    <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 [@media(min-width:640px)_and_(min-height:560px)]:h-24 [@media(min-width:768px)_and_(min-height:620px)]:h-32">
       <svg viewBox="0 0 1440 200" preserveAspectRatio="none" className="h-full w-full">
         <path fill="#0B2C52" fillOpacity="0.85" d="M0,110 C 240,190 480,30 720,90 C 960,150 1200,50 1440,110 L1440,200 L0,200 Z" />
         <path fill="#082243" d="M0,150 C 260,90 500,190 760,140 C 1020,90 1260,180 1440,140 L1440,200 L0,200 Z" />
       </svg>
-      <span className="absolute bottom-2 left-[16%] animate-sway text-2xl [@media(min-width:640px)_and_(min-height:720px)]:bottom-4 [@media(min-width:640px)_and_(min-height:720px)]:text-3xl">🌿</span>
-      <span className="absolute bottom-3 left-[42%] animate-sway text-xl [@media(min-width:640px)_and_(min-height:720px)]:bottom-5 [@media(min-width:640px)_and_(min-height:720px)]:text-2xl" style={{ animationDelay: '0.6s' }}>
+      <span className="absolute bottom-2 left-[16%] animate-sway text-2xl [@media(min-width:640px)_and_(min-height:560px)]:bottom-4 [@media(min-width:640px)_and_(min-height:560px)]:text-3xl">🌿</span>
+      <span className="absolute bottom-3 left-[42%] animate-sway text-xl [@media(min-width:640px)_and_(min-height:560px)]:bottom-5 [@media(min-width:640px)_and_(min-height:560px)]:text-2xl" style={{ animationDelay: '0.6s' }}>
         🪸
       </span>
-      <span className="absolute bottom-2 right-[20%] animate-sway text-2xl [@media(min-width:640px)_and_(min-height:720px)]:bottom-4 [@media(min-width:640px)_and_(min-height:720px)]:text-3xl" style={{ animationDelay: '1.1s' }}>
+      <span className="absolute bottom-2 right-[20%] animate-sway text-2xl [@media(min-width:640px)_and_(min-height:560px)]:bottom-4 [@media(min-width:640px)_and_(min-height:560px)]:text-3xl" style={{ animationDelay: '1.1s' }}>
         🌿
       </span>
-      <span className="absolute bottom-3 right-[6%] text-xl [@media(min-width:640px)_and_(min-height:720px)]:bottom-5 [@media(min-width:640px)_and_(min-height:720px)]:text-2xl">🐚</span>
+      <span className="absolute bottom-3 right-[6%] text-xl [@media(min-width:640px)_and_(min-height:560px)]:bottom-5 [@media(min-width:640px)_and_(min-height:560px)]:text-2xl">🐚</span>
     </div>
   );
 }
@@ -620,7 +648,7 @@ function TopBar({ totalRounds, stars, muted, onToggleMute }) {
     <div className="flex w-full items-center justify-between">
       <Link
         to="/"
-        className="font-body flex items-center gap-1 rounded-full bg-white/90 px-4 py-2 text-sm font-extrabold text-slate-700 shadow-[0_4px_0_rgba(0,0,0,0.15)] transition-transform hover:-translate-y-0.5 active:translate-y-1 active:shadow-none [@media(min-width:640px)_and_(min-height:720px)]:text-base"
+        className="font-body flex items-center gap-1 rounded-full bg-white/90 px-4 py-2 text-sm font-extrabold text-slate-700 shadow-[0_4px_0_rgba(0,0,0,0.15)] transition-transform hover:-translate-y-0.5 active:translate-y-1 active:shadow-none [@media(min-width:640px)_and_(min-height:560px)]:text-base"
       >
         ⬅️ Home
       </Link>
@@ -643,14 +671,14 @@ function StarMeter({ stars, total, dark }) {
   const pct = total > 0 ? Math.round((stars / total) * 100) : 0;
   return (
     <div className="flex items-center gap-2" aria-label={`${stars} out of ${total} stars earned`}>
-      <span className="text-xl [@media(min-width:640px)_and_(min-height:720px)]:text-2xl">⭐</span>
-      <div className={`h-2.5 w-16 overflow-hidden rounded-full [@media(min-width:640px)_and_(min-height:720px)]:w-24 ${dark ? 'bg-slate-200' : 'bg-white/40'}`}>
+      <span className="text-xl [@media(min-width:640px)_and_(min-height:560px)]:text-2xl">⭐</span>
+      <div className={`h-2.5 w-16 overflow-hidden rounded-full [@media(min-width:640px)_and_(min-height:560px)]:w-24 ${dark ? 'bg-slate-200' : 'bg-white/40'}`}>
         <div
           className="h-full rounded-full bg-gradient-to-r from-yellow-300 to-orange-400 transition-all duration-500"
           style={{ width: `${pct}%` }}
         />
       </div>
-      <span className={`font-body text-xs font-extrabold [@media(min-width:640px)_and_(min-height:720px)]:text-sm ${dark ? 'text-slate-700' : 'text-white drop-shadow'}`}>
+      <span className={`font-body text-xs font-extrabold [@media(min-width:640px)_and_(min-height:560px)]:text-sm ${dark ? 'text-slate-700' : 'text-white drop-shadow'}`}>
         {stars}/{total}
       </span>
     </div>
@@ -664,7 +692,7 @@ function RoundDots({ total, current }) {
         <React.Fragment key={i}>
           {i > 0 && i % 5 === 0 && <span className="mx-0.5 h-2 w-px self-center bg-white/40" />}
           <span
-            className={`h-1.5 w-1.5 rounded-full transition-colors [@media(min-width:640px)_and_(min-height:720px)]:h-2 [@media(min-width:640px)_and_(min-height:720px)]:w-2 ${
+            className={`h-1.5 w-1.5 rounded-full transition-colors [@media(min-width:640px)_and_(min-height:560px)]:h-2 [@media(min-width:640px)_and_(min-height:560px)]:w-2 ${
               i < current ? 'bg-white' : i === current ? 'animate-sparkle bg-yellow-300' : 'bg-white/30'
             }`}
           />
@@ -679,10 +707,10 @@ function SuccessOverlay({ message, isLastRound, streak, accent, onNext }) {
     <div className="fixed inset-0 z-30 flex items-center justify-center bg-black/30 p-4">
       <div className="animate-pop-in relative flex max-w-sm flex-col items-center rounded-[2.5rem] bg-white px-8 py-8 text-center shadow-2xl">
         <div className="text-6xl">{streak >= 3 ? '🌟' : '🎉'}</div>
-        <h2 className="font-heading mt-2 text-2xl font-bold text-slate-800 [@media(min-width:640px)_and_(min-height:720px)]:text-3xl">
+        <h2 className="font-heading mt-2 text-2xl font-bold text-slate-800 [@media(min-width:640px)_and_(min-height:560px)]:text-3xl">
           {streak >= 3 ? 'Reef streak!' : 'Well done!'}
         </h2>
-        <p className="font-body mt-2 text-base font-semibold text-slate-500 [@media(min-width:640px)_and_(min-height:720px)]:text-lg">{message}</p>
+        <p className="font-body mt-2 text-base font-semibold text-slate-500 [@media(min-width:640px)_and_(min-height:560px)]:text-lg">{message}</p>
         <button
           onClick={onNext}
           className={`font-heading mt-6 rounded-full bg-gradient-to-b ${accent} px-7 py-3 text-lg font-bold text-white shadow-[0_6px_0_rgba(0,0,0,0.2)] transition-transform hover:-translate-y-0.5 active:translate-y-1 active:shadow-none`}
@@ -697,7 +725,7 @@ function SuccessOverlay({ message, isLastRound, streak, accent, onNext }) {
 function CompletionScreen({ stars, total, onPlayAgain }) {
   const { width, height } = useWindowSize();
   return (
-    <div className="relative mt-10 flex flex-col items-center rounded-[2.5rem] bg-white/90 px-8 py-10 text-center shadow-2xl [@media(min-width:640px)_and_(min-height:720px)]:px-14">
+    <div className="relative mt-10 flex flex-col items-center rounded-[2.5rem] bg-white/90 px-8 py-10 text-center shadow-2xl [@media(min-width:640px)_and_(min-height:560px)]:px-14">
       <Confetti
         width={width}
         height={height}
@@ -708,14 +736,14 @@ function CompletionScreen({ stars, total, onPlayAgain }) {
         style={{ position: 'fixed', inset: 0, zIndex: 20, pointerEvents: 'none' }}
       />
       <div className="text-7xl">🐚🏆</div>
-      <h2 className="font-heading mt-3 text-3xl font-bold text-slate-800 [@media(min-width:640px)_and_(min-height:720px)]:text-4xl">Reef treasure collected!</h2>
+      <h2 className="font-heading mt-3 text-3xl font-bold text-slate-800 [@media(min-width:640px)_and_(min-height:560px)]:text-4xl">Reef treasure collected!</h2>
       <p className="font-body mt-2 text-lg font-semibold text-slate-500">
         You earned {stars} out of {total} stars
       </p>
       <div className="mt-3">
         <StarMeter stars={stars} total={total} dark />
       </div>
-      <div className="mt-8 flex flex-col gap-3 [@media(min-width:640px)_and_(min-height:720px)]:flex-row">
+      <div className="mt-8 flex flex-col gap-3 [@media(min-width:640px)_and_(min-height:560px)]:flex-row">
         <button
           onClick={onPlayAgain}
           className="font-heading rounded-full bg-gradient-to-b from-teal-400 to-teal-500 px-6 py-3 text-lg font-bold text-white shadow-[0_6px_0_rgba(0,0,0,0.15)] transition-transform hover:-translate-y-0.5 active:translate-y-1 active:shadow-none"

@@ -368,36 +368,40 @@ function Game5Inner() {
       <Starfield />
 
       <div className="pointer-events-none absolute inset-0">
-        <div className="animate-drift absolute right-[8%] top-[8%] text-5xl opacity-90 [@media(min-width:640px)_and_(min-height:720px)]:text-6xl">🪐</div>
-        <div className="animate-drift absolute left-[6%] top-[18%] text-3xl opacity-80 [@media(min-width:640px)_and_(min-height:720px)]:text-4xl" style={{ animationDelay: '2s' }}>
+        <div className="animate-drift absolute right-[8%] top-[8%] text-5xl opacity-90 [@media(min-width:640px)_and_(min-height:560px)]:text-6xl">🪐</div>
+        <div className="animate-drift absolute left-[6%] top-[18%] text-3xl opacity-80 [@media(min-width:640px)_and_(min-height:560px)]:text-4xl" style={{ animationDelay: '2s' }}>
           🌙
         </div>
-        <div className="animate-drift absolute bottom-[16%] right-[10%] text-2xl opacity-70 [@media(min-width:640px)_and_(min-height:720px)]:text-3xl" style={{ animationDelay: '1s' }}>
+        <div className="animate-drift absolute bottom-[16%] right-[10%] text-2xl opacity-70 [@media(min-width:640px)_and_(min-height:560px)]:text-3xl" style={{ animationDelay: '1s' }}>
           ☄️
         </div>
       </div>
 
-      <div className="relative z-10 mx-auto flex h-full max-w-5xl flex-col items-center overflow-y-auto px-3 py-2 [@media(min-width:640px)_and_(min-height:720px)]:px-4 [@media(min-width:640px)_and_(min-height:720px)]:py-3">
-        <TopBar totalRounds={TOTAL_ROUNDS} stars={stars} muted={muted} onToggleMute={() => setMuted((m) => !m)} />
+      <div className="relative z-10 mx-auto flex h-full max-w-5xl flex-col items-center overflow-hidden px-3 py-2 [@media(min-width:640px)_and_(min-height:560px)]:px-4 [@media(min-width:640px)_and_(min-height:560px)]:py-3">
+        <div className="flex w-full flex-none items-center justify-between">
+          <TopBar totalRounds={TOTAL_ROUNDS} stars={stars} muted={muted} onToggleMute={() => setMuted((m) => !m)} />
+        </div>
 
         {phase === 'complete' ? (
-          <CompletionScreen stars={stars} total={TOTAL_ROUNDS} playerName={playerName} onPlayAgain={playAgain} />
+          <div className="flex w-full flex-1 min-h-0 items-center justify-center overflow-y-auto">
+            <CompletionScreen stars={stars} total={TOTAL_ROUNDS} playerName={playerName} onPlayAgain={playAgain} />
+          </div>
         ) : (
-          <>
-            <div className="mt-1 flex flex-col items-center gap-0.5 [@media(min-width:640px)_and_(min-height:720px)]:mt-2">
+          <div className="flex w-full flex-1 min-h-0 flex-col items-center overflow-y-auto">
+            <div className="mt-1 flex flex-none flex-col items-center gap-0.5 [@media(min-width:640px)_and_(min-height:560px)]:mt-2">
               <div className="flex items-center gap-1.5">
-                <span className="text-lg [@media(min-width:640px)_and_(min-height:720px)]:text-xl">🚀</span>
-                <p className="font-heading text-sm font-bold text-white/95 drop-shadow [@media(min-width:640px)_and_(min-height:720px)]:text-base">
+                <span className="text-lg [@media(min-width:640px)_and_(min-height:560px)]:text-xl">🚀</span>
+                <p className="font-heading text-sm font-bold text-white/95 drop-shadow [@media(min-width:640px)_and_(min-height:560px)]:text-base">
                   Captain Nova's Cargo Split
                 </p>
               </div>
-              <p className="font-body text-[11px] font-bold text-white/80 [@media(min-width:640px)_and_(min-height:720px)]:text-xs">
+              <p className="font-body text-[11px] font-bold text-white/80 [@media(min-width:640px)_and_(min-height:560px)]:text-xs">
                 Mission {roundIndex + 1} of {TOTAL_ROUNDS}
               </p>
               <RoundDots total={TOTAL_ROUNDS} current={roundIndex} markers={[3, 5]} />
             </div>
 
-            <div className="mt-1 flex items-center justify-center gap-3 [@media(min-width:640px)_and_(min-height:720px)]:mt-2 [@media(min-width:640px)_and_(min-height:720px)]:gap-4">
+            <div className="mt-1 flex flex-none items-center justify-center gap-3 [@media(min-width:640px)_and_(min-height:560px)]:mt-2 [@media(min-width:640px)_and_(min-height:560px)]:gap-4">
               <NovaPrompt round={round} streak={streak} isWrong={!!feedback} />
               <MissionHeader round={round} />
             </div>
@@ -407,7 +411,7 @@ function Game5Inner() {
             <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
               <CargoBay items={poolItems} count={poolCount} cargo={round.cargo} disabled={phase !== 'playing'} pulse={bayPulse} />
 
-              <div className="mt-2 flex w-full flex-1 flex-row items-start justify-center gap-2 [@media(min-width:640px)_and_(min-height:720px)]:mt-4 [@media(min-width:640px)_and_(min-height:720px)]:gap-4">
+              <div className="mt-2 flex w-full flex-1 min-h-0 flex-row items-start justify-center gap-2 [@media(min-width:640px)_and_(min-height:560px)]:mt-4 [@media(min-width:640px)_and_(min-height:560px)]:gap-4">
                 <RocketZone
                   id="left"
                   label="Red Rocket"
@@ -436,7 +440,7 @@ function Game5Inner() {
 
               <DragOverlay>
                 {activeItem ? (
-                  <div className="pointer-events-none flex h-12 w-12 scale-125 items-center justify-center rounded-2xl bg-white/50 text-3xl shadow-2xl [@media(min-width:640px)_and_(min-height:720px)]:h-16 [@media(min-width:640px)_and_(min-height:720px)]:w-16 [@media(min-width:640px)_and_(min-height:720px)]:text-4xl">
+                  <div className="pointer-events-none flex h-12 w-12 scale-125 items-center justify-center rounded-2xl bg-white/50 text-3xl shadow-2xl [@media(min-width:640px)_and_(min-height:560px)]:h-16 [@media(min-width:640px)_and_(min-height:560px)]:w-16 [@media(min-width:640px)_and_(min-height:560px)]:text-4xl">
                     {round.cargo.emoji}
                   </div>
                 ) : null}
@@ -447,9 +451,9 @@ function Game5Inner() {
               <NumberHelper selected={selectedNumber} onSelect={setSelectedNumber} />
             )}
 
-            <div className="mt-2 flex flex-col items-center gap-1.5 pb-2 [@media(min-width:640px)_and_(min-height:720px)]:mt-3">
+            <div className="mt-2 flex flex-none flex-col items-center gap-1.5 pb-2 [@media(min-width:640px)_and_(min-height:560px)]:mt-3">
               {feedback && (
-                <p className="font-body animate-pop-in rounded-full bg-white/90 px-4 py-1.5 text-xs font-bold text-indigo-700 shadow [@media(min-width:640px)_and_(min-height:720px)]:text-sm">
+                <p className="font-body animate-pop-in rounded-full bg-white/90 px-4 py-1.5 text-xs font-bold text-indigo-700 shadow [@media(min-width:640px)_and_(min-height:560px)]:text-sm">
                   {feedback.type === 'incomplete' && `🛰️ ${feedback.poolCount} more cargo to place!`}
                   {feedback.type === 'empty-side' && '🚀 Every rocket needs at least one!'}
                   {feedback.type === 'uneven' && '⚖️ Not even yet — keep balancing!'}
@@ -459,7 +463,7 @@ function Game5Inner() {
               {phase === 'playing' && (
                 <button
                   onClick={handleCheck}
-                  className="font-heading rounded-full bg-gradient-to-b from-pink-400 to-pink-500 px-7 py-2.5 text-base font-bold text-white shadow-[0_6px_0_rgba(0,0,0,0.2)] transition-transform hover:-translate-y-0.5 active:translate-y-1 active:shadow-none [@media(min-width:640px)_and_(min-height:720px)]:px-8 [@media(min-width:640px)_and_(min-height:720px)]:py-3 [@media(min-width:640px)_and_(min-height:720px)]:text-lg"
+                  className="font-heading rounded-full bg-gradient-to-b from-pink-400 to-pink-500 px-7 py-2.5 text-base font-bold text-white shadow-[0_6px_0_rgba(0,0,0,0.2)] transition-transform hover:-translate-y-0.5 active:translate-y-1 active:shadow-none [@media(min-width:640px)_and_(min-height:560px)]:px-8 [@media(min-width:640px)_and_(min-height:560px)]:py-3 [@media(min-width:640px)_and_(min-height:560px)]:text-lg"
                 >
                   Check my split! 🚀
                 </button>
@@ -478,7 +482,7 @@ function Game5Inner() {
                 onNext={nextRound}
               />
             )}
-          </>
+          </div>
         )}
         
       </div>
@@ -533,17 +537,17 @@ const TopBar = React.memo(function TopBar({ totalRounds, stars, muted, onToggleM
     <div className="flex w-full items-center justify-between">
       <Link
         to="/"
-        className="font-body flex items-center gap-1 rounded-full bg-white/90 px-3 py-1.5 text-xs font-extrabold text-slate-700 shadow-[0_4px_0_rgba(0,0,0,0.15)] transition-transform hover:-translate-y-0.5 active:translate-y-1 active:shadow-none [@media(min-width:640px)_and_(min-height:720px)]:px-4 [@media(min-width:640px)_and_(min-height:720px)]:py-2 [@media(min-width:640px)_and_(min-height:720px)]:text-base"
+        className="font-body flex items-center gap-1 rounded-full bg-white/90 px-3 py-1.5 text-xs font-extrabold text-slate-700 shadow-[0_4px_0_rgba(0,0,0,0.15)] transition-transform hover:-translate-y-0.5 active:translate-y-1 active:shadow-none [@media(min-width:640px)_and_(min-height:560px)]:px-4 [@media(min-width:640px)_and_(min-height:560px)]:py-2 [@media(min-width:640px)_and_(min-height:560px)]:text-base"
       >
         ⬅️ Home
       </Link>
 
-      <div className="flex items-center gap-2 [@media(min-width:640px)_and_(min-height:720px)]:gap-3">
+      <div className="flex items-center gap-2 [@media(min-width:640px)_and_(min-height:560px)]:gap-3">
         <StarMeter stars={stars} total={totalRounds} />
         <button
           onClick={onToggleMute}
           aria-label={muted ? 'Unmute sound' : 'Mute sound'}
-          className="flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-base shadow-[0_4px_0_rgba(0,0,0,0.15)] active:translate-y-0.5 active:shadow-none [@media(min-width:640px)_and_(min-height:720px)]:h-9 [@media(min-width:640px)_and_(min-height:720px)]:w-9 [@media(min-width:640px)_and_(min-height:720px)]:text-lg"
+          className="flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-base shadow-[0_4px_0_rgba(0,0,0,0.15)] active:translate-y-0.5 active:shadow-none [@media(min-width:640px)_and_(min-height:560px)]:h-9 [@media(min-width:640px)_and_(min-height:560px)]:w-9 [@media(min-width:640px)_and_(min-height:560px)]:text-lg"
         >
           {muted ? '🔇' : '🔊'}
         </button>
@@ -556,8 +560,8 @@ const StarMeter = React.memo(function StarMeter({ stars, total, dark }) {
   const pct = total > 0 ? Math.round((stars / total) * 100) : 0;
   return (
     <div className="flex items-center gap-2" aria-label={`${stars} out of ${total} stars earned`}>
-      <span className="text-xl [@media(min-width:640px)_and_(min-height:720px)]:text-2xl">⭐</span>
-      <div className={`h-2.5 w-16 overflow-hidden rounded-full [@media(min-width:640px)_and_(min-height:720px)]:w-24 ${dark ? 'bg-slate-200' : 'bg-white/40'}`}>
+      <span className="text-xl [@media(min-width:640px)_and_(min-height:560px)]:text-2xl">⭐</span>
+      <div className={`h-2.5 w-16 overflow-hidden rounded-full [@media(min-width:640px)_and_(min-height:560px)]:w-24 ${dark ? 'bg-slate-200' : 'bg-white/40'}`}>
         <div
           className="relative h-full overflow-hidden rounded-full bg-gradient-to-r from-yellow-300 to-orange-400 transition-all duration-500"
           style={{ width: `${pct}%` }}
@@ -565,7 +569,7 @@ const StarMeter = React.memo(function StarMeter({ stars, total, dark }) {
           <span className="animate-shimmer absolute inset-0 bg-gradient-to-r from-transparent via-white/60 to-transparent" />
         </div>
       </div>
-      <span className={`font-body text-xs font-extrabold [@media(min-width:640px)_and_(min-height:720px)]:text-sm ${dark ? 'text-slate-700' : 'text-white drop-shadow'}`}>
+      <span className={`font-body text-xs font-extrabold [@media(min-width:640px)_and_(min-height:560px)]:text-sm ${dark ? 'text-slate-700' : 'text-white drop-shadow'}`}>
         {stars}/{total}
       </span>
     </div>
@@ -579,7 +583,7 @@ const RoundDots = React.memo(function RoundDots({ total, current, markers = [] }
         <React.Fragment key={i}>
           {markers.includes(i) && <span className="mx-1 h-3 w-px bg-white/40" />}
           <span
-            className={`h-1.5 w-1.5 rounded-full transition-colors [@media(min-width:640px)_and_(min-height:720px)]:h-2 [@media(min-width:640px)_and_(min-height:720px)]:w-2 ${
+            className={`h-1.5 w-1.5 rounded-full transition-colors [@media(min-width:640px)_and_(min-height:560px)]:h-2 [@media(min-width:640px)_and_(min-height:560px)]:w-2 ${
               i < current ? 'bg-white' : i === current ? 'animate-twinkle bg-yellow-300' : 'bg-white/30'
             }`}
           />
@@ -593,7 +597,7 @@ const NovaPrompt = React.memo(function NovaPrompt({ round, streak, isWrong }) {
   return (
     <div className="relative shrink-0">
       <motion.span
-        className="inline-block text-4xl [@media(min-width:640px)_and_(min-height:720px)]:text-5xl"
+        className="inline-block text-4xl [@media(min-width:640px)_and_(min-height:560px)]:text-5xl"
         animate={isWrong ? { x: [0, -6, 6, -6, 6, 0] } : { rotate: [-4, 4, -4], y: [0, -4, 0] }}
         transition={isWrong ? { duration: 0.4 } : { duration: 3, repeat: Infinity, ease: 'easeInOut' }}
       >
@@ -621,7 +625,7 @@ function BigNumber({ value, className }) {
       initial={{ scale: 0.5, opacity: 0 }}
       animate={{ scale: 1, opacity: 1 }}
       transition={{ type: 'spring', stiffness: 420, damping: 16 }}
-      className={cn('font-heading text-4xl font-bold drop-shadow [@media(min-width:640px)_and_(min-height:720px)]:text-5xl', className)}
+      className={cn('font-heading text-4xl font-bold drop-shadow [@media(min-width:640px)_and_(min-height:560px)]:text-5xl', className)}
     >
       {value}
     </motion.span>
@@ -630,12 +634,12 @@ function BigNumber({ value, className }) {
 
 const MissionHeader = React.memo(function MissionHeader({ round }) {
   return (
-    <div className="animate-pop-in flex flex-col items-center gap-0.5 rounded-[1.5rem] bg-white/90 px-4 py-2 text-center shadow-[0_6px_0_rgba(0,0,0,0.15)] [@media(min-width:640px)_and_(min-height:720px)]:px-5 [@media(min-width:640px)_and_(min-height:720px)]:py-2.5">
+    <div className="animate-pop-in flex flex-col items-center gap-0.5 rounded-[1.5rem] bg-white/90 px-4 py-2 text-center shadow-[0_6px_0_rgba(0,0,0,0.15)] [@media(min-width:640px)_and_(min-height:560px)]:px-5 [@media(min-width:640px)_and_(min-height:560px)]:py-2.5">
       <div className="flex items-center gap-1.5">
-        <span className="font-heading text-3xl font-bold text-indigo-600 [@media(min-width:640px)_and_(min-height:720px)]:text-4xl">{round.mode === 'target' ? numberWords[round.total - 1] : round.total}</span>
-        <span className="text-2xl [@media(min-width:640px)_and_(min-height:720px)]:text-3xl">{round.cargo.emoji}</span>
+        <span className="font-heading text-3xl font-bold text-indigo-600 [@media(min-width:640px)_and_(min-height:560px)]:text-4xl">{round.mode === 'target' ? numberWords[round.total - 1] : round.total}</span>
+        <span className="text-2xl [@media(min-width:640px)_and_(min-height:560px)]:text-3xl">{round.cargo.emoji}</span>
       </div>
-      <p className="font-body text-xs font-bold text-slate-600 [@media(min-width:640px)_and_(min-height:720px)]:text-sm">
+      <p className="font-body text-xs font-bold text-slate-600 [@media(min-width:640px)_and_(min-height:560px)]:text-sm">
   {round.mode === 'free' && `Split the ${round.cargo.name} any way you like!`}
 
 {round.mode === 'half' && (
@@ -649,11 +653,11 @@ const MissionHeader = React.memo(function MissionHeader({ round }) {
   {round.mode === 'target' && (
     <>
       <span className='text-red-600 text-lg'>Red</span> needs{' '}
-      <span className="text-lg font-extrabold text-red-600 [@media(min-width:640px)_and_(min-height:720px)]:text-xl">
+      <span className="text-lg font-extrabold text-red-600 [@media(min-width:640px)_and_(min-height:560px)]:text-xl">
         {numberWords[round.targetA - 1]}
       </span>
       , <span className='text-blue-600 text-lg'>Blue</span> needs{' '}
-      <span className="text-lg font-extrabold text-blue-600 [@media(min-width:640px)_and_(min-height:720px)]:text-xl">
+      <span className="text-lg font-extrabold text-blue-600 [@media(min-width:640px)_and_(min-height:560px)]:text-xl">
         {numberWords[round.targetB - 1]}
       </span>
       
@@ -671,8 +675,8 @@ const BalanceScale = React.memo(function BalanceScale({ leftCount, rightCount })
   const angle = diff * 6;
   const balanced = leftCount === rightCount && leftCount > 0;
   return (
-    <div className="animate-pop-in mt-1 flex flex-col items-center [@media(min-width:640px)_and_(min-height:720px)]:mt-2">
-      <svg viewBox="0 0 160 90" className="h-11 w-24 [@media(min-width:640px)_and_(min-height:720px)]:h-14 [@media(min-width:640px)_and_(min-height:720px)]:w-28">
+    <div className="animate-pop-in mt-1 flex flex-col items-center [@media(min-width:640px)_and_(min-height:560px)]:mt-2">
+      <svg viewBox="0 0 160 90" className="h-11 w-24 [@media(min-width:640px)_and_(min-height:560px)]:h-14 [@media(min-width:640px)_and_(min-height:560px)]:w-28">
         <line x1="80" y1="88" x2="80" y2="30" stroke="#C4B5FD" strokeWidth="6" strokeLinecap="round" />
         <polygon points="80,10 66,30 94,30" fill="#A78BFA" />
         <g style={{ transform: `rotate(${angle}deg)`, transformOrigin: '80px 30px', transition: 'transform 0.4s ease' }}>
@@ -706,16 +710,16 @@ const CargoBay = React.memo(function CargoBay({ items, count, cargo, disabled, p
         `,
       }}
       className={cn(
-        'relative mt-2 flex min-h-[clamp(4rem,13vh,7rem)] w-full flex-col items-center justify-center gap-1 overflow-hidden rounded-[1.75rem] border-4 border-dashed border-indigo-300/50 bg-white/10 p-2 pt-7 shadow-inner backdrop-blur-sm transition-shadow [@media(min-width:640px)_and_(min-height:720px)]:mt-4 [@media(min-width:640px)_and_(min-height:720px)]:min-h-[clamp(7rem,20vh,11rem)] [@media(min-width:640px)_and_(min-height:720px)]:gap-2 [@media(min-width:640px)_and_(min-height:720px)]:p-4 [@media(min-width:640px)_and_(min-height:720px)]:pt-8',
+        'relative mt-2 flex min-h-[clamp(4rem,13vh,7rem)] w-full flex-col items-center justify-center gap-1 overflow-hidden rounded-[1.75rem] border-4 border-dashed border-indigo-300/50 bg-white/10 p-2 pt-7 shadow-inner backdrop-blur-sm transition-shadow [@media(min-width:640px)_and_(min-height:560px)]:mt-4 [@media(min-width:640px)_and_(min-height:560px)]:min-h-[clamp(7rem,20vh,11rem)] [@media(min-width:640px)_and_(min-height:560px)]:gap-2 [@media(min-width:640px)_and_(min-height:560px)]:p-4 [@media(min-width:640px)_and_(min-height:560px)]:pt-8',
         isOver && 'border-yellow-300 bg-white/20',
         pulse && 'animate-glow-pulse'
       )}
     >
-      <span className="font-body absolute -top-3 left-4 mt-3 rounded-full bg-white/90 px-3 py-0.5 text-xs font-extrabold text-slate-600 shadow [@media(min-width:640px)_and_(min-height:720px)]:text-sm">
+      <span className="font-body absolute -top-3 left-4 mt-3 rounded-full bg-white/90 px-3 py-0.5 text-xs font-extrabold text-slate-600 shadow [@media(min-width:640px)_and_(min-height:560px)]:text-sm">
         🛰️ Cargo Bay
       </span>
       <BigNumber value={count} className="text-indigo-100" />
-      <div className="flex flex-wrap content-start items-start justify-center gap-1 [@media(min-width:640px)_and_(min-height:720px)]:gap-2">
+      <div className="flex flex-wrap content-start items-start justify-center gap-1 [@media(min-width:640px)_and_(min-height:560px)]:gap-2">
         {items.length === 0 && <span className="font-body text-sm font-bold text-white/70">All loaded!</span>}
         {items.map((it) => (
           <DraggableCargo key={it.id} id={it.id} emoji={cargo.emoji} rotation={it.rotation} disabled={disabled} />
@@ -762,7 +766,7 @@ const RocketZone = React.memo(function RocketZone({ id, count, items, cargo, dis
           `,
         }}
         className={cn(
-          'relative flex min-h-[clamp(5rem,17vh,8.5rem)] w-full flex-col items-center gap-1 overflow-hidden rounded-t-[2.5rem] rounded-b-2xl border-4 bg-gradient-to-b p-2 pt-8 shadow-inner transition-shadow [@media(min-width:640px)_and_(min-height:720px)]:gap-2 [@media(min-width:640px)_and_(min-height:720px)]:p-4 [@media(min-width:640px)_and_(min-height:720px)]:pt-9',
+          'relative flex min-h-[clamp(5rem,17vh,8.5rem)] w-full flex-col items-center gap-1 overflow-hidden rounded-t-[2.5rem] rounded-b-2xl border-4 bg-gradient-to-b p-2 pt-8 shadow-inner transition-shadow [@media(min-width:640px)_and_(min-height:560px)]:gap-2 [@media(min-width:640px)_and_(min-height:560px)]:p-4 [@media(min-width:640px)_and_(min-height:560px)]:pt-9',
           theme.body,
           isOver && `ring-4 ${theme.ring}`,
           shake && 'animate-shake',
@@ -772,18 +776,18 @@ const RocketZone = React.memo(function RocketZone({ id, count, items, cargo, dis
         {/* Decorative porthole window — sits behind the cargo so it never
             blocks a drop target or a drag gesture. */}
         <span
-          className="pointer-events-none absolute left-1/2 top-3 h-6 w-6 -translate-x-1/2 rounded-full border-2 border-white/70 bg-gradient-to-br from-white/80 via-sky-100/40 to-transparent shadow-inner [@media(min-width:640px)_and_(min-height:720px)]:h-8 [@media(min-width:640px)_and_(min-height:720px)]:w-8"
+          className="pointer-events-none absolute left-1/2 top-3 h-6 w-6 -translate-x-1/2 rounded-full border-2 border-white/70 bg-gradient-to-br from-white/80 via-sky-100/40 to-transparent shadow-inner [@media(min-width:640px)_and_(min-height:560px)]:h-8 [@media(min-width:640px)_and_(min-height:560px)]:w-8"
           aria-hidden="true"
         />
-        <span className="font-body absolute -top-3 left-1/2 z-10 mt-3 -translate-x-1/2 whitespace-nowrap rounded-full bg-white/95 px-2.5 py-0.5 text-[11px] font-extrabold text-slate-600 shadow [@media(min-width:640px)_and_(min-height:720px)]:px-3 [@media(min-width:640px)_and_(min-height:720px)]:text-sm">
+        <span className="font-body absolute -top-3 left-1/2 z-10 mt-3 -translate-x-1/2 whitespace-nowrap rounded-full bg-white/95 px-2.5 py-0.5 text-[11px] font-extrabold text-slate-600 shadow [@media(min-width:640px)_and_(min-height:560px)]:px-3 [@media(min-width:640px)_and_(min-height:560px)]:text-sm">
           {theme.label}
         </span>
-        <div className="mt-2 [@media(min-width:640px)_and_(min-height:720px)]:mt-2.5">
+        <div className="mt-2 [@media(min-width:640px)_and_(min-height:560px)]:mt-2.5">
           <BigNumber value={count} className="text-white" />
         </div>
         
-        <div className="flex flex-wrap content-start items-start justify-center gap-1 [@media(min-width:640px)_and_(min-height:720px)]:gap-2">
-          {items.length === 0 && <span className="font-body text-xs font-bold text-white/80 [@media(min-width:640px)_and_(min-height:720px)]:text-sm">Drop cargo here!</span>}
+        <div className="flex flex-wrap content-start items-start justify-center gap-1 [@media(min-width:640px)_and_(min-height:560px)]:gap-2">
+          {items.length === 0 && <span className="font-body text-xs font-bold text-white/80 [@media(min-width:640px)_and_(min-height:560px)]:text-sm">Drop cargo here!</span>}
           {items.map((it) => (
             <DraggableCargo key={it.id} id={it.id} emoji={cargo.emoji} rotation={it.rotation} disabled={disabled} />
           ))}
@@ -793,8 +797,8 @@ const RocketZone = React.memo(function RocketZone({ id, count, items, cargo, dis
       {/* Fins — a couple of clipped triangles bracketing the engine, purely
           decorative and cheap (no extra animation, just static shapes). */}
       <div className="relative flex w-full items-start justify-center">
-        <span className={cn('absolute -top-1 h-4 w-6 [@media(min-width:640px)_and_(min-height:720px)]:h-5 [@media(min-width:640px)_and_(min-height:720px)]:w-7', theme.finLeft)} style={{ left: '14%', clipPath: 'polygon(100% 0, 100% 100%, 0 100%)' }} />
-        <span className={cn('absolute -top-1 h-4 w-6 [@media(min-width:640px)_and_(min-height:720px)]:h-5 [@media(min-width:640px)_and_(min-height:720px)]:w-7', theme.finRight)} style={{ right: '14%', clipPath: 'polygon(0 0, 100% 100%, 0 100%)' }} />
+        <span className={cn('absolute -top-1 h-4 w-6 [@media(min-width:640px)_and_(min-height:560px)]:h-5 [@media(min-width:640px)_and_(min-height:560px)]:w-7', theme.finLeft)} style={{ left: '14%', clipPath: 'polygon(100% 0, 100% 100%, 0 100%)' }} />
+        <span className={cn('absolute -top-1 h-4 w-6 [@media(min-width:640px)_and_(min-height:560px)]:h-5 [@media(min-width:640px)_and_(min-height:560px)]:w-7', theme.finRight)} style={{ right: '14%', clipPath: 'polygon(0 0, 100% 100%, 0 100%)' }} />
       </div>
 
       <div className="relative flex justify-center rotate-180">
@@ -817,7 +821,7 @@ const DraggableCargo = React.memo(function DraggableCargo({ id, emoji, rotation,
         rotate: `${rotation}deg`,
         touchAction: 'none',
       }}
-      className={`flex h-8 w-8 items-center justify-center rounded-2xl text-base transition-opacity duration-150 [@media(min-width:640px)_and_(min-height:720px)]:h-12 [@media(min-width:640px)_and_(min-height:720px)]:w-12 [@media(min-width:640px)_and_(min-height:720px)]:text-2xl ${
+      className={`flex h-8 w-8 items-center justify-center rounded-2xl text-base transition-opacity duration-150 [@media(min-width:640px)_and_(min-height:560px)]:h-12 [@media(min-width:640px)_and_(min-height:560px)]:w-12 [@media(min-width:640px)_and_(min-height:560px)]:text-2xl ${
         disabled ? 'cursor-default' : 'cursor-grab active:cursor-grabbing'
       } ${isDragging ? 'opacity-0' : 'opacity-100'}`}
     >
@@ -832,7 +836,7 @@ const DraggableCargo = React.memo(function DraggableCargo({ id, emoji, rotation,
 // never reads as "the Blue rocket" by accident.
 const NumberHelper = React.memo(function NumberHelper({ selected, onSelect }) {
   return (
-    <div className="animate-pop-in mt-2 w-full max-w-2xl rounded-[1.5rem] bg-white/90 px-3 py-3 shadow-[0_6px_0_rgba(0,0,0,0.15)] [@media(min-width:640px)_and_(min-height:720px)]:mt-4 [@media(min-width:640px)_and_(min-height:720px)]:max-w-xs [@media(min-width:640px)_and_(min-height:720px)]:px-4 [@media(min-width:640px)_and_(min-height:720px)]:py-3">
+    <div className="animate-pop-in mt-2 w-full max-w-2xl rounded-[1.5rem] bg-white/90 px-3 py-3 shadow-[0_6px_0_rgba(0,0,0,0.15)] [@media(min-width:640px)_and_(min-height:560px)]:mt-4 [@media(min-width:640px)_and_(min-height:560px)]:max-w-xs [@media(min-width:640px)_and_(min-height:560px)]:px-4 [@media(min-width:640px)_and_(min-height:560px)]:py-3">
       
 
       <div className="mt-2 flex h-14 items-center justify-center">
@@ -844,7 +848,7 @@ const NumberHelper = React.memo(function NumberHelper({ selected, onSelect }) {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.2 }}
-              className="font-body text-xs font-semibold text-slate-300 [@media(min-width:640px)_and_(min-height:720px)]:text-sm"
+              className="font-body text-xs font-semibold text-slate-300 [@media(min-width:640px)_and_(min-height:560px)]:text-sm"
             >
               Pick a number below 👇
             </motion.p>
@@ -865,7 +869,7 @@ const NumberHelper = React.memo(function NumberHelper({ selected, onSelect }) {
         </AnimatePresence>
       </div>
 
-      <div className="mt-2 grid grid-cols-5 gap-1.5 [@media(min-width:640px)_and_(min-height:720px)]:gap-2">
+      <div className="mt-2 grid grid-cols-5 gap-1.5 [@media(min-width:640px)_and_(min-height:560px)]:gap-2">
         {numberWords.map((_, i) => {
           const active = selected === i;
           return (
@@ -879,7 +883,7 @@ const NumberHelper = React.memo(function NumberHelper({ selected, onSelect }) {
               animate={{ scale: active ? 1.08 : 1 }}
               transition={{ type: 'spring', stiffness: 400, damping: 20 }}
               className={cn(
-                'font-heading aspect-square rounded-xl text-base font-bold shadow-sm transition-colors [@media(min-width:640px)_and_(min-height:720px)]:text-sm',
+                'font-heading aspect-square rounded-xl text-base font-bold shadow-sm transition-colors [@media(min-width:640px)_and_(min-height:560px)]:text-sm',
                 active
                   ? 'bg-indigo-500 text-white ring-4 ring-indigo-200'
                   : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
@@ -914,10 +918,10 @@ function SuccessOverlay({ leftCount, rightCount, total, cargo, isLastRound, stre
         className="relative flex max-w-sm flex-col items-center rounded-[2.5rem] bg-white px-8 py-8 text-center shadow-2xl"
       >
         <div className="text-6xl">{streak >= 3 ? '🌟' : '🚀'}</div>
-        <p className="font-heading mt-2 text-2xl font-bold text-amber-500 [@media(min-width:640px)_and_(min-height:720px)]:text-3xl">
+        <p className="font-heading mt-2 text-2xl font-bold text-amber-500 [@media(min-width:640px)_and_(min-height:560px)]:text-3xl">
           {streak >= 3 ? 'On a streak!' : 'Blast off!'}
         </p>
-        <p className="font-body mt-2 text-base font-semibold text-slate-500 [@media(min-width:640px)_and_(min-height:720px)]:text-lg">
+        <p className="font-body mt-2 text-base font-semibold text-slate-500 [@media(min-width:640px)_and_(min-height:560px)]:text-lg">
           {total} can be split into {leftCount} and {rightCount}!
         </p>
         <button
@@ -934,7 +938,7 @@ function SuccessOverlay({ leftCount, rightCount, total, cargo, isLastRound, stre
 function CompletionScreen({ stars, total, playerName, onPlayAgain }) {
   const { width, height } = useWindowSize();
   return (
-    <div className="relative mt-3 flex flex-col items-center rounded-[2.5rem] bg-white/90 px-6 py-6 text-center shadow-2xl [@media(min-width:640px)_and_(min-height:720px)]:mt-6 [@media(min-width:640px)_and_(min-height:720px)]:px-14 [@media(min-width:640px)_and_(min-height:720px)]:py-10">
+    <div className="relative mt-3 flex flex-col items-center rounded-[2.5rem] bg-white/90 px-6 py-6 text-center shadow-2xl [@media(min-width:640px)_and_(min-height:560px)]:mt-6 [@media(min-width:640px)_and_(min-height:560px)]:px-14 [@media(min-width:640px)_and_(min-height:560px)]:py-10">
       <Confetti
         width={width}
         height={height}
@@ -947,29 +951,29 @@ function CompletionScreen({ stars, total, playerName, onPlayAgain }) {
       <motion.div
         animate={{ y: [0, -10, 0] }}
         transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
-        className="text-5xl [@media(min-width:640px)_and_(min-height:720px)]:text-7xl"
+        className="text-5xl [@media(min-width:640px)_and_(min-height:560px)]:text-7xl"
       >
         🚀
       </motion.div>
-      <h2 className="font-heading mt-2 text-2xl font-bold text-slate-800 [@media(min-width:640px)_and_(min-height:720px)]:mt-3 [@media(min-width:640px)_and_(min-height:720px)]:text-4xl">
+      <h2 className="font-heading mt-2 text-2xl font-bold text-slate-800 [@media(min-width:640px)_and_(min-height:560px)]:mt-3 [@media(min-width:640px)_and_(min-height:560px)]:text-4xl">
         Mission complete, {playerName}!
       </h2>
-      <p className="font-body mt-1 text-base font-semibold text-slate-500 [@media(min-width:640px)_and_(min-height:720px)]:mt-2 [@media(min-width:640px)_and_(min-height:720px)]:text-lg">
+      <p className="font-body mt-1 text-base font-semibold text-slate-500 [@media(min-width:640px)_and_(min-height:560px)]:mt-2 [@media(min-width:640px)_and_(min-height:560px)]:text-lg">
         You earned {stars} out of {total} stars
       </p>
-      <div className="mt-2 [@media(min-width:640px)_and_(min-height:720px)]:mt-3">
+      <div className="mt-2 [@media(min-width:640px)_and_(min-height:560px)]:mt-3">
         <StarMeter stars={stars} total={total} dark />
       </div>
-      <div className="mt-5 flex flex-col gap-2.5 [@media(min-width:640px)_and_(min-height:720px)]:mt-8 [@media(min-width:640px)_and_(min-height:720px)]:flex-row [@media(min-width:640px)_and_(min-height:720px)]:gap-3">
+      <div className="mt-5 flex flex-col gap-2.5 [@media(min-width:640px)_and_(min-height:560px)]:mt-8 [@media(min-width:640px)_and_(min-height:560px)]:flex-row [@media(min-width:640px)_and_(min-height:560px)]:gap-3">
         <button
           onClick={onPlayAgain}
-          className="font-heading rounded-full bg-gradient-to-b from-pink-400 to-pink-500 px-6 py-2.5 text-base font-bold text-white shadow-[0_6px_0_rgba(0,0,0,0.15)] transition-transform hover:-translate-y-0.5 active:translate-y-1 active:shadow-none [@media(min-width:640px)_and_(min-height:720px)]:py-3 [@media(min-width:640px)_and_(min-height:720px)]:text-lg"
+          className="font-heading rounded-full bg-gradient-to-b from-pink-400 to-pink-500 px-6 py-2.5 text-base font-bold text-white shadow-[0_6px_0_rgba(0,0,0,0.15)] transition-transform hover:-translate-y-0.5 active:translate-y-1 active:shadow-none [@media(min-width:640px)_and_(min-height:560px)]:py-3 [@media(min-width:640px)_and_(min-height:560px)]:text-lg"
         >
           🔁 Play again
         </button>
         <Link
           to="/"
-          className="font-heading rounded-full bg-gradient-to-b from-sky-400 to-sky-500 px-6 py-2.5 text-base font-bold text-white shadow-[0_6px_0_rgba(0,0,0,0.15)] transition-transform hover:-translate-y-0.5 active:translate-y-1 active:shadow-none [@media(min-width:640px)_and_(min-height:720px)]:py-3 [@media(min-width:640px)_and_(min-height:720px)]:text-lg"
+          className="font-heading rounded-full bg-gradient-to-b from-sky-400 to-sky-500 px-6 py-2.5 text-base font-bold text-white shadow-[0_6px_0_rgba(0,0,0,0.15)] transition-transform hover:-translate-y-0.5 active:translate-y-1 active:shadow-none [@media(min-width:640px)_and_(min-height:560px)]:py-3 [@media(min-width:640px)_and_(min-height:560px)]:text-lg"
         >
           🏠 Back home
         </Link>
