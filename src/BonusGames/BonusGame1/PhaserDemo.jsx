@@ -8,6 +8,7 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from "motion/react";
 import clsx from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import GameAccessGate from '../../GameAccessGate';
 
 function cn(...inputs) {
   return twMerge(clsx(inputs));
@@ -41,8 +42,10 @@ const buttonVariants = {
 export default function PhaserDemo() {
   return (
     <NameGate gameLabel="Bonus Game: Number Pop">
-      <PhaserDemoInner />
-    </NameGate>
+          <GameAccessGate gameNumber={'b1'} gameLabel="Bonus Game: Number Pop">
+            <PhaserDemoInner />
+          </GameAccessGate>
+        </NameGate>
   );
 }
 

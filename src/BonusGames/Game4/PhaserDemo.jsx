@@ -2,12 +2,15 @@
 import { Link } from 'react-router-dom';
 import Game from './Game';
 import NameGate from '../../NameGate';
+import GameAccessGate from '../../GameAccessGate';
 import { usePlayerStore } from '../../playerStore';
 
 export default function PhaserDemo() {
   return (
-    <NameGate gameLabel="Bonus Game: Compare Dice & Domino">
-      <PhaserDemoInner />
+    <NameGate gameLabel="Game 4: Compare Die and Dominoes">
+      <GameAccessGate gameNumber={4} gameLabel="Game 4: Compare Die and Dominoes">
+        <PhaserDemoInner />
+      </GameAccessGate>
     </NameGate>
   );
 }
@@ -24,7 +27,7 @@ function PhaserDemoInner() {
 
       <Link
         to="/"
-        className="font-body relative z-20 flex items-center gap-1 self-start rounded-full bg-white/90 font-extrabold text-slate-700 shadow-[0_4px_0_rgba(0,0,0,0.15)] transition-transform hover:-translate-y-0.5 active:translate-y-1 active:shadow-none px-3 py-1.5 text-xs sm:px-4 sm:py-2 sm:text-sm md:text-base"
+        className="font-body relative z-20 flex items-center gap-1 self-start rounded-full bg-white/90 px-3 py-1.5 text-xs font-extrabold text-slate-700 shadow-[0_4px_0_rgba(0,0,0,0.15)] transition-transform hover:-translate-y-0.5 active:translate-y-1 active:shadow-none sm:px-4 sm:py-2 sm:text-sm md:text-base"
       >
         ⬅️ Home
       </Link>

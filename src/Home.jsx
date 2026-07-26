@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { motion } from "motion/react";
 import StatsPanel from "./StatsPanel";
 import NameGate from "./NameGate";
@@ -20,13 +20,6 @@ export default function Home() {
         />
       </Helmet>
 
-      {/*
-        Real, keyword-bearing content that's always in the DOM regardless of
-        NameGate state. A fresh visitor (including Google's crawler, which
-        never has a stored player name) always sees the gate first — so
-        anything meant to be indexed has to live out here, not inside
-        HomeContent.
-      */}
       <section className="hidden">
         <h1>Weekly Numeracy Games for Kindergarten 1</h1>
         <p>
@@ -40,7 +33,6 @@ export default function Home() {
       <NameGate gameLabel="K1 Weekly Wonders">
         <HomeContent />
       </NameGate>
-      
     </>
   );
 }
@@ -55,14 +47,14 @@ function timeGreeting() {
 }
 
 function HomeContent() {
+  const navigate = useNavigate();
   const playerName = usePlayerStore((s) => s.playerName);
   const isTeacher = usePlayerStore((s) => s.isTeacher);
   const resetPlayer = usePlayerStore((s) => s.resetPlayer);
   const [showStats, setShowStats] = useState(false);
   const [progressByGame, setProgressByGame] = useState({});
+  const [loadingTo, setLoadingTo] = useState(null);
 
-  // Purely cosmetic — if the stats server is unreachable, the homepage
-  // still works fine, it just won't show the "best score" badges below.
   useEffect(() => {
     let cancelled = false;
     fetchSummary()
@@ -80,10 +72,6 @@ function HomeContent() {
     };
   }, [playerName]);
 
-  // Warm the cache for each unlocked game once the homepage is idle, so the
-  // first tap on a card doesn't have to wait on a fresh chunk download —
-  // this matches the same import() specifiers used by the lazy() calls in
-  // main.jsx, so the browser/bundler reuses this fetch instead of refetching.
   useEffect(() => {
     const prefetchGames = () => {
       if (isGameUnlocked(1, isTeacher)) import("./Game1");
@@ -102,22 +90,36 @@ function HomeContent() {
 
   const greeting = useMemo(() => timeGreeting(), []);
 
+  const openGame = (to) => {
+    setLoadingTo(to);
+    requestAnimationFrame(() => {
+      navigate(to);
+    });
+  };
+
   return (
     <div className="relative flex min-h-[100dvh] w-full flex-col overflow-hidden bg-gradient-to-b from-[#3FB6EA] via-[#8FE0FA] to-[#FFE9A8]">
-      {/* Google Fonts */}
       <link
         rel="stylesheet"
         href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;700&family=Nunito:wght@600;800&display=swap"
       />
 
       <style>{`
-      @keyframes golden-glow {
-  0%, 100% { opacity: 0.5; transform: scale(1); }
-  50% { opacity: 0.85; transform: scale(1.05); }
-}
+        @keyframes golden-glow {
+          0%, 100% { opacity: 0.5; transform: scale(1); }
+          50% { opacity: 0.85; transform: scale(1.05); }
+        }
 
-.animate-golden-glow { animation: golden-glow 2.4s ease-in-out infinite; }
-.animate-golden-shimmer { animation: golden-shimmer 2.6s ease-in-out infinite; }
+        @keyframes golden-shimmer {
+          0% { transform: translateX(-120%) skewX(-12deg); opacity: 0; }
+          20% { opacity: 1; }
+          50% { opacity: 1; }
+          100% { transform: translateX(300%) skewX(-12deg); opacity: 0; }
+        }
+
+        .animate-golden-glow { animation: golden-glow 2.4s ease-in-out infinite; }
+        .animate-golden-shimmer { animation: golden-shimmer 2.6s ease-in-out infinite; }
+
         @keyframes float-slow {
           0%, 100% { transform: translateY(0px) translateX(0px); }
           50% { transform: translateY(-20px) translateX(10px); }
@@ -155,7 +157,7 @@ function HomeContent() {
           50% { transform: translate(8px, -12px) rotate(6deg); }
         }
         .font-heading { font-family: 'Fredoka', sans-serif; }
-        
+
         .animate-float-slow { animation: float-slow 6s ease-in-out infinite; will-change: transform; }
         .animate-float-slower { animation: float-slower 8s ease-in-out infinite; will-change: transform; }
         .animate-wiggle { animation: wiggle 2.5s ease-in-out infinite; will-change: transform; }
@@ -172,28 +174,29 @@ function HomeContent() {
         .animate-number-drift { animation: number-drift 5.5s ease-in-out infinite; will-change: transform; }
       `}</style>
 
-      {/* Stats button — teachers only */}
       {isTeacher && (
-        <div><motion.button
-          type="button"
-          onClick={() => setShowStats(true)}
-          whileHover={{ y: -2 }}
-          whileTap={{ y: 1 }}
-          className="font-body fixed right-4 top-4 z-20 flex items-center gap-1.5 rounded-full bg-white/90 px-4 py-2 text-sm font-extrabold text-slate-700 shadow-[0_4px_0_rgba(0,0,0,0.15)] sm:text-base"
-        >
-          📊 View Stats
-        </motion.button>
-        <Link
+        <div>
+          <motion.button
+            type="button"
+            onClick={() => setShowStats(true)}
+            whileHover={{ y: -2 }}
+            whileTap={{ y: 1 }}
+            className="font-body fixed right-4 top-4 z-20 flex items-center gap-1.5 rounded-full bg-white/90 px-4 py-2 text-sm font-extrabold text-slate-700 shadow-[0_4px_0_rgba(0,0,0,0.15)] sm:text-base"
+          >
+            📊 View Stats
+          </motion.button>
 
-          to="/phaser-demo"
-          className=" hidden font-body fixed left-4 top-4 z-20 flex items-center gap-1.5 rounded-full bg-white/90 px-4 py-2 text-sm font-extrabold text-slate-700 shadow-[0_4px_0_rgba(0,0,0,0.15)] sm:text-base "
-        >
-          👾 Phaser game demo
-        </Link> </div>
+          <Link
+            to="/phaser-demo"
+            className="hidden font-body fixed left-4 top-4 z-20 items-center gap-1.5 rounded-full bg-white/90 px-4 py-2 text-sm font-extrabold text-slate-700 shadow-[0_4px_0_rgba(0,0,0,0.15)] sm:text-base"
+          >
+            👾 Phaser game demo
+          </Link>
+        </div>
       )}
+
       {showStats && <StatsPanel onClose={() => setShowStats(false)} />}
 
-      {/* Sun, top corner */}
       <div className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 sm:h-44 sm:w-44 md:h-56 md:w-56">
         <svg viewBox="0 0 200 200" className="absolute inset-0 h-full w-full animate-spin-slow">
           <g fill="#FFD93D">
@@ -205,7 +208,6 @@ function HomeContent() {
         <div className="absolute inset-[18%] rounded-full bg-gradient-to-br from-yellow-200 to-orange-300 shadow-[0_0_40px_rgba(255,217,61,0.6)]" />
       </div>
 
-      {/* Floating clouds, numbers & sparkles */}
       <div className="pointer-events-none absolute inset-0">
         <div className="absolute left-[6%] top-[12%] animate-float-slow text-5xl opacity-90 sm:text-6xl">☁️</div>
         <div className="absolute right-[14%] top-[20%] animate-float-slower text-4xl opacity-80 sm:text-5xl">☁️</div>
@@ -231,25 +233,39 @@ function HomeContent() {
         </div>
 
         <div className="absolute left-[5%] top-[46%] animate-sparkle text-2xl sm:text-3xl">⭐</div>
-        <div className="absolute right-[6%] top-[50%] animate-sparkle text-xl sm:text-2xl" style={{ animationDelay: "0.6s" }}>✨</div>
-        <div className="absolute bottom-[36%] right-[38%] animate-sparkle text-2xl sm:text-3xl" style={{ animationDelay: "0.3s" }}>⭐</div>
+        <div
+          className="absolute right-[6%] top-[50%] animate-sparkle text-xl sm:text-2xl"
+          style={{ animationDelay: "0.6s" }}
+        >
+          ✨
+        </div>
+        <div
+          className="absolute bottom-[36%] right-[38%] animate-sparkle text-2xl sm:text-3xl"
+          style={{ animationDelay: "0.3s" }}
+        >
+          ⭐
+        </div>
       </div>
 
-      {/* Ground / hills */}
       <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 sm:h-24 md:h-32">
         <svg viewBox="0 0 1440 200" preserveAspectRatio="none" className="h-full w-full">
-          <path fill="#6FCF57" fillOpacity="0.9" d="M0,110 C 240,190 480,30 720,90 C 960,150 1200,50 1440,110 L1440,200 L0,200 Z" />
-          <path fill="#57B846" d="M0,150 C 260,90 500,190 760,140 C 1020,90 1260,180 1440,140 L1440,200 L0,200 Z" />
+          <path
+            fill="#6FCF57"
+            fillOpacity="0.9"
+            d="M0,110 C 240,190 480,30 720,90 C 960,150 1200,50 1440,110 L1440,200 L0,200 Z"
+          />
+          <path
+            fill="#57B846"
+            d="M0,150 C 260,90 500,190 760,140 C 1020,90 1260,180 1440,140 L1440,200 L0,200 Z"
+          />
         </svg>
         <span className="absolute bottom-2 left-[18%] animate-sway text-2xl sm:bottom-4 sm:text-3xl">🌼</span>
         <span className="absolute bottom-3 right-[22%] animate-float-slower text-xl sm:bottom-5 sm:text-2xl">🦋</span>
       </div>
 
-      {/* Content */}
       <div className="relative z-10 flex flex-1 flex-col items-center justify-center px-4 py-10 sm:px-8">
         <NextGameTimer withTopOffset={isTeacher} />
 
-        {/* Title */}
         <div className="animate-pop-in mt-4 text-center">
           <h1 className="font-heading text-[clamp(2.4rem,7vw,6rem)] font-bold leading-tight drop-shadow-[0_4px_0_rgba(0,0,0,0.15)]">
             <span className="inline-block animate-wiggle text-yellow-300">K1</span>{" "}
@@ -268,7 +284,6 @@ function HomeContent() {
           </button>
         </div>
 
-        {/* Game cards */}
         <div className="relative mt-10 w-full max-w-4xl sm:mt-14">
           <div className="pointer-events-none absolute inset-x-10 top-1/2 z-0 hidden -translate-y-1/2 border-t-[3px] border-dashed border-white/60 sm:block" />
 
@@ -279,73 +294,83 @@ function HomeContent() {
               emoji="🧺"
               title="Count & Win!"
               subtitle={`Numeral & Number Word \n (Counting)`}
-              color="from-teal-400 to-emerald-500"
-              ring="ring-teal-200"
+              gradient="linear-gradient(135deg, #8FECCB 0%, #36D4B3 55%, #18B79D 100%)"
+              ring="ring-[#D7FFF3]"
               delay={0.1}
               open={isGameUnlocked(1, isTeacher)}
               progress={progressByGame.game1}
+              onOpen={() => openGame("/Game1")}
             />
+
             <GameCard
               to="/Game2"
               number="2"
               emoji="🧸"
               title="Comparing Quantities"
               subtitle={`Comparing 2 Sets \n(More, Fewer, Same)`}
-              color="from-sky-400 to-blue-500"
-              ring="ring-sky-200"
+              gradient="linear-gradient(135deg, #88DAFF 0%, #4AA8FF 55%, #5B7CFF 100%)"
+              ring="ring-[#D9F2FF]"
               delay={0.2}
               open={isGameUnlocked(2, isTeacher)}
               progress={progressByGame.game2}
               shine
+              onOpen={() => openGame("/Game2")}
             />
+
             <GameCard
               to="/bonus-game1"
               number="B"
               emoji="9️⃣"
               title="Number Pop!"
               subtitle={`Numeral & Number Word \n (Ascending & Descending Order)`}
-              color="from-blue-400  to-red-500 "
-              ring="ring-sky-200"
-              delay={0.2}
-              open={isGameUnlocked('b1', isTeacher)}
+              gradient="linear-gradient(135deg, #FF9ED1 0%, #FF6FB1 55%, #9B5CFF 100%)"
+              ring="ring-[#FFD8EE]"
+              delay={0.25}
+              open={isGameUnlocked("b1", isTeacher)}
               progress={progressByGame.game2}
-              
+              onOpen={() => openGame("/bonus-game1")}
             />
+
             <GameCard
               to="/Game3"
               number="3"
               emoji="🐙"
               title="Which Number?"
               subtitle={`Numeral & Number Word \n (Before & After Ed.)`}
-              color="from-violet-400 to-fuchsia-500"
-              ring="ring-violet-200"
+              gradient="linear-gradient(135deg, #C7A6FF 0%, #9A7BFF 55%, #FF7AD9 100%)"
+              ring="ring-[#EAD9FF]"
               delay={0.3}
               open={isGameUnlocked(3, isTeacher)}
               progress={progressByGame.game3}
+              onOpen={() => openGame("/Game3")}
             />
+
             <GameCard
               to="/Game4"
               number="4"
               emoji="🎲"
               title="Compare Die and Dominoes"
               subtitle={`Comparing 2 Sets \n(subitising)`}
-              color="from-sky-400 to-blue-500"
-              ring="ring-sky-200"
-              delay={0.3}
+              gradient="linear-gradient(135deg, #FFD76A 0%, #FFB347 55%, #FF7A59 100%)"
+              ring="ring-[#FFEBC0]"
+              delay={0.35}
               open={isGameUnlocked(4, isTeacher)}
               progress={progressByGame.game4}
+              onOpen={() => openGame("/Game4")}
             />
+
             <GameCard
               to="/Game5"
               number="5"
               emoji="🚀"
               title="Making & Splitting Groups"
               subtitle={`Number Bonds \n (1-5)`}
-              color="from-amber-400 to-orange-500"
-              ring="ring-amber-200"
+              gradient="linear-gradient(135deg, #A7EE7E 0%, #4DD4A6 55%, #2CB5D8 100%)"
+              ring="ring-[#DCF8C6]"
               delay={0.4}
               open={isGameUnlocked(4, isTeacher)}
               progress={progressByGame.game4}
+              onOpen={() => openGame("/Game5")}
             />
 
             <GameCard
@@ -354,16 +379,16 @@ function HomeContent() {
               emoji="🗝️"
               title="Part-Part-Whole!"
               subtitle={`Number Bonds \n (1-10)`}
-              color="from-rose-400 to-pink-500"
-              ring="ring-rose-200"
-              delay={0.5}
+              gradient="linear-gradient(135deg, #FF9AAE 0%, #FF6F91 55%, #FF4D6D 100%)"
+              ring="ring-[#FFD6DE]"
+              delay={0.45}
               open={isGameUnlocked(5, isTeacher)}
               progress={progressByGame.game5}
+              onOpen={() => openGame("/Game6")}
             />
           </div>
         </div>
 
-        {/* Coming soon hint */}
         <div className="mt-8 hidden items-center gap-3 text-white/70 sm:flex">
           <span className="h-0.5 w-10 border-t-2 border-dashed border-white/50" />
           <span className="font-body text-sm font-bold">More wonders coming soon</span>
@@ -371,44 +396,69 @@ function HomeContent() {
         </div>
       </div>
 
-      <div className="fixed bottom-5 right-5 md:right-5 z-50">
+      {loadingTo && (
+        <div className="fixed inset-0 z-[999] flex items-center justify-center bg-slate-900/35 backdrop-blur-sm">
+          <div className="rounded-3xl bg-white px-6 py-5 shadow-2xl">
+            <div className="flex items-center gap-3">
+              <div className="h-5 w-5 animate-spin rounded-full border-4 border-sky-300 border-t-transparent" />
+              <p className="font-body text-sm font-bold text-slate-700">
+                Loading game...
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="fixed bottom-5 right-5 z-50 md:right-5">
         <div className="flex items-center gap-2 rounded-xl border border-white/15 bg-black/25 px-4 py-2 shadow-lg backdrop-blur-md">
           <div className="h-4 min-w-4 animate-pulse rounded-full bg-red-500/75" />
-
-          <div className="leading-tight w-[15rem] md:w-[24rem]">
-            <p className="font-body text-left text-xs md:text-md font-medium text-white/80">
+          <div className="w-[15rem] leading-tight md:w-[24rem]">
+            <p className="font-body text-left text-xs font-medium text-white/80 md:text-md">
               Game results are saved automatically and submitted to teachers.
             </p>
           </div>
         </div>
       </div>
-      {/* Footer */}
-<footer className="relative z-10 mt-10 w-full px-4 pb-28 sm:mt-12 sm:pb-24">
-  <div className="mx-auto max-w-4xl">
-    <div className="overflow-hidden rounded-[1.75rem] border border-white/30 bg-white/25 shadow-[0_10px_30px_rgba(0,0,0,0.10)] backdrop-blur-md">
-      <div className="h-1 w-full bg-gradient-to-r from-yellow-300 via-pink-300 to-sky-300" />
 
-      <div className="flex flex-col items-center gap-2 px-5 py-4 text-center sm:px-7 sm:py-5">
-        <p className="font-body text-[0.78rem] font-extrabold tracking-[0.22em] text-slate-700 uppercase">
-          K1 Weekly Wonders
-        </p>
+      <footer className="relative z-10 mt-10 w-full px-4 pb-28 sm:mt-12 sm:pb-24">
+        <div className="mx-auto max-w-4xl">
+          <div className="overflow-hidden rounded-[1.75rem] border border-white/30 bg-white/25 shadow-[0_10px_30px_rgba(0,0,0,0.10)] backdrop-blur-md">
+            <div className="h-1 w-full bg-gradient-to-r from-yellow-300 via-pink-300 to-sky-300" />
 
-        <p className="font-body text-sm  text-slate-800 sm:text-base">
-          © {new Date().getFullYear()} · Created by Towhid Hossain and Siti Soleha
-        </p>
+            <div className="flex flex-col items-center gap-2 px-5 py-4 text-center sm:px-7 sm:py-5">
+              <p className="font-body text-[0.78rem] font-extrabold uppercase tracking-[0.22em] text-slate-700">
+                K1 Weekly Wonders
+              </p>
 
-        <p className="font-body text-xs font-medium text-slate-700/80 sm:text-sm">
-          A collaborative numeracy project for joyful early learning.
-        </p>
-      </div>
-    </div>
-  </div>
-</footer>
+              <p className="font-body text-sm text-slate-800 sm:text-base">
+                © {new Date().getFullYear()} · Created by Towhid Hossain and Siti Soleha
+              </p>
+
+              <p className="font-body text-xs font-medium text-slate-700/80 sm:text-sm">
+                A collaborative numeracy project for joyful early learning.
+              </p>
+            </div>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }
 
-const GameCard = React.memo(function GameCard({ to, emoji, title, subtitle, color, ring, delay, open, progress, shine, number }) {
+const GameCard = React.memo(function GameCard({
+  to,
+  emoji,
+  title,
+  subtitle,
+  gradient,
+  ring,
+  delay,
+  open,
+  progress,
+  shine,
+  number,
+  onOpen,
+}) {
   const isShiny = shine && open;
 
   return (
@@ -416,41 +466,56 @@ const GameCard = React.memo(function GameCard({ to, emoji, title, subtitle, colo
       {isShiny && (
         <span
           aria-hidden="true"
-          className="animate-golden-glow pointer-events-none absolute -inset-3 rounded-[2.5rem] bg-gradient-to-br from-yellow-300 via-amber-400 to-yellow-200 blur-xl"
+          className="pointer-events-none absolute -inset-4 rounded-[2.5rem] bg-gradient-to-br from-yellow-200 via-amber-300 to-pink-200 blur-2xl"
         />
       )}
-      
-      {
-        number !== 'B' && (
-          <div className="absolute top-2 left-2 z-20 flex h-8 min-w-8 items-center justify-center text-2xl rounded-full backdrop-blur-md bg-white/30 font-extrabold text-slate-900/60 shadow-md "
-      >
-        {number}
-      </div>)
-      }
-      
+
+      {number !== "B" && (
+        <div className="absolute left-3 top-3 z-30 flex h-9 min-w-9 items-center justify-center rounded-full bg-white/35 px-2 text-xl font-extrabold text-slate-900/70 shadow-md backdrop-blur-md">
+          {number}
+        </div>
+      )}
 
       <MotionLink
         to={open ? to : "#"}
         aria-disabled={!open}
         tabIndex={open ? 0 : -1}
         onClick={(e) => {
-          if (!open) e.preventDefault();
+          if (!open) {
+            e.preventDefault();
+            return;
+          }
+          e.preventDefault();
+          onOpen?.();
         }}
-        style={{ animationDelay: `${delay}s` }}
+        style={{
+          animationDelay: `${delay}s`,
+          background: open ? gradient : "linear-gradient(135deg,#94a3b8,#64748b)",
+        }}
         whileHover={open ? { y: -8, rotate: -1 } : {}}
         whileTap={open ? { y: 2, scale: 0.98 } : {}}
-        className={`group animate-pop-in font-['fredoka'] relative flex w-[78vw] max-w-[260px] flex-col items-center overflow-hidden rounded-[2rem] bg-gradient-to-b p-6 shadow-[0_10px_0_rgba(0,0,0,0.15)] ring-8 transition-shadow focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-white/80 sm:w-56 sm:p-7 md:w-64 lg:w-72 lg:p-8 xl:w-80 ${
-          open ? `${color} ${ring}` : "from-slate-400 to-slate-500 ring-white/40 cursor-not-allowed"
-        } ${isShiny ? "ring-yellow-300" : ""}`}
+        className={`group animate-pop-in relative flex h-[16rem] w-[86vw] min-w-[260px] max-w-[300px] flex-col overflow-hidden rounded-[2.25rem] p-6 shadow-[0_14px_0_rgba(0,0,0,0.16)] ring-8 transition-shadow focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-white/80 sm:h-[24.5rem] sm:w-[18rem] md:w-[19rem] lg:w-[20rem] ${
+          open ? ring : "ring-white/40 cursor-not-allowed"
+        } ${isShiny ? "ring-yellow-200" : ""}`}
       >
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 opacity-70"
+          style={{
+            backgroundImage:
+              "radial-gradient(circle at top left, rgba(255,255,255,0.42), transparent 34%), radial-gradient(circle at bottom right, rgba(255,255,255,0.16), transparent 42%)",
+          }}
+        />
+
         {isShiny && (
-          <span className="pointer-events-none absolute right-[-2.6rem] top-3 z-30 w-40 rotate-45 bg-gradient-to-r from-yellow-400 to-amber-500 py-1 text-center text-[11px] font-extrabold uppercase tracking-wide text-white shadow-md">
+          <span className="pointer-events-none absolute right-[-2.6rem] top-3 z-30 w-40 rotate-45 bg-gradient-to-r from-yellow-300 to-amber-500 py-1 text-center text-[11px] font-extrabold uppercase tracking-wide text-white shadow-md">
             ✨ New
           </span>
         )}
-        {number == 'B' && (
-          <span className="pointer-events-none absolute left-0 right-0 top-0 z-30 w-full  bg-gradient-to-r from-sky-400/50 to-red-500/50 py-1 text-center text-[11px]  uppercase tracking-wide text-white shadow-md ">
-          Bonus 
+
+        {number === "B" && (
+          <span className="pointer-events-none absolute left-0 right-0 top-0 z-30 w-full bg-gradient-to-r from-sky-400/55 to-red-500/55 py-1 text-center text-[11px] uppercase tracking-wide text-white shadow-md">
+            Bonus
           </span>
         )}
 
@@ -465,35 +530,46 @@ const GameCard = React.memo(function GameCard({ to, emoji, title, subtitle, colo
         {!open && (
           <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-white/25 backdrop-blur-[2px]">
             <span className="animate-bob text-6xl drop-shadow sm:text-7xl">🔒</span>
-            <span className="font-body rounded-full bg-white/90 px-4 py-1 text-xs font-extrabold text-slate-600 shadow sm:text-sm">
+            <span className="rounded-full bg-white/90 px-4 py-1 text-xs font-extrabold text-slate-600 shadow sm:text-sm">
               Coming soon ✨
             </span>
           </div>
         )}
 
-        <div
-          className={`mb-3 text-6xl transition-transform duration-300 sm:text-7xl ${
-            open ? "group-hover:scale-125 group-hover:rotate-6" : "opacity-40"
-          }`}
-        >
-          {emoji}
+<div className="relative z-10 flex h-full flex-col items-center">
+  <div className="mt-6 flex h-24 items-center justify-center">
+            <div
+              className={`text-7xl transition-transform duration-300 sm:text-7xl ${
+                open ? "group-hover:scale-125 group-hover:rotate-6" : "opacity-40"
+              }`}
+            >
+              {emoji}
+            </div>
+          </div>
+
+          <p
+            className={`font-heading mt-2 min-h-[3rem] text-center text-xl font-bold leading-tight sm:text-[1.35rem] ${
+              open ? "text-slate-900" : "text-white/55"
+            }`}
+          >
+            {title}
+          </p>
+
+          <p
+            className={`font-body mt-2 min-h-[4rem] whitespace-pre-line text-center text-sm leading-snug sm:text-[0.98rem] ${
+              open ? "text-white/92" : "text-white/40"
+            }`}
+          >
+            {subtitle}
+          </p>
+
+          {open && (
+            <span className="font-body mt-auto rounded-full bg-white/92 px-5 py-1.5 text-sm font-extrabold text-slate-700 shadow transition-colors group-hover:bg-white">
+              Play now →
+            </span>
+          )}
         </div>
-
-        <p className={`font-heading text-xl font-bold sm:text-xl ${open ? "text-slate-900" : "text-white/55"}`}>
-          {title}
-        </p>
-
-        <p className={` whitespace-pre-line font-body mt-1 text-center text-sm   ${open ? "text-white/90" : "text-white/40"}`}>
-          {subtitle}
-        </p>
-
-        {open && (
-          <span  className="font-body  mt-4 rounded-full bg-white/90 px-5 py-1.5 text-sm font-extrabold text-slate-700 shadow group-hover:bg-white">
-            Play now →
-          </span>
-        )}
       </MotionLink>
-      
     </div>
   );
 });
