@@ -688,7 +688,7 @@ img._baseScale = s;
 
   playSound(key) {
     if (key && this.cache.audio.exists(key)) {
-      this.sound.play(key, { volume: 0.9 });
+      this.sound.play(key, { volume: 1.5 });
     }
   }
 }

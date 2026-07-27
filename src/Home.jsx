@@ -197,34 +197,27 @@ function HomeContent() {
       `}</style>
 
       {isTeacher && (
-        <div>
-          <motion.button
-            type="button"
-            onClick={() => setShowStats(true)}
-            whileHover={{ y: -2 }}
-            whileTap={{ y: 1 }}
-            className="font-body fixed right-4 top-4 z-20 flex items-center gap-1.5 rounded-full bg-white/90 px-4 py-2 text-sm font-extrabold text-slate-700 shadow-[0_4px_0_rgba(0,0,0,0.15)] sm:text-base"
-          >
-            📊 View Stats
-          </motion.button>
+       <div className="fixed px-2 md:px-6 max-w-6xl mx-auto top-3 left-0 right-0 z-50 flex justify-between ">
+  <motion.button
+    type="button"
+    onClick={() => setShowAccessPanel(true)}
+    whileHover={{ y: -2 }}
+    whileTap={{ y: 1 }}
+    className="flex items-center gap-1.5 rounded-full bg-white/90 px-4 py-2 text-sm font-extrabold text-slate-700 shadow-[0_4px_0_rgba(0,0,0,0.15)] sm:text-base"
+  >
+    🔓 Game Access
+  </motion.button>
 
-          <motion.button
-            type="button"
-            onClick={() => setShowAccessPanel(true)}
-            whileHover={{ y: -2 }}
-            whileTap={{ y: 1 }}
-            className="font-body fixed right-4 top-16 z-20 flex items-center gap-1.5 rounded-full bg-white/90 px-4 py-2 text-sm font-extrabold text-slate-700 shadow-[0_4px_0_rgba(0,0,0,0.15)] sm:top-4 sm:right-40 sm:text-base"
-          >
-            🔓 Game Access
-          </motion.button>
-
-          <Link
-            to="/phaser-demo"
-            className="hidden font-body fixed left-4 top-4 z-20 items-center gap-1.5 rounded-full bg-white/90 px-4 py-2 text-sm font-extrabold text-slate-700 shadow-[0_4px_0_rgba(0,0,0,0.15)] sm:text-base"
-          >
-            👾 Phaser game demo
-          </Link>
-        </div>
+  <motion.button
+    type="button"
+    onClick={() => setShowStats(true)}
+    whileHover={{ y: -2 }}
+    whileTap={{ y: 1 }}
+    className="flex items-center gap-1.5 rounded-full bg-white/90 px-4 py-2 text-sm font-extrabold text-slate-700 shadow-[0_4px_0_rgba(0,0,0,0.15)] sm:text-base"
+  >
+    📊 View Stats
+  </motion.button>
+</div>
       )}
 
       {showStats && <StatsPanel onClose={() => setShowStats(false)} />}
