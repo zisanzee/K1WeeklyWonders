@@ -1,87 +1,231 @@
 import { create } from 'zustand';
 
-// Backend base URL — reuse whatever env var the rest of the app already
-// uses for the API. Adjust this if your project names it differently.
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
 
-// Canonical list of homepage game keys — must match GAME_KEYS in the
-// backend's server.js. Add a new game to both places when you ship one.
-export const GAME_KEYS = ['1', '2', '3', '4', '5', '6', 'b1'];
+export const GAME_CATALOG = [
+  {
+    key: '1',
+    emoji: '🧶',
+    label: 'Count & Win!',
+    title: 'Count & Win!',
+    subtitle: 'Numeral & Number Word\n(Counting)',
+    hue: '#38BDF8',
+    tint: '#EFF9FF',
+    to: '/Game1',
+    progressKey: 'game1',
+    gradient: 'linear-gradient(135deg, #8FECCB 0%, #36D4B3 55%, #18B79D 100%)',
+    ring: 'ring-[#D7FFF3]',
+  },
+  {
+    key: '2',
+    emoji: '🧸',
+    label: 'Comparing Quantities',
+    title: 'Comparing Quantities',
+    subtitle: 'Comparing 2 Sets\n(More, Fewer, Same)',
+    hue: '#A78BFA',
+    tint: '#F5F1FF',
+    to: '/Game2',
+    progressKey: 'game2',
+    gradient: 'linear-gradient(135deg, #88DAFF 0%, #4AA8FF 55%, #5B7CFF 100%)',
+    ring: 'ring-[#D9F2FF]',
+    shine: true,
+  },
+  {
+    key: '3',
+    emoji: '🐙',
+    label: 'Which Number?',
+    title: 'Which Number?',
+    subtitle: 'Numeral & Number Word\n(Before & After Ed.)',
+    hue: '#FB7185',
+    tint: '#FFF0F2',
+    to: '/Game3',
+    progressKey: 'game3',
+    gradient: 'linear-gradient(135deg, #C7A6FF 0%, #9A7BFF 55%, #FF7AD9 100%)',
+    ring: 'ring-[#EAD9FF]',
+  },
+  {
+    key: '4',
+    emoji: '🎲',
+    label: 'Compare Die and Dominoes',
+    title: 'Compare Die and Dominoes',
+    subtitle: 'Comparing 2 Sets\n(subitising)',
+    hue: '#FBBF24',
+    tint: '#FFF9E8',
+    to: '/Game4',
+    progressKey: 'game4',
+    gradient: 'linear-gradient(135deg, #FFD76A 0%, #FFB347 55%, #FF7A59 100%)',
+    ring: 'ring-[#FFEBC0]',
+  },
+  {
+    key: '5',
+    emoji: '🚀',
+    label: 'Making & Splitting Groups',
+    title: 'Making & Splitting Groups',
+    subtitle: 'Number Bonds\n(1-5)',
+    hue: '#34D399',
+    tint: '#EEFCF6',
+    to: '/Game5',
+    progressKey: 'game5',
+    gradient: 'linear-gradient(135deg, #A7EE7E 0%, #4DD4A6 55%, #2CB5D8 100%)',
+    ring: 'ring-[#DCF8C6]',
+  },
+  {
+    key: '6',
+    emoji: '🗝️',
+    label: 'Part-Part-Whole!',
+    title: 'Part-Part-Whole!',
+    subtitle: 'Number Bonds\n(1-10)',
+    hue: '#2DD4BF',
+    tint: '#EBFBF9',
+    to: '/Game6',
+    progressKey: 'game6',
+    gradient: 'linear-gradient(135deg, #FF9AAE 0%, #FF6F91 55%, #FF4D6D 100%)',
+    ring: 'ring-[#FFD6DE]',
+  },
+  {
+    key: 'b1',
+    emoji: '9️⃣',
+    label: 'Number Pop! (Bonus)',
+    title: 'Number Pop!',
+    subtitle: 'Numeral & Number Word\n(Ascending & Descending Order)',
+    hue: '#E879F9',
+    tint: '#FDF1FE',
+    to: '/bonus-game1',
+    progressKey: 'bonusGame1',
+    isBonus: true,
+    gradient: 'linear-gradient(135deg, #FF9ED1 0%, #FF6FB1 55%, #9B5CFF 100%)',
+    ring: 'ring-[#FFD8EE]',
+  },
+];
 
-function normalizeKey(gameNumber) {
-  return String(gameNumber);
+export const GAME_KEYS = GAME_CATALOG.map((game) => game.key);
+
+function normalizeKey(gameKey) {
+  return String(gameKey);
 }
 
-// Holds which games are currently unlocked for players, as reported by the
-// server. Teachers bypass this entirely (see useIsGameUnlocked below) —
-// this store only ever describes player-facing access.
+function mergeRows(rows) {
+  const apiRows = new Map(rows.map((row) => [row.gameKey, row]));
+
+  return GAME_CATALOG
+    .map((game, fallbackOrder) => ({
+      ...game,
+      unlocked: Boolean(apiRows.get(game.key)?.unlocked),
+      order: Number.isInteger(apiRows.get(game.key)?.order)
+        ? apiRows.get(game.key).order
+        : fallbackOrder,
+    }))
+    .sort((a, b) => a.order - b.order);
+}
+
 export const useGameAccessStore = create((set, get) => ({
-  unlocked: {}, // { "1": true, "2": true, "b1": false, ... }
+  unlocked: {},
+  games: GAME_CATALOG.map((game, order) => ({ ...game, unlocked: false, order })),
   loaded: false,
   loading: false,
   error: null,
 
-  // Fetch the current unlock map from the server. Safe to call from
-  // multiple components — a call already in flight is skipped.
   fetchGameAccess: async () => {
     if (get().loading) return;
+
     set({ loading: true, error: null });
+
     try {
-      const res = await fetch(`${API_BASE}/api/game-access`);
-      if (!res.ok) throw new Error('Failed to load game access');
-      const rows = await res.json(); // [{ gameKey, unlocked }, ...]
-      const unlocked = {};
-      rows.forEach((row) => {
-        unlocked[row.gameKey] = row.unlocked;
-      });
-      set({ unlocked, loaded: true, loading: false });
-    } catch (err) {
-      console.error(err);
-      set({ loading: false, error: err.message });
+      const response = await fetch(`${API_BASE}/api/game-access`);
+      if (!response.ok) throw new Error('Failed to load game access');
+
+      const rows = await response.json();
+      const games = mergeRows(rows);
+      const unlocked = Object.fromEntries(games.map((game) => [game.key, game.unlocked]));
+
+      set({ games, unlocked, loaded: true, loading: false });
+    } catch (error) {
+      console.error(error);
+      set({ loading: false, error: error.message });
     }
   },
 
-  // Optimistic local update — called right after a successful PUT so the
-  // panel and homepage reflect the change instantly without a re-fetch.
   setUnlockedLocal: (gameKey, isUnlocked) => {
+    const key = normalizeKey(gameKey);
+
     set((state) => ({
-      unlocked: { ...state.unlocked, [normalizeKey(gameKey)]: isUnlocked },
+      unlocked: { ...state.unlocked, [key]: isUnlocked },
+      games: state.games.map((game) =>
+        game.key === key ? { ...game, unlocked: isUnlocked } : game
+      ),
     }));
+  },
+
+  setOrderLocal: (gameKeys) => {
+    set((state) => ({
+      games: gameKeys
+        .map((key, order) => {
+          const game = state.games.find((item) => item.key === key);
+          return game ? { ...game, order } : null;
+        })
+        .filter(Boolean),
+    }));
+  },
+
+  replaceRows: (rows) => {
+    const games = mergeRows(rows);
+    set({
+      games,
+      unlocked: Object.fromEntries(games.map((game) => [game.key, game.unlocked])),
+    });
   },
 }));
 
-// Ask the server to lock/unlock one game. Requires a valid teacher code —
-// the same code checked in teacherCodes.js, verified again server-side so
-// a student can't just call this endpoint directly from dev tools.
 export async function setGameUnlocked(gameKey, isUnlocked, teacherCode) {
   const key = normalizeKey(gameKey);
-  const res = await fetch(`${API_BASE}/api/game-access/${encodeURIComponent(key)}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ unlocked: isUnlocked, teacherCode }),
-  });
 
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
+  const response = await fetch(
+    `${API_BASE}/api/game-access/${encodeURIComponent(key)}`,
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ unlocked: isUnlocked, teacherCode }),
+    }
+  );
+
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
     throw new Error(body.error || 'Could not update game access');
   }
 
-  const data = await res.json();
+  const data = await response.json();
   useGameAccessStore.getState().setUnlockedLocal(key, data.unlocked);
   return data;
 }
 
-// Hook version — use inside components so they re-render when access
-// changes (either from this device unlocking something, or from a
-// re-fetch). Teachers always see everything unlocked, same as before.
+export async function setGameOrder(gameKeys, teacherCode) {
+  const response = await fetch(`${API_BASE}/api/game-access/order`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ gameKeys, teacherCode }),
+  });
+
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    throw new Error(body.error || 'Could not save game order');
+  }
+
+  const data = await response.json();
+  useGameAccessStore.getState().replaceRows(data.rows);
+  return data.rows;
+}
+
 export function useIsGameUnlocked(gameNumber, isTeacher) {
-  const unlocked = useGameAccessStore((s) => s.unlocked[normalizeKey(gameNumber)]);
+  const unlocked = useGameAccessStore(
+    (state) => state.unlocked[normalizeKey(gameNumber)]
+  );
+
   return Boolean(isTeacher) || Boolean(unlocked);
 }
 
-// Non-hook version for use outside render (e.g. inside a useEffect that
-// decides what to prefetch). Reads the store's current snapshot directly.
 export function isGameUnlockedNow(gameNumber, isTeacher) {
-  const unlocked = useGameAccessStore.getState().unlocked[normalizeKey(gameNumber)];
+  const unlocked =
+    useGameAccessStore.getState().unlocked[normalizeKey(gameNumber)];
+
   return Boolean(isTeacher) || Boolean(unlocked);
 }

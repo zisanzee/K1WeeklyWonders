@@ -6,7 +6,11 @@ import GameAccessPanel from "./GameAccessPanel";
 import NameGate from "./NameGate";
 import NextGameTimer from "./NextGameTimer";
 import { usePlayerStore } from "./playerStore";
-import { useGameAccessStore, useIsGameUnlocked, isGameUnlockedNow } from "./gameAccess";
+import {
+  GAME_CATALOG,
+  useGameAccessStore,
+  isGameUnlockedNow,
+} from "./gameAccess";
 import { fetchSummary } from "./logPlaySession";
 import { Helmet } from "react-helmet-async";
 
@@ -64,13 +68,17 @@ function HomeContent() {
     fetchGameAccess();
   }, [fetchGameAccess]);
 
-  const game1Open = useIsGameUnlocked(1, isTeacher);
-  const game2Open = useIsGameUnlocked(2, isTeacher);
-  const game3Open = useIsGameUnlocked(3, isTeacher);
-  const game4Open = useIsGameUnlocked(4, isTeacher);
-  const game5Open = useIsGameUnlocked(5, isTeacher);
-  const game6Open = useIsGameUnlocked(6, isTeacher);
-  const bonus1Open = useIsGameUnlocked("b1", isTeacher);
+  const unlocked = useGameAccessStore((state) => state.unlocked);
+  const orderedGames = useGameAccessStore((state) => state.games);
+
+  const numberedGames = useMemo(() => {
+    let nextGameNumber = 0;
+
+    return (orderedGames.length ? orderedGames : GAME_CATALOG).map((game) => ({
+      ...game,
+      displayNumber: game.isBonus ? 'B' : String(++nextGameNumber),
+    }));
+  }, [orderedGames]);
 
   useEffect(() => {
     let cancelled = false;
@@ -314,104 +322,27 @@ function HomeContent() {
           <div className="pointer-events-none absolute inset-x-10 top-1/2 z-0 hidden -translate-y-1/2 border-t-[3px] border-dashed border-white/60 sm:block" />
 
           <div className="relative z-10 flex flex-col items-center gap-6 sm:flex-row sm:flex-wrap sm:justify-center sm:gap-8 md:gap-10 lg:gap-14">
-            <GameCard
-              to="/Game1"
-              number="1"
-              emoji="🧺"
-              title="Count & Win!"
-              subtitle={`Numeral & Number Word \n (Counting)`}
-              gradient="linear-gradient(135deg, #8FECCB 0%, #36D4B3 55%, #18B79D 100%)"
-              ring="ring-[#D7FFF3]"
-              delay={0.1}
-              open={game1Open}
-              progress={progressByGame.game1}
-              onOpen={() => openGame("/Game1")}
-            />
+                        {numberedGames.map((game, index) => {
+              const isOpen = isTeacher || Boolean(unlocked[game.key]);
 
-            <GameCard
-              to="/Game2"
-              number="2"
-              emoji="🧸"
-              title="Comparing Quantities"
-              subtitle={`Comparing 2 Sets \n(More, Fewer, Same)`}
-              gradient="linear-gradient(135deg, #88DAFF 0%, #4AA8FF 55%, #5B7CFF 100%)"
-              ring="ring-[#D9F2FF]"
-              delay={0.2}
-              open={game2Open}
-              progress={progressByGame.game2}
-              shine
-              onOpen={() => openGame("/Game2")}
-            />
-
-            <GameCard
-              to="/bonus-game1"
-              number="B"
-              emoji="9️⃣"
-              title="Number Pop!"
-              subtitle={`Numeral & Number Word \n (Ascending & Descending Order)`}
-              gradient="linear-gradient(135deg, #FF9ED1 0%, #FF6FB1 55%, #9B5CFF 100%)"
-              ring="ring-[#FFD8EE]"
-              delay={0.25}
-              open={bonus1Open}
-              progress={progressByGame.game2}
-              onOpen={() => openGame("/bonus-game1")}
-            />
-
-            <GameCard
-              to="/Game3"
-              number="3"
-              emoji="🐙"
-              title="Which Number?"
-              subtitle={`Numeral & Number Word \n (Before & After Ed.)`}
-              gradient="linear-gradient(135deg, #C7A6FF 0%, #9A7BFF 55%, #FF7AD9 100%)"
-              ring="ring-[#EAD9FF]"
-              delay={0.3}
-              open={game3Open}
-              progress={progressByGame.game3}
-              onOpen={() => openGame("/Game3")}
-            />
-
-            <GameCard
-              to="/Game4"
-              number="4"
-              emoji="🎲"
-              title="Compare Die and Dominoes"
-              subtitle={`Comparing 2 Sets \n(subitising)`}
-              gradient="linear-gradient(135deg, #FFD76A 0%, #FFB347 55%, #FF7A59 100%)"
-              ring="ring-[#FFEBC0]"
-              delay={0.35}
-              open={game4Open}
-              progress={progressByGame.game4}
-              onOpen={() => openGame("/Game4")}
-            />
-
-            <GameCard
-              to="/Game5"
-              number="5"
-              emoji="🚀"
-              title="Making & Splitting Groups"
-              subtitle={`Number Bonds \n (1-5)`}
-              gradient="linear-gradient(135deg, #A7EE7E 0%, #4DD4A6 55%, #2CB5D8 100%)"
-              ring="ring-[#DCF8C6]"
-              delay={0.4}
-              open={game5Open}
-              progress={progressByGame.game5}
-              onOpen={() => openGame("/Game5")}
-            />
-
-            <GameCard
-              to="/Game6"
-              number="6"
-              emoji="🗝️"
-              title="Part-Part-Whole!"
-              subtitle={`Number Bonds \n (1-10)`}
-              gradient="linear-gradient(135deg, #FF9AAE 0%, #FF6F91 55%, #FF4D6D 100%)"
-              ring="ring-[#FFD6DE]"
-              delay={0.45}
-              open={game6Open}
-              progress={progressByGame.game6}
-              onOpen={() => openGame("/Game6")}
-            />
+              return (
+                <GameCard
+                  key={game.key}
+                  to={game.to}
+                  number={game.displayNumber}
+                  emoji={game.emoji}
+                  title={game.title}
+                  subtitle={game.subtitle}
+                  gradient={game.gradient}
+                  ring={game.ring}
+                  delay={0.1 + index * 0.05}
+                  open={isOpen}
+                  progress={progressByGame[game.progressKey]}
+                  shine={game.shine}
+                  onOpen={() => openGame(game.to)}
+                />
+              );
+            })}
           </div>
         </div>
 

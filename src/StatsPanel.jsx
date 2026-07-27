@@ -30,10 +30,15 @@ function gameSortValue(key) {
   const match = key.match(/\d+/);
   return match ? Number(match[0]) : key;
 }
-function filterPillLabel(key) {
-  const num = key.match(/\d+/)?.[0];
-  if (!num) return key;
-  return isBonusGame(key) ? `B${num}` : num;
+// Splits a "🧺 Count & Win"-style label into its emoji and name, so the
+// dropdown can show the emoji on its own (trigger button) and both together
+// (menu rows). Every entry in GAME_LABELS follows "emoji name", and the
+// gameLabel() fallback ("🎮 Game N") does too, so a plain first-space split
+// is all this needs.
+function splitLabel(label) {
+  const idx = label.indexOf(' ');
+  if (idx === -1) return { emoji: '', name: label };
+  return { emoji: label.slice(0, idx), name: label.slice(idx + 1) };
 }
 
 // Formats a play's score consistently across the summary and all-plays views.
@@ -277,6 +282,25 @@ export default function StatsPanel({ onClose }) {
     }
   };
 
+  // Options for the game-filter dropdown: "All games" plus one entry per
+  // game that's actually shown up in the data, in the order the server
+  // returns them.
+  const filterOptions = useMemo(() => {
+    const opts = [{ key: 'all', emoji: '🎯', name: 'All games' }];
+    (stats?.perGame || []).forEach((g) => {
+      opts.push({ key: g._id, ...splitLabel(gameLabel(g._id)) });
+    });
+    return opts;
+  }, [stats]);
+
+  const filterCounts = useMemo(() => {
+    const counts = { all: stats?.totalPlays ?? 0 };
+    (stats?.perGame || []).forEach((g) => {
+      counts[g._id] = g.plays;
+    });
+    return counts;
+  }, [stats]);
+
   const filteredSummary = useMemo(() => {
     let rows = filter === 'all' ? summary : summary.filter((row) => row.game === filter);
     const q = search.trim().toLowerCase();
@@ -361,12 +385,17 @@ export default function StatsPanel({ onClose }) {
         initial={{ scale: 0.9, opacity: 0, y: 20 }}
         animate={{ scale: 1, opacity: 1, y: 0 }}
         transition={{ type: 'spring', stiffness: 260, damping: 24 }}
-        className="relative flex max-h-[90dvh] w-full max-w-4xl flex-col overflow-hidden rounded-[2rem] bg-white shadow-2xl sm:max-h-[85vh]"
+        className="relative flex h-[90dvh] w-full max-w-4xl flex-col overflow-hidden rounded-[2rem] bg-white shadow-2xl sm:h-[85vh]"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3 sm:px-6 sm:py-4">
-          <h2 style={{ fontFamily: "'Fredoka', sans-serif" }} className="text-lg font-bold text-slate-800 sm:text-2xl">
-            📊 Who's been playing?
+        <div className="flex items-center justify-between border-b border-slate-100 bg-gradient-to-r from-pink-50 via-white to-purple-50 px-4 py-3 sm:px-6 sm:py-4">
+          <h2 className="flex items-center gap-2.5">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-pink-500 to-purple-500 text-lg shadow-md sm:h-11 sm:w-11 sm:text-xl">
+              📊
+            </span>
+            <span style={{ fontFamily: "'Fredoka', sans-serif" }} className="text-lg font-bold text-slate-800 sm:text-2xl">
+              Who's been playing?
+            </span>
           </h2>
           <div className="flex items-center gap-2">
             <button
@@ -406,28 +435,10 @@ export default function StatsPanel({ onClose }) {
         )}
 
         {status === 'ready' && stats && (
-          <div className="border-b border-slate-100 px-4 py-2.5 sm:px-6 sm:py-3">
-            <div className="flex flex-wrap items-center justify-center gap-2">
-              <FilterPill active={filter === 'all'} onClick={() => setFilter('all')} label="All games">
-                🎯
-              </FilterPill>
-              {stats.perGame.map((g) => (
-                <FilterPill
-                  key={g._id}
-                  active={filter === g._id}
-                  onClick={() => setFilter(g._id)}
-                  label={gameLabel(g._id)}
-                >
-                  {filterPillLabel(g._id)}
-                </FilterPill>
-              ))}
+          <div className="border-b border-slate-100 px-4 py-3 sm:px-6">
+            <div className="flex justify-center">
+              <GameFilterDropdown options={filterOptions} value={filter} onChange={setFilter} counts={filterCounts} />
             </div>
-            <p
-              className="mt-2 text-center text-xs font-bold text-slate-500 sm:text-sm"
-              style={{ fontFamily: "'Nunito', sans-serif" }}
-            >
-              {filter === 'all' ? 'Showing all games' : gameLabel(filter)}
-            </p>
           </div>
         )}
 
@@ -849,24 +860,106 @@ function EmptyState({ search, filter }) {
   return <p className="py-8 text-center font-bold text-slate-400">No plays logged for {gameLabel(filter)} yet.</p>;
 }
 
-function FilterPill({ active, onClick, children, label }) {
-  const isCompact = String(children).length > 1;
+// Stylized "which game?" filter — a single dropdown button showing the
+// active game's emoji + name, opening a menu of every game that's shown up
+// in the data (plus "All games" up top). Replaces the old row of numbered
+// pills (game1/game2/b1…), which stopped being readable once there were
+// more than a handful of games.
+function GameFilterDropdown({ options, value, onChange, counts }) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef(null);
+  const selected = options.find((o) => o.key === value) || options[0];
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const handleClickAway = (e) => {
+      if (rootRef.current && !rootRef.current.contains(e.target)) setOpen(false);
+    };
+    // Captured so this beats the panel's own Escape-closes-everything
+    // listener — opening the menu should make Escape close just the menu.
+    const handleKey = (e) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        setOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickAway);
+    document.addEventListener('keydown', handleKey, true);
+    return () => {
+      document.removeEventListener('mousedown', handleClickAway);
+      document.removeEventListener('keydown', handleKey, true);
+    };
+  }, [open]);
+
   return (
-    <button
-      onClick={onClick}
-      aria-label={label}
-      title={label}
-      style={{ fontFamily: "'Fredoka', sans-serif" }}
-      className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full font-bold transition-all active:scale-90 sm:h-11 sm:w-11 ${
-        isCompact ? 'text-xs sm:text-sm' : 'text-base sm:text-lg'
-      } ${
-        active
-          ? 'bg-gradient-to-r from-pink-500 to-purple-500 text-white shadow-md'
-          : 'bg-slate-100 text-slate-600 active:bg-slate-200 sm:hover:bg-slate-200'
-      }`}
-    >
-      {children}
-    </button>
+    <div ref={rootRef} className="relative w-full max-w-xs">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        style={{ fontFamily: "'Fredoka', sans-serif" }}
+        className={`flex w-full items-center gap-2.5 rounded-2xl border-2 px-4 py-2.5 text-left shadow-sm transition-all active:scale-[0.98] ${
+          open ? 'border-pink-300' : value === 'all' ? 'border-slate-200 bg-white' : 'border-pink-200'
+        } ${value !== 'all' ? 'bg-gradient-to-r from-pink-50 to-purple-50' : 'bg-white'}`}
+      >
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-50 text-lg leading-none">
+          {selected.emoji}
+        </span>
+        <span className="min-w-0 flex-1 truncate text-sm font-bold text-slate-700 sm:text-base">{selected.name}</span>
+        <motion.span animate={{ rotate: open ? 180 : 0 }} transition={{ duration: 0.15 }} className="shrink-0 text-slate-400">
+          ▾
+        </motion.span>
+      </button>
+
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ opacity: 0, y: -6, scale: 0.97 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -6, scale: 0.97 }}
+            transition={{ duration: 0.15 }}
+            role="listbox"
+            className="absolute left-0 right-0 top-full z-20 mt-2 max-h-72 overflow-y-auto rounded-2xl border border-slate-100 bg-white p-1.5 shadow-xl"
+          >
+            {options.map((opt) => {
+              const active = opt.key === value;
+              return (
+                <button
+                  key={opt.key}
+                  type="button"
+                  role="option"
+                  aria-selected={active}
+                  onClick={() => {
+                    onChange(opt.key);
+                    setOpen(false);
+                  }}
+                  className={`flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left transition-colors active:scale-[0.98] ${
+                    active
+                      ? 'bg-gradient-to-r from-pink-500 to-purple-500 text-white'
+                      : 'text-slate-600 active:bg-slate-100 sm:hover:bg-slate-50'
+                  }`}
+                >
+                  <span className="w-6 shrink-0 text-center text-lg leading-none">{opt.emoji}</span>
+                  <span style={{ fontFamily: "'Fredoka', sans-serif" }} className="min-w-0 flex-1 truncate text-sm font-bold">
+                    {opt.name}
+                  </span>
+                  {typeof counts?.[opt.key] === 'number' && (
+                    <span
+                      className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-extrabold ${
+                        active ? 'bg-white/25 text-white' : 'bg-slate-100 text-slate-400'
+                      }`}
+                    >
+                      {counts[opt.key]}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
   );
 }
 
@@ -893,8 +986,11 @@ function SortHeader({ label, sortKey: key, current, dir, onSort, align = 'left' 
 
 function StatCard({ label, value, sub }) {
   return (
-    <div className="rounded-2xl bg-slate-50 px-3 py-3 text-center transition-colors active:bg-slate-100">
-      <p className="text-2xl font-bold text-slate-800" style={{ fontFamily: "'Fredoka', sans-serif" }}>
+    <div className="rounded-2xl border border-slate-100 bg-slate-50 px-3 py-3.5 text-center transition-colors active:bg-slate-100">
+      <p
+        className="bg-gradient-to-r from-pink-500 to-purple-500 bg-clip-text text-2xl font-bold text-transparent"
+        style={{ fontFamily: "'Fredoka', sans-serif" }}
+      >
         {value ?? 0}
       </p>
       <p className="mt-0.5 text-xs font-bold text-slate-500">{label}</p>
