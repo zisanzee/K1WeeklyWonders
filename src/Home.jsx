@@ -467,7 +467,7 @@ const GameCard = React.memo(function GameCard({
       )}
 
       {number !== "B" && (
-        <div className="absolute left-3 top-3 z-30 flex h-9 min-w-9 items-center justify-center rounded-full bg-white/35 px-2 text-xl font-extrabold text-slate-900/70 shadow-md backdrop-blur-md">
+        <div className="absolute left-3 top-3 z-30 flex h-9 min-w-9 items-center justify-center rounded-full bg-white/70 px-2 text-xl font-extrabold text-slate-900/70 shadow-md">
           {number}
         </div>
       )}
@@ -524,7 +524,7 @@ const GameCard = React.memo(function GameCard({
         )}
 
         {!open && (
-          <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-white/25 backdrop-blur-[2px]">
+          <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-white/35">
             <span className="animate-bob text-6xl drop-shadow sm:text-7xl">🔒</span>
             <span className="rounded-full bg-white/90 px-4 py-1 text-xs font-extrabold text-slate-600 shadow sm:text-sm">
               Coming soon ✨

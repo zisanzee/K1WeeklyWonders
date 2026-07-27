@@ -63,12 +63,18 @@ export default function NextGameTimer({ withTopOffset = false }) {
   const [currentTime, setCurrentTime] = useState(() => Date.now());
 
   useEffect(() => {
+    // Only days/hours are ever displayed, so there's nothing to gain from
+    // re-rendering every second — and every re-render forces the browser to
+    // repaint the nested backdrop-blur layers below, which is one of the
+    // most expensive operations a phone GPU can do. Ticking once a minute
+    // keeps the display perfectly accurate while cutting that repaint work
+    // by ~60x.
     let timeoutId;
     const tick = () => {
       const now = Date.now();
       setCurrentTime(now);
-      const millisecondsUntilNextSecond = 1000 - (now % 1000) + 8;
-      timeoutId = window.setTimeout(tick, millisecondsUntilNextSecond);
+      const millisecondsUntilNextMinute = 60000 - (now % 60000) + 8;
+      timeoutId = window.setTimeout(tick, millisecondsUntilNextMinute);
     };
     tick();
     return () => window.clearTimeout(timeoutId);
@@ -126,7 +132,7 @@ export default function NextGameTimer({ withTopOffset = false }) {
         {/* Right Side: Compact Timer */}
         <div
           aria-live="polite"
-          className="flex items-center rounded-xl bg-slate-900/5 p-1 shadow-inner backdrop-blur-sm sm:rounded-full"
+          className="flex items-center rounded-xl bg-slate-900/5 p-1 shadow-inner sm:rounded-full"
         >
           <TimeUnit value={parts.days} label="days" />
           <BlinkingSeparator />
