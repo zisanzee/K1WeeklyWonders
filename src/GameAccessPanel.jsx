@@ -550,7 +550,7 @@ export default function GameAccessPanel({ onClose }) {
               </button>
             </div>
 
-            <p className="mt-3 text-sm font-semibold leading-relaxed text-white">
+            <p className="mt-3  text-xs sm:text-sm leading-relaxed text-white">
               Rearrange, lock, unlock, and feature games freely. Save all changes together when ready.
             </p>
 
