@@ -326,21 +326,21 @@ function HomeContent() {
               const isOpen = isTeacher || Boolean(unlocked[game.key]);
 
               return (
-                <GameCard
-                  key={game.key}
-                  to={game.to}
-                  number={game.displayNumber}
-                  emoji={game.emoji}
-                  title={game.title}
-                  subtitle={game.subtitle}
-                  gradient={game.gradient}
-                  ring={game.ring}
-                  delay={0.1 + index * 0.05}
-                  open={isOpen}
-                  progress={progressByGame[game.progressKey]}
-                  shine={game.shine}
-                  onOpen={() => openGame(game.to)}
-                />
+                 <GameCard
+      key={game.key}
+      to={game.to}
+      number={game.displayNumber}
+      emoji={game.emoji}
+      title={game.title}
+      subtitle={game.subtitle}
+      gradient={game.gradient}
+      ring={game.ring}
+      delay={0.1 + index * 0.05}
+      open={isOpen}
+      progress={progressByGame[game.progressKey]}
+      shine={game.shiny}
+      onOpen={() => openGame(game.to)}
+    />
               );
             })}
           </div>

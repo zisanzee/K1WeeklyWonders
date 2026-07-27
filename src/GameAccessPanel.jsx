@@ -20,34 +20,21 @@ import { CSS } from '@dnd-kit/utilities';
 import { usePlayerStore } from './playerStore';
 import {
   setGameOrder,
+  setGameShiny,
   setGameUnlocked,
   useGameAccessStore,
 } from './gameAccess';
 
-function withGameLabels(games) {
-  let nextGameNumber = 0;
-
-  return games.map((game) => ({
-    ...game,
-    positionLabel: game.isBonus ? 'Bonus' : `Game ${++nextGameNumber}`,
-    displayNumber: game.isBonus ? '★' : nextGameNumber,
-  }));
-}
-
-function GameIcon({ game, large = false }) {
+function GameIcon({ game }) {
   return (
     <span
-      className={`flex shrink-0 items-center justify-center rounded-2xl shadow-sm ${
-        large
-          ? 'h-11 w-11 text-xl sm:h-12 sm:w-12 sm:text-2xl'
-          : 'h-10 w-10 text-lg sm:h-11 sm:w-11 sm:text-xl'
-      }`}
+      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl text-lg shadow-sm sm:h-11 sm:w-11 sm:text-xl"
       style={{
         background: game.unlocked
           ? `linear-gradient(135deg, ${game.hue}, ${game.hue}B8)`
-          : '#E2E8F0',
+          : '#CBD5E1',
         filter: game.unlocked ? 'none' : 'grayscale(1)',
-        opacity: game.unlocked ? 1 : 0.62,
+        opacity: game.unlocked ? 1 : 0.65,
       }}
     >
       {game.emoji}
@@ -55,7 +42,7 @@ function GameIcon({ game, large = false }) {
   );
 }
 
-function Toggle({ game, pending, disabled, onToggle }) {
+function AccessToggle({ game, pending, disabled, onToggle }) {
   return (
     <button
       type="button"
@@ -64,30 +51,36 @@ function Toggle({ game, pending, disabled, onToggle }) {
       aria-label={`${game.unlocked ? 'Lock' : 'Unlock'} ${game.label}`}
       disabled={pending || disabled}
       onClick={() => onToggle(game.key, !game.unlocked)}
-      className={`relative h-8 w-[3.65rem] shrink-0 rounded-full border-2 transition-colors duration-200 disabled:cursor-not-allowed disabled:opacity-55 ${
+      className={`relative h-10 w-[3.85rem] shrink-0 rounded-full border-2 transition disabled:cursor-not-allowed disabled:opacity-55 ${
         game.unlocked
-          ? 'border-emerald-300 bg-emerald-400'
-          : 'border-slate-200 bg-slate-200'
+          ? 'border-emerald-500 bg-emerald-500'
+          : 'border-slate-300 bg-slate-200'
       }`}
     >
       <motion.span
-        animate={{ x: game.unlocked ? 27 : 0 }}
+        animate={{ x: game.unlocked ? 25 : 0 }}
         transition={{ type: 'spring', stiffness: 600, damping: 34 }}
-        className="absolute left-[3px] top-[3px] flex h-[22px] w-[22px] items-center justify-center rounded-full bg-white text-[10px] shadow-sm"
+        className="absolute left-[3px] top-[3px] flex h-7 w-7 items-center justify-center rounded-full bg-white text-xs font-black text-slate-700 shadow-sm"
       >
         {pending ? (
-          <span className="h-3 w-3 animate-spin rounded-full border-2 border-slate-300 border-t-transparent" />
+          <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-slate-400 border-t-transparent" />
         ) : game.unlocked ? (
           '✓'
         ) : (
-          '•'
+          '—'
         )}
       </motion.span>
     </button>
   );
 }
 
-function SortableGameRow({ game, isPending, isOrderSaving, onToggle }) {
+function SortableGameRow({
+  game,
+  isPending,
+  isOrderSaving,
+  onToggleAccess,
+  onToggleShiny,
+}) {
   const {
     attributes,
     listeners,
@@ -100,93 +93,87 @@ function SortableGameRow({ game, isPending, isOrderSaving, onToggle }) {
     disabled: isOrderSaving,
   });
 
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0 : 1,
-  };
-
   return (
     <li
       ref={setNodeRef}
-      style={style}
-      className={`group relative overflow-hidden rounded-[1.25rem] border transition-colors sm:rounded-[1.4rem] ${
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0 : 1,
+      }}
+      className={`relative overflow-hidden rounded-2xl border ${
         game.unlocked
-          ? 'border-white bg-white shadow-[0_5px_18px_rgba(41,65,109,0.08)]'
-          : 'border-slate-100 bg-slate-50/80'
+          ? 'border-slate-200 bg-white shadow-[0_5px_18px_rgba(41,65,109,0.1)]'
+          : 'border-slate-200 bg-slate-100'
       }`}
     >
       {game.unlocked && (
         <span
-          aria-hidden="true"
-          className="absolute bottom-0 left-0 top-0 w-1"
+          className="absolute inset-y-0 left-0 w-1.5"
           style={{ backgroundColor: game.hue }}
         />
       )}
 
-      <div className="flex min-w-0 items-center gap-2 px-2.5 py-2.5 sm:gap-3 sm:px-4 sm:py-3">
+      <div className="flex min-w-0 items-center gap-2 px-2.5 py-3 sm:gap-3 sm:px-4">
         <button
           type="button"
           aria-label={`Drag ${game.label} to change its position`}
           disabled={isOrderSaving}
           {...attributes}
           {...listeners}
-          className="-ml-2 touch-none flex h-11 w-11 shrink-0 cursor-grab items-center justify-center rounded-xl text-xl text-slate-300 transition-colors hover:bg-slate-100 hover:text-slate-600 active:cursor-grabbing disabled:cursor-not-allowed disabled:opacity-30"
+          className="touch-none flex h-11 w-11 shrink-0 cursor-grab items-center justify-center rounded-xl text-xl text-slate-500 transition hover:bg-slate-200 hover:text-slate-800 active:cursor-grabbing disabled:cursor-not-allowed disabled:opacity-30"
         >
           ⠿
         </button>
 
-        <div
-          className={`flex h-8 min-w-8 shrink-0 items-center justify-center rounded-lg px-1 text-[11px] font-black shadow-sm sm:h-9 sm:min-w-9 sm:rounded-xl sm:px-1.5 sm:text-xs ${
-            game.isBonus
-              ? 'bg-gradient-to-br from-fuchsia-400 to-violet-500 text-white'
-              : 'bg-slate-100 text-slate-500'
-          }`}
-        >
-          {game.displayNumber}
-        </div>
-
         <GameIcon game={game} />
 
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-2">
             <p
               className={`truncate text-[10px] font-black uppercase tracking-[0.1em] ${
-                game.isBonus ? 'text-fuchsia-500' : 'text-indigo-500'
+                game.isBonus ? 'text-fuchsia-700' : 'text-indigo-700'
               }`}
             >
-              {game.positionLabel}
+              {game.isBonus ? 'Bonus game' : 'Learning game'}
             </p>
 
-            {game.isBonus && (
-              <span className="hidden rounded-full bg-fuchsia-50 px-1.5 py-0.5 text-[9px] font-extrabold text-fuchsia-500 min-[390px]:inline">
-                Does not count
+            {game.shiny && (
+              <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-black text-amber-700">
+                ✨ Featured
               </span>
             )}
           </div>
 
-          <p className="truncate text-[13px] font-extrabold text-slate-700 sm:text-base">
+          <p className="truncate text-[14px] font-extrabold leading-5 text-slate-900 sm:text-base">
             {game.label}
           </p>
 
-          <p
-            className={`mt-0.5 truncate text-[11px] font-bold sm:text-xs ${
-              game.unlocked ? 'text-emerald-500' : 'text-slate-400'
-            }`}
-          >
-            {isPending
-              ? 'Saving access…'
-              : game.unlocked
-                ? 'Available to players'
-                : 'Coming soon'}
+          <p className="mt-0.5 whitespace-pre-line text-[11px] font-semibold leading-snug text-slate-600 sm:text-xs">
+            {game.subtitle}
           </p>
         </div>
 
-        <Toggle
+        <button
+          type="button"
+          onClick={() => onToggleShiny(game.key, !game.shiny)}
+          disabled={isPending || isOrderSaving}
+          aria-pressed={game.shiny}
+          aria-label={`${game.shiny ? 'Remove shiny mark from' : 'Mark as shiny'} ${game.label}`}
+          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-lg transition disabled:cursor-not-allowed disabled:opacity-50 ${
+            game.shiny
+              ? 'bg-gradient-to-br from-amber-300 to-orange-400 text-white shadow-sm'
+              : 'bg-slate-200 text-slate-500 hover:bg-amber-100 hover:text-amber-600'
+          }`}
+        >
+          ✨
+        </button>
+
+        <AccessToggle
           game={game}
           pending={isPending}
           disabled={isOrderSaving}
-          onToggle={onToggle}
+          onToggle={onToggleAccess}
         />
       </div>
     </li>
@@ -197,18 +184,14 @@ function DragPreview({ game }) {
   if (!game) return null;
 
   return (
-    <div className="flex w-[min(390px,calc(100vw-1.5rem))] items-center gap-3 rounded-[1.4rem] border border-indigo-100 bg-white px-3 py-3 shadow-[0_20px_50px_rgba(51,65,149,0.25)] sm:px-4">
-      <span className="flex h-8 min-w-8 items-center justify-center rounded-lg bg-indigo-500 px-1 text-[11px] font-black text-white sm:h-9 sm:min-w-9 sm:rounded-xl sm:text-xs">
-        {game.displayNumber}
-      </span>
-
+    <div className="flex w-[min(390px,calc(100vw-1.5rem))] items-center gap-3 rounded-2xl border border-indigo-200 bg-white px-3 py-3 shadow-[0_20px_50px_rgba(51,65,149,0.25)]">
       <GameIcon game={game} />
 
       <div className="min-w-0">
-        <p className="text-[10px] font-black uppercase tracking-[0.12em] text-indigo-500">
-          Moving {game.positionLabel}
+        <p className="text-[10px] font-black uppercase tracking-[0.1em] text-indigo-700">
+          Moving game
         </p>
-        <p className="truncate text-sm font-extrabold text-slate-700">
+        <p className="truncate text-sm font-extrabold text-slate-900">
           {game.label}
         </p>
       </div>
@@ -238,11 +221,13 @@ export default function GameAccessPanel({ onClose }) {
     })
   );
 
-  const labeledGames = useMemo(() => withGameLabels(games), [games]);
-  const activeGame = labeledGames.find((game) => game.key === activeKey);
-  const unlockedCount = labeledGames.filter((game) => game.unlocked).length;
-  const allUnlocked =
-    labeledGames.length > 0 && unlockedCount === labeledGames.length;
+  const activeGame = useMemo(
+    () => games.find((game) => game.key === activeKey),
+    [activeKey, games]
+  );
+
+  const unlockedCount = games.filter((game) => game.unlocked).length;
+  const allUnlocked = games.length > 0 && unlockedCount === games.length;
 
   useEffect(() => {
     if (!loaded) fetchGameAccess();
@@ -265,12 +250,12 @@ export default function GameAccessPanel({ onClose }) {
     });
   };
 
-  const handleToggle = async (gameKey, nextValue) => {
+  const handleToggleAccess = async (gameKey, unlocked) => {
     setError(null);
     markPending(gameKey, true);
 
     try {
-      await setGameUnlocked(gameKey, nextValue, teacherCode);
+      await setGameUnlocked(gameKey, unlocked, teacherCode);
     } catch (err) {
       setError(err.message || 'Could not update game access.');
     } finally {
@@ -278,15 +263,28 @@ export default function GameAccessPanel({ onClose }) {
     }
   };
 
-  const handleBulk = async (nextValue) => {
+  const handleToggleShiny = async (gameKey, shiny) => {
+    setError(null);
+    markPending(gameKey, true);
+
+    try {
+      await setGameShiny(gameKey, shiny, teacherCode);
+    } catch (err) {
+      setError(err.message || 'Could not update featured game.');
+    } finally {
+      markPending(gameKey, false);
+    }
+  };
+
+  const handleBulk = async (unlocked) => {
     setError(null);
     setBulkPending(true);
 
     try {
       await Promise.all(
-        labeledGames
-          .filter((game) => game.unlocked !== nextValue)
-          .map((game) => setGameUnlocked(game.key, nextValue, teacherCode))
+        games
+          .filter((game) => game.unlocked !== unlocked)
+          .map((game) => setGameUnlocked(game.key, unlocked, teacherCode))
       );
     } catch (err) {
       setError(err.message || 'Could not update every game.');
@@ -325,37 +323,34 @@ export default function GameAccessPanel({ onClose }) {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 z-[200] flex items-end justify-center bg-slate-950/45 p-0 backdrop-blur-sm sm:items-center sm:px-4 sm:py-5"
+        className="fixed inset-0 z-[200] flex items-end justify-center bg-slate-950/60 backdrop-blur-sm sm:items-center sm:p-4"
         onClick={onClose}
       >
         <motion.div
-          initial={{ opacity: 0, scale: 0.96, y: 22 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.97, y: 22 }}
+          initial={{ opacity: 0, y: 32 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: 32 }}
           transition={{ type: 'spring', stiffness: 280, damping: 26 }}
           onClick={(event) => event.stopPropagation()}
           role="dialog"
           aria-modal="true"
           aria-label="Game access"
-          className="flex max-h-[94dvh] w-full max-w-lg flex-col overflow-hidden rounded-t-[2rem] bg-[#F7F8FF] shadow-2xl sm:max-h-[90vh] sm:rounded-[2rem]"
+          className="flex h-[100dvh] w-full max-w-lg flex-col overflow-hidden bg-[#f5f7ff] shadow-2xl sm:h-auto sm:max-h-[90vh] sm:rounded-[2rem]"
         >
-          <div className="relative overflow-hidden bg-gradient-to-br from-[#4f7cf5] via-[#7658dd] to-[#b64ccc] px-4 pb-4 pt-4 sm:px-7 sm:pb-6 sm:pt-6">
-            <div className="pointer-events-none absolute -right-10 -top-14 h-44 w-44 rounded-full border-[18px] border-white/10" />
-            <div className="pointer-events-none absolute -bottom-20 left-8 h-32 w-32 rounded-full bg-white/10" />
+          <header className="shrink-0 bg-gradient-to-br from-[#315ed8] via-[#5a3fc4] to-[#972aa8] px-4 pb-4 pt-[max(1rem,env(safe-area-inset-top))] sm:px-7 sm:pt-6">
+            <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-white/35 sm:hidden" />
 
-            <div className="relative mx-auto mb-3 h-1 w-10 rounded-full bg-white/30 sm:hidden" />
-
-            <div className="relative flex items-start justify-between gap-4">
+            <div className="flex items-start justify-between gap-3">
               <div className="flex min-w-0 items-center gap-3">
-                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white/20 text-xl shadow-sm sm:h-12 sm:w-12 sm:text-2xl">
+                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white/20 text-2xl shadow-sm">
                   🎮
                 </span>
 
                 <div className="min-w-0">
-                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-white/65">
+                  <p className="text-[11px] font-black uppercase tracking-[0.14em] text-white/80">
                     Teacher controls
                   </p>
-                  <h2 className="truncate text-xl font-black tracking-tight text-white sm:text-2xl">
+                  <h2 className="truncate text-2xl font-black tracking-tight text-white">
                     Game Access
                   </h2>
                 </div>
@@ -365,27 +360,27 @@ export default function GameAccessPanel({ onClose }) {
                 type="button"
                 onClick={onClose}
                 aria-label="Close game access"
-                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/15 text-lg font-bold text-white transition hover:bg-white/25"
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/20 text-2xl font-bold text-white transition hover:bg-white/30"
               >
                 ×
               </button>
             </div>
 
-            <p className="relative mt-3 max-w-sm text-xs font-semibold leading-relaxed text-white/85 sm:mt-4 sm:text-sm">
-              Drag games into your learning order. Changes save for every player.
+            <p className="mt-3 text-sm font-semibold leading-relaxed text-white">
+              Choose player access, mark featured games, and drag to reorder.
             </p>
 
             {loaded && (
-              <div className="relative mt-4 grid grid-cols-1 gap-2 min-[390px]:grid-cols-2 sm:mt-5">
-                <div className="rounded-2xl border border-white/15 bg-white/15 px-3 py-2.5">
-                  <p className="text-[10px] font-black uppercase tracking-wide text-white/65">
+              <div className="mt-4 flex items-stretch gap-2">
+                <div className="min-w-0 flex-1 rounded-2xl border border-white/20 bg-white/15 px-3 py-2.5">
+                  <p className="text-[10px] font-black uppercase tracking-wide text-white/80">
                     Player access
                   </p>
                   <p className="mt-0.5 text-lg font-black text-white">
                     {unlockedCount}
-                    <span className="text-sm text-white/70">
+                    <span className="text-sm font-bold text-white/90">
                       {' '}
-                      / {labeledGames.length} open
+                      / {games.length} open
                     </span>
                   </p>
                 </div>
@@ -394,61 +389,46 @@ export default function GameAccessPanel({ onClose }) {
                   type="button"
                   disabled={bulkPending || isOrderSaving}
                   onClick={() => handleBulk(!allUnlocked)}
-                  className="rounded-2xl bg-white px-3 py-2.5 text-left shadow-sm transition hover:bg-indigo-50 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="min-h-14 rounded-2xl bg-white px-3 text-left text-sm font-black text-indigo-800 shadow-sm transition hover:bg-indigo-50 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  <p className="text-[10px] font-black uppercase tracking-wide text-indigo-400">
-                    Quick action
-                  </p>
-                  <p className="mt-0.5 text-sm font-black text-indigo-600">
-                    {bulkPending
-                      ? 'Working…'
-                      : allUnlocked
-                        ? 'Lock all games'
-                        : 'Unlock all games'}
-                  </p>
+                  {bulkPending
+                    ? 'Working…'
+                    : allUnlocked
+                      ? 'Lock all'
+                      : 'Unlock all'}
                 </button>
               </div>
             )}
-          </div>
+          </header>
 
-          <div className="min-h-0 overscroll-contain overflow-y-auto px-3 py-3 pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-5 sm:py-4">
-            <AnimatePresence mode="wait">
-              {error && (
-                <motion.p
-                  initial={{ opacity: 0, y: -6 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -6 }}
-                  className="mb-3 rounded-2xl border border-rose-100 bg-rose-50 px-3 py-2.5 text-xs font-bold text-rose-600"
-                >
-                  ⚠️ {error}
-                </motion.p>
-              )}
-            </AnimatePresence>
+          <main className="min-h-0 flex-1 overscroll-contain overflow-y-auto px-3 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-5">
+            {error && (
+              <p className="mb-3 rounded-2xl border border-rose-300 bg-rose-50 px-3 py-3 text-sm font-bold text-rose-800">
+                ⚠️ {error}
+              </p>
+            )}
 
             {isOrderSaving && (
-              <div className="mb-3 flex items-center gap-2 rounded-2xl border border-indigo-100 bg-indigo-50 px-3 py-2.5 text-xs font-bold text-indigo-600">
-                <span className="h-3 w-3 animate-spin rounded-full border-2 border-indigo-300 border-t-transparent" />
+              <div className="mb-3 flex items-center gap-2 rounded-2xl border border-indigo-200 bg-indigo-50 px-3 py-3 text-sm font-bold text-indigo-800">
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-indigo-500 border-t-transparent" />
                 Saving your new game order…
               </div>
             )}
 
             {!loaded ? (
-              <div className="space-y-2">
+              <div className="space-y-2.5">
                 {[1, 2, 3, 4, 5].map((item) => (
                   <div
                     key={item}
-                    className="h-[72px] animate-pulse rounded-[1.25rem] bg-slate-200/70 sm:h-[76px] sm:rounded-[1.4rem]"
+                    className="h-20 animate-pulse rounded-2xl bg-slate-200"
                   />
                 ))}
               </div>
             ) : (
               <>
-                <div className="mb-3 flex items-center gap-2 px-1">
-                  <span className="text-base">↕️</span>
-                  <p className="text-xs font-bold text-slate-500">
-                    Hold the dots and drag to reorder.
-                  </p>
-                </div>
+                <p className="mb-3 px-1 text-sm font-bold text-slate-700">
+                  Use the ⠿ handle to reorder games.
+                </p>
 
                 <DndContext
                   sensors={sensors}
@@ -458,17 +438,18 @@ export default function GameAccessPanel({ onClose }) {
                   onDragEnd={handleDragEnd}
                 >
                   <SortableContext
-                    items={labeledGames.map((game) => game.key)}
+                    items={games.map((game) => game.key)}
                     strategy={verticalListSortingStrategy}
                   >
                     <ul className="flex flex-col gap-2.5">
-                      {labeledGames.map((game) => (
+                      {games.map((game) => (
                         <SortableGameRow
                           key={game.key}
                           game={game}
                           isPending={pendingKeys.has(game.key)}
                           isOrderSaving={isOrderSaving}
-                          onToggle={handleToggle}
+                          onToggleAccess={handleToggleAccess}
+                          onToggleShiny={handleToggleShiny}
                         />
                       ))}
                     </ul>
@@ -479,12 +460,12 @@ export default function GameAccessPanel({ onClose }) {
                   </DragOverlay>
                 </DndContext>
 
-                <p className="px-2 pb-1 pt-4 text-center text-[11px] font-semibold text-slate-400">
-                  Bonus games stay in order but never use up a game number.
+                <p className="px-2 py-4 text-center text-xs font-semibold text-slate-600">
+                  Bonus games remain in order but never use up a homepage game number.
                 </p>
               </>
             )}
-          </div>
+          </main>
         </motion.div>
       </motion.div>
     </AnimatePresence>

@@ -28,7 +28,6 @@ export const GAME_CATALOG = [
     progressKey: 'game2',
     gradient: 'linear-gradient(135deg, #88DAFF 0%, #4AA8FF 55%, #5B7CFF 100%)',
     ring: 'ring-[#D9F2FF]',
-    shine: true,
   },
   {
     key: '3',
@@ -105,22 +104,30 @@ function normalizeKey(gameKey) {
 }
 
 function mergeRows(rows) {
-  const apiRows = new Map(rows.map((row) => [row.gameKey, row]));
+  const rowsByKey = new Map(rows.map((row) => [row.gameKey, row]));
 
   return GAME_CATALOG
-    .map((game, fallbackOrder) => ({
-      ...game,
-      unlocked: Boolean(apiRows.get(game.key)?.unlocked),
-      order: Number.isInteger(apiRows.get(game.key)?.order)
-        ? apiRows.get(game.key).order
-        : fallbackOrder,
-    }))
+    .map((game, defaultOrder) => {
+      const row = rowsByKey.get(game.key);
+
+      return {
+        ...game,
+        unlocked: Boolean(row?.unlocked),
+        shiny: Boolean(row?.shiny),
+        order: Number.isInteger(row?.order) ? row.order : defaultOrder,
+      };
+    })
     .sort((a, b) => a.order - b.order);
 }
 
 export const useGameAccessStore = create((set, get) => ({
   unlocked: {},
-  games: GAME_CATALOG.map((game, order) => ({ ...game, unlocked: false, order })),
+  games: GAME_CATALOG.map((game, order) => ({
+    ...game,
+    order,
+    unlocked: false,
+    shiny: false,
+  })),
   loaded: false,
   loading: false,
   error: null,
@@ -132,26 +139,52 @@ export const useGameAccessStore = create((set, get) => ({
 
     try {
       const response = await fetch(`${API_BASE}/api/game-access`);
-      if (!response.ok) throw new Error('Failed to load game access');
+
+      if (!response.ok) {
+        throw new Error('Failed to load game access');
+      }
 
       const rows = await response.json();
       const games = mergeRows(rows);
-      const unlocked = Object.fromEntries(games.map((game) => [game.key, game.unlocked]));
 
-      set({ games, unlocked, loaded: true, loading: false });
+      set({
+        games,
+        unlocked: Object.fromEntries(
+          games.map((game) => [game.key, game.unlocked])
+        ),
+        loaded: true,
+        loading: false,
+      });
     } catch (error) {
       console.error(error);
-      set({ loading: false, error: error.message });
+
+      set({
+        loading: false,
+        error: error.message,
+      });
     }
   },
 
-  setUnlockedLocal: (gameKey, isUnlocked) => {
+  setUnlockedLocal: (gameKey, unlocked) => {
     const key = normalizeKey(gameKey);
 
     set((state) => ({
-      unlocked: { ...state.unlocked, [key]: isUnlocked },
+      unlocked: {
+        ...state.unlocked,
+        [key]: unlocked,
+      },
       games: state.games.map((game) =>
-        game.key === key ? { ...game, unlocked: isUnlocked } : game
+        game.key === key ? { ...game, unlocked } : game
+      ),
+    }));
+  },
+
+  setShinyLocal: (gameKey, shiny) => {
+    const key = normalizeKey(gameKey);
+
+    set((state) => ({
+      games: state.games.map((game) =>
+        game.key === key ? { ...game, shiny } : game
       ),
     }));
   },
@@ -169,14 +202,17 @@ export const useGameAccessStore = create((set, get) => ({
 
   replaceRows: (rows) => {
     const games = mergeRows(rows);
+
     set({
       games,
-      unlocked: Object.fromEntries(games.map((game) => [game.key, game.unlocked])),
+      unlocked: Object.fromEntries(
+        games.map((game) => [game.key, game.unlocked])
+      ),
     });
   },
 }));
 
-export async function setGameUnlocked(gameKey, isUnlocked, teacherCode) {
+export async function setGameUnlocked(gameKey, unlocked, teacherCode) {
   const key = normalizeKey(gameKey);
 
   const response = await fetch(
@@ -184,7 +220,7 @@ export async function setGameUnlocked(gameKey, isUnlocked, teacherCode) {
     {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ unlocked: isUnlocked, teacherCode }),
+      body: JSON.stringify({ unlocked, teacherCode }),
     }
   );
 
@@ -194,7 +230,33 @@ export async function setGameUnlocked(gameKey, isUnlocked, teacherCode) {
   }
 
   const data = await response.json();
+
   useGameAccessStore.getState().setUnlockedLocal(key, data.unlocked);
+
+  return data;
+}
+
+export async function setGameShiny(gameKey, shiny, teacherCode) {
+  const key = normalizeKey(gameKey);
+
+  const response = await fetch(
+    `${API_BASE}/api/game-access/${encodeURIComponent(key)}/shiny`,
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ shiny, teacherCode }),
+    }
+  );
+
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    throw new Error(body.error || 'Could not update featured game');
+  }
+
+  const data = await response.json();
+
+  useGameAccessStore.getState().setShinyLocal(key, data.shiny);
+
   return data;
 }
 
@@ -211,7 +273,9 @@ export async function setGameOrder(gameKeys, teacherCode) {
   }
 
   const data = await response.json();
+
   useGameAccessStore.getState().replaceRows(data.rows);
+
   return data.rows;
 }
 
