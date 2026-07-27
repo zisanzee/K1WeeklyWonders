@@ -1,77 +1,139 @@
-import { useEffect, useState } from "react";
-import { motion } from "motion/react";
+import { useEffect, useMemo, useState } from 'react';
+import { motion } from 'motion/react';
 
-function getNextFriday() {
-  const now = new Date();
-  const day = now.getDay(); // 0=Sun ... 5=Fri ... 6=Sat
-  let daysUntil = (5 - day + 7) % 7;
-  if (daysUntil === 0) daysUntil = 7; // if it's Friday, count to *next* Friday
+function getNextFridayNoon(now = new Date()) {
   const target = new Date(now);
-  target.setDate(now.getDate() + daysUntil);
-  target.setHours(0, 0, 0, 0);
+  const daysUntilFriday = (5 - now.getDay() + 7) % 7;
+  target.setDate(now.getDate() + daysUntilFriday);
+  target.setHours(12, 0, 0, 0);
+
+  if (target.getTime() <= now.getTime()) {
+    target.setDate(target.getDate() + 7);
+  }
   return target;
 }
 
-function getTimeParts(target) {
-  const diff = Math.max(0, target.getTime() - Date.now());
-  const totalSeconds = Math.floor(diff / 1000);
+function getTimeParts(target, currentTime) {
+  const totalSeconds = Math.max(
+    0,
+    Math.floor((target.getTime() - currentTime) / 1000)
+  );
   return {
     days: Math.floor(totalSeconds / 86400),
     hours: Math.floor((totalSeconds % 86400) / 3600),
-    minutes: Math.floor((totalSeconds % 3600) / 60),
-    seconds: totalSeconds % 60,
   };
 }
 
-export default function NextGameTimer({ withTopOffset = false }) {
-  const [target, setTarget] = useState(getNextFriday);
-  const [parts, setParts] = useState(() => getTimeParts(target));
-
-  useEffect(() => {
-    const id = setInterval(() => {
-      const next = getTimeParts(target);
-      setParts(next);
-      if (next.days === 0 && next.hours === 0 && next.minutes === 0 && next.seconds === 0) {
-        setTarget(getNextFriday());
-      }
-    }, 1000);
-    return () => clearInterval(id);
-  }, [target]);
-
-  const Unit = ({ value, label }) => (
-    <div className="flex flex-col items-center leading-none">
-      <span className="font-heading text-base font-extrabold text-slate-800 sm:text-lg">
-        {String(value).padStart(2, "0")}
+function TimeUnit({ value, label }) {
+  return (
+    <div className="flex min-w-[3rem] flex-col items-center justify-center rounded-[0.85rem] border border-white/60 bg-gradient-to-b from-white/90 to-white/50 p-1.5 shadow-[0_2px_8px_rgba(0,0,0,0.04)] backdrop-blur-md sm:min-w-[3.5rem]">
+      <span className="font-heading text-xl font-extrabold leading-none text-transparent bg-clip-text bg-gradient-to-br from-slate-700 to-slate-900 sm:text-2xl">
+        {String(value).padStart(2, '0')}
       </span>
-      <span className="font-body text-[0.80rem] font-bold uppercase tracking-wide text-slate-500 sm:text-[0.9rem]">
+      <span className="mt-0.5 text-[8px] font-black uppercase tracking-widest text-slate-400 sm:mt-1 sm:text-[9px]">
         {label}
       </span>
     </div>
   );
+}
+
+function BlinkingSeparator() {
+  return (
+    <div className="flex flex-col gap-1.5 px-1.5 sm:px-2">
+      <motion.div
+        animate={{ opacity: [1, 0.3, 1] }}
+        transition={{ duration: 1, repeat: Infinity, ease: 'easeInOut' }}
+        className="h-1.5 w-1.5 rounded-full bg-pink-500 shadow-[0_0_8px_rgba(236,72,153,0.8)]"
+      />
+      <motion.div
+        animate={{ opacity: [1, 0.3, 1] }}
+        transition={{
+          duration: 1,
+          repeat: Infinity,
+          ease: 'easeInOut',
+          delay: 0.5,
+        }}
+        className="h-1.5 w-1.5 rounded-full bg-indigo-500 shadow-[0_0_8px_rgba(99,102,241,0.8)]"
+      />
+    </div>
+  );
+}
+
+export default function NextGameTimer({ withTopOffset = false }) {
+  const [currentTime, setCurrentTime] = useState(() => Date.now());
+
+  useEffect(() => {
+    let timeoutId;
+    const tick = () => {
+      const now = Date.now();
+      setCurrentTime(now);
+      const millisecondsUntilNextSecond = 1000 - (now % 1000) + 8;
+      timeoutId = window.setTimeout(tick, millisecondsUntilNextSecond);
+    };
+    tick();
+    return () => window.clearTimeout(timeoutId);
+  }, []);
+
+  const target = useMemo(
+    () => getNextFridayNoon(new Date(currentTime)),
+    [currentTime]
+  );
+
+  const parts = useMemo(
+    () => getTimeParts(target, currentTime),
+    [target, currentTime]
+  );
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: -16 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5 }}
-      className={`relative z-20 mx-auto flex w-fit max-w-[94vw] flex-wrap items-center justify-center gap-1.5 rounded-full border border-white/40 bg-white/60  px-3 py-1.5 shadow-[0_4px_0_rgba(0,0,0,0.1)] backdrop-blur-md sm:gap-3 sm:px-5 sm:py-2.5 ${
-        withTopOffset ? "mt-12 sm:mt-0" : ""
+    <motion.section
+      initial={{ opacity: 0, y: -10, scale: 0.98 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+      className={`relative z-20 mx-auto w-fit max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-2xl border border-white/50 bg-white/40 p-1.5 shadow-[0_8px_30px_rgba(0,0,0,0.06)] backdrop-blur-xl sm:rounded-full sm:p-2 ${
+        withTopOffset ? 'mt-8 sm:mt-0' : ''
       }`}
     >
-      <span className="text-base sm:text-xl">🎉</span>
-      <span className="font-body text-[1rem] font-extrabold text-slate-700 sm:text-lg">
-        New game every Friday!
-      </span>
-      <span className=" h-4 w-[3px] mx-2 bg-slate-300 sm:block" />
-      <div className="flex items-center gap-1 sm:gap-2">
-        <Unit value={parts.days} label="days" />
-        <span className="font-heading text-slate-400">:</span>
-        <Unit value={parts.hours} label="hrs" />
-        <span className="font-heading text-slate-400">:</span>
-        <Unit value={parts.minutes} label="min" />
-        <span className="font-heading text-slate-400">:</span>
-        <Unit value={parts.seconds} label="sec" />
+      {/* Top Gradient Accent Line */}
+      <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-yellow-400 via-pink-500 to-indigo-500 opacity-90" />
+
+      {/* Main Content Wrapper */}
+      <div className="flex flex-row flex-wrap items-center justify-center gap-x-3 gap-y-2 px-1 py-1 sm:flex-nowrap sm:gap-6 sm:px-3">
+        
+        {/* Left Side: Icon & Text */}
+        <div className="flex items-center gap-2.5">
+          <motion.div
+            whileHover={{ rotate: 15, scale: 1.1 }}
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-tr from-amber-200 to-yellow-400 text-sm shadow-sm sm:h-9 sm:w-9 sm:text-lg"
+          >
+            🎉
+          </motion.div>
+
+          <div className="flex items-center gap-1.5 text-base font-bold text-slate-700 sm:text-base">
+            <span>New game every</span>
+            
+            {/* Redesigned 'Friday!' Badge */}
+            <motion.span 
+              whileHover={{ scale: 1.05 }}
+              className="relative inline-flex items-center justify-center rounded-lg bg-gradient-to-r from-pink-500 via-purple-500 to-indigo-500 px-2 py-0.5 text-white shadow-[0_2px_10px_rgba(168,85,247,0.4)]"
+            >
+              <span className="font-black uppercase tracking-wider text-[10px] sm:text-[11px] drop-shadow-sm">
+                Friday!
+              </span>
+            </motion.span>
+          </div>
+        </div>
+
+        {/* Right Side: Compact Timer */}
+        <div
+          aria-live="polite"
+          className="flex items-center rounded-xl bg-slate-900/5 p-1 shadow-inner backdrop-blur-sm sm:rounded-full"
+        >
+          <TimeUnit value={parts.days} label="days" />
+          <BlinkingSeparator />
+          <TimeUnit value={parts.hours} label="hours" />
+        </div>
+
       </div>
-    </motion.div>
+    </motion.section>
   );
 }

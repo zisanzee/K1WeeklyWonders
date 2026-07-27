@@ -188,20 +188,52 @@ function HomeContent() {
         }
         .font-heading { font-family: 'Fredoka', sans-serif; }
 
+        /* will-change is intentionally left off the small decorative spans
+           below (sparkles, drifting numbers, kite, sway). Pre-promoting
+           every tiny infinite animation to its own GPU layer is what
+           actually causes jank on older/low-memory phones: each layer is
+           cheap in isolation but a dozen persistent layers add up fast.
+           Only the two large, always-visible cloud drifts and the sun spin
+           keep will-change, since those are worth the trade. */
         .animate-float-slow { animation: float-slow 6s ease-in-out infinite; will-change: transform; }
-        .animate-float-slower { animation: float-slower 8s ease-in-out infinite; will-change: transform; }
-        .animate-wiggle { animation: wiggle 2.5s ease-in-out infinite; will-change: transform; }
+        .animate-float-slower { animation: float-slower 8s ease-in-out infinite; }
+        .animate-wiggle { animation: wiggle 2.5s ease-in-out infinite; }
         .animate-pop-in { animation: pop-in 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
-        .animate-sparkle { animation: sparkle 1.8s ease-in-out infinite; will-change: transform, opacity; }
+        .animate-sparkle { animation: sparkle 1.8s ease-in-out infinite; }
         .animate-spin-slow { animation: spin-slow 50s linear infinite; will-change: transform; }
-        .animate-bob { animation: bob 2.4s ease-in-out infinite; will-change: transform; }
-        .animate-sway { animation: sway 3.2s ease-in-out infinite; transform-origin: bottom center; will-change: transform; }
+        .animate-bob { animation: bob 2.4s ease-in-out infinite; }
+        .animate-sway { animation: sway 3.2s ease-in-out infinite; transform-origin: bottom center; }
         @keyframes kite-drift {
           0%, 100% { transform: translate(0, 0) rotate(-4deg); }
           50% { transform: translate(14px, -10px) rotate(4deg); }
         }
-        .animate-kite-drift { animation: kite-drift 5s ease-in-out infinite; will-change: transform; }
-        .animate-number-drift { animation: number-drift 5.5s ease-in-out infinite; will-change: transform; }
+        .animate-kite-drift { animation: kite-drift 5s ease-in-out infinite; }
+        .animate-number-drift { animation: number-drift 5.5s ease-in-out infinite; }
+
+        /* Isolate the purely-decorative layer so its constant animation
+           never triggers layout/paint work outside its own bounding box. */
+        .decor-layer { contain: layout paint style; }
+
+        /* Respect both explicit reduced-motion preference and the fact
+           that low-power mode on older phones often implies it — this
+           kills every infinite decorative loop at once, which is the
+           single biggest win available for weak devices, with zero
+           impact on animation quality for everyone else. */
+        @media (prefers-reduced-motion: reduce) {
+          .animate-float-slow,
+          .animate-float-slower,
+          .animate-wiggle,
+          .animate-sparkle,
+          .animate-spin-slow,
+          .animate-bob,
+          .animate-sway,
+          .animate-kite-drift,
+          .animate-number-drift,
+          .animate-golden-glow,
+          .animate-golden-shimmer {
+            animation: none !important;
+          }
+        }
       `}</style>
 
       {isTeacher && (
@@ -242,19 +274,26 @@ function HomeContent() {
         <div className="absolute inset-[18%] rounded-full bg-gradient-to-br from-yellow-200 to-orange-300 shadow-[0_0_40px_rgba(255,217,61,0.6)]" />
       </div>
 
-      <div className="pointer-events-none absolute inset-0">
+      <div className="decor-layer pointer-events-none absolute inset-0">
         <div className="absolute left-[6%] top-[12%] animate-float-slow text-5xl opacity-90 sm:text-6xl">☁️</div>
         <div className="absolute right-[14%] top-[20%] animate-float-slower text-4xl opacity-80 sm:text-5xl">☁️</div>
-        <div className="absolute left-[22%] top-[68%] animate-float-slower text-3xl opacity-70 blur-[0.5px] sm:text-4xl">☁️</div>
+        {/* Sub-decorations below are hidden on phones: fewer concurrent
+            infinite animations where GPU/CPU headroom is smallest, while
+            desktops/tablets keep the fuller scene. Blur was also dropped
+            from the two "hazy" clouds — animating filter:blur together
+            with transform forces the browser to re-rasterize every frame
+            instead of just re-compositing, which is disproportionately
+            expensive on older phones for a barely-visible effect. */}
+        <div className="hidden sm:block absolute left-[22%] top-[68%] animate-float-slower text-3xl opacity-70 sm:text-4xl">☁️</div>
         <div className="absolute bottom-[22%] right-[4%] animate-float-slow text-5xl opacity-90 sm:text-6xl">☁️</div>
-        <div className="absolute left-[42%] top-[6%] animate-float-slower text-3xl opacity-60 blur-[0.5px]">☁️</div>
-        <div className="absolute right-[20%] top-[8%] animate-kite-drift text-4xl opacity-90 sm:text-5xl">🪁</div>
+        <div className="hidden sm:block absolute left-[42%] top-[6%] animate-float-slower text-3xl opacity-60">☁️</div>
+        <div className="hidden sm:block absolute right-[20%] top-[8%] animate-kite-drift text-4xl opacity-90 sm:text-5xl">🪁</div>
 
         <div className="absolute left-[8%] top-[30%] flex h-10 w-10 animate-number-drift items-center justify-center rounded-full bg-white/90 font-heading text-lg font-extrabold text-teal-600 shadow-md sm:h-12 sm:w-12 sm:text-xl">
           2
         </div>
         <div
-          className="absolute right-[10%] top-[36%] flex h-9 w-9 animate-number-drift items-center justify-center rounded-full bg-white/90 font-heading text-base font-extrabold text-violet-600 shadow-md sm:h-11 sm:w-11 sm:text-lg"
+          className="hidden sm:flex absolute right-[10%] top-[36%] h-9 w-9 animate-number-drift items-center justify-center rounded-full bg-white/90 font-heading text-base font-extrabold text-violet-600 shadow-md sm:h-11 sm:w-11 sm:text-lg"
           style={{ animationDelay: "1.2s" }}
         >
           5
@@ -268,7 +307,7 @@ function HomeContent() {
 
         <div className="absolute left-[5%] top-[46%] animate-sparkle text-2xl sm:text-3xl">⭐</div>
         <div
-          className="absolute right-[6%] top-[50%] animate-sparkle text-xl sm:text-2xl"
+          className="hidden sm:block absolute right-[6%] top-[50%] animate-sparkle text-xl sm:text-2xl"
           style={{ animationDelay: "0.6s" }}
         >
           ✨
@@ -354,7 +393,7 @@ function HomeContent() {
       </div>
 
       {loadingTo && (
-        <div className="fixed inset-0 z-[999] flex items-center justify-center bg-slate-900/35 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[999] flex items-center justify-center bg-slate-900/55">
           <div className="rounded-3xl bg-white px-6 py-5 shadow-2xl">
             <div className="flex items-center gap-3">
               <div className="h-5 w-5 animate-spin rounded-full border-4 border-sky-300 border-t-transparent" />
@@ -367,7 +406,7 @@ function HomeContent() {
       )}
 
       <div className="fixed bottom-5 right-5 z-50 md:right-5">
-        <div className="flex items-center gap-2 rounded-xl border border-white/15 bg-black/25 px-4 py-2 shadow-lg backdrop-blur-md">
+        <div className="flex items-center gap-2 rounded-xl border border-white/15 bg-black/45 px-4 py-2 shadow-lg">
           <div className="h-4 min-w-4 animate-pulse rounded-full bg-red-500/75" />
           <div className="w-[15rem] leading-tight md:w-[24rem]">
             <p className="font-body text-left text-xs font-medium text-white/80 md:text-md">
@@ -379,7 +418,7 @@ function HomeContent() {
 
       <footer className="relative z-10 mt-10 w-full px-4 pb-28 sm:mt-12 sm:pb-24">
         <div className="mx-auto max-w-4xl">
-          <div className="overflow-hidden rounded-[1.75rem] border border-white/30 bg-white/25 shadow-[0_10px_30px_rgba(0,0,0,0.10)] backdrop-blur-md">
+          <div className="overflow-hidden rounded-[1.75rem] border border-white/30 bg-white/60 shadow-[0_10px_30px_rgba(0,0,0,0.10)]">
             <div className="h-1 w-full bg-gradient-to-r from-yellow-300 via-pink-300 to-sky-300" />
 
             <div className="flex flex-col items-center gap-2 px-5 py-4 text-center sm:px-7 sm:py-5">
