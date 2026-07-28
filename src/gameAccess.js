@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { usePlayerStore } from './playerStore';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
 
@@ -132,13 +133,14 @@ export const useGameAccessStore = create((set, get) => ({
   loading: false,
   error: null,
 
-  fetchGameAccess: async () => {
-    if (get().loading) return;
+  loadedClassId: null,
+  fetchGameAccess: async (classId = usePlayerStore.getState().classId) => {
+    if (!classId || get().loading) return;
 
     set({ loading: true, error: null });
 
     try {
-      const response = await fetch(`${API_BASE}/api/game-access`);
+      const response = await fetch(`${API_BASE}/api/game-access?classId=${encodeURIComponent(classId)}`);
 
       if (!response.ok) {
         throw new Error('Failed to load game access');
@@ -153,6 +155,7 @@ export const useGameAccessStore = create((set, get) => ({
           games.map((game) => [game.key, game.unlocked])
         ),
         loaded: true,
+        loadedClassId: classId,
         loading: false,
       });
     } catch (error) {

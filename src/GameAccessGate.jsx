@@ -9,15 +9,17 @@ import { useGameAccessStore, useIsGameUnlocked } from './gameAccess';
 // screen instead of the game itself — teachers still get straight in.
 export default function GameAccessGate({ gameNumber, gameLabel, children }) {
   const isTeacher = usePlayerStore((s) => s.isTeacher);
+  const classId = usePlayerStore((s) => s.classId);
   const loaded = useGameAccessStore((s) => s.loaded);
+  const loadedClassId = useGameAccessStore((s) => s.loadedClassId);
   const fetchGameAccess = useGameAccessStore((s) => s.fetchGameAccess);
   const unlocked = useIsGameUnlocked(gameNumber, isTeacher);
 
   // Someone may land here directly (e.g. a bookmarked /Game3 URL) without
   // ever hitting the homepage, so this can't assume access data is loaded.
   useEffect(() => {
-    if (!loaded) fetchGameAccess();
-  }, [loaded, fetchGameAccess]);
+    if (!loaded || loadedClassId !== classId) fetchGameAccess(classId);
+  }, [classId, loaded, loadedClassId, fetchGameAccess]);
 
   // Teachers always get straight in, even before the fetch resolves.
   // Players wait for the real answer instead of briefly seeing "not out

@@ -54,6 +54,7 @@ function timeGreeting() {
 function HomeContent() {
   const navigate = useNavigate();
   const playerName = usePlayerStore((s) => s.playerName);
+  const classId = usePlayerStore((s) => s.classId);
   const isTeacher = usePlayerStore((s) => s.isTeacher);
   const resetPlayer = usePlayerStore((s) => s.resetPlayer);
   const [showStats, setShowStats] = useState(false);
@@ -82,7 +83,8 @@ function HomeContent() {
 
   useEffect(() => {
     let cancelled = false;
-    fetchSummary()
+    if (!classId || !playerName) return undefined;
+    fetchSummary({ classId, playerName })
       .then((rows) => {
         if (cancelled) return;
         const mine = {};
@@ -95,7 +97,7 @@ function HomeContent() {
     return () => {
       cancelled = true;
     };
-  }, [playerName]);
+  }, [classId, playerName]);
 
   useEffect(() => {
     const prefetchGames = () => {

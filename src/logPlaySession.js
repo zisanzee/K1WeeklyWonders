@@ -1,9 +1,18 @@
+import { usePlayerStore } from './playerStore';
+
 // Copy this file into your React project, e.g. src/lib/logPlaySession.js
 //
 // Reads the server URL from Vite's env system:
 //   .env.local        VITE_API_BASE_URL=http://localhost:4000
 //   .env (deployed)   VITE_API_BASE_URL=https://your-server.onrender.com
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
+
+function withQuery(path, params) {
+  const query = new URLSearchParams(
+    Object.entries(params).filter(([, value]) => value != null && value !== '')
+  );
+  return `${API_BASE}${path}?${query.toString()}`;
+}
 
 // Coarse, dependency-free device fingerprint — good enough to spot "this
 // game lags on Android tablets" patterns, not meant to be precise. Runs
@@ -49,12 +58,14 @@ export async function logPlaySession({
   mistakes,
 }) {
   try {
+    const classId = usePlayerStore.getState().classId;
     const res = await fetch(`${API_BASE}/api/plays`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         game,
         playerName,
+        classId,
         stars,
         totalRounds,
         peakStreak,
@@ -78,9 +89,9 @@ export async function logPlaySession({
 }
 
 // Overall totals + a per-game breakdown (see GET /api/stats on the server).
-export async function fetchStats() {
+export async function fetchStats(teacherCode) {
   try {
-    const res = await fetch(`${API_BASE}/api/stats`);
+    const res = await fetch(withQuery('/api/stats', { teacherCode }));
     if (!res.ok) throw new Error(`Server responded ${res.status} ${res.statusText}`);
     return await res.json();
   } catch (err) {
@@ -91,9 +102,9 @@ export async function fetchStats() {
 
 // One row per player+game — times played, best/last score, best streak
 // (see GET /api/summary on the server).
-export async function fetchSummary() {
+export async function fetchSummary({ classId, playerName, teacherCode }) {
   try {
-    const res = await fetch(`${API_BASE}/api/summary`);
+    const res = await fetch(withQuery('/api/summary', { classId, playerName, teacherCode }));
     if (!res.ok) throw new Error(`Server responded ${res.status} ${res.statusText}`);
     return await res.json();
   } catch (err) {
@@ -104,9 +115,9 @@ export async function fetchSummary() {
 
 // Every individual play session, uncollapsed and most recent first — used by
 // the "show all plays" view (see GET /api/plays on the server).
-export async function fetchAllPlays() {
+export async function fetchAllPlays(teacherCode) {
   try {
-    const res = await fetch(`${API_BASE}/api/plays`);
+    const res = await fetch(withQuery('/api/plays', { teacherCode }));
     if (!res.ok) throw new Error(`Server responded ${res.status} ${res.statusText}`);
     return await res.json();
   } catch (err) {
@@ -115,7 +126,7 @@ export async function fetchAllPlays() {
   }
 }
 
-export async function deletePlayerGame(game, playerName) {
+export async function deletePlayerGame(game, playerName, teacherCode) {
   const res = await fetch(`${API_BASE}/api/plays`, {
     method: 'DELETE',
     headers: {
@@ -124,6 +135,7 @@ export async function deletePlayerGame(game, playerName) {
     body: JSON.stringify({
       game,
       playerName,
+      teacherCode,
     }),
   });
 

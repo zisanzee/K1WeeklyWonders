@@ -122,6 +122,7 @@ export default function StatsPanel({ onClose }) {
   // Access to this panel is already decided at the name/code prompt (Home
   // only renders the Stats button for teachers) — this just reads who's in.
   const teacherName = usePlayerStore((s) => s.playerName);
+  const teacherCode = usePlayerStore((s) => s.teacherCode);
   const resetPlayer = usePlayerStore((s) => s.resetPlayer);
 
   const [status, setStatus] = useState('loading'); // loading | error | ready
@@ -160,7 +161,7 @@ export default function StatsPanel({ onClose }) {
     allSlowTimerRef.current = setTimeout(() => setAllSlow(true), SLOW_THRESHOLD_MS);
 
     try {
-      const data = await fetchAllPlays();
+      const data = await fetchAllPlays(teacherCode);
       setAllPlays(data);
       setAllStatus('ready');
     } catch (err) {
@@ -178,7 +179,10 @@ export default function StatsPanel({ onClose }) {
     slowTimerRef.current = setTimeout(() => setSlow(true), SLOW_THRESHOLD_MS);
 
     try {
-      const [statsData, summaryData] = await Promise.all([fetchStats(), fetchSummary()]);
+      const [statsData, summaryData] = await Promise.all([
+        fetchStats(teacherCode),
+        fetchSummary({ teacherCode }),
+      ]);
       setStats(statsData);
       setSummary(summaryData);
       setStatus('ready');
@@ -206,7 +210,7 @@ export default function StatsPanel({ onClose }) {
       clearTimeout(allSlowTimerRef.current);
       clearTimeout(confirmTimerRef.current);
     };
-  }, [teacherName]);
+  }, [teacherName, teacherCode]);
 
   const handleToggleShowAll = () => {
     setShowAll((prev) => {
@@ -271,7 +275,7 @@ export default function StatsPanel({ onClose }) {
     setConfirmDeleteKey(null);
     setDeletingKey(key);
     try {
-      await deletePlayerGame(row.game, row.playerName);
+      await deletePlayerGame(row.game, row.playerName, teacherCode);
       setAllPlays(null);
       await load();
     } catch (err) {
