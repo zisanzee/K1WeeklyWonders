@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { usePlayerStore } from './playerStore';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
+let latestGameAccessRequest = 0;
 
 export const GAME_CATALOG = [
   {
@@ -105,9 +106,12 @@ function normalizeKey(gameKey) {
 }
 
 function mergeRows(rows) {
-  const rowsByKey = new Map(rows.map((row) => [row.gameKey, row]));
+  const rowsByKey = new Map(
+    (Array.isArray(rows) ? rows : []).map((row) => [row.gameKey, row])
+  );
 
   return GAME_CATALOG
+    .filter((game) => rowsByKey.has(game.key))
     .map((game, defaultOrder) => {
       const row = rowsByKey.get(game.key);
 
@@ -118,26 +122,32 @@ function mergeRows(rows) {
         order: Number.isInteger(row?.order) ? row.order : defaultOrder,
       };
     })
-    .sort((a, b) => a.order - b.order);
+    .sort(
+      (a, b) =>
+        a.order - b.order ||
+        GAME_CATALOG.findIndex((game) => game.key === a.key) -
+          GAME_CATALOG.findIndex((game) => game.key === b.key)
+    );
 }
 
 export const useGameAccessStore = create((set, get) => ({
   unlocked: {},
-  games: GAME_CATALOG.map((game, order) => ({
-    ...game,
-    order,
-    unlocked: false,
-    shiny: false,
-  })),
+  games: [],
   loaded: false,
   loading: false,
+  loadingClassId: null,
   error: null,
 
   loadedClassId: null,
   fetchGameAccess: async (classId = usePlayerStore.getState().classId) => {
-    if (!classId || get().loading) return;
+    if (!classId) return;
 
-    set({ loading: true, error: null });
+    const state = get();
+    if (state.loading && state.loadingClassId === classId) return;
+
+    const requestId = ++latestGameAccessRequest;
+
+    set({ loading: true, loadingClassId: classId, error: null });
 
     try {
       const response = await fetch(`${API_BASE}/api/game-access?classId=${encodeURIComponent(classId)}`);
@@ -149,6 +159,9 @@ export const useGameAccessStore = create((set, get) => ({
       const rows = await response.json();
       const games = mergeRows(rows);
 
+      // Ignore an older response after the player has switched classes.
+      if (requestId !== latestGameAccessRequest) return;
+
       set({
         games,
         unlocked: Object.fromEntries(
@@ -157,12 +170,16 @@ export const useGameAccessStore = create((set, get) => ({
         loaded: true,
         loadedClassId: classId,
         loading: false,
+        loadingClassId: null,
       });
     } catch (error) {
+      if (requestId !== latestGameAccessRequest) return;
+
       console.error(error);
 
       set({
         loading: false,
+        loadingClassId: null,
         error: error.message,
       });
     }
