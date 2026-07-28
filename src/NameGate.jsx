@@ -1,76 +1,38 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { usePlayerStore } from './playerStore';
 import { lookupTeacher } from './teacherCodes';
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
-
 const inputClass =
   'w-full rounded-2xl border-2 border-slate-200 bg-slate-50 px-4 py-3.5 text-base font-bold text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-sky-400 focus:bg-white focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:opacity-60';
 
-async function fetchClasses(signal) {
-  const response = await fetch(`${API_BASE}/api/classes`, { signal });
-  if (!response.ok) throw new Error('Could not load classes');
-
-  const rows = await response.json();
-  return Array.isArray(rows) ? rows : [];
-}
+// Everyone who comes in through the name prompt lands in the original K1
+// class — there's no class picker anymore. Teachers still get their own
+// class via their teacher code (see handleCodeSubmit below).
+const DEFAULT_CLASS = { id: 'k12026-pny', name: 'Kindergarten 1' };
 
 export default function NameGate({ gameLabel, children }) {
   const playerName = usePlayerStore((state) => state.playerName);
-  const classId = usePlayerStore((state) => state.classId);
   const setPlayer = usePlayerStore((state) => state.setPlayer);
   const setTeacher = usePlayerStore((state) => state.setTeacher);
 
   const [mode, setMode] = useState('player');
   const [draft, setDraft] = useState(playerName || '');
-  const [classes, setClasses] = useState([]);
-  const [selectedClassId, setSelectedClassId] = useState('');
-  const [classesStatus, setClassesStatus] = useState('loading');
   const [codeDraft, setCodeDraft] = useState('');
   const [codeError, setCodeError] = useState(null);
 
-  const loadClasses = async () => {
-    try {
-      setClasses(await fetchClasses());
-      setClassesStatus('ready');
-    } catch {
-      setClassesStatus('error');
-    }
-  };
-
-  useEffect(() => {
-    const controller = new AbortController();
-    let active = true;
-
-    fetchClasses(controller.signal)
-      .then((rows) => {
-        if (!active) return;
-        setClasses(rows);
-        setClassesStatus('ready');
-      })
-      .catch((error) => {
-        if (active && error.name !== 'AbortError') setClassesStatus('error');
-      });
-
-    return () => {
-      active = false;
-      controller.abort();
-    };
-  }, []);
-
-  const hasValidPlayer =
-    playerName && playerName.trim().toLowerCase() !== 'guest' && classId;
+  // Once a name is stored, never prompt again — no class check needed
+  // since everyone shares the same default class now.
+  const hasValidPlayer = playerName && playerName.trim().toLowerCase() !== 'guest';
 
   if (hasValidPlayer) return children;
 
   const handleNameSubmit = (event) => {
     event.preventDefault();
     const name = draft.trim();
-    const classroom = classes.find((item) => item.id === selectedClassId);
 
-    if (!name || name.toLowerCase() === 'guest' || !classroom) return;
-    setPlayer(name, classroom);
+    if (!name || name.toLowerCase() === 'guest') return;
+    setPlayer(name, DEFAULT_CLASS);
   };
 
   const handleCodeSubmit = (event) => {
@@ -84,13 +46,6 @@ export default function NameGate({ gameLabel, children }) {
 
     setTeacher(teacher, codeDraft.trim());
   };
-
-  const classMessage =
-    classesStatus === 'loading'
-      ? 'Loading your classes...'
-      : classesStatus === 'error'
-        ? 'We could not load the class list.'
-        : 'Choose the class you are in today.';
 
   return (
     <main className="relative flex min-h-[100dvh] items-center justify-center overflow-hidden bg-[#eaf8ff] px-4 py-6 sm:px-6">
@@ -123,14 +78,14 @@ export default function NameGate({ gameLabel, children }) {
                 Ready to play?
               </h1>
               <p className="mx-auto mt-2 max-w-xs text-sm font-semibold leading-relaxed text-white/90">
-                Tell us who you are, then pick your class to see today&apos;s games.
+                Tell us who you are to see today&apos;s games.
               </p>
             </div>
 
             <div className="space-y-5 px-5 py-6 sm:px-8 sm:py-7">
               <div className="flex items-center gap-3 rounded-2xl bg-sky-50 px-3 py-2.5 text-sm font-bold text-sky-800">
                 <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-sky-500 text-xs text-white">1</span>
-                <span>{gameLabel ? `Get ready for ${gameLabel}` : 'Choose your player and class'}</span>
+                <span>{gameLabel ? `Get ready for ${gameLabel}` : 'Tell us your name'}</span>
               </div>
 
               <div>
@@ -150,51 +105,9 @@ export default function NameGate({ gameLabel, children }) {
                 />
               </div>
 
-              <div>
-                <div className="mb-2 flex items-center justify-between gap-3">
-                  <label htmlFor="classroom" className="text-sm font-extrabold text-slate-700">
-                    Your class
-                  </label>
-                  {classesStatus === 'ready' && (
-                    <span className="text-xs font-bold text-emerald-600">Ready</span>
-                  )}
-                </div>
-                <select
-                  id="classroom"
-                  value={selectedClassId}
-                  onChange={(event) => setSelectedClassId(event.target.value)}
-                  disabled={classesStatus !== 'ready'}
-                  className={`${inputClass} appearance-none`}
-                >
-                  <option value="">{classMessage}</option>
-                  {classes.map((classroom) => (
-                    <option key={classroom.id} value={classroom.id}>
-                      {classroom.name}
-                    </option>
-                  ))}
-                </select>
-                <div className="mt-2 flex min-h-5 items-center gap-2 text-xs font-semibold text-slate-500" aria-live="polite">
-                  {classesStatus === 'loading' && <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-sky-400 border-t-transparent" />}
-                  {classesStatus === 'error' ? (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setClassesStatus('loading');
-                        loadClasses();
-                      }}
-                      className="font-bold text-sky-600 underline underline-offset-2 hover:text-sky-700"
-                    >
-                      Try loading classes again
-                    </button>
-                  ) : (
-                    <span>{classesStatus === 'loading' ? 'Just a moment...' : 'Your teacher can change this later if needed.'}</span>
-                  )}
-                </div>
-              </div>
-
               <button
                 type="submit"
-                disabled={!draft.trim() || !selectedClassId || classesStatus !== 'ready'}
+                disabled={!draft.trim()}
                 className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-pink-500 to-rose-500 px-5 py-4 text-lg font-black text-white shadow-[0_6px_0_rgba(190,24,93,0.28)] transition hover:-translate-y-0.5 hover:shadow-[0_8px_0_rgba(190,24,93,0.24)] active:translate-y-1 active:shadow-none disabled:cursor-not-allowed disabled:translate-y-0 disabled:opacity-50"
               >
                 Let&apos;s play <span aria-hidden="true">&rarr;</span>
