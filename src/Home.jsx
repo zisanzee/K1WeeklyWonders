@@ -251,7 +251,7 @@ function HomeContent() {
     whileTap={{ y: 1 }}
     className="flex items-center gap-1.5 rounded-full bg-white/90 px-4 py-2 text-sm font-extrabold text-slate-700 shadow-[0_4px_0_rgba(0,0,0,0.15)] sm:text-base"
   >
-    🔓 Game Access
+    🔓 Teacher controls
   </motion.button>
 
   <motion.button
@@ -369,9 +369,10 @@ function HomeContent() {
           {gameAccessReady ? (
             <div className="relative z-10 flex flex-col items-center gap-6 sm:flex-row sm:flex-wrap sm:justify-center sm:gap-8 md:gap-10 lg:gap-14">
               {numberedGames.map((game, index) => {
-              const isOpen = isTeacher || Boolean(unlocked[game.key]);
+               const isUnlockedForPlayers = Boolean(unlocked[game.key]);
+               const isOpen = isTeacher || isUnlockedForPlayers;
 
-              return (
+               return (
                  <GameCard
       key={game.key}
       to={game.to}
@@ -383,9 +384,10 @@ function HomeContent() {
       ring={game.ring}
       delay={0.1 + index * 0.05}
       open={isOpen}
-      progress={progressByGame[game.progressKey]}
-      shine={game.shiny}
-      onOpen={() => openGame(game.to)}
+       progress={progressByGame[game.progressKey]}
+       shine={game.shiny}
+       teacherAccessUnlocked={isTeacher ? isUnlockedForPlayers : null}
+       onOpen={() => openGame(game.to)}
     />
               );
               })}
@@ -475,6 +477,7 @@ const GameCard = React.memo(function GameCard({
   open,
   progress,
   shine,
+  teacherAccessUnlocked,
   number,
   onOpen,
 }) {
@@ -493,6 +496,21 @@ const GameCard = React.memo(function GameCard({
         <div className="absolute left-3 top-3 z-30 flex h-9 min-w-9 items-center justify-center rounded-full bg-white/70 px-2 text-xl font-extrabold text-slate-900/70 shadow-md">
           {number}
         </div>
+      )}
+
+      {teacherAccessUnlocked !== null && (
+        <span
+          role="img"
+          aria-label={teacherAccessUnlocked ? "Unlocked for players" : "Locked for players"}
+          title={teacherAccessUnlocked ? "Unlocked for players" : "Locked for players"}
+          className={`absolute top-3 z-30 flex h-9 w-9 items-center justify-center rounded-full border border-white/80 text-lg shadow-md ${
+            teacherAccessUnlocked
+              ? "bg-emerald-500 text-white"
+              : "bg-slate-700 text-white"
+          } ${number !== "B" ? "left-14" : "left-3"}`}
+        >
+          {teacherAccessUnlocked ? "🔓" : "🔒"}
+        </span>
       )}
 
       <MotionLink

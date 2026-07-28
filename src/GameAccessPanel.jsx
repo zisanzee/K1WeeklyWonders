@@ -340,8 +340,10 @@ export default function GameAccessPanel({ onClose }) {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [isSaving, onClose]);
 
-  const visibleGames =
-    initializedRef.current && draftGames.length > 0 ? draftGames : games;
+  // An empty class is a valid, ready state. Once the draft is initialized it
+  // must remain the source of truth even when it intentionally contains no
+  // games, otherwise the shop stays disabled forever.
+  const visibleGames = initializedRef.current ? draftGames : games;
 
   const slottedGames = useMemo(
     () => addSlotLabels(visibleGames),
@@ -357,7 +359,7 @@ export default function GameAccessPanel({ onClose }) {
   const allUnlocked =
     visibleGames.length > 0 && unlockedCount === visibleGames.length;
 
-  const isReady = loaded && initializedRef.current && draftGames.length > 0;
+  const isReady = loaded && initializedRef.current;
 
   const hasChanges = useMemo(() => {
     if (!isReady || originalGames.length !== draftGames.length) return false;
@@ -726,6 +728,25 @@ export default function GameAccessPanel({ onClose }) {
                     />
                   ))}
                 </ul>
+
+                {isReady && slottedGames.length === 0 && (
+                  <div className="rounded-2xl border border-dashed border-indigo-200 bg-indigo-50/60 px-5 py-8 text-center">
+                    <span className="text-4xl">&#127918;</span>
+                    <p className="mt-3 text-base font-black text-indigo-950">
+                      This class has no games yet
+                    </p>
+                    <p className="mt-1 text-sm font-semibold text-indigo-700">
+                      Open the shop to choose the first game for this class.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setShowShop(true)}
+                      className="mt-4 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-black text-white shadow-sm transition hover:bg-indigo-700"
+                    >
+                      Open shop
+                    </button>
+                  </div>
+                )}
               </SortableContext>
 
               <DragOverlay dropAnimation={null}>

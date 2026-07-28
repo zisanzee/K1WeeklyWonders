@@ -1,22 +1,28 @@
 import { useEffect, useState } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { AnimatePresence, motion } from 'motion/react';
 import { usePlayerStore } from './playerStore';
 import { lookupTeacher } from './teacherCodes';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
-const CARD_CLASS =
-  'relative z-10 flex w-full max-w-sm flex-col items-center gap-4 rounded-[2.5rem] bg-white px-8 py-9 text-center shadow-2xl';
 
-// Nothing underneath mounts until this device has both a player and class.
-// Old localStorage entries with just a name deliberately reopen this card with
-// that name filled in, so the child only needs to choose their class once.
+const inputClass =
+  'w-full rounded-2xl border-2 border-slate-200 bg-slate-50 px-4 py-3.5 text-base font-bold text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-sky-400 focus:bg-white focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:opacity-60';
+
+async function fetchClasses(signal) {
+  const response = await fetch(`${API_BASE}/api/classes`, { signal });
+  if (!response.ok) throw new Error('Could not load classes');
+
+  const rows = await response.json();
+  return Array.isArray(rows) ? rows : [];
+}
+
 export default function NameGate({ gameLabel, children }) {
-  const playerName = usePlayerStore((s) => s.playerName);
-  const classId = usePlayerStore((s) => s.classId);
-  const setPlayer = usePlayerStore((s) => s.setPlayer);
-  const setTeacher = usePlayerStore((s) => s.setTeacher);
+  const playerName = usePlayerStore((state) => state.playerName);
+  const classId = usePlayerStore((state) => state.classId);
+  const setPlayer = usePlayerStore((state) => state.setPlayer);
+  const setTeacher = usePlayerStore((state) => state.setTeacher);
 
-  const [mode, setMode] = useState('name');
+  const [mode, setMode] = useState('player');
   const [draft, setDraft] = useState(playerName || '');
   const [classes, setClasses] = useState([]);
   const [selectedClassId, setSelectedClassId] = useState('');
@@ -24,22 +30,33 @@ export default function NameGate({ gameLabel, children }) {
   const [codeDraft, setCodeDraft] = useState('');
   const [codeError, setCodeError] = useState(null);
 
+  const loadClasses = async () => {
+    try {
+      setClasses(await fetchClasses());
+      setClassesStatus('ready');
+    } catch {
+      setClassesStatus('error');
+    }
+  };
+
   useEffect(() => {
-    let cancelled = false;
-    fetch(`${API_BASE}/api/classes`)
-      .then((response) => {
-        if (!response.ok) throw new Error('Could not load classes');
-        return response.json();
-      })
+    const controller = new AbortController();
+    let active = true;
+
+    fetchClasses(controller.signal)
       .then((rows) => {
-        if (cancelled) return;
-        setClasses(Array.isArray(rows) ? rows : []);
+        if (!active) return;
+        setClasses(rows);
         setClassesStatus('ready');
       })
-      .catch(() => {
-        if (!cancelled) setClassesStatus('error');
+      .catch((error) => {
+        if (active && error.name !== 'AbortError') setClassesStatus('error');
       });
-    return () => { cancelled = true; };
+
+    return () => {
+      active = false;
+      controller.abort();
+    };
   }, []);
 
   const hasValidPlayer =
@@ -51,6 +68,7 @@ export default function NameGate({ gameLabel, children }) {
     event.preventDefault();
     const name = draft.trim();
     const classroom = classes.find((item) => item.id === selectedClassId);
+
     if (!name || name.toLowerCase() === 'guest' || !classroom) return;
     setPlayer(name, classroom);
   };
@@ -58,52 +76,220 @@ export default function NameGate({ gameLabel, children }) {
   const handleCodeSubmit = (event) => {
     event.preventDefault();
     const teacher = lookupTeacher(codeDraft);
+
     if (!teacher) {
-      setCodeError("That code doesn't match — check with the office and try again.");
+      setCodeError("That code doesn't match. Please check it and try again.");
       return;
     }
+
     setTeacher(teacher, codeDraft.trim());
   };
 
+  const classMessage =
+    classesStatus === 'loading'
+      ? 'Loading your classes...'
+      : classesStatus === 'error'
+        ? 'We could not load the class list.'
+        : 'Choose the class you are in today.';
+
   return (
-    <div className="relative flex min-h-[100dvh] w-full items-center justify-center overflow-hidden bg-gradient-to-b from-[#48BFEE] via-[#8FE0FA] to-[#FFE9A8] px-4">
-      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;700&family=Nunito:wght@600;800&display=swap" />
-      <div className="pointer-events-none absolute left-[8%] top-[10%] text-5xl opacity-80">☁️</div>
-      <div className="pointer-events-none absolute right-[10%] top-[16%] text-4xl opacity-70">☁️</div>
-      <div className="pointer-events-none absolute bottom-[12%] left-[12%] text-3xl opacity-70">✨</div>
+    <main className="relative flex min-h-[100dvh] items-center justify-center overflow-hidden bg-[#eaf8ff] px-4 py-6 sm:px-6">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,_#bcecff_0%,_transparent_35%),radial-gradient(circle_at_bottom_right,_#fde6a8_0%,_transparent_36%),linear-gradient(145deg,_#edfaff_0%,_#d9f4ff_46%,_#fff4cf_100%)]" />
+      <div className="pointer-events-none absolute -left-16 top-16 h-48 w-48 rounded-full bg-sky-200/45 blur-3xl" />
+      <div className="pointer-events-none absolute -right-12 bottom-6 h-52 w-52 rounded-full bg-amber-200/55 blur-3xl" />
+      <div className="pointer-events-none absolute left-[7%] top-[12%] text-4xl opacity-70 sm:text-5xl">&#9729;&#65039;</div>
+      <div className="pointer-events-none absolute right-[8%] top-[20%] text-3xl opacity-60 sm:text-4xl">&#10024;</div>
+      <div className="pointer-events-none absolute bottom-[9%] left-[10%] text-3xl opacity-55">&#127800;</div>
 
       <AnimatePresence mode="wait">
-        {mode === 'name' ? (
-          <motion.form key="name" onSubmit={handleNameSubmit} initial={{ scale: 0.85, opacity: 0, y: 20 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.92, opacity: 0 }} transition={{ type: 'spring', stiffness: 260, damping: 22 }} className={CARD_CLASS}>
-            <span className="text-6xl">👋</span>
-            <div>
-              <h1 style={{ fontFamily: "'Fredoka', sans-serif" }} className="text-2xl font-bold text-slate-800 sm:text-3xl">What's your name?</h1>
-              <p style={{ fontFamily: "'Nunito', sans-serif" }} className="mt-1 text-sm font-semibold text-slate-500 sm:text-base">
-                {playerName && !classId ? 'Choose your class to continue.' : `We'll remember it for every game${gameLabel ? ` — ready for ${gameLabel}?` : '!'}`}
+        {mode === 'player' ? (
+          <motion.form
+            key="player"
+            initial={{ opacity: 0, y: 20, scale: 0.97 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -12, scale: 0.97 }}
+            transition={{ type: 'spring', stiffness: 260, damping: 24 }}
+            onSubmit={handleNameSubmit}
+            className="relative z-10 w-full max-w-md overflow-hidden rounded-[2rem] border border-white/80 bg-white/90 shadow-[0_24px_70px_rgba(47,111,151,0.22)] backdrop-blur"
+          >
+            <div className="bg-gradient-to-r from-sky-500 via-cyan-500 to-teal-400 px-6 pb-6 pt-7 text-center text-white sm:px-8">
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-white/45 bg-white/20 text-3xl shadow-lg">
+                &#127922;
+              </div>
+              <p className="mt-4 text-[11px] font-black uppercase tracking-[0.2em] text-white/80">
+                K1 Weekly Wonders
+              </p>
+              <h1 className="mt-1 text-3xl font-black tracking-tight sm:text-[2rem]">
+                Ready to play?
+              </h1>
+              <p className="mx-auto mt-2 max-w-xs text-sm font-semibold leading-relaxed text-white/90">
+                Tell us who you are, then pick your class to see today&apos;s games.
               </p>
             </div>
-            <input autoFocus type="text" value={draft} maxLength={40} onChange={(event) => setDraft(event.target.value)} placeholder="Type your name..." style={{ fontFamily: "'Nunito', sans-serif" }} className="w-full rounded-full border-4 border-sky-200 bg-sky-50 px-5 py-3 text-center text-lg font-bold text-slate-700 outline-none focus:border-sky-400" />
-            <select value={selectedClassId} onChange={(event) => setSelectedClassId(event.target.value)} disabled={classesStatus !== 'ready'} aria-label="Choose your class" style={{ fontFamily: "'Nunito', sans-serif" }} className="w-full appearance-none rounded-full border-4 border-violet-200 bg-violet-50 px-5 py-3 text-center text-lg font-bold text-slate-700 outline-none focus:border-violet-400 disabled:opacity-60">
-              <option value="">{classesStatus === 'loading' ? 'Loading classes…' : classesStatus === 'error' ? 'Could not load classes' : 'Choose your class…'}</option>
-              {classes.map((classroom) => <option key={classroom.id} value={classroom.id}>{classroom.name}</option>)}
-            </select>
-            <button type="submit" disabled={!draft.trim() || !selectedClassId || classesStatus !== 'ready'} style={{ fontFamily: "'Fredoka', sans-serif" }} className="w-full rounded-full bg-gradient-to-b from-pink-400 to-pink-500 px-6 py-3 text-lg font-bold text-white shadow-[0_6px_0_rgba(0,0,0,0.15)] transition-transform hover:-translate-y-0.5 active:translate-y-1 active:shadow-none disabled:cursor-not-allowed disabled:opacity-50">Let's play! 🎉</button>
-            <button type="button" onClick={() => { setCodeError(null); setMode('code'); }} style={{ fontFamily: "'Nunito', sans-serif" }} className="text-xs font-bold text-slate-400 underline underline-offset-2 hover:text-slate-500">🔑 Have a teacher's code?</button>
+
+            <div className="space-y-5 px-5 py-6 sm:px-8 sm:py-7">
+              <div className="flex items-center gap-3 rounded-2xl bg-sky-50 px-3 py-2.5 text-sm font-bold text-sky-800">
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-sky-500 text-xs text-white">1</span>
+                <span>{gameLabel ? `Get ready for ${gameLabel}` : 'Choose your player and class'}</span>
+              </div>
+
+              <div>
+                <label htmlFor="player-name" className="mb-2 block text-sm font-extrabold text-slate-700">
+                  Your name
+                </label>
+                <input
+                  id="player-name"
+                  autoFocus
+                  autoComplete="name"
+                  type="text"
+                  value={draft}
+                  maxLength={40}
+                  onChange={(event) => setDraft(event.target.value)}
+                  placeholder="Type your name"
+                  className={inputClass}
+                />
+              </div>
+
+              <div>
+                <div className="mb-2 flex items-center justify-between gap-3">
+                  <label htmlFor="classroom" className="text-sm font-extrabold text-slate-700">
+                    Your class
+                  </label>
+                  {classesStatus === 'ready' && (
+                    <span className="text-xs font-bold text-emerald-600">Ready</span>
+                  )}
+                </div>
+                <select
+                  id="classroom"
+                  value={selectedClassId}
+                  onChange={(event) => setSelectedClassId(event.target.value)}
+                  disabled={classesStatus !== 'ready'}
+                  className={`${inputClass} appearance-none`}
+                >
+                  <option value="">{classMessage}</option>
+                  {classes.map((classroom) => (
+                    <option key={classroom.id} value={classroom.id}>
+                      {classroom.name}
+                    </option>
+                  ))}
+                </select>
+                <div className="mt-2 flex min-h-5 items-center gap-2 text-xs font-semibold text-slate-500" aria-live="polite">
+                  {classesStatus === 'loading' && <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-sky-400 border-t-transparent" />}
+                  {classesStatus === 'error' ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setClassesStatus('loading');
+                        loadClasses();
+                      }}
+                      className="font-bold text-sky-600 underline underline-offset-2 hover:text-sky-700"
+                    >
+                      Try loading classes again
+                    </button>
+                  ) : (
+                    <span>{classesStatus === 'loading' ? 'Just a moment...' : 'Your teacher can change this later if needed.'}</span>
+                  )}
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={!draft.trim() || !selectedClassId || classesStatus !== 'ready'}
+                className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-pink-500 to-rose-500 px-5 py-4 text-lg font-black text-white shadow-[0_6px_0_rgba(190,24,93,0.28)] transition hover:-translate-y-0.5 hover:shadow-[0_8px_0_rgba(190,24,93,0.24)] active:translate-y-1 active:shadow-none disabled:cursor-not-allowed disabled:translate-y-0 disabled:opacity-50"
+              >
+                Let&apos;s play <span aria-hidden="true">&rarr;</span>
+              </button>
+
+              <div className="flex items-center gap-3 pt-1">
+                <span className="h-px flex-1 bg-slate-200" />
+                <span className="text-[11px] font-bold uppercase tracking-wide text-slate-400">or</span>
+                <span className="h-px flex-1 bg-slate-200" />
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setCodeError(null);
+                  setMode('teacher');
+                }}
+                className="mx-auto flex items-center gap-2 text-sm font-extrabold text-slate-500 transition hover:text-sky-700"
+              >
+                <span aria-hidden="true">&#128273;</span> I have a teacher code
+              </button>
+            </div>
           </motion.form>
         ) : (
-          <motion.form key="code" onSubmit={handleCodeSubmit} initial={{ scale: 0.85, opacity: 0, y: 20 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.92, opacity: 0 }} transition={{ type: 'spring', stiffness: 260, damping: 22 }} className={CARD_CLASS}>
-            <span className="text-6xl">🔑</span>
-            <div>
-              <h1 style={{ fontFamily: "'Fredoka', sans-serif" }} className="text-2xl font-bold text-slate-800 sm:text-3xl">Teacher code</h1>
-              <p style={{ fontFamily: "'Nunito', sans-serif" }} className="mt-1 text-sm font-semibold text-slate-500 sm:text-base">Unlocks your class's games and statistics dashboard.</p>
+          <motion.form
+            key="teacher"
+            initial={{ opacity: 0, y: 20, scale: 0.97 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -12, scale: 0.97 }}
+            transition={{ type: 'spring', stiffness: 260, damping: 24 }}
+            onSubmit={handleCodeSubmit}
+            className="relative z-10 w-full max-w-md overflow-hidden rounded-[2rem] border border-white/80 bg-white/90 shadow-[0_24px_70px_rgba(47,111,151,0.22)] backdrop-blur"
+          >
+            <div className="bg-gradient-to-r from-violet-600 via-indigo-600 to-sky-600 px-6 pb-6 pt-7 text-center text-white sm:px-8">
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-white/45 bg-white/20 text-3xl shadow-lg">
+                &#128273;
+              </div>
+              <p className="mt-4 text-[11px] font-black uppercase tracking-[0.2em] text-white/80">
+                Teacher access
+              </p>
+              <h1 className="mt-1 text-3xl font-black tracking-tight sm:text-[2rem]">
+                Welcome back
+              </h1>
+              <p className="mx-auto mt-2 max-w-xs text-sm font-semibold leading-relaxed text-white/90">
+                Use your code to manage game access and view class progress.
+              </p>
             </div>
-            <input autoFocus type="password" value={codeDraft} onChange={(event) => { setCodeDraft(event.target.value); setCodeError(null); }} placeholder="Enter your code" style={{ fontFamily: "'Nunito', sans-serif" }} className="w-full rounded-full border-4 border-sky-200 bg-sky-50 px-5 py-3 text-center text-lg font-bold text-slate-700 outline-none focus:border-sky-400" />
-            {codeError && <p style={{ fontFamily: "'Nunito', sans-serif" }} className="-mt-2 text-xs font-bold text-rose-500">{codeError}</p>}
-            <button type="submit" disabled={!codeDraft.trim()} style={{ fontFamily: "'Fredoka', sans-serif" }} className="w-full rounded-full bg-gradient-to-b from-pink-400 to-pink-500 px-6 py-3 text-lg font-bold text-white shadow-[0_6px_0_rgba(0,0,0,0.15)] transition-transform hover:-translate-y-0.5 active:translate-y-1 active:shadow-none disabled:opacity-50">Unlock ✨</button>
-            <button type="button" onClick={() => { setCodeError(null); setMode('name'); }} style={{ fontFamily: "'Nunito', sans-serif" }} className="text-xs font-bold text-slate-400 underline underline-offset-2 hover:text-slate-500">‹ Back to name</button>
+
+            <div className="space-y-5 px-5 py-6 sm:px-8 sm:py-7">
+              <div>
+                <label htmlFor="teacher-code" className="mb-2 block text-sm font-extrabold text-slate-700">
+                  Teacher code
+                </label>
+                <input
+                  id="teacher-code"
+                  autoFocus
+                  autoComplete="off"
+                  type="password"
+                  value={codeDraft}
+                  onChange={(event) => {
+                    setCodeDraft(event.target.value);
+                    setCodeError(null);
+                  }}
+                  placeholder="Enter your code"
+                  className={inputClass}
+                />
+                {codeError && (
+                  <p className="mt-2 rounded-xl bg-rose-50 px-3 py-2 text-sm font-bold text-rose-600" role="alert">
+                    {codeError}
+                  </p>
+                )}
+              </div>
+
+              <button
+                type="submit"
+                disabled={!codeDraft.trim()}
+                className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-violet-600 to-indigo-600 px-5 py-4 text-lg font-black text-white shadow-[0_6px_0_rgba(67,56,202,0.28)] transition hover:-translate-y-0.5 hover:shadow-[0_8px_0_rgba(67,56,202,0.24)] active:translate-y-1 active:shadow-none disabled:cursor-not-allowed disabled:translate-y-0 disabled:opacity-50"
+              >
+                Open teacher controls <span aria-hidden="true">&rarr;</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setCodeError(null);
+                  setMode('player');
+                }}
+                className="mx-auto block text-sm font-extrabold text-slate-500 transition hover:text-indigo-700"
+              >
+                &larr; Back to player sign in
+              </button>
+            </div>
           </motion.form>
         )}
       </AnimatePresence>
-    </div>
+    </main>
   );
 }
