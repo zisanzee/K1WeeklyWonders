@@ -28,6 +28,283 @@ import {
   GAME_CATALOG,
   useGameAccessStore,
 } from './gameAccess';
+import { useStudentStore, addStudent } from './students';
+import { fetchClassInfo } from './classInfo';
+
+const TABS = [
+  {
+    key: 'access',
+    label: 'Game access',
+    icon: '🎮',
+    description: 'Rearrange, lock, unlock, and feature your class games. Save all changes together when ready.',
+  },
+  {
+    key: 'new',
+    label: 'New games',
+    icon: '➕',
+    description: "Choose the games this class can see. Add or remove games — changes save immediately.",
+  },
+  {
+    key: 'students',
+    label: 'Students',
+    icon: '🧑‍🎓',
+    description: 'Manage the students enrolled in this class.',
+  },
+  {
+    key: 'settings',
+    label: 'Class settings',
+    icon: '⚙️',
+    description: 'Configure settings for this class.',
+  },
+];
+
+function TabBar({ activeTab, onChange, disabled }) {
+  return (
+    <div className="mx-auto max-w-5xl overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <div role="tablist" aria-label="Class settings sections" className="flex min-w-max gap-1 border-b border-white/15 sm:min-w-0 sm:gap-2">
+        {TABS.map((tab) => {
+          const isActive = tab.key === activeTab;
+          return (
+            <button
+              key={tab.key}
+              type="button"
+              role="tab"
+              aria-selected={isActive}
+              onClick={() => onChange(tab.key)}
+              disabled={disabled}
+              className={`relative flex shrink-0 items-center gap-1.5 whitespace-nowrap px-3 py-2.5 text-xs font-black transition disabled:cursor-not-allowed disabled:opacity-50 sm:flex-1 sm:justify-center sm:px-4 sm:text-sm ${
+                isActive ? 'text-white' : 'text-white/60 hover:text-white/85'
+              }`}
+            >
+              <span className="text-sm sm:text-base">{tab.icon}</span>
+              {tab.label}
+              {isActive && (
+                <motion.span
+                  layoutId="access-tab-indicator"
+                  transition={{ type: 'spring', stiffness: 500, damping: 40 }}
+                  className="absolute inset-x-2 -bottom-px h-[3px] rounded-full bg-white sm:inset-x-4"
+                />
+              )}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function ComingSoonTab({ icon, title, description }) {
+  return (
+    <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-indigo-200 bg-indigo-50/60 px-5 py-14 text-center">
+      <span className="text-4xl">{icon}</span>
+      <p className="text-base font-black text-indigo-950">{title}</p>
+      <p className="max-w-sm text-sm font-semibold text-indigo-700">{description}</p>
+      <span className="mt-1 rounded-full bg-white px-3 py-1 text-[11px] font-black uppercase tracking-wide text-indigo-500 shadow-sm">
+        Coming soon
+      </span>
+    </div>
+  );
+}
+
+function StudentAvatar({ name }) {
+  const initial = (name || '?').trim().charAt(0).toUpperCase() || '?';
+  return (
+    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-violet-500 text-sm font-black text-white">
+      {initial}
+    </span>
+  );
+}
+
+function AddStudentForm({ onAdd, isSaving, error }) {
+  const [fullName, setFullName] = useState('');
+  const [nickname, setNickname] = useState('');
+
+  const handleSubmit = (event) => {
+    event.preventDefault();
+    const trimmedName = fullName.trim();
+    if (!trimmedName) return;
+    onAdd({ fullName: trimmedName, nickname: nickname.trim() }, () => {
+      setFullName('');
+      setNickname('');
+    });
+  };
+
+  return (
+    <form
+      onSubmit={handleSubmit}
+      className="mb-4 flex flex-col gap-2 rounded-2xl border border-indigo-100 bg-white p-3 shadow-sm sm:flex-row sm:items-end sm:gap-3 sm:p-4"
+    >
+      <div className="flex-1">
+        <label htmlFor="student-full-name" className="mb-1 block text-[11px] font-black text-slate-600">
+          Full name
+        </label>
+        <input
+          id="student-full-name"
+          type="text"
+          value={fullName}
+          maxLength={80}
+          onChange={(event) => setFullName(event.target.value)}
+          placeholder="e.g. Nur Aisyah binti Rahman"
+          disabled={isSaving}
+          className="w-full rounded-xl border-2 border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-bold text-slate-800 outline-none transition focus:border-indigo-400 focus:bg-white focus:ring-4 focus:ring-indigo-100 disabled:cursor-not-allowed disabled:opacity-60"
+        />
+      </div>
+
+      <div className="flex-1">
+        <label htmlFor="student-nickname" className="mb-1 block text-[11px] font-black text-slate-600">
+          Nickname (optional)
+        </label>
+        <input
+          id="student-nickname"
+          type="text"
+          value={nickname}
+          maxLength={40}
+          onChange={(event) => setNickname(event.target.value)}
+          placeholder="e.g. Aisyah"
+          disabled={isSaving}
+          className="w-full rounded-xl border-2 border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-bold text-slate-800 outline-none transition focus:border-indigo-400 focus:bg-white focus:ring-4 focus:ring-indigo-100 disabled:cursor-not-allowed disabled:opacity-60"
+        />
+      </div>
+
+      <button
+        type="submit"
+        disabled={isSaving || !fullName.trim()}
+        className="flex min-h-[2.75rem] shrink-0 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 px-4 text-sm font-black text-white shadow-sm transition hover:from-indigo-700 hover:to-violet-700 disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        {isSaving ? (
+          <>
+            <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/70 border-t-transparent" />
+            Adding…
+          </>
+        ) : (
+          '+ Add new student'
+        )}
+      </button>
+
+      {error && (
+        <p className="w-full rounded-xl bg-rose-50 px-3 py-2 text-xs font-bold text-rose-600 sm:basis-full" role="alert">
+          ⚠️ {error}
+        </p>
+      )}
+    </form>
+  );
+}
+
+function StudentsTab({ isReady, students, onAdd, isSaving, error }) {
+  return (
+    <div>
+      <AddStudentForm onAdd={onAdd} isSaving={isSaving} error={error} />
+
+      {!isReady && (
+        <div className="mb-3 flex items-center gap-2 rounded-2xl border border-indigo-100 bg-indigo-50 px-3 py-2.5 text-xs font-bold text-indigo-700">
+          <span className="h-3 w-3 animate-spin rounded-full border-2 border-indigo-400 border-t-transparent" />
+          Loading students…
+        </div>
+      )}
+
+      {isReady && students.length === 0 && (
+        <div className="rounded-2xl border border-dashed border-indigo-200 bg-indigo-50/60 px-5 py-10 text-center">
+          <span className="text-4xl">🧑‍🎓</span>
+          <p className="mt-3 text-base font-black text-indigo-950">No students yet</p>
+          <p className="mt-1 text-sm font-semibold text-indigo-700">
+            Add your first student using the form above.
+          </p>
+        </div>
+      )}
+
+      {isReady && students.length > 0 && (
+        <ul className="flex flex-col gap-2">
+          {students.map((student) => (
+            <li
+              key={student.studentId}
+              className="flex items-center gap-3 rounded-2xl border border-slate-100 bg-white p-3 shadow-sm"
+            >
+              <StudentAvatar name={student.nickname || student.fullName} />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-black text-slate-800">{student.fullName}</p>
+                {student.nickname && (
+                  <p className="truncate text-xs font-bold text-slate-500">"{student.nickname}"</p>
+                )}
+              </div>
+              <span className="shrink-0 rounded-full bg-slate-100 px-2 py-1 font-mono text-[10px] font-bold text-slate-500">
+                {student.studentId.slice(0, 8)}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function ClassImage({ image, className }) {
+  if (image) {
+    return (
+      <img
+        src={image}
+        alt={className || 'Class photo'}
+        className="h-20 w-20 shrink-0 rounded-2xl object-cover shadow-sm sm:h-24 sm:w-24"
+      />
+    );
+  }
+
+  return (
+    <span className="flex h-20 w-20 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-200 to-violet-200 text-3xl shadow-sm sm:h-24 sm:w-24">
+      🏫
+    </span>
+  );
+}
+
+function ClassInfoTab({ status, classInfo, error }) {
+  if (status === 'loading') {
+    return (
+      <div className="flex items-center gap-2 rounded-2xl border border-indigo-100 bg-indigo-50 px-3 py-2.5 text-xs font-bold text-indigo-700">
+        <span className="h-3 w-3 animate-spin rounded-full border-2 border-indigo-400 border-t-transparent" />
+        Loading class information…
+      </div>
+    );
+  }
+
+  if (status === 'error' || !classInfo) {
+    return (
+      <p className="rounded-2xl border border-rose-300 bg-rose-50 px-3 py-3 text-sm font-bold text-rose-800">
+        ⚠️ {error || 'Could not load class information.'}
+      </p>
+    );
+  }
+
+  return (
+    <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm sm:p-5">
+      <div className="flex items-center gap-4">
+        <ClassImage image={classInfo.image} className={classInfo.className} />
+        <div className="min-w-0">
+          <p className="truncate text-lg font-black text-slate-900">{classInfo.className}</p>
+          <p className="mt-0.5 font-mono text-xs font-bold text-slate-500">{classInfo.classId}</p>
+        </div>
+      </div>
+
+      <div className="mt-5">
+        <p className="mb-2 text-[11px] font-black uppercase tracking-wide text-slate-500">
+          Teachers
+        </p>
+        {classInfo.teachers.length === 0 ? (
+          <p className="text-sm font-semibold text-slate-500">No teachers assigned to this class yet.</p>
+        ) : (
+          <ul className="flex flex-wrap gap-2">
+            {classInfo.teachers.map((name) => (
+              <li
+                key={name}
+                className="rounded-full bg-indigo-50 px-3 py-1.5 text-xs font-black text-indigo-700"
+              >
+                {name}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </div>
+  );
+}
 
 function copyGames(games) {
   return games.map((game) => ({ ...game }));
@@ -285,9 +562,14 @@ function DragPreview({ game }) {
 
 export default function GameAccessPanel({ onClose }) {
   const teacherCode = usePlayerStore((state) => state.teacherCode);
+  const classId = usePlayerStore((state) => state.classId);
   const games = useGameAccessStore((state) => state.games);
   const loaded = useGameAccessStore((state) => state.loaded);
   const fetchGameAccess = useGameAccessStore((state) => state.fetchGameAccess);
+
+  const students = useStudentStore((state) => state.students);
+  const studentsLoaded = useStudentStore((state) => state.loaded);
+  const fetchStudents = useStudentStore((state) => state.fetchStudents);
 
   const [draftGames, setDraftGames] = useState([]);
   const [originalGames, setOriginalGames] = useState([]);
@@ -296,8 +578,15 @@ export default function GameAccessPanel({ onClose }) {
   const [lastMove, setLastMove] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState(null);
-  const [showShop, setShowShop] = useState(false);
+  const [activeTab, setActiveTab] = useState('access');
   const [shopSavingKey, setShopSavingKey] = useState(null);
+
+  const [isAddingStudent, setIsAddingStudent] = useState(false);
+  const [studentError, setStudentError] = useState(null);
+
+  const [classInfo, setClassInfo] = useState(null);
+  const [classInfoStatus, setClassInfoStatus] = useState('idle');
+  const [classInfoError, setClassInfoError] = useState(null);
 
   const initializedRef = useRef(false);
   const moveTimerRef = useRef(null);
@@ -331,14 +620,53 @@ export default function GameAccessPanel({ onClose }) {
     };
   }, []);
 
+  // Only fetch each tab's data the first time it's opened, not on every
+  // render — mirrors how the "access" tab defers to fetchGameAccess.
   useEffect(() => {
-    const onKeyDown = (event) => {
-      if (event.key === 'Escape' && !isSaving) onClose();
-    };
+    if (activeTab === 'students' && !studentsLoaded) {
+      fetchStudents(teacherCode);
+    }
+  }, [activeTab, studentsLoaded, fetchStudents, teacherCode]);
 
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [isSaving, onClose]);
+  useEffect(() => {
+    if (activeTab !== 'settings' || !classId) return;
+    if (classInfo?.classId === classId) return;
+
+    let active = true;
+    setClassInfoStatus('loading');
+    setClassInfoError(null);
+
+    fetchClassInfo(classId)
+      .then((data) => {
+        if (!active) return;
+        setClassInfo(data);
+        setClassInfoStatus('ready');
+      })
+      .catch((err) => {
+        if (!active) return;
+        setClassInfoError(err.message || 'Could not load class information.');
+        setClassInfoStatus('error');
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [activeTab, classId, classInfo]);
+
+  const handleAddStudent = async ({ fullName, nickname }, onSuccess) => {
+    if (isAddingStudent) return;
+    setStudentError(null);
+    setIsAddingStudent(true);
+
+    try {
+      await addStudent({ fullName, nickname, teacherCode });
+      onSuccess?.();
+    } catch (err) {
+      setStudentError(err.message || 'Could not add this student. Please try again.');
+    } finally {
+      setIsAddingStudent(false);
+    }
+  };
 
   // An empty class is a valid, ready state. Once the draft is initialized it
   // must remain the source of truth even when it intentionally contains no
@@ -360,6 +688,7 @@ export default function GameAccessPanel({ onClose }) {
     visibleGames.length > 0 && unlockedCount === visibleGames.length;
 
   const isReady = loaded && initializedRef.current;
+  const activeTabConfig = TABS.find((tab) => tab.key === activeTab) || TABS[0];
 
   const hasChanges = useMemo(() => {
     if (!isReady || originalGames.length !== draftGames.length) return false;
@@ -505,13 +834,21 @@ export default function GameAccessPanel({ onClose }) {
     }
   };
 
-  const handleOpenShop = () => {
-    if (hasChanges) {
-      setError('Save or reset your class changes before opening the shop.');
+  const handleTabChange = (tab) => {
+    if (tab === activeTab) return;
+
+    // Leaving "access" for "new" can immediately overwrite draftGames
+    // (adding/removing games replaces the draft from the server), so any
+    // unsaved order/unlock/shiny edits must be resolved first. The two
+    // placeholder tabs don't touch draftGames, so switching to those is
+    // always safe.
+    if (tab === 'new' && hasChanges) {
+      setError('Save or reset your class changes before adding games.');
       return;
     }
+
     setError(null);
-    setShowShop(true);
+    setActiveTab(tab);
   };
 
   const handleShopToggle = async (game) => {
@@ -537,77 +874,108 @@ export default function GameAccessPanel({ onClose }) {
   };
 
   return (
-    <AnimatePresence>
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        className="fixed inset-0 z-[200] flex items-end justify-center bg-slate-950/75 sm:items-center sm:p-4"
-        onClick={() => {
-          if (!isSaving) onClose();
-        }}
-      >
-        <motion.div
-          initial={{ opacity: 0, y: 32 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: 32 }}
-          transition={{ type: 'spring', stiffness: 280, damping: 26 }}
-          onClick={(event) => event.stopPropagation()}
-          role="dialog"
-          aria-modal="true"
-          aria-label="Game access"
-          className="flex h-[100dvh] w-full max-w-lg flex-col overflow-hidden bg-[#f5f7ff] shadow-2xl sm:h-auto sm:max-h-[90vh] sm:rounded-[2rem]"
-        >
-          <header className="shrink-0 bg-gradient-to-br from-[#315ed8] via-[#5a3fc4] to-[#972aa8] px-4 pb-4 pt-[max(1rem,env(safe-area-inset-top))] sm:px-7 sm:pt-6">
-            <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-white/35 sm:hidden" />
+    <div className="min-h-[100dvh] w-full bg-[#f5f7ff]">
+      <header className="sticky top-0 z-30 bg-gradient-to-br from-[#315ed8] via-[#5a3fc4] to-[#972aa8] px-4 pb-0 pt-[max(1rem,env(safe-area-inset-top))] shadow-[0_4px_24px_rgba(49,94,216,0.28)] sm:px-6 sm:pt-6 lg:px-10">
+        <div className="mx-auto flex max-w-5xl items-start justify-between gap-3 pb-4">
+          <div className="flex min-w-0 items-center gap-3">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={isSaving || Boolean(shopSavingKey)}
+              aria-label="Back home"
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/15 text-xl text-white transition hover:bg-white/25 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              ←
+            </button>
 
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex min-w-0 items-center gap-3">
-                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white/20 text-2xl shadow-sm">
-                  🎮
-                </span>
+            <span className="hidden h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white/20 text-2xl shadow-sm sm:flex sm:h-12 sm:w-12">
+              🏫
+            </span>
 
-                <div className="min-w-0">
-                  <p className="text-[11px] font-black uppercase tracking-[0.14em] text-white/80">
-                    Teacher controls
-                  </p>
-                  <h2 className="truncate text-2xl font-black tracking-tight text-white">
-                    Game Access
-                  </h2>
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={showShop ? () => setShowShop(false) : handleOpenShop}
-                disabled={isSaving || Boolean(shopSavingKey)}
-                className="mr-2 h-11 rounded-xl bg-white px-3 text-sm font-black text-indigo-800 shadow-sm transition hover:bg-indigo-50 disabled:opacity-50"
-              >
-                {showShop ? '← Class' : 'Shop +'}
-              </button>
-              <button
-                type="button"
-                onClick={onClose}
-                disabled={isSaving || Boolean(shopSavingKey)}
-                aria-label="Close game access"
-                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/20 text-2xl font-bold text-white transition hover:bg-white/30 disabled:opacity-50"
-              >
-                ×
-              </button>
+            <div className="min-w-0">
+              <p className="text-[11px] font-black uppercase tracking-[0.14em] text-white/80">
+                Teacher controls
+              </p>
+              <h1 className="truncate text-xl font-black tracking-tight text-white sm:text-2xl lg:text-3xl">
+                Class controls
+              </h1>
             </div>
+          </div>
+        </div>
 
-            <p className="mt-3  text-xs sm:text-sm leading-relaxed text-white">
-              {showShop ? 'Choose the games this class can see. Add or remove games whenever you need.' : 'Rearrange, lock, unlock, and feature your class games. Save all changes together when ready.'}
-            </p>
+        <p className="mx-auto max-w-5xl pb-4 text-xs font-semibold leading-relaxed text-white/90 sm:text-sm">
+          {activeTabConfig.description}
+        </p>
 
-            <div className="mt-4 flex items-stretch gap-2">
-              <div className="min-w-0 flex-1 rounded-2xl border border-white/20 bg-white/15 px-3 py-2.5">
-                <p className="text-[10px] font-black uppercase tracking-wide text-white/80">
+        <TabBar
+          activeTab={activeTab}
+          onChange={handleTabChange}
+          disabled={isSaving || Boolean(shopSavingKey)}
+        />
+      </header>
+
+      <main className="mx-auto w-full max-w-3xl px-4 py-6 pb-32 sm:px-6 sm:py-8 lg:max-w-4xl lg:px-8 lg:pb-8">
+        {activeTab === 'students' && (
+          <StudentsTab
+            isReady={studentsLoaded}
+            students={students}
+            onAdd={handleAddStudent}
+            isSaving={isAddingStudent}
+            error={studentError}
+          />
+        )}
+
+        {activeTab === 'settings' && (
+          <ClassInfoTab
+            status={classInfoStatus}
+            classInfo={classInfo}
+            error={classInfoError}
+          />
+        )}
+
+        {activeTab === 'new' && (
+          <div>
+            <div className="mb-4 rounded-2xl border border-violet-100 bg-violet-50 px-4 py-3 text-sm font-semibold text-violet-900">
+              Add a game with <strong>+</strong>. Use <strong>Remove</strong> to take it out of this class; it will no longer appear or load for players.
+            </div>
+            <ul className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+              {GAME_CATALOG.map((game) => {
+                const isAdded = visibleGames.some((item) => item.key === game.key);
+                const isSavingThis = shopSavingKey === game.key;
+                return (
+                  <li key={game.key} className="flex items-center gap-3 rounded-2xl border border-slate-100 bg-white p-3 shadow-sm sm:p-4">
+                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-xl" style={{ background: game.tint }}>{game.emoji}</span>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-black text-slate-800">{game.label}</p>
+                      <p className="mt-0.5 whitespace-pre-line text-[11px] font-semibold leading-snug text-slate-500">{game.subtitle}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleShopToggle(game)}
+                      disabled={Boolean(shopSavingKey) || !isReady}
+                      className={`min-h-10 shrink-0 rounded-xl px-3 text-xs font-black transition disabled:cursor-not-allowed disabled:opacity-55 ${
+                        isAdded ? 'bg-rose-50 text-rose-600 hover:bg-rose-100' : 'bg-indigo-600 text-white hover:bg-indigo-700'
+                      }`}
+                    >
+                      {isSavingThis ? 'Saving…' : isAdded ? 'Remove' : '+ Add'}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        )}
+
+        {activeTab === 'access' && (
+          <>
+            <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-stretch">
+              <div className="min-w-0 flex-1 rounded-2xl border border-indigo-100 bg-white px-4 py-3 shadow-sm sm:max-w-xs sm:px-5">
+                <p className="text-[10px] font-black uppercase tracking-wide text-indigo-400">
                   Player access
                 </p>
-                <p className="mt-0.5 text-lg font-black text-white">
+                <p className="mt-0.5 text-lg font-black text-slate-900 sm:text-xl">
                   {unlockedCount}
-                  <span className="text-sm font-bold text-white/90">
+                  <span className="text-sm font-bold text-slate-500">
                     {' '}
                     / {visibleGames.length} open
                   </span>
@@ -618,46 +986,12 @@ export default function GameAccessPanel({ onClose }) {
                 type="button"
                 disabled={!isReady || isSaving}
                 onClick={() => handleBulk(!allUnlocked)}
-                className="min-h-14 rounded-2xl bg-white px-3 text-left text-sm font-black text-indigo-800 shadow-sm transition hover:bg-indigo-50 disabled:cursor-not-allowed disabled:opacity-60"
+                className="min-h-[3.25rem] shrink-0 rounded-2xl bg-white px-4 text-sm font-black text-indigo-800 shadow-sm ring-1 ring-inset ring-indigo-100 transition hover:bg-indigo-50 disabled:cursor-not-allowed disabled:opacity-60 sm:min-w-[9rem]"
               >
                 {allUnlocked ? 'Lock all' : 'Unlock all'}
               </button>
             </div>
-          </header>
 
-          <main className="min-h-0 flex-1 overscroll-contain overflow-y-auto px-3 py-4 sm:px-5">
-            {showShop ? (
-              <div>
-                <div className="mb-4 rounded-2xl border border-violet-100 bg-violet-50 px-4 py-3 text-sm font-semibold text-violet-900">
-                  Add a game with <strong>+</strong>. Use <strong>Remove</strong> to take it out of this class; it will no longer appear or load for players.
-                </div>
-                <ul className="space-y-2.5">
-                  {GAME_CATALOG.map((game) => {
-                    const isAdded = visibleGames.some((item) => item.key === game.key);
-                    const isSavingThis = shopSavingKey === game.key;
-                    return (
-                      <li key={game.key} className="flex items-center gap-3 rounded-2xl border border-slate-100 bg-white p-3 shadow-sm">
-                        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-xl" style={{ background: game.tint }}>{game.emoji}</span>
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-black text-slate-800">{game.label}</p>
-                          <p className="mt-0.5 whitespace-pre-line text-[11px] font-semibold leading-snug text-slate-500">{game.subtitle}</p>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => handleShopToggle(game)}
-                          disabled={Boolean(shopSavingKey) || !isReady}
-                          className={`min-h-10 shrink-0 rounded-xl px-3 text-xs font-black transition disabled:cursor-not-allowed disabled:opacity-55 ${
-                            isAdded ? 'bg-rose-50 text-rose-600 hover:bg-rose-100' : 'bg-indigo-600 text-white hover:bg-indigo-700'
-                          }`}
-                        >
-                          {isSavingThis ? 'Saving…' : isAdded ? 'Remove' : '+ Add'}
-                        </button>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </div>
-            ) : (<>
             <AnimatePresence mode="wait">
               {error && (
                 <motion.p
@@ -678,10 +1012,8 @@ export default function GameAccessPanel({ onClose }) {
               </div>
             )}
 
-            
-
             <p className="mb-3 px-1 text-sm font-bold text-slate-700">
-              Hover over a slot to preview the new placement.
+              Drag a slot to reorder, or hover over one to preview the new placement.
             </p>
 
             <DndContext
@@ -740,10 +1072,10 @@ export default function GameAccessPanel({ onClose }) {
                     </p>
                     <button
                       type="button"
-                      onClick={() => setShowShop(true)}
+                      onClick={() => handleTabChange('new')}
                       className="mt-4 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-black text-white shadow-sm transition hover:bg-indigo-700"
                     >
-                      Open shop
+                      Go to New games
                     </button>
                   </div>
                 )}
@@ -753,52 +1085,53 @@ export default function GameAccessPanel({ onClose }) {
                 <DragPreview game={activeGame} />
               </DragOverlay>
             </DndContext>
-            </>)}
-          </main>
+          </>
+        )}
+      </main>
 
-          {!showShop && <footer className="shrink-0 border-t border-slate-200 bg-white px-3 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-5">
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={handleReset}
-                disabled={!hasChanges || isSaving}
-                className="min-h-11 rounded-xl bg-slate-100 px-3 text-sm font-black text-slate-600 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-45"
-              >
-                Reset
-              </button>
+      {activeTab === 'access' && (
+        <footer className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white/95 px-4 py-3 shadow-[0_-4px_20px_rgba(15,23,42,0.08)] backdrop-blur pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-6 lg:sticky lg:px-8">
+          <div className="mx-auto flex max-w-3xl items-center gap-2 lg:max-w-4xl">
+            <button
+              type="button"
+              onClick={handleReset}
+              disabled={!hasChanges || isSaving}
+              className="min-h-11 rounded-xl bg-slate-100 px-4 text-sm font-black text-slate-600 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-45"
+            >
+              Reset
+            </button>
 
-              <button
-                type="button"
-                onClick={handleConfirm}
-                disabled={!hasChanges || isSaving}
-                className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 px-4 text-sm font-black text-white shadow-sm transition hover:from-indigo-700 hover:to-violet-700 disabled:cursor-not-allowed disabled:opacity-45"
-              >
-                {isSaving ? (
-                  <>
-                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/70 border-t-transparent" />
-                    Saving…
-                  </>
-                ) : (
-                  <>
-                    Confirm changes
-                    {changeCount > 0 && (
-                      <span className="rounded-full bg-white/20 px-2 py-0.5 text-xs">
-                        {changeCount}
-                      </span>
-                    )}
-                  </>
-                )}
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={handleConfirm}
+              disabled={!hasChanges || isSaving}
+              className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 px-4 text-sm font-black text-white shadow-sm transition hover:from-indigo-700 hover:to-violet-700 disabled:cursor-not-allowed disabled:opacity-45 sm:flex-none sm:min-w-[12rem]"
+            >
+              {isSaving ? (
+                <>
+                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/70 border-t-transparent" />
+                  Saving…
+                </>
+              ) : (
+                <>
+                  Confirm changes
+                  {changeCount > 0 && (
+                    <span className="rounded-full bg-white/20 px-2 py-0.5 text-xs">
+                      {changeCount}
+                    </span>
+                  )}
+                </>
+              )}
+            </button>
+          </div>
 
-            {hasChanges && !isSaving && (
-              <p className="mt-2 text-center text-[11px] font-semibold text-amber-600">
-                You have unsaved changes.
-              </p>
-            )}
-          </footer>}
-        </motion.div>
-      </motion.div>
-    </AnimatePresence>
+          {hasChanges && !isSaving && (
+            <p className="mt-2 text-center text-[11px] font-semibold text-amber-600 lg:mx-auto lg:max-w-4xl">
+              You have unsaved changes.
+            </p>
+          )}
+        </footer>
+      )}
+    </div>
   );
 }
