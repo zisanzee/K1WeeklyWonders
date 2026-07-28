@@ -282,6 +282,48 @@ export async function setGameOrder(gameKeys, teacherCode) {
   return data.rows;
 }
 
+export async function addGameToClass(gameKey, teacherCode) {
+  const key = normalizeKey(gameKey);
+  const response = await fetch(
+    `${API_BASE}/api/game-access/${encodeURIComponent(key)}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ teacherCode }),
+    }
+  );
+
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    throw new Error(body.error || 'Could not add game to this class');
+  }
+
+  const data = await response.json();
+  useGameAccessStore.getState().replaceRows(data.rows);
+  return data.rows;
+}
+
+export async function removeGameFromClass(gameKey, teacherCode) {
+  const key = normalizeKey(gameKey);
+  const response = await fetch(
+    `${API_BASE}/api/game-access/${encodeURIComponent(key)}`,
+    {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ teacherCode }),
+    }
+  );
+
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    throw new Error(body.error || 'Could not remove game from this class');
+  }
+
+  const data = await response.json();
+  useGameAccessStore.getState().replaceRows(data.rows);
+  return data.rows;
+}
+
 export function useIsGameUnlocked(gameNumber, isTeacher) {
   const unlocked = useGameAccessStore(
     (state) => state.unlocked[normalizeKey(gameNumber)]

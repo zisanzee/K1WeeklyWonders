@@ -21,11 +21,10 @@ export default function GameAccessGate({ gameNumber, gameLabel, children }) {
     if (!loaded || loadedClassId !== classId) fetchGameAccess(classId);
   }, [classId, loaded, loadedClassId, fetchGameAccess]);
 
-  // Teachers always get straight in, even before the fetch resolves.
-  // Players wait for the real answer instead of briefly seeing "not out
-  // yet" while data is still loading.
+  // Do not mount a game until the current class's access data is ready. This
+  // also prevents a class switch from briefly using the prior class's state.
+  if (!loaded || loadedClassId !== classId) return null;
   if (isTeacher) return children;
-  if (!loaded) return null;
   if (unlocked) return children;
 
   return (

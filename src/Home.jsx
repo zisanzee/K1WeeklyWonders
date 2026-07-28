@@ -7,7 +7,6 @@ import NameGate from "./NameGate";
 import NextGameTimer from "./NextGameTimer";
 import { usePlayerStore } from "./playerStore";
 import {
-  GAME_CATALOG,
   useGameAccessStore,
   isGameUnlockedNow,
 } from "./gameAccess";
@@ -63,11 +62,15 @@ function HomeContent() {
   const [loadingTo, setLoadingTo] = useState(null);
 
   const gameAccessLoaded = useGameAccessStore((s) => s.loaded);
+  const gameAccessLoadedClassId = useGameAccessStore((s) => s.loadedClassId);
+  const gameAccessLoading = useGameAccessStore((s) => s.loading);
+  const gameAccessError = useGameAccessStore((s) => s.error);
   const fetchGameAccess = useGameAccessStore((s) => s.fetchGameAccess);
+  const gameAccessReady = gameAccessLoaded && gameAccessLoadedClassId === classId;
 
   useEffect(() => {
-    fetchGameAccess();
-  }, [fetchGameAccess]);
+    if (classId) fetchGameAccess(classId);
+  }, [classId, fetchGameAccess]);
 
   const unlocked = useGameAccessStore((state) => state.unlocked);
   const orderedGames = useGameAccessStore((state) => state.games);
@@ -75,7 +78,7 @@ function HomeContent() {
   const numberedGames = useMemo(() => {
     let nextGameNumber = 0;
 
-    return (orderedGames.length ? orderedGames : GAME_CATALOG).map((game) => ({
+    return orderedGames.map((game) => ({
       ...game,
       displayNumber: game.isBonus ? 'B' : String(++nextGameNumber),
     }));
@@ -100,6 +103,8 @@ function HomeContent() {
   }, [classId, playerName]);
 
   useEffect(() => {
+    if (!gameAccessReady) return undefined;
+
     const prefetchGames = () => {
       if (isGameUnlockedNow(1, isTeacher)) import("./Game1");
       if (isGameUnlockedNow(2, isTeacher)) import("./Game2");
@@ -116,9 +121,8 @@ function HomeContent() {
     }
     const t = setTimeout(prefetchGames, 800);
     return () => clearTimeout(t);
-    // Re-run once real access data arrives (initial render only knows about
-    // teachers, since the unlocked map starts empty) and whenever it changes.
-  }, [isTeacher, gameAccessLoaded]);
+    // Do not preload from an earlier class while the current class is loading.
+  }, [gameAccessReady, isTeacher, unlocked]);
 
   const greeting = useMemo(() => timeGreeting(), []);
 
@@ -362,8 +366,9 @@ function HomeContent() {
         <div className="relative mt-10 w-full max-w-4xl sm:mt-14">
           <div className="pointer-events-none absolute inset-x-10 top-1/2 z-0 hidden -translate-y-1/2 border-t-[3px] border-dashed border-white/60 sm:block" />
 
-          <div className="relative z-10 flex flex-col items-center gap-6 sm:flex-row sm:flex-wrap sm:justify-center sm:gap-8 md:gap-10 lg:gap-14">
-                        {numberedGames.map((game, index) => {
+          {gameAccessReady ? (
+            <div className="relative z-10 flex flex-col items-center gap-6 sm:flex-row sm:flex-wrap sm:justify-center sm:gap-8 md:gap-10 lg:gap-14">
+              {numberedGames.map((game, index) => {
               const isOpen = isTeacher || Boolean(unlocked[game.key]);
 
               return (
@@ -383,8 +388,24 @@ function HomeContent() {
       onOpen={() => openGame(game.to)}
     />
               );
-            })}
-          </div>
+              })}
+            </div>
+          ) : (
+            <div className="relative z-10 flex min-h-64 flex-col items-center justify-center gap-3 rounded-[2rem] bg-white/20 px-6 text-center text-white shadow-inner backdrop-blur-sm">
+              {gameAccessError ? (
+                <>
+                  <span className="text-4xl">😕</span>
+                  <p className="font-body font-bold">We couldn't load your class games.</p>
+                  <button type="button" onClick={() => fetchGameAccess(classId)} className="font-body rounded-full bg-white px-5 py-2 text-sm font-bold text-sky-700 shadow-sm">Try again</button>
+                </>
+              ) : (
+                <>
+                  <span className="h-9 w-9 animate-spin rounded-full border-4 border-white/90 border-t-transparent" />
+                  <p className="font-body font-bold">{gameAccessLoading ? 'Loading your class games…' : 'Preparing your class games…'}</p>
+                </>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="mt-8 hidden items-center gap-3 text-white/70 sm:flex">

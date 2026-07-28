@@ -23,6 +23,9 @@ import {
   setGameOrder,
   setGameShiny,
   setGameUnlocked,
+  addGameToClass,
+  removeGameFromClass,
+  GAME_CATALOG,
   useGameAccessStore,
 } from './gameAccess';
 
@@ -293,6 +296,8 @@ export default function GameAccessPanel({ onClose }) {
   const [lastMove, setLastMove] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState(null);
+  const [showShop, setShowShop] = useState(false);
+  const [shopSavingKey, setShopSavingKey] = useState(null);
 
   const initializedRef = useRef(false);
   const moveTimerRef = useRef(null);
@@ -498,6 +503,37 @@ export default function GameAccessPanel({ onClose }) {
     }
   };
 
+  const handleOpenShop = () => {
+    if (hasChanges) {
+      setError('Save or reset your class changes before opening the shop.');
+      return;
+    }
+    setError(null);
+    setShowShop(true);
+  };
+
+  const handleShopToggle = async (game) => {
+    if (shopSavingKey) return;
+    const isAdded = visibleGames.some((item) => item.key === game.key);
+    setError(null);
+    setShopSavingKey(game.key);
+
+    try {
+      if (isAdded) {
+        await removeGameFromClass(game.key, teacherCode);
+      } else {
+        await addGameToClass(game.key, teacherCode);
+      }
+      const nextGames = copyGames(useGameAccessStore.getState().games);
+      setDraftGames(nextGames);
+      setOriginalGames(copyGames(nextGames));
+    } catch (err) {
+      setError(err.message || 'Could not update this class. Please try again.');
+    } finally {
+      setShopSavingKey(null);
+    }
+  };
+
   return (
     <AnimatePresence>
       <motion.div
@@ -541,8 +577,16 @@ export default function GameAccessPanel({ onClose }) {
 
               <button
                 type="button"
+                onClick={showShop ? () => setShowShop(false) : handleOpenShop}
+                disabled={isSaving || Boolean(shopSavingKey)}
+                className="mr-2 h-11 rounded-xl bg-white px-3 text-sm font-black text-indigo-800 shadow-sm transition hover:bg-indigo-50 disabled:opacity-50"
+              >
+                {showShop ? '← Class' : 'Shop +'}
+              </button>
+              <button
+                type="button"
                 onClick={onClose}
-                disabled={isSaving}
+                disabled={isSaving || Boolean(shopSavingKey)}
                 aria-label="Close game access"
                 className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/20 text-2xl font-bold text-white transition hover:bg-white/30 disabled:opacity-50"
               >
@@ -551,7 +595,7 @@ export default function GameAccessPanel({ onClose }) {
             </div>
 
             <p className="mt-3  text-xs sm:text-sm leading-relaxed text-white">
-              Rearrange, lock, unlock, and feature games freely. Save all changes together when ready.
+              {showShop ? 'Choose the games this class can see. Add or remove games whenever you need.' : 'Rearrange, lock, unlock, and feature your class games. Save all changes together when ready.'}
             </p>
 
             <div className="mt-4 flex items-stretch gap-2">
@@ -580,6 +624,38 @@ export default function GameAccessPanel({ onClose }) {
           </header>
 
           <main className="min-h-0 flex-1 overscroll-contain overflow-y-auto px-3 py-4 sm:px-5">
+            {showShop ? (
+              <div>
+                <div className="mb-4 rounded-2xl border border-violet-100 bg-violet-50 px-4 py-3 text-sm font-semibold text-violet-900">
+                  Add a game with <strong>+</strong>. Use <strong>Remove</strong> to take it out of this class; it will no longer appear or load for players.
+                </div>
+                <ul className="space-y-2.5">
+                  {GAME_CATALOG.map((game) => {
+                    const isAdded = visibleGames.some((item) => item.key === game.key);
+                    const isSavingThis = shopSavingKey === game.key;
+                    return (
+                      <li key={game.key} className="flex items-center gap-3 rounded-2xl border border-slate-100 bg-white p-3 shadow-sm">
+                        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-xl" style={{ background: game.tint }}>{game.emoji}</span>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-black text-slate-800">{game.label}</p>
+                          <p className="mt-0.5 whitespace-pre-line text-[11px] font-semibold leading-snug text-slate-500">{game.subtitle}</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleShopToggle(game)}
+                          disabled={Boolean(shopSavingKey) || !isReady}
+                          className={`min-h-10 shrink-0 rounded-xl px-3 text-xs font-black transition disabled:cursor-not-allowed disabled:opacity-55 ${
+                            isAdded ? 'bg-rose-50 text-rose-600 hover:bg-rose-100' : 'bg-indigo-600 text-white hover:bg-indigo-700'
+                          }`}
+                        >
+                          {isSavingThis ? 'Saving…' : isAdded ? 'Remove' : '+ Add'}
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            ) : (<>
             <AnimatePresence mode="wait">
               {error && (
                 <motion.p
@@ -656,9 +732,10 @@ export default function GameAccessPanel({ onClose }) {
                 <DragPreview game={activeGame} />
               </DragOverlay>
             </DndContext>
+            </>)}
           </main>
 
-          <footer className="shrink-0 border-t border-slate-200 bg-white px-3 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-5">
+          {!showShop && <footer className="shrink-0 border-t border-slate-200 bg-white px-3 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-5">
             <div className="flex items-center gap-2">
               <button
                 type="button"
@@ -698,7 +775,7 @@ export default function GameAccessPanel({ onClose }) {
                 You have unsaved changes.
               </p>
             )}
-          </footer>
+          </footer>}
         </motion.div>
       </motion.div>
     </AnimatePresence>
