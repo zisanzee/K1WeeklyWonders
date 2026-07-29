@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'motion/react';
 import Confetti from 'react-confetti';
@@ -9,9 +9,76 @@ import GameAccessGate from './GameAccessGate';
 import { usePlayerStore } from './playerStore';
 import { logPlaySession } from './logPlaySession';
 import { Helmet } from 'react-helmet-async';
+import { getNumberVoiceUrl } from './Phaser/common/numbersVoice';
 
 const TOTAL_ROUNDS = 15;
 const NUMBER_WORDS = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
+
+// ---------------------------------------------------------------------------
+// Pre-recorded voice-over audio clips replacing speechSynthesis.
+// ---------------------------------------------------------------------------
+const GAME3_AUDIO = {
+  whatNumberBefore: 'https://res.cloudinary.com/hijmipga/video/upload/v1785349243/What_number_comes_right_before_blbbby.mp3',
+  whatNumberAfter: 'https://res.cloudinary.com/hijmipga/video/upload/v1785349243/What_number_comes_right_after_hbgthx.mp3',
+  comesRightBefore: 'https://res.cloudinary.com/hijmipga/video/upload/v1785349243/comes_right_before_pafkn9.mp3',
+  comesRightAfter: 'https://res.cloudinary.com/hijmipga/video/upload/v1785349242/comes_right_after_pyvinm.mp3',
+  notQuite: 'https://res.cloudinary.com/hijmipga/video/upload/v1785349242/Not_quite_try_again_oyopho.mp3',
+  completion: 'https://res.cloudinary.com/hijmipga/video/upload/v1785349242/You_re_a_number-line_explorer_Amazing_job_hivx6k.mp3',
+};
+
+// Preload all audio at module scope so clips play instantly on first use.
+const _audioCache = {};
+function preloadAll(urlMap) {
+  Object.values(urlMap).forEach((url) => {
+    if (!_audioCache[url]) {
+      const a = new Audio(url);
+      a.preload = 'auto';
+      _audioCache[url] = a;
+    }
+  });
+}
+preloadAll(GAME3_AUDIO);
+// Preload number voices 1-10.
+for (let n = 1; n <= 10; n++) {
+  const url = getNumberVoiceUrl(n);
+  if (url && !_audioCache[url]) {
+    const a = new Audio(url);
+    a.preload = 'auto';
+    _audioCache[url] = a;
+  }
+}
+
+let _currentAudio = null;
+
+/** Play a single audio URL; if onComplete is given, call it when the clip ends. */
+function playUrl(url, onComplete) {
+  if (_currentAudio) {
+    _currentAudio.pause();
+    _currentAudio.currentTime = 0;
+  }
+  const audio = _audioCache[url] || new Audio(url);
+  _currentAudio = audio;
+  if (onComplete) {
+    audio.onended = () => {
+      if (_currentAudio === audio) _currentAudio = null;
+      onComplete();
+    };
+  }
+  audio.currentTime = 0;
+  audio.play().catch(() => {
+    if (onComplete) onComplete();
+  });
+}
+
+/** Play a number-word voice clip (e.g. "seven") and call onComplete when done. */
+function playNumberWord(word, onComplete) {
+  const url = getNumberVoiceUrl(word);
+  if (!url) {
+    if (onComplete) onComplete();
+    return;
+  }
+  playUrl(url, onComplete);
+}
 const TILE_WIDTH = 64; // px, keep in sync with slider drag math below
 const WINDOW_SIZE = 5;
 const MIN_NUM = 1;
@@ -69,12 +136,58 @@ function clamp(n, min, max) {
 }
 
 function speak(text, muted) {
-  if (muted || typeof window === 'undefined' || !('speechSynthesis' in window)) return;
-  window.speechSynthesis.cancel();
-  const utterance = new SpeechSynthesisUtterance(text);
-  utterance.rate = 0.85;
-  utterance.pitch = 1.3;
-  window.speechSynthesis.speak(utterance);
+  if (muted || typeof window === 'undefined') return;
+
+  // Stop any currently playing audio.
+  if (_currentAudio) {
+    _currentAudio.pause();
+    _currentAudio.currentTime = 0;
+    _currentAudio = null;
+  }
+
+  // ─── Static lines ──────────────────────────────────────────────
+  if (text === "Not quite, try again!") {
+    playUrl(GAME3_AUDIO.notQuite);
+    return;
+  }
+  if (text === "You're a number-line explorer! Amazing job!") {
+    playUrl(GAME3_AUDIO.completion);
+    return;
+  }
+
+  // ─── "What number comes right before/after {word}?" ────────────
+  const beforePrompt = text.match(/^What number comes right before (\w+)\?$/i);
+  if (beforePrompt) {
+    const word = beforePrompt[1].toLowerCase();
+    playUrl(GAME3_AUDIO.whatNumberBefore, () => playNumberWord(word));
+    return;
+  }
+  const afterPrompt = text.match(/^What number comes right after (\w+)\?$/i);
+  if (afterPrompt) {
+    const word = afterPrompt[1].toLowerCase();
+    playUrl(GAME3_AUDIO.whatNumberAfter, () => playNumberWord(word));
+    return;
+  }
+
+  // ─── "{correctWord} comes right before/after {refWord}!" ───────
+  const resultBefore = text.match(/^(\w+) comes right before (\w+)!$/i);
+  if (resultBefore) {
+    const correct = resultBefore[1].toLowerCase();
+    const ref = resultBefore[2].toLowerCase();
+    playNumberWord(correct, () => {
+      playUrl(GAME3_AUDIO.comesRightBefore, () => playNumberWord(ref));
+    });
+    return;
+  }
+  const resultAfter = text.match(/^(\w+) comes right after (\w+)!$/i);
+  if (resultAfter) {
+    const correct = resultAfter[1].toLowerCase();
+    const ref = resultAfter[2].toLowerCase();
+    playNumberWord(correct, () => {
+      playUrl(GAME3_AUDIO.comesRightAfter, () => playNumberWord(ref));
+    });
+    return;
+  }
 }
 
 function getWindowStart(highlighted) {

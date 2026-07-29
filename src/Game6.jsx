@@ -20,9 +20,86 @@ import GameAccessGate from './GameAccessGate';
 import { usePlayerStore } from './playerStore';
 import { logPlaySession } from './logPlaySession';
 import { Helmet } from 'react-helmet-async';
+import { getNumberVoiceUrl } from './Phaser/common/numbersVoice';
 
 const TOTAL_ROUNDS = 10;
 const NUMBER_WORDS = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
+
+// ---------------------------------------------------------------------------
+// Pre-recorded voice-over audio clips replacing speechSynthesis.
+// ---------------------------------------------------------------------------
+const GAME6_AUDIO = {
+  ahoyKey: 'https://res.cloudinary.com/hijmipga/video/upload/v1785349845/Ahoy_choose_the_key_that_this_chest_needs_ulbett.mp3',
+  ahoyChest: 'https://res.cloudinary.com/hijmipga/video/upload/v1785349844/Ahoy_These_two_keys_go_in_the_same_chest_Which_chest_holds_them_both_l7qn7u.mp3',
+  treasureFound: 'https://res.cloudinary.com/hijmipga/video/upload/v1785349843/Treasure_found_poehnq.mp3',
+  correct: 'https://res.cloudinary.com/hijmipga/video/upload/v1785349844/Correct_krypie.mp3',
+  wrongKey: 'https://res.cloudinary.com/hijmipga/video/upload/v1785349843/Not_quite_try_another_key_bdeqwg.mp3',
+  wrongChest: 'https://res.cloudinary.com/hijmipga/video/upload/v1785349843/Not_quite_try_another_chest_u2rxjd.mp3',
+  treasureHunter: 'https://res.cloudinary.com/hijmipga/video/upload/v1785349842/ye_be_a_true_treasure_hunter_eaqwzi.mp3',
+};
+
+// Preload all audio at module scope so clips play instantly on first use.
+const _audioCache = {};
+function preloadAll(urlMap) {
+  Object.values(urlMap).forEach((url) => {
+    if (!_audioCache[url]) {
+      const a = new Audio(url);
+      a.preload = 'auto';
+      _audioCache[url] = a;
+    }
+  });
+}
+preloadAll(GAME6_AUDIO);
+// Preload number voices 1-10 (for success messages with numbers).
+for (let n = 1; n <= 10; n++) {
+  const url = getNumberVoiceUrl(n);
+  if (url && !_audioCache[url]) {
+    const a = new Audio(url);
+    a.preload = 'auto';
+    _audioCache[url] = a;
+  }
+}
+
+let _currentAudio = null;
+
+/** Play a single audio URL; if onComplete is given, call it when the clip ends. */
+function playUrl(url, onComplete) {
+  if (_currentAudio) {
+    _currentAudio.pause();
+    _currentAudio.currentTime = 0;
+  }
+  const audio = _audioCache[url] || new Audio(url);
+  _currentAudio = audio;
+  if (onComplete) {
+    audio.onended = () => {
+      if (_currentAudio === audio) _currentAudio = null;
+      onComplete();
+    };
+  }
+  audio.currentTime = 0;
+  audio.play().catch(() => {
+    if (onComplete) onComplete();
+  });
+}
+
+/** Play a number-word voice clip and call onComplete when done. */
+function playNumberWord(word, onComplete) {
+  const url = getNumberVoiceUrl(word);
+  if (!url) {
+    if (onComplete) onComplete();
+    return;
+  }
+  playUrl(url, onComplete);
+}
+
+/** Cancel any currently playing audio. */
+function cancelAudio() {
+  if (_currentAudio) {
+    _currentAudio.pause();
+    _currentAudio.currentTime = 0;
+    _currentAudio = null;
+  }
+}
 
 function cn(...inputs) {
   return twMerge(clsx(inputs));
@@ -79,12 +156,67 @@ function clamp(n, min, max) {
 }
 
 function speak(text, muted) {
-  if (muted || typeof window === 'undefined' || !('speechSynthesis' in window)) return;
-  window.speechSynthesis.cancel();
-  const utterance = new SpeechSynthesisUtterance(text);
-  utterance.rate = 1;
-  utterance.pitch = 1.15;
-  window.speechSynthesis.speak(utterance);
+  if (muted || typeof window === 'undefined') return;
+
+  cancelAudio();
+
+  // ─── Round-start prompts ──────────────────────────────────────
+  if (text.startsWith("Ahoy! This chest needs") || text === "Ahoy! choose the key that this chest needs") {
+    playUrl(GAME6_AUDIO.ahoyKey);
+    return;
+  }
+  if (text === "Ahoy! These two keys go in the same chest. Which chest holds them both?") {
+    playUrl(GAME6_AUDIO.ahoyChest);
+    return;
+  }
+
+  // ─── Success messages ─────────────────────────────────────────
+  // "Treasure found! {fixedPart} and {value} together make {whole}!"
+  const treasureMatch = text.match(/^Treasure found! (\d+) and (\d+) together make (\d+)!$/);
+  if (treasureMatch) {
+    const wordA = NUMBER_WORDS[parseInt(treasureMatch[1])];
+    const wordB = NUMBER_WORDS[parseInt(treasureMatch[2])];
+    const wordWhole = NUMBER_WORDS[parseInt(treasureMatch[3])];
+    playUrl(GAME6_AUDIO.treasureFound, () => {
+      playNumberWord(wordA, () => {
+        playNumberWord(wordB, () => {
+          playNumberWord(wordWhole);
+        });
+      });
+    });
+    return;
+  }
+  // "Correct! {partA} and {partB} together make {whole}!"
+  const correctMatch = text.match(/^Correct! (\d+) and (\d+) together make (\d+)!$/);
+  if (correctMatch) {
+    const wordA = NUMBER_WORDS[parseInt(correctMatch[1])];
+    const wordB = NUMBER_WORDS[parseInt(correctMatch[2])];
+    const wordWhole = NUMBER_WORDS[parseInt(correctMatch[3])];
+    playUrl(GAME6_AUDIO.correct, () => {
+      playNumberWord(wordA, () => {
+        playNumberWord(wordB, () => {
+          playNumberWord(wordWhole);
+        });
+      });
+    });
+    return;
+  }
+
+  // ─── Wrong-answer messages ────────────────────────────────────
+  if (text === "Not quite, try another key!") {
+    playUrl(GAME6_AUDIO.wrongKey);
+    return;
+  }
+  if (text === "Not quite, try another chest!") {
+    playUrl(GAME6_AUDIO.wrongChest);
+    return;
+  }
+
+  // ─── Completion ───────────────────────────────────────────────
+  if (text.startsWith("Ye be a true treasure hunter")) {
+    playUrl(GAME6_AUDIO.treasureHunter);
+    return;
+  }
 }
 
 // First 5 rounds are numerals, last 5 are spelled words. Exactly one round
@@ -200,11 +332,7 @@ function Game6Inner() {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
   useEffect(() => {
-    return () => {
-      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-        window.speechSynthesis.cancel();
-      }
-    };
+    return () => cancelAudio();
   }, []);
 
   if (!hasSpokenRef.current) {
