@@ -23,9 +23,23 @@ export const TEACHER_CODES = {
 
 // Temporary mapping: each classType maps to a classId used for game-access
 // storage, and the teacher code whose auth resolves to that classId on the
-// server. The server derives the classId from the teacher code, so K2
-// writes must use a code that resolves to test2026-jyx (92702689).
-// Once the server supports classType-scoped writes (Phases 1-4), delete this.
+// server. The server derives the classId from the teacher code, so writes
+// must use a code that resolves to the correct storage classId.
+//
+// IMPORTANT: The config's `classId` is the STORAGE LOCATION for that
+// curriculum, NOT which classes read from it. Which curriculum a class
+// sees is determined by its own `classType` (from teacherCodes or the
+// server). The fetchGameAccess store resolves every read through this
+// mapping: a class with classType 'k1' reads from k1's storage, a
+// class with classType 'k2' reads from k2's storage, regardless of
+// the class's own classId.
+//
+// Since both current classes (k12026-pny, test2026-jyx) have classType
+// 'k1', both read from k1's storage — they see identical K1 games.
+// The admin's K2 tab reads/writes a different storage location.
+//
+// Once the server supports classType-scoped writes (Phases 1-4), delete
+// this entire config — the server will handle classType directly.
 export const CLASS_TYPE_CONFIG = {
   k1: { classId: 'k12026-pny', writeCode: '12/10/22' },
   k2: { classId: 'test2026-jyx', writeCode: '92702689' },
