@@ -7,6 +7,12 @@ import { usePlayerStore } from './playerStore';
 //   .env (deployed)   VITE_API_BASE_URL=https://your-server.onrender.com
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
 
+// Same default class NameGate.jsx falls back to for players who never see
+// a class picker. Anyone whose classId is missing — a very old cached
+// session, a play logged before setPlayer/setTeacher ever ran, etc. — gets
+// attributed here instead of the server rejecting the session outright.
+const LEGACY_CLASS_ID = 'k12026-pny';
+
 function withQuery(path, params) {
   const query = new URLSearchParams(
     Object.entries(params).filter(([, value]) => value != null && value !== '')
@@ -58,7 +64,7 @@ export async function logPlaySession({
   mistakes,
 }) {
   try {
-    const classId = usePlayerStore.getState().classId;
+    const classId = usePlayerStore.getState().classId || LEGACY_CLASS_ID;
     const res = await fetch(`${API_BASE}/api/plays`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
