@@ -1052,13 +1052,15 @@ function GameAccessTypeEditor({
   );
 }
 
-// Non-admin teacher: read-only game list for their own class.
-// Uses ?classId= endpoint (the only one the server supports before
-// Phases 1-4). The server resolves classId → classType internally.
-function ReadOnlyGameList({ classId }) {
+// Non-admin teacher: read-only game list for their own class type.
+// Reads the curriculum for the teacher's classType (not their direct
+// classId), so all K1 classes see the same K1 curriculum, all K2
+// classes see the same K2 curriculum, etc.
+function ReadOnlyGameList({ classType }) {
   const [games, setGames] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [loadedType, setLoadedType] = useState(null);
 
   const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
 
@@ -1066,14 +1068,24 @@ function ReadOnlyGameList({ classId }) {
     let active = true;
     setLoading(true);
 
-    fetch(`${API_BASE}/api/game-access?classId=${encodeURIComponent(classId)}`)
+    // Map classType to the classId used for curriculum storage
+    const curriculumClassId = CLASS_TYPE_CONFIG[classType]?.classId;
+    if (!curriculumClassId) {
+      setError(`No curriculum configured for "${classType}"`);
+      setLoading(false);
+      return;
+    }
+
+    fetch(`${API_BASE}/api/game-access?classId=${encodeURIComponent(curriculumClassId)}`)
       .then((res) => {
         if (!res.ok) throw new Error('Failed to load');
         return res.json();
       })
       .then((rows) => {
         if (!active) return;
-        setGames(Array.isArray(rows) ? rows : []);
+        const merged = mergeRows(rows);
+        setGames(merged);
+        setLoadedType(classType);
         setLoading(false);
       })
       .catch((err) => {
@@ -1083,7 +1095,7 @@ function ReadOnlyGameList({ classId }) {
       });
 
     return () => { active = false; };
-  }, [classId]);
+  }, [classType]);
 
   if (loading) {
     return (
@@ -1374,7 +1386,7 @@ export default function GameAccessPanel({ onClose }) {
         )}
 
         {activeTab === 'games' && !isAdmin && (
-          <ReadOnlyGameList classId={classId} />
+          <ReadOnlyGameList classType={userClassType || 'k1'} />
         )}
       </main>
     </div>
