@@ -9,7 +9,9 @@ export const usePlayerStore = create(
       playerName: null,
       classId: null,
       className: null,
+      classType: null,
       isTeacher: false,
+      isAdmin: false,
       teacherCode: null,
       setPlayer: (name, classroom) => {
         const trimmed = (name || '').toString().trim().slice(0, 40);
@@ -17,21 +19,25 @@ export const usePlayerStore = create(
           playerName: trimmed.length > 0 ? trimmed : 'Guest',
           classId: classroom?.id || null,
           className: classroom?.name || null,
+          classType: null,
           isTeacher: false,
+          isAdmin: false,
           teacherCode: null,
         });
       },
-      // Called once a teacher code has been verified against TEACHER_CODES.
-      // Grants access to every game and the stats dashboard. The code
-      // itself is kept (not just the name) so authenticated requests —
-      // like locking/unlocking a game — can be re-sent to the server
-      // without asking the teacher to type it in again every time.
+      // Called once a teacher code has been verified server-side via
+      // POST /api/teacher-login. Grants access to every game and the
+      // stats dashboard. The code itself is kept so authenticated
+      // requests can be re-sent without asking the teacher to type it
+      // in again every time. role === 'admin' gates write access.
       setTeacher: (teacher, code) => {
         set({
           playerName: teacher.name,
           classId: teacher.classId,
           className: teacher.className,
+          classType: teacher.classType,
           isTeacher: true,
+          isAdmin: teacher.role === 'admin',
           teacherCode: code,
         });
       },
@@ -39,7 +45,9 @@ export const usePlayerStore = create(
         playerName: null,
         classId: null,
         className: null,
+        classType: null,
         isTeacher: false,
+        isAdmin: false,
         teacherCode: null,
       }),
     }),

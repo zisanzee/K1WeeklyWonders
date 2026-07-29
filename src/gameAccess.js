@@ -355,3 +355,117 @@ export function isGameUnlockedNow(gameNumber, isTeacher) {
 
   return Boolean(isTeacher) || Boolean(unlocked);
 }
+
+// ---------------------------------------------------------------------------
+// Admin-only, classType-scoped mutators
+// ---------------------------------------------------------------------------
+// These mirror the classId-based functions above but are keyed by classType
+// instead, and all of them send classType in the request body. They're used
+// exclusively by the admin panel (GameAccessPanel) where an admin can edit
+// K1 and/or K2 game config regardless of their own homeroom class.
+
+export async function fetchGameAccessForType(classType, teacherCode) {
+  const response = await fetch(
+    `${API_BASE}/api/game-access?classType=${encodeURIComponent(classType)}&teacherCode=${encodeURIComponent(teacherCode)}`
+  );
+
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    throw new Error(body.error || 'Failed to load game access');
+  }
+
+  return response.json();
+}
+
+export async function setGameUnlockedForType(gameKey, unlocked, classType, teacherCode) {
+  const key = normalizeKey(gameKey);
+
+  const response = await fetch(
+    `${API_BASE}/api/game-access/${encodeURIComponent(key)}`,
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ unlocked, classType, teacherCode }),
+    }
+  );
+
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    throw new Error(body.error || 'Could not update game access');
+  }
+
+  return response.json();
+}
+
+export async function setGameShinyForType(gameKey, shiny, classType, teacherCode) {
+  const key = normalizeKey(gameKey);
+
+  const response = await fetch(
+    `${API_BASE}/api/game-access/${encodeURIComponent(key)}/shiny`,
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ shiny, classType, teacherCode }),
+    }
+  );
+
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    throw new Error(body.error || 'Could not update featured game');
+  }
+
+  return response.json();
+}
+
+export async function setGameOrderForType(gameKeys, classType, teacherCode) {
+  const response = await fetch(`${API_BASE}/api/game-access/order`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ gameKeys, classType, teacherCode }),
+  });
+
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    throw new Error(body.error || 'Could not save game order');
+  }
+
+  return response.json();
+}
+
+export async function addGameToType(gameKey, classType, teacherCode) {
+  const key = normalizeKey(gameKey);
+  const response = await fetch(
+    `${API_BASE}/api/game-access/${encodeURIComponent(key)}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ classType, teacherCode }),
+    }
+  );
+
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    throw new Error(body.error || 'Could not add game to this class type');
+  }
+
+  return response.json();
+}
+
+export async function removeGameFromType(gameKey, classType, teacherCode) {
+  const key = normalizeKey(gameKey);
+  const response = await fetch(
+    `${API_BASE}/api/game-access/${encodeURIComponent(key)}`,
+    {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ classType, teacherCode }),
+    }
+  );
+
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    throw new Error(body.error || 'Could not remove game from this class type');
+  }
+
+  return response.json();
+}

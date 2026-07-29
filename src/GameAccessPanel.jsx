@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import {
   closestCenter,
@@ -20,49 +20,34 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { usePlayerStore } from './playerStore';
 import {
-  setGameOrder,
-  setGameShiny,
-  setGameUnlocked,
-  addGameToClass,
-  removeGameFromClass,
+  setGameOrderForType,
+  setGameShinyForType,
+  setGameUnlockedForType,
+  addGameToType,
+  removeGameFromType,
   GAME_CATALOG,
   useGameAccessStore,
 } from './gameAccess';
 import { useStudentStore, addStudent } from './students';
 import { fetchClassInfo } from './classInfo';
 
-const TABS = [
-  {
-    key: 'access',
-    label: 'Game access',
-    icon: '🎮',
-    description: 'Rearrange, lock, unlock, and feature your class games. Save all changes together when ready.',
-  },
-  {
-    key: 'new',
-    label: 'New games',
-    icon: '➕',
-    description: "Choose the games this class can see. Add or remove games — changes save immediately.",
-  },
-  {
-    key: 'students',
-    label: 'Students',
-    icon: '🧑‍🎓',
-    description: 'Manage the students enrolled in this class.',
-  },
-  {
-    key: 'settings',
-    label: 'Class settings',
-    icon: '⚙️',
-    description: 'Configure settings for this class.',
-  },
-];
+const CLASS_TYPE_LABELS = {
+  k1: { label: 'K1 Games', icon: '🎮', description: 'Manage K1 (Kindergarten 1) game arrangement — reorder, lock/unlock, and feature games.' },
+  k2: { label: 'K2 Games', icon: '🎯', description: 'Manage K2 (Kindergarten 2) game arrangement — reorder, lock/unlock, and feature games.' },
+};
 
-function TabBar({ activeTab, onChange, disabled }) {
+function AdminTabBar({ activeTab, onChange, disabled, adminClassType }) {
+  const tabs = [
+    { key: 'k1-games', label: 'K1 Games', icon: '🎮', description: CLASS_TYPE_LABELS.k1.description },
+    { key: 'k2-games', label: 'K2 Games', icon: '🎯', description: CLASS_TYPE_LABELS.k2.description },
+    { key: 'students', label: 'Students', icon: '🧑‍🎓', description: 'Manage the students enrolled in this class.' },
+    { key: 'settings', label: 'Settings', icon: '⚙️', description: 'Configure settings for this class.' },
+  ];
+
   return (
     <div className="mx-auto max-w-5xl overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-      <div role="tablist" aria-label="Class settings sections" className="flex min-w-max gap-1 border-b border-white/15 sm:min-w-0 sm:gap-2">
-        {TABS.map((tab) => {
+      <div role="tablist" aria-label="Admin panel sections" className="flex min-w-max gap-1 border-b border-white/15 sm:min-w-0 sm:gap-2">
+        {tabs.map((tab) => {
           const isActive = tab.key === activeTab;
           return (
             <button
@@ -93,15 +78,43 @@ function TabBar({ activeTab, onChange, disabled }) {
   );
 }
 
-function ComingSoonTab({ icon, title, description }) {
+function TeacherTabBar({ activeTab, onChange, disabled }) {
+  const tabs = [
+    { key: 'games', label: 'Games', icon: '🎮', description: 'View your class\'s current game arrangement.' },
+    { key: 'students', label: 'Students', icon: '🧑‍🎓', description: 'Manage the students enrolled in this class.' },
+    { key: 'settings', label: 'Settings', icon: '⚙️', description: 'Configure settings for this class.' },
+  ];
+
   return (
-    <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-indigo-200 bg-indigo-50/60 px-5 py-14 text-center">
-      <span className="text-4xl">{icon}</span>
-      <p className="text-base font-black text-indigo-950">{title}</p>
-      <p className="max-w-sm text-sm font-semibold text-indigo-700">{description}</p>
-      <span className="mt-1 rounded-full bg-white px-3 py-1 text-[11px] font-black uppercase tracking-wide text-indigo-500 shadow-sm">
-        Coming soon
-      </span>
+    <div className="mx-auto max-w-5xl overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <div role="tablist" aria-label="Teacher panel sections" className="flex min-w-max gap-1 border-b border-white/15 sm:min-w-0 sm:gap-2">
+        {tabs.map((tab) => {
+          const isActive = tab.key === activeTab;
+          return (
+            <button
+              key={tab.key}
+              type="button"
+              role="tab"
+              aria-selected={isActive}
+              onClick={() => onChange(tab.key)}
+              disabled={disabled}
+              className={`relative flex shrink-0 items-center gap-1.5 whitespace-nowrap px-3 py-2.5 text-xs font-black transition disabled:cursor-not-allowed disabled:opacity-50 sm:flex-1 sm:justify-center sm:px-4 sm:text-sm ${
+                isActive ? 'text-white' : 'text-white/60 hover:text-white/85'
+              }`}
+            >
+              <span className="text-sm sm:text-base">{tab.icon}</span>
+              {tab.label}
+              {isActive && (
+                <motion.span
+                  layoutId="access-tab-indicator"
+                  transition={{ type: 'spring', stiffness: 500, damping: 40 }}
+                  className="absolute inset-x-2 -bottom-px h-[3px] rounded-full bg-white sm:inset-x-4"
+                />
+              )}
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -560,36 +573,29 @@ function DragPreview({ game }) {
   );
 }
 
-export default function GameAccessPanel({ onClose }) {
-  const teacherCode = usePlayerStore((state) => state.teacherCode);
-  const classId = usePlayerStore((state) => state.classId);
-  const games = useGameAccessStore((state) => state.games);
-  const loaded = useGameAccessStore((state) => state.loaded);
-  const fetchGameAccess = useGameAccessStore((state) => state.fetchGameAccess);
-
-  const students = useStudentStore((state) => state.students);
-  const studentsLoaded = useStudentStore((state) => state.loaded);
-  const fetchStudents = useStudentStore((state) => state.fetchStudents);
-
+// Admin-only: full edit controls for a specific class type (k1 or k2).
+function GameAccessTypeEditor({
+  classType,
+  teacherCode,
+  isSaving,
+  onGlobalError,
+  onGlobalSavingChange,
+}) {
+  const [games, setGames] = useState([]);
+  const [loaded, setLoaded] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [draftGames, setDraftGames] = useState([]);
   const [originalGames, setOriginalGames] = useState([]);
   const [activeKey, setActiveKey] = useState(null);
   const [overKey, setOverKey] = useState(null);
   const [lastMove, setLastMove] = useState(null);
-  const [isSaving, setIsSaving] = useState(false);
-  const [error, setError] = useState(null);
-  const [activeTab, setActiveTab] = useState('access');
+  const [localSaving, setLocalSaving] = useState(false);
+  const [localError, setLocalError] = useState(null);
   const [shopSavingKey, setShopSavingKey] = useState(null);
-
-  const [isAddingStudent, setIsAddingStudent] = useState(false);
-  const [studentError, setStudentError] = useState(null);
-
-  const [classInfo, setClassInfo] = useState(null);
-  const [classInfoStatus, setClassInfoStatus] = useState('idle');
-  const [classInfoError, setClassInfoError] = useState(null);
 
   const initializedRef = useRef(false);
   const moveTimerRef = useRef(null);
+  const fetchAttemptedRef = useRef(false);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -600,19 +606,36 @@ export default function GameAccessPanel({ onClose }) {
     })
   );
 
+  // Fetch games for this classType on first mount
   useEffect(() => {
-    if (!loaded) {
-      fetchGameAccess();
-      return;
-    }
+    if (fetchAttemptedRef.current) return;
+    fetchAttemptedRef.current = true;
+    setLoading(true);
 
-    if (!initializedRef.current) {
-      const snapshot = copyGames(games);
-      setDraftGames(snapshot);
-      setOriginalGames(copyGames(snapshot));
-      initializedRef.current = true;
-    }
-  }, [loaded, games, fetchGameAccess]);
+    fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000'}/api/game-access?classType=${encodeURIComponent(classType)}&teacherCode=${encodeURIComponent(teacherCode)}`)
+      .then((res) => {
+        if (!res.ok) throw new Error('Failed to load');
+        return res.json();
+      })
+      .then((rows) => {
+        setGames(Array.isArray(rows) ? rows : []);
+        setLoaded(true);
+        setLoading(false);
+      })
+      .catch((err) => {
+        setLocalError(err.message);
+        setLoading(false);
+      });
+  }, [classType, teacherCode]);
+
+  // Initialize draft once games are loaded
+  useEffect(() => {
+    if (!loaded || initializedRef.current) return;
+    const snapshot = copyGames(games);
+    setDraftGames(snapshot);
+    setOriginalGames(copyGames(snapshot));
+    initializedRef.current = true;
+  }, [loaded, games]);
 
   useEffect(() => {
     return () => {
@@ -620,8 +643,544 @@ export default function GameAccessPanel({ onClose }) {
     };
   }, []);
 
-  // Only fetch each tab's data the first time it's opened, not on every
-  // render — mirrors how the "access" tab defers to fetchGameAccess.
+  const visibleGames = initializedRef.current ? draftGames : games;
+
+  const slottedGames = useMemo(
+    () => addSlotLabels(visibleGames),
+    [visibleGames]
+  );
+
+  const activeGame = useMemo(
+    () => slottedGames.find((game) => game.key === activeKey),
+    [activeKey, slottedGames]
+  );
+
+  const unlockedCount = visibleGames.filter((game) => game.unlocked).length;
+  const allUnlocked =
+    visibleGames.length > 0 && unlockedCount === visibleGames.length;
+
+  const isReady = loaded && initializedRef.current;
+
+  const hasChanges = useMemo(() => {
+    if (!isReady || originalGames.length !== draftGames.length) return false;
+
+    return draftGames.some((game, index) => {
+      const original = originalGames[index];
+      return (
+        original.key !== game.key ||
+        original.unlocked !== game.unlocked ||
+        original.shiny !== game.shiny
+      );
+    });
+  }, [draftGames, isReady, originalGames]);
+
+  const changeCount = useMemo(() => {
+    if (!isReady) return 0;
+
+    const originalByKey = new Map(
+      originalGames.map((game) => [game.key, game])
+    );
+
+    const settingChanges = draftGames.filter((game) => {
+      const original = originalByKey.get(game.key);
+      return (
+        original &&
+        (original.unlocked !== game.unlocked ||
+          original.shiny !== game.shiny)
+      );
+    }).length;
+
+    const orderChanged = draftGames.some(
+      (game, index) => originalGames[index]?.key !== game.key
+    );
+
+    return settingChanges + (orderChanged ? 1 : 0);
+  }, [draftGames, isReady, originalGames]);
+
+  const handleToggleAccess = (gameKey, unlocked) => {
+    setDraftGames((current) =>
+      current.map((game) =>
+        game.key === gameKey ? { ...game, unlocked } : game
+      )
+    );
+  };
+
+  const handleToggleShiny = (gameKey, shiny) => {
+    setDraftGames((current) =>
+      current.map((game) =>
+        game.key === gameKey ? { ...game, shiny } : game
+      )
+    );
+  };
+
+  const handleBulk = (unlocked) => {
+    setDraftGames((current) =>
+      current.map((game) => ({
+        ...game,
+        unlocked,
+      }))
+    );
+  };
+
+  const handleReset = () => {
+    setDraftGames(copyGames(originalGames));
+    setLastMove(null);
+    setLocalError(null);
+    onGlobalError(null);
+  };
+
+  const handleDragEnd = ({ active, over }) => {
+    setActiveKey(null);
+    setOverKey(null);
+
+    if (!over || active.id === over.id || !isReady) return;
+
+    const oldIndex = draftGames.findIndex((game) => game.key === active.id);
+    const newIndex = draftGames.findIndex((game) => game.key === over.id);
+    const nextGames = arrayMove(draftGames, oldIndex, newIndex);
+    const movedGame = addSlotLabels(nextGames).find(
+      (game) => game.key === active.id
+    );
+
+    setDraftGames(nextGames);
+    setLastMove({
+      gameKey: active.id,
+      slotLabel: movedGame?.slotLabel || '',
+    });
+
+    if (moveTimerRef.current) clearTimeout(moveTimerRef.current);
+
+    moveTimerRef.current = setTimeout(() => {
+      setLastMove(null);
+    }, 1800);
+  };
+
+  const handleConfirm = async () => {
+    if (!hasChanges || localSaving || isSaving) return;
+
+    setLocalError(null);
+    onGlobalError(null);
+    setLocalSaving(true);
+    onGlobalSavingChange(true);
+
+    try {
+      const originalByKey = new Map(
+        originalGames.map((game) => [game.key, game])
+      );
+
+      const orderChanged = draftGames.some(
+        (game, index) => originalGames[index]?.key !== game.key
+      );
+
+      if (orderChanged) {
+        await setGameOrderForType(
+          draftGames.map((game) => game.key),
+          classType,
+          teacherCode
+        );
+      }
+
+      const accessChanges = draftGames.filter((game) => {
+        const original = originalByKey.get(game.key);
+        return original && original.unlocked !== game.unlocked;
+      });
+
+      const shinyChanges = draftGames.filter((game) => {
+        const original = originalByKey.get(game.key);
+        return original && original.shiny !== game.shiny;
+      });
+
+      await Promise.all([
+        ...accessChanges.map((game) =>
+          setGameUnlockedForType(game.key, game.unlocked, classType, teacherCode)
+        ),
+        ...shinyChanges.map((game) =>
+          setGameShinyForType(game.key, game.shiny, classType, teacherCode)
+        ),
+      ]);
+
+      setOriginalGames(copyGames(draftGames));
+    } catch (err) {
+      setLocalError(err.message || 'Could not save your changes. Please try again.');
+    } finally {
+      setLocalSaving(false);
+      onGlobalSavingChange(false);
+    }
+  };
+
+  const handleShopToggle = async (game) => {
+    if (shopSavingKey || localSaving || isSaving) return;
+    const isAdded = visibleGames.some((item) => item.key === game.key);
+    setLocalError(null);
+    onGlobalError(null);
+    setShopSavingKey(game.key);
+
+    try {
+      if (isAdded) {
+        await removeGameFromType(game.key, classType, teacherCode);
+      } else {
+        await addGameToType(game.key, classType, teacherCode);
+      }
+      // Refresh games after shop change
+      const res = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000'}/api/game-access?classType=${encodeURIComponent(classType)}&teacherCode=${encodeURIComponent(teacherCode)}`);
+      const rows = await res.json();
+      const nextGames = Array.isArray(rows) ? rows : [];
+      setGames(nextGames);
+      const snapshot = copyGames(nextGames);
+      setDraftGames(snapshot);
+      setOriginalGames(copyGames(snapshot));
+    } catch (err) {
+      setLocalError(err.message || 'Could not update this class type. Please try again.');
+    } finally {
+      setShopSavingKey(null);
+    }
+  };
+
+  const displayError = localError;
+
+  return (
+    <>
+      <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-stretch">
+        <div className="min-w-0 flex-1 rounded-2xl border border-indigo-100 bg-white px-4 py-3 shadow-sm sm:max-w-xs sm:px-5">
+          <p className="text-[10px] font-black uppercase tracking-wide text-indigo-400">
+            Player access
+          </p>
+          <p className="mt-0.5 text-lg font-black text-slate-900 sm:text-xl">
+            {unlockedCount}
+            <span className="text-sm font-bold text-slate-500">
+              {' '}
+              / {visibleGames.length} open
+            </span>
+          </p>
+        </div>
+
+        <button
+          type="button"
+          disabled={!isReady || localSaving || isSaving}
+          onClick={() => handleBulk(!allUnlocked)}
+          className="min-h-[3.25rem] shrink-0 rounded-2xl bg-white px-4 text-sm font-black text-indigo-800 shadow-sm ring-1 ring-inset ring-indigo-100 transition hover:bg-indigo-50 disabled:cursor-not-allowed disabled:opacity-60 sm:min-w-[9rem]"
+        >
+          {allUnlocked ? 'Lock all' : 'Unlock all'}
+        </button>
+      </div>
+
+      <AnimatePresence mode="wait">
+        {displayError && (
+          <motion.p
+            initial={{ opacity: 0, y: -6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -6 }}
+            className="mb-3 rounded-2xl border border-rose-300 bg-rose-50 px-3 py-3 text-sm font-bold text-rose-800"
+          >
+            ⚠️ {displayError}
+          </motion.p>
+        )}
+      </AnimatePresence>
+
+      {!isReady && (
+        <div className="mb-3 flex items-center gap-2 rounded-2xl border border-indigo-100 bg-indigo-50 px-3 py-2.5 text-xs font-bold text-indigo-700">
+          {loading ? (
+            <>
+              <span className="h-3 w-3 animate-spin rounded-full border-2 border-indigo-400 border-t-transparent" />
+              Loading {CLASS_TYPE_LABELS[classType]?.label || classType} games…
+            </>
+          ) : (
+            'Preparing games…'
+          )}
+        </div>
+      )}
+
+      <p className="mb-3 px-1 text-sm font-bold text-slate-700">
+        Drag a slot to reorder, or hover over one to preview the new placement.
+      </p>
+
+      {/* Shop section */}
+      <div className="mb-6 rounded-2xl border border-violet-100 bg-violet-50 px-4 py-3">
+        <p className="mb-3 text-sm font-semibold text-violet-900">
+          Game shop — <strong>+</strong> adds this game to {CLASS_TYPE_LABELS[classType]?.label || classType}, <strong>Remove</strong> takes it out.
+        </p>
+        <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          {GAME_CATALOG.map((game) => {
+            const isAdded = visibleGames.some((item) => item.key === game.key);
+            const isSavingThis = shopSavingKey === game.key;
+            return (
+              <li key={game.key} className="flex items-center gap-3 rounded-2xl border border-slate-100 bg-white p-3 shadow-sm sm:p-4">
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-xl" style={{ background: game.tint }}>{game.emoji}</span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-black text-slate-800">{game.label}</p>
+                  <p className="mt-0.5 whitespace-pre-line text-[11px] font-semibold leading-snug text-slate-500">{game.subtitle}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleShopToggle(game)}
+                  disabled={Boolean(shopSavingKey) || !isReady || localSaving || isSaving}
+                  className={`min-h-10 shrink-0 rounded-xl px-3 text-xs font-black transition disabled:cursor-not-allowed disabled:opacity-55 ${
+                    isAdded ? 'bg-rose-50 text-rose-600 hover:bg-rose-100' : 'bg-indigo-600 text-white hover:bg-indigo-700'
+                  }`}
+                >
+                  {isSavingThis ? 'Saving…' : isAdded ? 'Remove' : '+ Add'}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        measuring={{
+          droppable: {
+            strategy: MeasuringStrategy.WhileDragging,
+          },
+        }}
+        onDragStart={({ active }) => {
+          setActiveKey(active.id);
+          setOverKey(null);
+        }}
+        onDragOver={({ over }) => {
+          const nextOverKey = over?.id || null;
+          setOverKey((current) =>
+            current === nextOverKey ? current : nextOverKey
+          );
+        }}
+        onDragCancel={() => {
+          setActiveKey(null);
+          setOverKey(null);
+        }}
+        onDragEnd={handleDragEnd}
+      >
+        <SortableContext
+          items={slottedGames.map((game) => game.key)}
+          strategy={verticalListSortingStrategy}
+        >
+          <ul className="flex flex-col gap-2.5">
+            {slottedGames.map((game) => (
+              <SortableGameSlot
+                key={game.key}
+                game={game}
+                isHoveredSlot={
+                  overKey === game.key && activeKey !== game.key
+                }
+                isJustMoved={lastMove?.gameKey === game.key}
+                disabled={!isReady || localSaving || isSaving}
+                onToggleAccess={handleToggleAccess}
+                onToggleShiny={handleToggleShiny}
+              />
+            ))}
+          </ul>
+
+          {isReady && slottedGames.length === 0 && (
+            <div className="rounded-2xl border border-dashed border-indigo-200 bg-indigo-50/60 px-5 py-8 text-center">
+              <span className="text-4xl">&#127918;</span>
+              <p className="mt-3 text-base font-black text-indigo-950">
+                {CLASS_TYPE_LABELS[classType]?.label || classType} has no games yet
+              </p>
+              <p className="mt-1 text-sm font-semibold text-indigo-700">
+                Add games from the shop above.
+              </p>
+            </div>
+          )}
+        </SortableContext>
+
+        <DragOverlay dropAnimation={null}>
+          <DragPreview game={activeGame} />
+        </DragOverlay>
+      </DndContext>
+
+      {/* Footer */}
+      <div className="mt-6 border-t border-slate-200 pt-4">
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={handleReset}
+            disabled={!hasChanges || localSaving || isSaving}
+            className="min-h-11 rounded-xl bg-slate-100 px-4 text-sm font-black text-slate-600 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-45"
+          >
+            Reset
+          </button>
+
+          <button
+            type="button"
+            onClick={handleConfirm}
+            disabled={!hasChanges || localSaving || isSaving}
+            className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 px-4 text-sm font-black text-white shadow-sm transition hover:from-indigo-700 hover:to-violet-700 disabled:cursor-not-allowed disabled:opacity-45 sm:flex-none sm:min-w-[12rem]"
+          >
+            {(localSaving || isSaving) ? (
+              <>
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/70 border-t-transparent" />
+                Saving…
+              </>
+            ) : (
+              <>
+                Confirm changes
+                {changeCount > 0 && (
+                  <span className="rounded-full bg-white/20 px-2 py-0.5 text-xs">
+                    {changeCount}
+                  </span>
+                )}
+              </>
+            )}
+          </button>
+        </div>
+
+        {hasChanges && !localSaving && !isSaving && (
+          <p className="mt-2 text-center text-[11px] font-semibold text-amber-600">
+            You have unsaved changes.
+          </p>
+        )}
+      </div>
+    </>
+  );
+}
+
+// Non-admin teacher: read-only game list for their own class type.
+function ReadOnlyGameList({ classType }) {
+  const [games, setGames] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+
+    const teacherCode = usePlayerStore.getState().teacherCode;
+    fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000'}/api/game-access?classType=${encodeURIComponent(classType)}&teacherCode=${encodeURIComponent(teacherCode)}`)
+      .then((res) => {
+        if (!res.ok) throw new Error('Failed to load');
+        return res.json();
+      })
+      .then((rows) => {
+        if (!active) return;
+        setGames(Array.isArray(rows) ? rows : []);
+        setLoading(false);
+      })
+      .catch((err) => {
+        if (!active) return;
+        setError(err.message);
+        setLoading(false);
+      });
+
+    return () => { active = false; };
+  }, [classType]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center gap-2 rounded-2xl border border-indigo-100 bg-indigo-50 px-3 py-2.5 text-xs font-bold text-indigo-700">
+        <span className="h-3 w-3 animate-spin rounded-full border-2 border-indigo-400 border-t-transparent" />
+        Loading games…
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <p className="rounded-2xl border border-rose-300 bg-rose-50 px-3 py-3 text-sm font-bold text-rose-800">
+        ⚠️ {error}
+      </p>
+    );
+  }
+
+  if (games.length === 0) {
+    return (
+      <div className="rounded-2xl border border-dashed border-indigo-200 bg-indigo-50/60 px-5 py-10 text-center">
+        <span className="text-4xl">🎮</span>
+        <p className="mt-3 text-base font-black text-indigo-950">No games configured yet</p>
+        <p className="mt-1 text-sm font-semibold text-indigo-700">
+          Ask an admin to add games for this class type.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <p className="mb-4 text-sm font-bold text-slate-700">
+        Current game arrangement for your class (read-only).
+      </p>
+      <ul className="flex flex-col gap-2.5">
+        {games.map((game, index) => (
+          <li
+            key={game.gameKey || index}
+            className="flex items-center gap-3 rounded-2xl border border-slate-100 bg-white p-3 shadow-sm sm:p-4"
+          >
+            <span
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-base shadow-sm sm:h-12 sm:w-12 sm:text-lg"
+              style={{
+                background: game.unlocked
+                  ? `linear-gradient(135deg, ${game.hue || '#38BDF8'}, ${(game.hue || '#38BDF8')}B8)`
+                  : '#CBD5E1',
+                filter: game.unlocked ? 'none' : 'grayscale(1)',
+                opacity: game.unlocked ? 1 : 0.65,
+              }}
+            >
+              {game.emoji || '🎮'}
+            </span>
+
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-extrabold leading-tight text-slate-900 sm:text-base">
+                {game.label || game.gameKey}
+              </p>
+              <p className="mt-1 whitespace-pre-line text-[10px] font-semibold leading-snug text-slate-600 sm:text-xs">
+                {game.subtitle || ''}
+              </p>
+            </div>
+
+            <div className="flex shrink-0 flex-col items-end gap-1">
+              <span
+                className={`rounded-full px-2.5 py-1 text-[10px] font-black ${
+                  game.unlocked
+                    ? 'bg-emerald-100 text-emerald-700'
+                    : 'bg-slate-100 text-slate-500'
+                }`}
+              >
+                {game.unlocked ? '🔓 Unlocked' : '🔒 Locked'}
+              </span>
+              {game.shiny && (
+                <span className="rounded-full bg-amber-100 px-2.5 py-1 text-[10px] font-black text-amber-700">
+                  ✨ Featured
+                </span>
+              )}
+            </div>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+export default function GameAccessPanel({ onClose }) {
+  const teacherCode = usePlayerStore((state) => state.teacherCode);
+  const classId = usePlayerStore((state) => state.classId);
+  const isAdmin = usePlayerStore((state) => state.isAdmin);
+  const userClassType = usePlayerStore((state) => state.classType);
+
+  const students = useStudentStore((state) => state.students);
+  const studentsLoaded = useStudentStore((state) => state.loaded);
+  const fetchStudents = useStudentStore((state) => state.fetchStudents);
+
+  const [activeTab, setActiveTab] = useState(null);
+  const [globalSaving, setGlobalSaving] = useState(false);
+  const [globalError, setGlobalError] = useState(null);
+
+  const [isAddingStudent, setIsAddingStudent] = useState(false);
+  const [studentError, setStudentError] = useState(null);
+
+  const [classInfo, setClassInfo] = useState(null);
+  const [classInfoStatus, setClassInfoStatus] = useState('idle');
+  const [classInfoError, setClassInfoError] = useState(null);
+
+  // Determine initial tab based on role and classType
+  useEffect(() => {
+    if (activeTab) return;
+    if (isAdmin) {
+      setActiveTab(userClassType === 'k2' ? 'k2-games' : 'k1-games');
+    } else {
+      setActiveTab('games');
+    }
+  }, [isAdmin, userClassType, activeTab]);
+
+  // Only fetch each tab's data the first time it's opened
   useEffect(() => {
     if (activeTab === 'students' && !studentsLoaded) {
       fetchStudents(teacherCode);
@@ -668,210 +1227,22 @@ export default function GameAccessPanel({ onClose }) {
     }
   };
 
-  // An empty class is a valid, ready state. Once the draft is initialized it
-  // must remain the source of truth even when it intentionally contains no
-  // games, otherwise the shop stays disabled forever.
-  const visibleGames = initializedRef.current ? draftGames : games;
-
-  const slottedGames = useMemo(
-    () => addSlotLabels(visibleGames),
-    [visibleGames]
-  );
-
-  const activeGame = useMemo(
-    () => slottedGames.find((game) => game.key === activeKey),
-    [activeKey, slottedGames]
-  );
-
-  const unlockedCount = visibleGames.filter((game) => game.unlocked).length;
-  const allUnlocked =
-    visibleGames.length > 0 && unlockedCount === visibleGames.length;
-
-  const isReady = loaded && initializedRef.current;
-  const activeTabConfig = TABS.find((tab) => tab.key === activeTab) || TABS[0];
-
-  const hasChanges = useMemo(() => {
-    if (!isReady || originalGames.length !== draftGames.length) return false;
-
-    return draftGames.some((game, index) => {
-      const original = originalGames[index];
-
-      return (
-        original.key !== game.key ||
-        original.unlocked !== game.unlocked ||
-        original.shiny !== game.shiny
-      );
-    });
-  }, [draftGames, isReady, originalGames]);
-
-  const changeCount = useMemo(() => {
-    if (!isReady) return 0;
-
-    const originalByKey = new Map(
-      originalGames.map((game) => [game.key, game])
-    );
-
-    const settingChanges = draftGames.filter((game) => {
-      const original = originalByKey.get(game.key);
-
-      return (
-        original &&
-        (original.unlocked !== game.unlocked ||
-          original.shiny !== game.shiny)
-      );
-    }).length;
-
-    const orderChanged = draftGames.some(
-      (game, index) => originalGames[index]?.key !== game.key
-    );
-
-    return settingChanges + (orderChanged ? 1 : 0);
-  }, [draftGames, isReady, originalGames]);
-
-  const handleToggleAccess = (gameKey, unlocked) => {
-    setDraftGames((current) =>
-      current.map((game) =>
-        game.key === gameKey ? { ...game, unlocked } : game
-      )
-    );
-  };
-
-  const handleToggleShiny = (gameKey, shiny) => {
-    setDraftGames((current) =>
-      current.map((game) =>
-        game.key === gameKey ? { ...game, shiny } : game
-      )
-    );
-  };
-
-  const handleBulk = (unlocked) => {
-    setDraftGames((current) =>
-      current.map((game) => ({
-        ...game,
-        unlocked,
-      }))
-    );
-  };
-
-  const handleReset = () => {
-    setDraftGames(copyGames(originalGames));
-    setLastMove(null);
-    setError(null);
-  };
-
-  const handleDragEnd = ({ active, over }) => {
-    setActiveKey(null);
-    setOverKey(null);
-
-    if (!over || active.id === over.id || !isReady) return;
-
-    const oldIndex = draftGames.findIndex((game) => game.key === active.id);
-    const newIndex = draftGames.findIndex((game) => game.key === over.id);
-    const nextGames = arrayMove(draftGames, oldIndex, newIndex);
-    const movedGame = addSlotLabels(nextGames).find(
-      (game) => game.key === active.id
-    );
-
-    setDraftGames(nextGames);
-    setLastMove({
-      gameKey: active.id,
-      slotLabel: movedGame?.slotLabel || '',
-    });
-
-    if (moveTimerRef.current) clearTimeout(moveTimerRef.current);
-
-    moveTimerRef.current = setTimeout(() => {
-      setLastMove(null);
-    }, 1800);
-  };
-
-  const handleConfirm = async () => {
-    if (!hasChanges || isSaving) return;
-
-    setError(null);
-    setIsSaving(true);
-
-    try {
-      const originalByKey = new Map(
-        originalGames.map((game) => [game.key, game])
-      );
-
-      const orderChanged = draftGames.some(
-        (game, index) => originalGames[index]?.key !== game.key
-      );
-
-      if (orderChanged) {
-        await setGameOrder(
-          draftGames.map((game) => game.key),
-          teacherCode
-        );
-      }
-
-      const accessChanges = draftGames.filter((game) => {
-        const original = originalByKey.get(game.key);
-        return original && original.unlocked !== game.unlocked;
-      });
-
-      const shinyChanges = draftGames.filter((game) => {
-        const original = originalByKey.get(game.key);
-        return original && original.shiny !== game.shiny;
-      });
-
-      await Promise.all([
-        ...accessChanges.map((game) =>
-          setGameUnlocked(game.key, game.unlocked, teacherCode)
-        ),
-        ...shinyChanges.map((game) =>
-          setGameShiny(game.key, game.shiny, teacherCode)
-        ),
-      ]);
-
-      setOriginalGames(copyGames(draftGames));
-    } catch (err) {
-      setError(err.message || 'Could not save your changes. Please try again.');
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
   const handleTabChange = (tab) => {
     if (tab === activeTab) return;
-
-    // Leaving "access" for "new" can immediately overwrite draftGames
-    // (adding/removing games replaces the draft from the server), so any
-    // unsaved order/unlock/shiny edits must be resolved first. The two
-    // placeholder tabs don't touch draftGames, so switching to those is
-    // always safe.
-    if (tab === 'new' && hasChanges) {
-      setError('Save or reset your class changes before adding games.');
-      return;
-    }
-
-    setError(null);
+    setGlobalError(null);
     setActiveTab(tab);
   };
 
-  const handleShopToggle = async (game) => {
-    if (shopSavingKey) return;
-    const isAdded = visibleGames.some((item) => item.key === game.key);
-    setError(null);
-    setShopSavingKey(game.key);
+  const isGameTab = (tab) => tab === 'k1-games' || tab === 'k2-games' || tab === 'games';
 
-    try {
-      if (isAdded) {
-        await removeGameFromClass(game.key, teacherCode);
-      } else {
-        await addGameToClass(game.key, teacherCode);
-      }
-      const nextGames = copyGames(useGameAccessStore.getState().games);
-      setDraftGames(nextGames);
-      setOriginalGames(copyGames(nextGames));
-    } catch (err) {
-      setError(err.message || 'Could not update this class. Please try again.');
-    } finally {
-      setShopSavingKey(null);
-    }
-  };
+  const activeTabConfig = (() => {
+    if (activeTab === 'students') return { description: 'Manage the students enrolled in this class.' };
+    if (activeTab === 'settings') return { description: 'Configure settings for this class.' };
+    if (activeTab === 'k1-games') return { description: CLASS_TYPE_LABELS.k1.description };
+    if (activeTab === 'k2-games') return { description: CLASS_TYPE_LABELS.k2.description };
+    if (activeTab === 'games') return { description: "View your class's current game arrangement." };
+    return { description: '' };
+  })();
 
   return (
     <div className="min-h-[100dvh] w-full bg-[#f5f7ff]">
@@ -881,7 +1252,7 @@ export default function GameAccessPanel({ onClose }) {
             <button
               type="button"
               onClick={onClose}
-              disabled={isSaving || Boolean(shopSavingKey)}
+              disabled={globalSaving}
               aria-label="Back home"
               className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/15 text-xl text-white transition hover:bg-white/25 disabled:cursor-not-allowed disabled:opacity-50"
             >
@@ -894,10 +1265,10 @@ export default function GameAccessPanel({ onClose }) {
 
             <div className="min-w-0">
               <p className="text-[11px] font-black uppercase tracking-[0.14em] text-white/80">
-                Teacher controls
+                {isAdmin ? 'Admin controls' : 'Teacher controls'}
               </p>
               <h1 className="truncate text-xl font-black tracking-tight text-white sm:text-2xl lg:text-3xl">
-                Class controls
+                {isAdmin ? 'Class management' : 'Class controls'}
               </h1>
             </div>
           </div>
@@ -907,14 +1278,36 @@ export default function GameAccessPanel({ onClose }) {
           {activeTabConfig.description}
         </p>
 
-        <TabBar
-          activeTab={activeTab}
-          onChange={handleTabChange}
-          disabled={isSaving || Boolean(shopSavingKey)}
-        />
+        {isAdmin ? (
+          <AdminTabBar
+            activeTab={activeTab}
+            onChange={handleTabChange}
+            disabled={globalSaving}
+            adminClassType={userClassType}
+          />
+        ) : (
+          <TeacherTabBar
+            activeTab={activeTab}
+            onChange={handleTabChange}
+            disabled={globalSaving}
+          />
+        )}
       </header>
 
       <main className="mx-auto w-full max-w-3xl px-4 py-6 pb-32 sm:px-6 sm:py-8 lg:max-w-4xl lg:px-8 lg:pb-8">
+        <AnimatePresence mode="wait">
+          {globalError && (
+            <motion.p
+              initial={{ opacity: 0, y: -6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -6 }}
+              className="mb-3 rounded-2xl border border-rose-300 bg-rose-50 px-3 py-3 text-sm font-bold text-rose-800"
+            >
+              ⚠️ {globalError}
+            </motion.p>
+          )}
+        </AnimatePresence>
+
         {activeTab === 'students' && (
           <StudentsTab
             isReady={studentsLoaded}
@@ -933,205 +1326,32 @@ export default function GameAccessPanel({ onClose }) {
           />
         )}
 
-        {activeTab === 'new' && (
-          <div>
-            <div className="mb-4 rounded-2xl border border-violet-100 bg-violet-50 px-4 py-3 text-sm font-semibold text-violet-900">
-              Add a game with <strong>+</strong>. Use <strong>Remove</strong> to take it out of this class; it will no longer appear or load for players.
-            </div>
-            <ul className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-              {GAME_CATALOG.map((game) => {
-                const isAdded = visibleGames.some((item) => item.key === game.key);
-                const isSavingThis = shopSavingKey === game.key;
-                return (
-                  <li key={game.key} className="flex items-center gap-3 rounded-2xl border border-slate-100 bg-white p-3 shadow-sm sm:p-4">
-                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-xl" style={{ background: game.tint }}>{game.emoji}</span>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-black text-slate-800">{game.label}</p>
-                      <p className="mt-0.5 whitespace-pre-line text-[11px] font-semibold leading-snug text-slate-500">{game.subtitle}</p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => handleShopToggle(game)}
-                      disabled={Boolean(shopSavingKey) || !isReady}
-                      className={`min-h-10 shrink-0 rounded-xl px-3 text-xs font-black transition disabled:cursor-not-allowed disabled:opacity-55 ${
-                        isAdded ? 'bg-rose-50 text-rose-600 hover:bg-rose-100' : 'bg-indigo-600 text-white hover:bg-indigo-700'
-                      }`}
-                    >
-                      {isSavingThis ? 'Saving…' : isAdded ? 'Remove' : '+ Add'}
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
+        {activeTab === 'k1-games' && (
+          <GameAccessTypeEditor
+            key="k1-editor"
+            classType="k1"
+            teacherCode={teacherCode}
+            isSaving={globalSaving}
+            onGlobalError={setGlobalError}
+            onGlobalSavingChange={setGlobalSaving}
+          />
         )}
 
-        {activeTab === 'access' && (
-          <>
-            <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-stretch">
-              <div className="min-w-0 flex-1 rounded-2xl border border-indigo-100 bg-white px-4 py-3 shadow-sm sm:max-w-xs sm:px-5">
-                <p className="text-[10px] font-black uppercase tracking-wide text-indigo-400">
-                  Player access
-                </p>
-                <p className="mt-0.5 text-lg font-black text-slate-900 sm:text-xl">
-                  {unlockedCount}
-                  <span className="text-sm font-bold text-slate-500">
-                    {' '}
-                    / {visibleGames.length} open
-                  </span>
-                </p>
-              </div>
+        {activeTab === 'k2-games' && (
+          <GameAccessTypeEditor
+            key="k2-editor"
+            classType="k2"
+            teacherCode={teacherCode}
+            isSaving={globalSaving}
+            onGlobalError={setGlobalError}
+            onGlobalSavingChange={setGlobalSaving}
+          />
+        )}
 
-              <button
-                type="button"
-                disabled={!isReady || isSaving}
-                onClick={() => handleBulk(!allUnlocked)}
-                className="min-h-[3.25rem] shrink-0 rounded-2xl bg-white px-4 text-sm font-black text-indigo-800 shadow-sm ring-1 ring-inset ring-indigo-100 transition hover:bg-indigo-50 disabled:cursor-not-allowed disabled:opacity-60 sm:min-w-[9rem]"
-              >
-                {allUnlocked ? 'Lock all' : 'Unlock all'}
-              </button>
-            </div>
-
-            <AnimatePresence mode="wait">
-              {error && (
-                <motion.p
-                  initial={{ opacity: 0, y: -6 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -6 }}
-                  className="mb-3 rounded-2xl border border-rose-300 bg-rose-50 px-3 py-3 text-sm font-bold text-rose-800"
-                >
-                  ⚠️ {error}
-                </motion.p>
-              )}
-            </AnimatePresence>
-
-            {!isReady && (
-              <div className="mb-3 flex items-center gap-2 rounded-2xl border border-indigo-100 bg-indigo-50 px-3 py-2.5 text-xs font-bold text-indigo-700">
-                <span className="h-3 w-3 animate-spin rounded-full border-2 border-indigo-400 border-t-transparent" />
-                Loading saved access settings…
-              </div>
-            )}
-
-            <p className="mb-3 px-1 text-sm font-bold text-slate-700">
-              Drag a slot to reorder, or hover over one to preview the new placement.
-            </p>
-
-            <DndContext
-              sensors={sensors}
-              collisionDetection={closestCenter}
-              measuring={{
-                droppable: {
-                  strategy: MeasuringStrategy.WhileDragging,
-                },
-              }}
-              onDragStart={({ active }) => {
-                setActiveKey(active.id);
-                setOverKey(null);
-              }}
-              onDragOver={({ over }) => {
-                const nextOverKey = over?.id || null;
-
-                setOverKey((current) =>
-                  current === nextOverKey ? current : nextOverKey
-                );
-              }}
-              onDragCancel={() => {
-                setActiveKey(null);
-                setOverKey(null);
-              }}
-              onDragEnd={handleDragEnd}
-            >
-              <SortableContext
-                items={slottedGames.map((game) => game.key)}
-                strategy={verticalListSortingStrategy}
-              >
-                <ul className="flex flex-col gap-2.5">
-                  {slottedGames.map((game) => (
-                    <SortableGameSlot
-                      key={game.key}
-                      game={game}
-                      isHoveredSlot={
-                        overKey === game.key && activeKey !== game.key
-                      }
-                      isJustMoved={lastMove?.gameKey === game.key}
-                      disabled={!isReady || isSaving}
-                      onToggleAccess={handleToggleAccess}
-                      onToggleShiny={handleToggleShiny}
-                    />
-                  ))}
-                </ul>
-
-                {isReady && slottedGames.length === 0 && (
-                  <div className="rounded-2xl border border-dashed border-indigo-200 bg-indigo-50/60 px-5 py-8 text-center">
-                    <span className="text-4xl">&#127918;</span>
-                    <p className="mt-3 text-base font-black text-indigo-950">
-                      This class has no games yet
-                    </p>
-                    <p className="mt-1 text-sm font-semibold text-indigo-700">
-                      Open the shop to choose the first game for this class.
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => handleTabChange('new')}
-                      className="mt-4 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-black text-white shadow-sm transition hover:bg-indigo-700"
-                    >
-                      Go to New games
-                    </button>
-                  </div>
-                )}
-              </SortableContext>
-
-              <DragOverlay dropAnimation={null}>
-                <DragPreview game={activeGame} />
-              </DragOverlay>
-            </DndContext>
-          </>
+        {activeTab === 'games' && !isAdmin && (
+          <ReadOnlyGameList classType={userClassType || 'k1'} />
         )}
       </main>
-
-      {activeTab === 'access' && (
-        <footer className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white/95 px-4 py-3 shadow-[0_-4px_20px_rgba(15,23,42,0.08)] backdrop-blur pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-6 lg:sticky lg:px-8">
-          <div className="mx-auto flex max-w-3xl items-center gap-2 lg:max-w-4xl">
-            <button
-              type="button"
-              onClick={handleReset}
-              disabled={!hasChanges || isSaving}
-              className="min-h-11 rounded-xl bg-slate-100 px-4 text-sm font-black text-slate-600 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-45"
-            >
-              Reset
-            </button>
-
-            <button
-              type="button"
-              onClick={handleConfirm}
-              disabled={!hasChanges || isSaving}
-              className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 px-4 text-sm font-black text-white shadow-sm transition hover:from-indigo-700 hover:to-violet-700 disabled:cursor-not-allowed disabled:opacity-45 sm:flex-none sm:min-w-[12rem]"
-            >
-              {isSaving ? (
-                <>
-                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/70 border-t-transparent" />
-                  Saving…
-                </>
-              ) : (
-                <>
-                  Confirm changes
-                  {changeCount > 0 && (
-                    <span className="rounded-full bg-white/20 px-2 py-0.5 text-xs">
-                      {changeCount}
-                    </span>
-                  )}
-                </>
-              )}
-            </button>
-          </div>
-
-          {hasChanges && !isSaving && (
-            <p className="mt-2 text-center text-[11px] font-semibold text-amber-600 lg:mx-auto lg:max-w-4xl">
-              You have unsaved changes.
-            </p>
-          )}
-        </footer>
-      )}
     </div>
   );
 }

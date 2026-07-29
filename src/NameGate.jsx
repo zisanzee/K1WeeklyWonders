@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { usePlayerStore } from './playerStore';
-import { lookupTeacher } from './teacherCodes';
+
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
 
 const inputClass =
   'w-full rounded-2xl border-2 border-slate-200 bg-slate-50 px-4 py-3.5 text-base font-bold text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-sky-400 focus:bg-white focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:opacity-60';
@@ -20,6 +21,7 @@ export default function NameGate({ gameLabel, children }) {
   const [draft, setDraft] = useState(playerName || '');
   const [codeDraft, setCodeDraft] = useState('');
   const [codeError, setCodeError] = useState(null);
+  const [isSubmittingCode, setIsSubmittingCode] = useState(false);
 
   // Once a name is stored, never prompt again — no class check needed
   // since everyone shares the same default class now.
@@ -35,16 +37,34 @@ export default function NameGate({ gameLabel, children }) {
     setPlayer(name, DEFAULT_CLASS);
   };
 
-  const handleCodeSubmit = (event) => {
+  const handleCodeSubmit = async (event) => {
     event.preventDefault();
-    const teacher = lookupTeacher(codeDraft);
+    const code = codeDraft.trim();
+    if (!code || isSubmittingCode) return;
 
-    if (!teacher) {
-      setCodeError("That code doesn't match. Please check it and try again.");
-      return;
+    setCodeError(null);
+    setIsSubmittingCode(true);
+
+    try {
+      const response = await fetch(`${API_BASE}/api/teacher-login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setCodeError(data.error || "That code doesn't match. Please check it and try again.");
+        return;
+      }
+
+      setTeacher(data, code);
+    } catch (err) {
+      setCodeError('Could not connect to the server. Please try again.');
+    } finally {
+      setIsSubmittingCode(false);
     }
-
-    setTeacher(teacher, codeDraft.trim());
   };
 
   return (
@@ -78,7 +98,7 @@ export default function NameGate({ gameLabel, children }) {
                 Ready to play?
               </h1>
               <p className="mx-auto mt-2 max-w-xs text-sm font-semibold leading-relaxed text-white/90">
-                Tell us who you are to see today&apos;s games.
+                Tell us who you are to see today's games.
               </p>
             </div>
 
@@ -110,7 +130,7 @@ export default function NameGate({ gameLabel, children }) {
                 disabled={!draft.trim()}
                 className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-pink-500 to-rose-500 px-5 py-4 text-lg font-black text-white shadow-[0_6px_0_rgba(190,24,93,0.28)] transition hover:-translate-y-0.5 hover:shadow-[0_8px_0_rgba(190,24,93,0.24)] active:translate-y-1 active:shadow-none disabled:cursor-not-allowed disabled:translate-y-0 disabled:opacity-50"
               >
-                Let&apos;s play <span aria-hidden="true">&rarr;</span>
+                Let's play <span aria-hidden="true">&rarr;</span>
               </button>
 
               <div className="flex items-center gap-3 pt-1">
@@ -183,10 +203,19 @@ export default function NameGate({ gameLabel, children }) {
 
               <button
                 type="submit"
-                disabled={!codeDraft.trim()}
+                disabled={!codeDraft.trim() || isSubmittingCode}
                 className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-violet-600 to-indigo-600 px-5 py-4 text-lg font-black text-white shadow-[0_6px_0_rgba(67,56,202,0.28)] transition hover:-translate-y-0.5 hover:shadow-[0_8px_0_rgba(67,56,202,0.24)] active:translate-y-1 active:shadow-none disabled:cursor-not-allowed disabled:translate-y-0 disabled:opacity-50"
               >
-                Open teacher controls <span aria-hidden="true">&rarr;</span>
+                {isSubmittingCode ? (
+                  <>
+                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/70 border-t-transparent" />
+                    Verifying…
+                  </>
+                ) : (
+                  <>
+                    Open teacher controls <span aria-hidden="true">&rarr;</span>
+                  </>
+                )}
               </button>
 
               <button
@@ -195,7 +224,8 @@ export default function NameGate({ gameLabel, children }) {
                   setCodeError(null);
                   setMode('player');
                 }}
-                className="mx-auto block text-sm font-extrabold text-slate-500 transition hover:text-indigo-700"
+                disabled={isSubmittingCode}
+                className="mx-auto block text-sm font-extrabold text-slate-500 transition hover:text-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 &larr; Back to player sign in
               </button>

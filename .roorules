@@ -1,0 +1,169 @@
+# Project: K1 Weekly Wonders — kids' learning game platform
+
+Monorepo, two folders at workspace root:
+- `games/` — Vite + React frontend (the games + teacher/admin tools)
+- `server/` — Node/Express + Mongoose backend, deployed on Render
+
+Do not re-explain React/Tailwind/Express basics. Only reason about
+project-specific architecture below. If unsure whether a helper/model
+already exists, check the relevant file listed here before writing a new one.
+
+NOTE: this file describes the target architecture after the class-type /
+admin-role overhaul (see IMPLEMENTATION_PROMPT.md if that work isn't done
+yet). If code in the repo doesn't match a section here, treat the repo as
+stale/mid-migration, not this file as wrong.
+
+## Stack (games/)
+react19, react-router-dom v7, zustand v5 (+persist), tailwindcss v4 via
+`@tailwindcss/vite` (NOT the v3 postcss/config workflow — no
+`tailwind.config.js`; theme/config lives in CSS via `@import "tailwindcss"`
+and `@theme`), motion (framer-motion's new package name — `import { motion }
+from 'motion/react'`), phaser v4, @dnd-kit/* (drag-reorder in the admin
+panel), react-confetti, use-sound, react-helmet-async, clsx + tailwind-merge
+(check for a shared `cn()` util before writing conditional classNames by
+hand).
+
+## Stack (server/)
+Express + Mongoose (MongoDB). No JWT/session middleware — auth is a shared
+"teacher code" checked against the DB per-request. See Auth model below.
+
+## Core domain model
+- **ClassType**: `'k1' | 'k2'` (enum, not a Mongo collection — same
+  hardcoded-list pattern as `GAME_CATALOG`; add a third value the same way
+  if needed later). Determines which game arrangement a class sees.
+- **Class** (`ClassInfo`): `classId`, `className`, `image` (nullable,
+  placeholder when absent), `classType`. Teacher list is *derived* by
+  querying Teacher for matching classId, not stored on the class doc.
+- **Teacher**: `code` (unique access code), `name`, `classId` (their home
+  class), `role: 'teacher' | 'admin'`.
+- **Student** (`Student.js`): `studentId` (server-generated UUID, not
+  Mongo `_id`), `classId`, `fullName`, `nickname` (optional). classId-scoped,
+  unaffected by classType. Pure roster data for now — not wired into game
+  unlocking, PlaySession matching, or anything else. Don't add any
+  functional linkage as part of the class-type overhaul; adding a student
+  is a standalone action with no side effects elsewhere yet.
+- **GameAccess**: scoped by **classType**, not classId: `unlocked`,
+  `shiny` (featured), `order`, `added` (opted in from the shop), per
+  `{classType, gameKey}` (unique compound index). Every class of the same
+  type sees identical game arrangement/lock state.
+- **PlaySession**: one row per completed round, still `classId`-scoped
+  (`game`, `playerName`, `classId`, `stars`, `totalRounds`, `peakStreak`,
+  optional `elapsedSeconds`/`mistakes` for time-trial games, `device`
+  fingerprint).
+- **Legacy default**: `classId: 'k12026-pny'`, `classType: 'k1'`
+  ("Kindergarten 1"). Any classId-scoped fallback (missing-classId logic,
+  model defaults) uses this id; classType defaults to `'k1'` when unset.
+
+## Auth model — two tiers, both DB-validated server-side
+- `isTeacher`/`isAdmin` in the zustand player store are UI state only, NOT
+  a security boundary. Every write endpoint re-validates `teacherCode`
+  against the DB.
+- **Teacher** (`requireTeacher`): exactly three capabilities — view their
+  own class's info (name/id/image/teacher list), add students to their
+  own roster, and view (never edit) their own class type's game
+  arrangement. No other mutation surface should be reachable by a
+  non-admin anywhere in the panel — no reorder, lock/unlock, shiny, shop
+  add/remove, student edit/delete, or class-info edit.
+- **Admin** (`requireAdmin`, stricter than `requireTeacher` — role must be
+  `'admin'`): the only role that can mutate `GameAccess` (lock/unlock,
+  reorder, shiny, shop add/remove). Admins edit by `classType`, not by
+  their own classId — they can manage K1 and/or K2 regardless of which
+  class is their homeroom.
+- Login: `NameGate.jsx` calls `POST /api/teacher-login` with the code and
+  gets back `{name, classId, className, classType, role}` from the server
+  — there is no client-side hardcoded teacher-code mirror anymore (it was
+  removed; it caused new/edited teachers to be unable to log in since the
+  frontend copy would drift from the DB).
+
+## Frontend gating flow (unchanged by the classType overhaul)
+`NameGate.jsx` (whole-app entry) → captures player name (legacy default
+class) or teacher code (real class via the login endpoint) → persisted in
+`playerStore.js`. `GameAccessGate.jsx` (wraps each game) → re-checks
+per-game unlock via `gameAccess.js`'s `useIsGameUnlocked`; teachers/admins
+always pass through. Both gates independently re-fetch if data isn't
+loaded for the current classId. **This entire read/gating path is still
+classId-based** — the server resolves `classId → classType` internally
+for `GET /api/game-access`, so none of this frontend code needed to change
+for the overhaul. New game routes still need both gates, in that order.
+
+## Key frontend files
+- `playerStore.js` — persisted zustand: playerName, classId, className,
+  isTeacher, isAdmin, classType, teacherCode.
+- `gameAccess.js` — `GAME_CATALOG` (canonical game list), the
+  classId-based read store used by Home/GameAccessGate (unchanged), plus
+  classType-scoped admin mutators (`setGameUnlockedForType`,
+  `setGameShinyForType`, `setGameOrderForType`, `addGameToType`,
+  `removeGameFromType`) used only by the admin panel.
+- `logPlaySession.js` — called by every game on completion
+  (`classId`-scoped, unaffected by classType). Also holds
+  `fetchStats`/`fetchSummary`/`fetchAllPlays`/`deletePlayerGame`.
+- `students.js` / `classInfo.js` — roster + class-info API, classId-scoped,
+  available to any teacher for their own class.
+- `main.jsx` — all game routes lazy-loaded. Phaser-based games live under
+  `BonusGames/<name>/PhaserDemo.jsx` even when not labeled "bonus" in the
+  catalog (e.g. Game4).
+- `GameAccessPanel.jsx` — for admins, the tab bar is **"K1 Games" / "K2
+  Games" / Students / Settings** (two separate top-level tabs, not a
+  toggle inside one tab), each fully editable independently and defaulting
+  to the admin's own classType on open. Non-admin teachers instead see a
+  single **"Games"** tab (their own classType only), read-only — no drag/
+  lock/shiny controls, just current state as static badges. Students tab
+  is classId-scoped and unaffected by role either way.
+
+## Server endpoint contract (server/server.js)
+- `POST /api/teacher-login` — `{code}` → `{name, classId, className, classType, role}` or 401.
+- `GET /api/classes` — list of `{id, name, classType}`.
+- `GET /api/classes/:classId` — `{classId, className, image, classType, teachers[]}`.
+- `GET /api/game-access?classId=` — READ, resolves classId→classType
+  server-side, returns that type's rows. Contract unchanged from before
+  the overhaul on purpose.
+- `PUT/POST/DELETE /api/game-access[...]` — WRITE, admin-only
+  (`requireAdmin`), body includes `classType` directly (not resolved from
+  the caller's own classId).
+- `GET/POST/DELETE /api/students` — teacher-only (`requireTeacher`),
+  scoped to the caller's own `classId`.
+- `POST /api/plays` — logs a session; `classId`-scoped, falls back to the
+  legacy class if absent client-side.
+- `GET /api/stats`, `/api/summary`, `/api/plays` — teacher dashboard reads.
+- `DELETE /api/plays` — teacher-only.
+All routes return `{ error: '...' }` with non-2xx on failure; frontend
+helpers throw `new Error(body.error || 'fallback message')`.
+
+## Mongoose/Mongo gotchas
+- Nested subdocument fields must avoid a key literally named `type`
+  (Mongoose reads it as a type-declaration shorthand) — see
+  `PlaySession.device.kind` (not `.type`).
+- **Schema field changes don't migrate indexes.** When `GameAccess` moved
+  its unique key from `{classId, gameKey}` to `{classType, gameKey}`, the
+  old index had to be explicitly dropped and `syncIndexes()` called — a
+  Mongoose schema edit alone does not do this in MongoDB.
+- One-time data migrations run at boot (in the `mongoose.connect().then()`
+  chain, before `app.listen`) and must be self-guarding/idempotent — check
+  for the absence of the new field / presence of the old one before acting,
+  so redeploys don't redo or corrupt the migration.
+
+## Conventions to match when writing new code
+- Comments explain *why*, not *what* — short rationale comments above
+  non-obvious logic, not narration of obvious lines.
+- Prefer editing/extending existing zustand stores and API helper files
+  over creating parallel ones — one store per domain, one thin
+  fetch-helper file per API concern.
+- Env var: `VITE_API_BASE_URL` (frontend, defaults to
+  `http://localhost:4000`). Backend uses `MONGODB_URI`.
+
+## Adding a new game — checklist
+1. Build the game component/scene (React or Phaser) under `games/src`.
+2. Add a `lazy()` import + `<Route>` in `main.jsx`.
+3. Add an entry to `GAME_CATALOG` in `gameAccess.js`.
+4. Wrap the route content in `NameGate` → `GameAccessGate`.
+5. Call `logPlaySession(...)` on completion with the matching `game` slug.
+6. It appears once an **admin** adds it to a class type from the shop
+   (`addGameToType`) — teachers cannot do this themselves anymore.
+
+## Adding a new class type (e.g. a future 'k3')
+1. Add the value to the `classType` enum in `models/ClassInfo.js` and
+   `models/GameAccess.js`.
+2. Add it as a new tab (alongside "K1 Games" / "K2 Games") in
+   `GameAccessPanel.jsx`'s admin tab bar.
+3. No GameAccess rows exist for it until an admin adds games to it via the
+   shop — an empty class type is a valid, expected state.
