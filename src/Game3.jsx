@@ -26,7 +26,9 @@ const GAME3_AUDIO = {
   completion: 'https://res.cloudinary.com/hijmipga/video/upload/v1785349242/You_re_a_number-line_explorer_Amazing_job_hivx6k.mp3',
 };
 
-// Preload all audio at module scope so clips play instantly on first use.
+// Lazily populated audio cache — preloading happens inside the component
+// (see Game3Inner's useEffect) so nothing loads until the user actually
+// navigates to this game.
 const _audioCache = {};
 function preloadAll(urlMap) {
   Object.values(urlMap).forEach((url) => {
@@ -37,26 +39,46 @@ function preloadAll(urlMap) {
     }
   });
 }
-preloadAll(GAME3_AUDIO);
-// Preload number voices 1-10.
-for (let n = 1; n <= 10; n++) {
-  const url = getNumberVoiceUrl(n);
-  if (url && !_audioCache[url]) {
-    const a = new Audio(url);
-    a.preload = 'auto';
-    _audioCache[url] = a;
+
+// Also preload number voices 1-10 so dynamic number clips play instantly.
+function preloadNumberVoices() {
+  for (let n = 1; n <= 10; n++) {
+    const url = getNumberVoiceUrl(n);
+    if (url && !_audioCache[url]) {
+      const a = new Audio(url);
+      a.preload = 'auto';
+      _audioCache[url] = a;
+    }
   }
 }
 
 let _currentAudio = null;
+
+/** Cancel any currently playing audio immediately. */
+function cancelAudio() {
+  if (_currentAudio) {
+    _currentAudio.pause();
+    _currentAudio.currentTime = 0;
+    _currentAudio = null;
+  }
+}
 
 /** Play a single audio URL; if onComplete is given, call it when the clip ends. */
 function playUrl(url, onComplete) {
   if (_currentAudio) {
     _currentAudio.pause();
     _currentAudio.currentTime = 0;
+    _currentAudio = null;
   }
+
   const audio = _audioCache[url] || new Audio(url);
+
+  // Always clear the previous onended handler first — cached Audio objects
+  // may carry a stale handler from an earlier call that had onComplete,
+  // which would fire unexpectedly (and potentially restart the chain) the
+  // next time this URL is played without onComplete.
+  audio.onended = null;
+
   _currentAudio = audio;
   if (onComplete) {
     audio.onended = () => {
@@ -136,14 +158,15 @@ function clamp(n, min, max) {
 }
 
 function speak(text, muted) {
-  if (muted || typeof window === 'undefined') return;
+  if (typeof window === 'undefined') return;
 
-  // Stop any currently playing audio.
-  if (_currentAudio) {
-    _currentAudio.pause();
-    _currentAudio.currentTime = 0;
-    _currentAudio = null;
+  // Muting means cancel any currently playing audio and stop.
+  if (muted) {
+    cancelAudio();
+    return;
   }
+
+  cancelAudio();
 
   // ─── Static lines ──────────────────────────────────────────────
   if (text === "Not quite, try again!") {
@@ -289,6 +312,7 @@ function useIsMobile() {
 
 function Game3Inner() {
   const playerName = usePlayerStore((s) => s.playerName);
+  const [audioReady, setAudioReady] = useState(false);
   const planRef = useRef(buildPlan());
   const [roundIndex, setRoundIndex] = useState(0);
   const [round, setRound] = useState(() => generateRound(0, planRef.current[0], null));
@@ -300,6 +324,18 @@ function Game3Inner() {
   const [wrongValue, setWrongValue] = useState(null);
   const [hasErred, setHasErred] = useState(false);
   const [celebrate, setCelebrate] = useState(false);
+
+  // Preload audio assets the moment the user enters this game — starts
+  // fetching all audio files so they play instantly when speak() is called.
+  useEffect(() => {
+    preloadAll(GAME3_AUDIO);
+    preloadNumberVoices();
+    setAudioReady(true);
+
+    // Cleanup: cancel any in-flight audio when the player navigates away,
+    // so voice lines don't keep playing on the homepage or another game.
+    return () => cancelAudio();
+  }, []);
 
   const peakStreakRef = useRef(0);
   const hasLoggedRef = useRef(false);
@@ -372,6 +408,17 @@ function Game3Inner() {
     speak(getSpeechPrompt(newRound), muted);
   };
 
+  if (!audioReady) {
+    return (
+      <div className="flex h-[100dvh] w-full items-center justify-center bg-gradient-to-b from-[#8FE9E4] via-[#2FA8C9] to-[#123A6B]">
+        <div className="flex flex-col items-center gap-4">
+          <span className="text-6xl animate-pulse">🐚</span>
+          <p className="font-heading text-xl font-bold text-white drop-shadow-lg">Loading audio...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="relative h-[100dvh] w-full overflow-hidden bg-gradient-to-b from-[#8FE9E4] via-[#2FA8C9] to-[#123A6B]">
       <link
@@ -414,7 +461,7 @@ function Game3Inner() {
 
       <div className="relative z-10 mx-auto flex h-full max-w-5xl flex-col items-center overflow-hidden px-4 py-2 [@media(min-width:640px)_and_(min-height:560px)]:py-4">
         <div className="flex w-full flex-none items-center justify-between">
-          <TopBar totalRounds={TOTAL_ROUNDS} stars={stars} muted={muted} onToggleMute={() => setMuted((m) => !m)} />
+          <TopBar totalRounds={TOTAL_ROUNDS} stars={stars} muted={muted} onToggleMute={() => { cancelAudio(); setMuted((m) => !m); }} />
         </div>
 
         {phase === 'complete' ? (

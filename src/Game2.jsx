@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import clsx from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -7,6 +7,7 @@ import GameAccessGate from './GameAccessGate';
 import { usePlayerStore } from './playerStore';
 import { logPlaySession } from './logPlaySession';
 import { Helmet } from 'react-helmet-async';
+import { speak, warmupSpeech, cancelSpeech } from './Phaser/common/speech';
 
 function cn(...inputs) {
   return twMerge(clsx(inputs));
@@ -47,15 +48,6 @@ function randInt(min, max) {
 
 function clamp(n, min, max) {
   return Math.min(max, Math.max(min, n));
-}
-
-function speak(text, muted) {
-  if (muted || typeof window === 'undefined' || !('speechSynthesis' in window)) return;
-  window.speechSynthesis.cancel();
-  const utterance = new SpeechSynthesisUtterance(text);
-  utterance.rate = 0.85;
-  utterance.pitch = 1.3;
-  window.speechSynthesis.speak(utterance);
 }
 
 // Quantities creep closer together as rounds progress, so early rounds can
@@ -211,6 +203,12 @@ function Game2Inner() {
   const [wrongBasketId, setWrongBasketId] = useState(null);
   const [hasErred, setHasErred] = useState(false);
   const [showHint, setShowHint] = useState(false);
+
+  // Prime the TTS engine on mount so the first real utterance has no delay.
+  useEffect(() => {
+    warmupSpeech();
+    return () => cancelSpeech();
+  }, []);
 
   const peakStreakRef = useRef(0);
   const hasLoggedRef = useRef(false);

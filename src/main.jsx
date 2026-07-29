@@ -5,6 +5,12 @@ import "./index.css";
 
 import Home from "./Home";
 import { HelmetProvider } from "react-helmet-async";
+import { warmupSpeech } from "./Phaser/common/speech";
+
+// Prime the TTS engine immediately so every game's first utterance plays
+// with zero delay — by the time the player taps a game tile, the
+// speechSynthesis engine is already initialised and voice-loaded.
+warmupSpeech();
 
 // Each game pulls in its own copy of framer-motion / dnd-kit / confetti and is
 // 25-30KB+ of JSX alone. Lazy-loading means a phone only ever downloads and

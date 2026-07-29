@@ -38,7 +38,9 @@ const GAME6_AUDIO = {
   treasureHunter: 'https://res.cloudinary.com/hijmipga/video/upload/v1785349842/ye_be_a_true_treasure_hunter_eaqwzi.mp3',
 };
 
-// Preload all audio at module scope so clips play instantly on first use.
+// Lazily populated audio cache — preloading happens inside the component
+// (see Game6Inner's useEffect) so nothing loads until the user actually
+// navigates to this game.
 const _audioCache = {};
 function preloadAll(urlMap) {
   Object.values(urlMap).forEach((url) => {
@@ -49,14 +51,16 @@ function preloadAll(urlMap) {
     }
   });
 }
-preloadAll(GAME6_AUDIO);
-// Preload number voices 1-10 (for success messages with numbers).
-for (let n = 1; n <= 10; n++) {
-  const url = getNumberVoiceUrl(n);
-  if (url && !_audioCache[url]) {
-    const a = new Audio(url);
-    a.preload = 'auto';
-    _audioCache[url] = a;
+
+// Also preload number voices 1-10 so dynamic number clips play instantly.
+function preloadNumberVoices() {
+  for (let n = 1; n <= 10; n++) {
+    const url = getNumberVoiceUrl(n);
+    if (url && !_audioCache[url]) {
+      const a = new Audio(url);
+      a.preload = 'auto';
+      _audioCache[url] = a;
+    }
   }
 }
 
@@ -67,8 +71,17 @@ function playUrl(url, onComplete) {
   if (_currentAudio) {
     _currentAudio.pause();
     _currentAudio.currentTime = 0;
+    _currentAudio = null;
   }
+
   const audio = _audioCache[url] || new Audio(url);
+
+  // Always clear the previous onended handler first — cached Audio objects
+  // may carry a stale handler from an earlier call that had onComplete,
+  // which would fire unexpectedly (and potentially restart the chain) the
+  // next time this URL is played without onComplete.
+  audio.onended = null;
+
   _currentAudio = audio;
   if (onComplete) {
     audio.onended = () => {
@@ -156,7 +169,13 @@ function clamp(n, min, max) {
 }
 
 function speak(text, muted) {
-  if (muted || typeof window === 'undefined') return;
+  if (typeof window === 'undefined') return;
+
+  // Muting means cancel any currently playing audio and stop.
+  if (muted) {
+    cancelAudio();
+    return;
+  }
 
   cancelAudio();
 
@@ -170,35 +189,13 @@ function speak(text, muted) {
     return;
   }
 
-  // ─── Success messages ─────────────────────────────────────────
-  // "Treasure found! {fixedPart} and {value} together make {whole}!"
-  const treasureMatch = text.match(/^Treasure found! (\d+) and (\d+) together make (\d+)!$/);
-  if (treasureMatch) {
-    const wordA = NUMBER_WORDS[parseInt(treasureMatch[1])];
-    const wordB = NUMBER_WORDS[parseInt(treasureMatch[2])];
-    const wordWhole = NUMBER_WORDS[parseInt(treasureMatch[3])];
-    playUrl(GAME6_AUDIO.treasureFound, () => {
-      playNumberWord(wordA, () => {
-        playNumberWord(wordB, () => {
-          playNumberWord(wordWhole);
-        });
-      });
-    });
+  // ─── Success messages (generic audio only, no dynamic number voices) ──
+  if (text.startsWith("Treasure found!")) {
+    playUrl(GAME6_AUDIO.treasureFound);
     return;
   }
-  // "Correct! {partA} and {partB} together make {whole}!"
-  const correctMatch = text.match(/^Correct! (\d+) and (\d+) together make (\d+)!$/);
-  if (correctMatch) {
-    const wordA = NUMBER_WORDS[parseInt(correctMatch[1])];
-    const wordB = NUMBER_WORDS[parseInt(correctMatch[2])];
-    const wordWhole = NUMBER_WORDS[parseInt(correctMatch[3])];
-    playUrl(GAME6_AUDIO.correct, () => {
-      playNumberWord(wordA, () => {
-        playNumberWord(wordB, () => {
-          playNumberWord(wordWhole);
-        });
-      });
-    });
+  if (text.startsWith("Correct!")) {
+    playUrl(GAME6_AUDIO.correct);
     return;
   }
 
@@ -309,6 +306,7 @@ function successSpeech(round, value) {
 
 function Game6Inner() {
   const playerName = usePlayerStore((s) => s.playerName);
+  const [audioReady, setAudioReady] = useState(false);
   const planRef = useRef(generateRoundPlan());
   const [roundIndex, setRoundIndex] = useState(0);
   const [round, setRound] = useState(() => generateRound(0, planRef.current[0], null));
@@ -324,6 +322,22 @@ function Game6Inner() {
   const [streak, setStreak] = useState(0);
   const [hasErred, setHasErred] = useState(false);
   const [muted, setMuted] = useState(false);
+
+  // Preload audio + images the moment the user enters this game — starts
+  // fetching everything so it plays/displays instantly on first use.
+  useEffect(() => {
+    preloadAll(GAME6_AUDIO);
+    preloadNumberVoices();
+    // Preload chest images so they don't flicker on first render.
+    const images = ['/chest_open.png', '/chest_closed.png'];
+    images.forEach((src) => { const img = new Image(); img.src = src; });
+
+    // Reset the spoken-ref so speak() fires on the next render now that
+    // audio is cached — on the very first render speak() was called but
+    // the loading screen was shown, so the player never heard the line.
+    hasSpokenRef.current = false;
+    setAudioReady(true);
+  }, []);
 
   const hasLoggedRef = useRef(false);
   const peakStreakRef = useRef(0);
@@ -442,6 +456,17 @@ function Game6Inner() {
 
   const activeChoice = round.type === 'part' ? round.choices.find((c) => c.id === activeId) : null;
 
+  if (!audioReady) {
+    return (
+      <div className="flex h-[100dvh] w-full items-center justify-center bg-gradient-to-b from-[#3FB6EA] via-[#8FE0FA] to-[#F4D9A0]">
+        <div className="flex flex-col items-center gap-4">
+          <span className="text-6xl animate-pulse">🏴‍☠️</span>
+          <p className="font-heading text-xl font-bold text-amber-900 drop-shadow-lg">Loading audio...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="relative h-[100dvh] w-full overflow-hidden bg-gradient-to-b from-[#3FB6EA] via-[#8FE0FA] to-[#F4D9A0]">
       <link
@@ -489,7 +514,7 @@ function Game6Inner() {
 
       <div className="relative z-10 mx-auto flex h-full max-w-5xl flex-col items-center overflow-hidden px-3 py-2 [@media(min-width:640px)_and_(min-height:560px)]:px-4 [@media(min-width:640px)_and_(min-height:560px)]:py-3">
         <div className="flex w-full flex-none items-center justify-between">
-          <TopBar totalRounds={TOTAL_ROUNDS} stars={stars} muted={muted} onToggleMute={() => setMuted((m) => !m)} />
+          <TopBar totalRounds={TOTAL_ROUNDS} stars={stars} muted={muted} onToggleMute={() => { cancelAudio(); setMuted((m) => !m); }} />
         </div>
 
         {phase === 'complete' ? (

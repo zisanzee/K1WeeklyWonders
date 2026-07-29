@@ -20,6 +20,7 @@ import GameAccessGate from './GameAccessGate';
 import { usePlayerStore } from './playerStore';
 import { logPlaySession } from './logPlaySession';
 import { Helmet } from 'react-helmet-async';
+import { speak, warmupSpeech, cancelSpeech } from './Phaser/common/speech';
 
 const TOTAL_ROUNDS = 10;
 const NUMBER_WORDS = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
@@ -80,15 +81,6 @@ function generateRoundPlan() {
   return numbers.map((target, i) => ({ target, format: formats[i] }));
 }
 
-function speak(text, muted) {
-  if (muted || typeof window === 'undefined' || !('speechSynthesis' in window)) return;
-  window.speechSynthesis.cancel();
-  const utterance = new SpeechSynthesisUtterance(text);
-  utterance.rate = 1;
-  utterance.pitch = 1.3;
-  window.speechSynthesis.speak(utterance);
-}
-
 function generateRound(roundIndex, prevCategoryKey, target, format) {
   const pool = CATEGORIES.length > 1 ? CATEGORIES.filter((c) => c.key !== prevCategoryKey) : CATEGORIES;
   const category = pool[Math.floor(Math.random() * pool.length)];
@@ -127,17 +119,14 @@ function Game1Inner() {
 
   const basketCount = useMemo(() => round.items.filter((it) => it.location === 'basket').length, [round.items]);
 
+  // Prime the TTS engine on mount so the first real utterance has no delay.
   useEffect(() => {
-    return () => {
-      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-        window.speechSynthesis.cancel();
-      }
-    };
+    warmupSpeech();
+    return () => cancelSpeech();
   }, []);
 
   useEffect(() => {
     speak(`Fill the basket with ${round.target} ${round.item.name}!`, muted);
-    // Runs once, on mount, to announce the very first round.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

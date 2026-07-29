@@ -20,6 +20,7 @@ import GameAccessGate from './GameAccessGate';
 import { usePlayerStore } from './playerStore';
 import { logPlaySession } from './logPlaySession';
 import { Helmet } from 'react-helmet-async';
+import { speak, warmupSpeech, cancelSpeech } from './Phaser/common/speech';
 
 const TOTAL_ROUNDS = 10; // 3 free-split + 2 even-split + 5 target-split rounds
 const FREE_TOTALS = [3, 4, 5];
@@ -64,15 +65,6 @@ function shuffle(arr) {
     [a[i], a[j]] = [a[j], a[i]];
   }
   return a;
-}
-
-function speak(text, muted) {
-  if (muted || typeof window === 'undefined' || !('speechSynthesis' in window)) return;
-  window.speechSynthesis.cancel();
-  const utterance = new SpeechSynthesisUtterance(text);
-  utterance.rate = 1;
-  utterance.pitch = 1.3;
-  window.speechSynthesis.speak(utterance);
 }
 
 // Rounds 0-2: any two-way split. Rounds 3-4: split exactly in half (Red and
@@ -155,17 +147,14 @@ function Game5Inner() {
   const rightCount = useMemo(() => round.items.filter((it) => it.location === 'right').length, [round.items]);
   const poolCount = round.items.length - leftCount - rightCount;
 
+  // Prime the TTS engine on mount so the first real utterance has no delay.
   useEffect(() => {
-    return () => {
-      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-        window.speechSynthesis.cancel();
-      }
-    };
+    warmupSpeech();
+    return () => cancelSpeech();
   }, []);
 
   useEffect(() => {
     speak(missionSpeech(round), muted);
-    // Runs once, on mount, to announce the very first round.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -188,8 +177,6 @@ function Game5Inner() {
     const updatedItems = round.items.map((it) => (it.id === active.id ? { ...it, location: zone } : it));
     setRound((r) => ({ ...r, items: updatedItems }));
 
-    // Say the count and rocket color the moment the piece lands or leaves —
-    // e.g. "4 blue" — nothing more, so it stays quick and easy to follow.
     if (zone === 'left' || zone === 'right') {
       const newCount = updatedItems.filter((it) => it.location === zone).length;
       const color = zone === 'left' ? 'red' : 'blue';
