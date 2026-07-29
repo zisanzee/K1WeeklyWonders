@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { usePlayerStore } from './playerStore';
+import { CLASS_TYPE_CONFIG } from './teacherCodes';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
 let latestGameAccessRequest = 0;
@@ -152,8 +153,17 @@ export const useGameAccessStore = create((set, get) => ({
 
     set({ loading: true, loadingClassId: classId, error: null });
 
+    // Resolve the classId through the curriculum mapping: if the current
+    // player has a classType, read from the curriculum storage for that
+    // type instead of the raw classId. This ensures all classes sharing
+    // the same classType see identical game arrangements.
+    const playerClassType = usePlayerStore.getState().classType;
+    const curriculumClassId = playerClassType
+      ? (CLASS_TYPE_CONFIG[playerClassType]?.classId || classId)
+      : classId;
+
     try {
-      const response = await fetch(`${API_BASE}/api/game-access?classId=${encodeURIComponent(classId)}`);
+      const response = await fetch(`${API_BASE}/api/game-access?classId=${encodeURIComponent(curriculumClassId)}`);
 
       if (!response.ok) {
         throw new Error('Failed to load game access');
