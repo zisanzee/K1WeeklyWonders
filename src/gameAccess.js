@@ -232,15 +232,17 @@ export const useGameAccessStore = create((set, get) => ({
   },
 }));
 
-export async function setGameUnlocked(gameKey, unlocked, teacherCode) {
+export async function setGameUnlocked(gameKey, unlocked, teacherCode, classId) {
   const key = normalizeKey(gameKey);
+  const body = { unlocked, teacherCode };
+  if (classId) body.classId = classId;
 
   const response = await fetch(
     `${API_BASE}/api/game-access/${encodeURIComponent(key)}`,
     {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ unlocked, teacherCode }),
+      body: JSON.stringify(body),
     }
   );
 
@@ -256,15 +258,17 @@ export async function setGameUnlocked(gameKey, unlocked, teacherCode) {
   return data;
 }
 
-export async function setGameShiny(gameKey, shiny, teacherCode) {
+export async function setGameShiny(gameKey, shiny, teacherCode, classId) {
   const key = normalizeKey(gameKey);
+  const body = { shiny, teacherCode };
+  if (classId) body.classId = classId;
 
   const response = await fetch(
     `${API_BASE}/api/game-access/${encodeURIComponent(key)}/shiny`,
     {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ shiny, teacherCode }),
+      body: JSON.stringify(body),
     }
   );
 
@@ -280,11 +284,14 @@ export async function setGameShiny(gameKey, shiny, teacherCode) {
   return data;
 }
 
-export async function setGameOrder(gameKeys, teacherCode) {
+export async function setGameOrder(gameKeys, teacherCode, classId) {
+  const body = { gameKeys, teacherCode };
+  if (classId) body.classId = classId;
+
   const response = await fetch(`${API_BASE}/api/game-access/order`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ gameKeys, teacherCode }),
+    body: JSON.stringify(body),
   });
 
   if (!response.ok) {
@@ -299,14 +306,17 @@ export async function setGameOrder(gameKeys, teacherCode) {
   return data.rows;
 }
 
-export async function addGameToClass(gameKey, teacherCode) {
+export async function addGameToClass(gameKey, teacherCode, classId) {
   const key = normalizeKey(gameKey);
+  const body = { teacherCode };
+  if (classId) body.classId = classId;
+
   const response = await fetch(
     `${API_BASE}/api/game-access/${encodeURIComponent(key)}`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ teacherCode }),
+      body: JSON.stringify(body),
     }
   );
 
@@ -320,14 +330,17 @@ export async function addGameToClass(gameKey, teacherCode) {
   return data.rows;
 }
 
-export async function removeGameFromClass(gameKey, teacherCode) {
+export async function removeGameFromClass(gameKey, teacherCode, classId) {
   const key = normalizeKey(gameKey);
+  const body = { teacherCode };
+  if (classId) body.classId = classId;
+
   const response = await fetch(
     `${API_BASE}/api/game-access/${encodeURIComponent(key)}`,
     {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ teacherCode }),
+      body: JSON.stringify(body),
     }
   );
 

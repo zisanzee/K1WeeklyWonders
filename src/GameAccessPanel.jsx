@@ -28,6 +28,7 @@ import {
   GAME_CATALOG,
   useGameAccessStore,
 } from './gameAccess';
+import { CLASS_TYPE_CONFIG } from './teacherCodes';
 import { useStudentStore, addStudent } from './students';
 import { fetchClassInfo } from './classInfo';
 
@@ -576,10 +577,15 @@ function DragPreview({ game }) {
 // Admin-only: full edit controls for a specific class type (k1 or k2).
 // Uses classId-based endpoints as a fallback until the server supports
 // classType-scoped reads/writes (Phases 1-4 in the server repo).
+// Uses writeCode (a teacher code that resolves to the target classId on the
+// server) for all API writes, since the server derives classId from the
+// teacher code rather than from body.classId. K1 uses 12/10/22 → k12026-pny,
+// K2 uses 92702689 → test2026-jyx.
 function GameAccessTypeEditor({
   classType,
   classId,
-  teacherCode,
+  teacherCode,     // the logged-in user's code (for auth display only)
+  writeCode,       // the code whose classId matches this editor's target
   isSaving,
   onGlobalError,
   onGlobalSavingChange,
@@ -785,7 +791,8 @@ function GameAccessTypeEditor({
       if (orderChanged) {
         await setGameOrder(
           draftGames.map((game) => game.key),
-          teacherCode
+          writeCode,
+          classId
         );
       }
 
@@ -801,10 +808,10 @@ function GameAccessTypeEditor({
 
       await Promise.all([
         ...accessChanges.map((game) =>
-          setGameUnlocked(game.key, game.unlocked, teacherCode)
+          setGameUnlocked(game.key, game.unlocked, writeCode, classId)
         ),
         ...shinyChanges.map((game) =>
-          setGameShiny(game.key, game.shiny, teacherCode)
+          setGameShiny(game.key, game.shiny, writeCode, classId)
         ),
       ]);
 
@@ -826,9 +833,9 @@ function GameAccessTypeEditor({
 
     try {
       if (isAdded) {
-        await removeGameFromClass(game.key, teacherCode);
+        await removeGameFromClass(game.key, writeCode, classId);
       } else {
-        await addGameToClass(game.key, teacherCode);
+        await addGameToClass(game.key, writeCode, classId);
       }
       // Refresh games after shop change using classId-based endpoint
       const res = await fetch(`${API_BASE}/api/game-access?classId=${encodeURIComponent(classId)}`);
@@ -1342,7 +1349,8 @@ export default function GameAccessPanel({ onClose }) {
           <GameAccessTypeEditor
             key="k1-editor"
             classType="k1"
-            classId={classId}
+            classId={CLASS_TYPE_CONFIG.k1.classId}
+            writeCode={CLASS_TYPE_CONFIG.k1.writeCode}
             teacherCode={teacherCode}
             isSaving={globalSaving}
             onGlobalError={setGlobalError}
@@ -1354,7 +1362,8 @@ export default function GameAccessPanel({ onClose }) {
           <GameAccessTypeEditor
             key="k2-editor"
             classType="k2"
-            classId={classId}
+            classId={CLASS_TYPE_CONFIG.k2.classId}
+            writeCode={CLASS_TYPE_CONFIG.k2.writeCode}
             teacherCode={teacherCode}
             isSaving={globalSaving}
             onGlobalError={setGlobalError}
