@@ -105,7 +105,10 @@ function normalizeKey(gameKey) {
   return String(gameKey);
 }
 
-function mergeRows(rows) {
+// Merges raw server rows (with gameKey, unlocked, shiny, order) with
+// GAME_CATALOG entries to produce full game objects with emoji, label,
+// hue, etc. Only includes games that have a server row (i.e. "added").
+export function mergeRows(rows) {
   const rowsByKey = new Map(
     (Array.isArray(rows) ? rows : []).map((row) => [row.gameKey, row])
   );

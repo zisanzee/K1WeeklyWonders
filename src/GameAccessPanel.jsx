@@ -25,6 +25,7 @@ import {
   setGameUnlocked,
   addGameToClass,
   removeGameFromClass,
+  mergeRows,
   GAME_CATALOG,
   useGameAccessStore,
 } from './gameAccess';
@@ -618,8 +619,8 @@ function GameAccessTypeEditor({
   const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
 
   // Fetch games via classId-based endpoint (server doesn't support
-  // ?classType= yet — Phases 1-4). Once the server is updated, switch
-  // to fetchGameAccessForType(classType, teacherCode).
+  // ?classType= yet — Phases 1-4). Merge raw rows with GAME_CATALOG
+  // so the sortable slots have emoji, label, hue, subtitle, etc.
   useEffect(() => {
     if (fetchAttemptedRef.current) return;
     fetchAttemptedRef.current = true;
@@ -631,7 +632,8 @@ function GameAccessTypeEditor({
         return res.json();
       })
       .then((rows) => {
-        setGames(Array.isArray(rows) ? rows : []);
+        const merged = mergeRows(rows);
+        setGames(merged);
         setLoaded(true);
         setLoading(false);
       })
@@ -840,7 +842,7 @@ function GameAccessTypeEditor({
       // Refresh games after shop change using classId-based endpoint
       const res = await fetch(`${API_BASE}/api/game-access?classId=${encodeURIComponent(classId)}`);
       const rows = await res.json();
-      const nextGames = Array.isArray(rows) ? rows : [];
+      const nextGames = mergeRows(rows);
       setGames(nextGames);
       const snapshot = copyGames(nextGames);
       setDraftGames(snapshot);
