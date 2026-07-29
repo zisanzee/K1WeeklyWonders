@@ -20,11 +20,11 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { usePlayerStore } from './playerStore';
 import {
-  setGameOrderForType,
-  setGameShinyForType,
-  setGameUnlockedForType,
-  addGameToType,
-  removeGameFromType,
+  setGameOrder,
+  setGameShiny,
+  setGameUnlocked,
+  addGameToClass,
+  removeGameFromClass,
   GAME_CATALOG,
   useGameAccessStore,
 } from './gameAccess';
@@ -574,8 +574,11 @@ function DragPreview({ game }) {
 }
 
 // Admin-only: full edit controls for a specific class type (k1 or k2).
+// Uses classId-based endpoints as a fallback until the server supports
+// classType-scoped reads/writes (Phases 1-4 in the server repo).
 function GameAccessTypeEditor({
   classType,
+  classId,
   teacherCode,
   isSaving,
   onGlobalError,
@@ -606,13 +609,17 @@ function GameAccessTypeEditor({
     })
   );
 
-  // Fetch games for this classType on first mount
+  const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
+
+  // Fetch games via classId-based endpoint (server doesn't support
+  // ?classType= yet — Phases 1-4). Once the server is updated, switch
+  // to fetchGameAccessForType(classType, teacherCode).
   useEffect(() => {
     if (fetchAttemptedRef.current) return;
     fetchAttemptedRef.current = true;
     setLoading(true);
 
-    fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000'}/api/game-access?classType=${encodeURIComponent(classType)}&teacherCode=${encodeURIComponent(teacherCode)}`)
+    fetch(`${API_BASE}/api/game-access?classId=${encodeURIComponent(classId)}`)
       .then((res) => {
         if (!res.ok) throw new Error('Failed to load');
         return res.json();
@@ -626,7 +633,7 @@ function GameAccessTypeEditor({
         setLocalError(err.message);
         setLoading(false);
       });
-  }, [classType, teacherCode]);
+  }, [classId, teacherCode]);
 
   // Initialize draft once games are loaded
   useEffect(() => {
@@ -772,10 +779,12 @@ function GameAccessTypeEditor({
         (game, index) => originalGames[index]?.key !== game.key
       );
 
+      // Use classId-based mutators until the server supports classType
+      // (Phases 1-4 in the server repo). Swap to setGameOrderForType/
+      // setGameUnlockedForType etc. once the server is updated.
       if (orderChanged) {
-        await setGameOrderForType(
+        await setGameOrder(
           draftGames.map((game) => game.key),
-          classType,
           teacherCode
         );
       }
@@ -792,10 +801,10 @@ function GameAccessTypeEditor({
 
       await Promise.all([
         ...accessChanges.map((game) =>
-          setGameUnlockedForType(game.key, game.unlocked, classType, teacherCode)
+          setGameUnlocked(game.key, game.unlocked, teacherCode)
         ),
         ...shinyChanges.map((game) =>
-          setGameShinyForType(game.key, game.shiny, classType, teacherCode)
+          setGameShiny(game.key, game.shiny, teacherCode)
         ),
       ]);
 
@@ -817,12 +826,12 @@ function GameAccessTypeEditor({
 
     try {
       if (isAdded) {
-        await removeGameFromType(game.key, classType, teacherCode);
+        await removeGameFromClass(game.key, teacherCode);
       } else {
-        await addGameToType(game.key, classType, teacherCode);
+        await addGameToClass(game.key, teacherCode);
       }
-      // Refresh games after shop change
-      const res = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000'}/api/game-access?classType=${encodeURIComponent(classType)}&teacherCode=${encodeURIComponent(teacherCode)}`);
+      // Refresh games after shop change using classId-based endpoint
+      const res = await fetch(`${API_BASE}/api/game-access?classId=${encodeURIComponent(classId)}`);
       const rows = await res.json();
       const nextGames = Array.isArray(rows) ? rows : [];
       setGames(nextGames);
@@ -1034,18 +1043,21 @@ function GameAccessTypeEditor({
   );
 }
 
-// Non-admin teacher: read-only game list for their own class type.
-function ReadOnlyGameList({ classType }) {
+// Non-admin teacher: read-only game list for their own class.
+// Uses ?classId= endpoint (the only one the server supports before
+// Phases 1-4). The server resolves classId → classType internally.
+function ReadOnlyGameList({ classId }) {
   const [games, setGames] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
 
   useEffect(() => {
     let active = true;
     setLoading(true);
 
-    const teacherCode = usePlayerStore.getState().teacherCode;
-    fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000'}/api/game-access?classType=${encodeURIComponent(classType)}&teacherCode=${encodeURIComponent(teacherCode)}`)
+    fetch(`${API_BASE}/api/game-access?classId=${encodeURIComponent(classId)}`)
       .then((res) => {
         if (!res.ok) throw new Error('Failed to load');
         return res.json();
@@ -1062,7 +1074,7 @@ function ReadOnlyGameList({ classType }) {
       });
 
     return () => { active = false; };
-  }, [classType]);
+  }, [classId]);
 
   if (loading) {
     return (
@@ -1330,6 +1342,7 @@ export default function GameAccessPanel({ onClose }) {
           <GameAccessTypeEditor
             key="k1-editor"
             classType="k1"
+            classId={classId}
             teacherCode={teacherCode}
             isSaving={globalSaving}
             onGlobalError={setGlobalError}
@@ -1341,6 +1354,7 @@ export default function GameAccessPanel({ onClose }) {
           <GameAccessTypeEditor
             key="k2-editor"
             classType="k2"
+            classId={classId}
             teacherCode={teacherCode}
             isSaving={globalSaving}
             onGlobalError={setGlobalError}
@@ -1349,7 +1363,7 @@ export default function GameAccessPanel({ onClose }) {
         )}
 
         {activeTab === 'games' && !isAdmin && (
-          <ReadOnlyGameList classType={userClassType || 'k1'} />
+          <ReadOnlyGameList classId={classId} />
         )}
       </main>
     </div>

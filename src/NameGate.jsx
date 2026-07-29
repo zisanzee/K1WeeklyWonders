@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { usePlayerStore } from './playerStore';
+import { lookupTeacher } from './teacherCodes';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
 
@@ -46,6 +47,8 @@ export default function NameGate({ gameLabel, children }) {
     setIsSubmittingCode(true);
 
     try {
+      // Try the server-first. If the API endpoint isn't deployed yet
+      // (Phases 1-4), the fetch will throw and we fall back to local.
       const response = await fetch(`${API_BASE}/api/teacher-login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -55,13 +58,25 @@ export default function NameGate({ gameLabel, children }) {
       const data = await response.json();
 
       if (!response.ok) {
-        setCodeError(data.error || "That code doesn't match. Please check it and try again.");
+        // Server responded but rejected the code — try local fallback.
+        const local = lookupTeacher(code);
+        if (!local) {
+          setCodeError(data.error || "That code doesn't match. Please check it and try again.");
+          return;
+        }
+        setTeacher(local, code);
         return;
       }
 
       setTeacher(data, code);
     } catch (err) {
-      setCodeError('Could not connect to the server. Please try again.');
+      // Network error — server not available, use local fallback.
+      const local = lookupTeacher(code);
+      if (!local) {
+        setCodeError('Could not connect to the server. Please try again.');
+        return;
+      }
+      setTeacher(local, code);
     } finally {
       setIsSubmittingCode(false);
     }
