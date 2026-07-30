@@ -43,6 +43,10 @@ export default function BaseGame({
   // (payload, playerName) => void — called whenever completeEventName
   // fires. Typically wraps logPlaySession().
   onComplete,
+  // (game) => void — called after the Phaser Game instance is created,
+  // so the parent can subscribe to additional custom events beyond
+  // completeEventName (e.g. per-round confetti events).
+  onPhaserReady,
   aspect = DEFAULT_ASPECT,
   baseResolution = DEFAULT_BASE_RESOLUTION,
   backgroundColor = '#8fe0fa',
@@ -123,6 +127,8 @@ export default function BaseGame({
           onComplete?.(payload, playerNameRef.current);
         });
       }
+
+      onPhaserReady?.(gameRef.current);
     };
 
     if (waitForFonts && document.fonts?.ready) {

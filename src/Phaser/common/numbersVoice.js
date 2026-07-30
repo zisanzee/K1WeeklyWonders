@@ -68,8 +68,11 @@ function toAudioKey(input) {
  * @param {number|string} number - integer 1-10 or word 'one'..'ten'.
  * @param {boolean} [muted=false] - if true, any current voice is stopped but
  *   no new one is started.
+ * @param {function} [onComplete] - optional callback fired when the clip
+ *   finishes playing (or immediately if the clip isn't loaded). Useful for
+ *   chaining voice lines without guessing timeouts.
  */
-export function playNumberVoice(scene, number, muted = false) {
+export function playNumberVoice(scene, number, muted = false, onComplete) {
   if (!scene) return;
 
   const key = toAudioKey(number);
@@ -89,6 +92,7 @@ export function playNumberVoice(scene, number, muted = false) {
 
   if (!scene.cache.audio.exists(key)) {
     console.warn(`playNumberVoice(): no audio loaded for key "${key}" — did you include NUMBERS_VOICE_MANIFEST in your preload?`);
+    if (onComplete) onComplete();
     return;
   }
 
@@ -99,6 +103,7 @@ export function playNumberVoice(scene, number, muted = false) {
     if (window.__currentNumberVoice === voice) {
       window.__currentNumberVoice = null;
     }
+    onComplete?.();
   });
   voice.play();
 }

@@ -98,6 +98,19 @@ export const GAME_CATALOG = [
     gradient: 'linear-gradient(135deg, #FF9ED1 0%, #FF6FB1 55%, #9B5CFF 100%)',
     ring: 'ring-[#FFD8EE]',
   },
+  {
+    key: '7',
+    emoji: '🥚',
+    label: "Mama Bird's Eggs",
+    title: "Mama Bird's Eggs",
+    subtitle: 'Number Bonds\n(Split & Fill)',
+    hue: '#FFBB54',
+    tint: '#FFF7EB',
+    to: '/Game7',
+    progressKey: 'game7',
+    gradient: 'linear-gradient(135deg, #FFD76A 0%, #FFB347 55%, #FF7A59 100%)',
+    ring: 'ring-[#FFEBC0]',
+  },
 ];
 
 export const GAME_KEYS = GAME_CATALOG.map((game) => game.key);

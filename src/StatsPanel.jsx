@@ -10,7 +10,7 @@ const GAME_LABELS = {
   game4: '🎲 Compare Die and Dominoes',
   game5: '🚀 Making & Splitting Groups',
   game6: "🗝️ Part-Part-Whole",
-  game7: "🗝️ name not set yet",
+  game7: "🥚 Mama Bird's Eggs",
   game8: "🗝️ name not set yet",
   game9: "🗝️ name not set yet",
   bonusGame1: "9️⃣ Number Pop",
