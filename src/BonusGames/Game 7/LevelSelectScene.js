@@ -24,7 +24,7 @@ export default class LevelSelectScene extends BaseScene {
 
     // Title.
     this.add.text(width / 2, 56, 'Mama Bird\u2019s Eggs', {
-      fontSize: '42px',
+      fontSize: '52px',
       fontFamily: 'Fredoka, sans-serif',
       fontStyle: 'bold',
       color: '#ffffff',

@@ -586,7 +586,7 @@ export default class GameScene extends BaseScene {
 
     // White pill background behind the banner for contrast against the art.
     const bannerFontSize = Math.min(32, width * 0.075);
-    const fullText = `This family has ${display} eggs altogether.`;
+    const fullText = `This family has \n ${display} eggs altogether.`;
     const tempMeasure = this.add.text(0, 0, fullText, {
       fontSize: `${bannerFontSize}px`,
       fontFamily: 'Fredoka, sans-serif',
