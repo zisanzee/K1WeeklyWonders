@@ -312,13 +312,20 @@ function useIsMobile() {
 
 /**
  * Returns a scale factor (≥1) so the game content fills larger viewports
- * proportionally. At ≤639px (mobile) the scale is always 1 — the mobile
- * layout is left completely untouched. Above that the content scales up
- * smoothly based on the smaller of (vw / 1024, vh / 640), capped at 2.5×.
+ * proportionally. Phones stay at 1× (they're narrower than either design
+ * width below, so the formula naturally floors them there — mobile layout
+ * is left completely untouched).
  *
- * DESIGN_W = 1024 matches max-w-5xl, so tablets (≈768–1024px wide) stay at
- * 1× and the existing sm-up media queries handle them. True desktops
- * (≥1280px) get a progressively larger scale.
+ * Two design references are used:
+ *  - Below 1080px wide (iPad portrait, iPad landscape, and similar tablets)
+ *    we scale against a smaller 700×640 reference. The old single 1024×640
+ *    reference meant anything narrower than 1024px (i.e. basically every
+ *    iPad in portrait, and some in landscape) fell back to scaleX < 1 and
+ *    got floored at 1×, which is why tablets looked too small.
+ *  - 1080px and up (laptops/desktops) keep the original 1024×640 reference,
+ *    since that tier was already looking good.
+ * Both take the smaller of the width- and height-based ratios so the scaled
+ * content always fits the viewport without clipping.
  */
 function useContentScale() {
   const [scale, setScale] = useState(1);
@@ -328,15 +335,17 @@ function useContentScale() {
       const w = window.innerWidth;
       const h = window.innerHeight;
 
-      const DESIGN_W = 1024;
+      const isTabletRange = w < 1080;
+      const DESIGN_W = isTabletRange ? 700 : 1024;
       const DESIGN_H = 640;
+      const CAP = isTabletRange ? 2.2 : 2.5;
 
       const scaleX = w / DESIGN_W;
       const scaleY = h / DESIGN_H;
       const s = Math.min(scaleX, scaleY);
 
-      // Never shrink below 1× (mobile untouched), cap at 2.5×
-      setScale(Math.max(1, Math.min(s, 2.5)));
+      // Never shrink below 1× (phones untouched), cap per tier above.
+      setScale(Math.max(1, Math.min(s, CAP)));
     }
 
     updateScale();
@@ -345,6 +354,24 @@ function useContentScale() {
   }, []);
 
   return scale;
+}
+
+/**
+ * Returns true when the viewport is at least 768px wide — used to detect
+ * tablet-class screens for JS-controlled element sizing (e.g. slider tiles).
+ */
+function useIsTablet() {
+  const [isTablet, setIsTablet] = useState(false);
+
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 768px)');
+    const update = () => setIsTablet(mq.matches);
+    update();
+    mq.addEventListener('change', update);
+    return () => mq.removeEventListener('change', update);
+  }, []);
+
+  return isTablet;
 }
 
 function Game3Inner() {
@@ -460,10 +487,6 @@ function Game3Inner() {
   // ── Shared content fragment (rendered inside both mobile & scaled wrappers) ──
   const gameArea = (
     <>
-      <div className="flex w-full flex-none items-center justify-between">
-        <TopBar totalRounds={TOTAL_ROUNDS} stars={stars} muted={muted} onToggleMute={() => { cancelAudio(); setMuted((m) => !m); }} />
-      </div>
-
       {phase === 'complete' ? (
         <div className="flex w-full flex-1 min-h-0 items-center justify-center overflow-y-auto">
           <CompletionScreen stars={stars} total={TOTAL_ROUNDS} onPlayAgain={playAgain} />
@@ -556,6 +579,12 @@ function Game3Inner() {
 
       {/* fixed-position overlays live OUTSIDE the scale transform so they
           still cover the viewport correctly. */}
+      <TopBar
+        totalRounds={TOTAL_ROUNDS}
+        stars={stars}
+        muted={muted}
+        onToggleMute={() => { cancelAudio(); setMuted((m) => !m); }}
+      />
       {celebrate && <Celebration onDone={() => setCelebrate(false)} />}
 
       {phase === 'complete' && (
@@ -584,14 +613,14 @@ function Game3Inner() {
           <div
             style={{ transform: `scale(${contentScale})`, transformOrigin: 'center center' }}
           >
-            <div className="mx-auto flex max-w-5xl flex-col items-center px-4 py-2 [@media(min-width:640px)_and_(min-height:560px)]:py-4">
+            <div className="mx-auto flex max-w-5xl flex-col items-center px-4 pb-2 pt-14 [@media(min-width:640px)_and_(min-height:560px)]:pb-4 [@media(min-width:640px)_and_(min-height:560px)]:pt-16">
               {gameArea}
             </div>
           </div>
         </div>
       ) : (
         /* ── Original mobile / tablet layout (scale === 1) ──────────── */
-        <div className="relative z-10 mx-auto flex h-full max-w-5xl flex-col items-center overflow-hidden px-4 py-2 [@media(min-width:640px)_and_(min-height:560px)]:py-4">
+        <div className="relative z-10 mx-auto flex h-full max-w-5xl flex-col items-center overflow-hidden px-4 pb-2 pt-14 [@media(min-width:640px)_and_(min-height:560px)]:pb-4 [@media(min-width:640px)_and_(min-height:560px)]:pt-16">
           {gameArea}
         </div>
       )}
@@ -611,7 +640,8 @@ export default function Game3() {
 
 function NumberSlider({ highlighted, onChange, showAllWords, referenceNumber, disabled }) {
   const isMobile = useIsMobile();
-  const tileWidth = isMobile ? 54 : TILE_WIDTH;
+  const isTablet = useIsTablet();
+  const tileWidth = isMobile ? 54 : isTablet ? 80 : TILE_WIDTH;
   const windowStart = getWindowStart(highlighted);
   const offsetPx = (windowStart - MIN_NUM) * tileWidth;
   const dragRef = useRef({ dragging: false, startX: 0, startHighlighted: highlighted });
@@ -726,7 +756,7 @@ function SliderArrow({ direction, onClick, disabled }) {
       onClick={onClick}
       disabled={disabled}
       aria-label={direction === 'left' ? 'Slide to previous number' : 'Slide to next number'}
-      className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-white/85 text-lg font-bold text-teal-700 shadow-[0_4px_0_rgba(0,0,0,0.15)] transition-transform active:translate-y-0.5 active:shadow-none disabled:opacity-30"
+      className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-white/85 text-lg font-bold text-teal-700 shadow-[0_4px_0_rgba(0,0,0,0.15)] transition-transform active:translate-y-0.5 active:shadow-none disabled:opacity-30 [@media(min-width:768px)_and_(min-height:600px)]:h-12 [@media(min-width:768px)_and_(min-height:600px)]:w-12"
     >
       {direction === 'left' ? '◀' : '▶'}
     </button>
@@ -876,7 +906,7 @@ function Celebration({ onDone }) {
 
 function TopBar({ totalRounds, stars, muted, onToggleMute }) {
   return (
-    <div className="flex w-full items-center justify-between">
+    <div className="fixed left-0 right-0 top-0 z-50 flex items-center justify-between px-2 pt-2 [@media(min-width:640px)_and_(min-height:560px)]:px-4 [@media(min-width:640px)_and_(min-height:560px)]:pt-4">
       <Link
         to="/"
         className="font-body flex items-center gap-1 rounded-full bg-white/90 px-4 py-2 text-sm font-extrabold text-slate-700 shadow-[0_4px_0_rgba(0,0,0,0.15)] transition-transform hover:-translate-y-0.5 active:translate-y-1 active:shadow-none [@media(min-width:640px)_and_(min-height:560px)]:text-base"
