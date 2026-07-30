@@ -310,6 +310,43 @@ function useIsMobile() {
   return isMobile;
 }
 
+/**
+ * Returns a scale factor (≥1) so the game content fills larger viewports
+ * proportionally. At ≤639px (mobile) the scale is always 1 — the mobile
+ * layout is left completely untouched. Above that the content scales up
+ * smoothly based on the smaller of (vw / 1024, vh / 640), capped at 2.5×.
+ *
+ * DESIGN_W = 1024 matches max-w-5xl, so tablets (≈768–1024px wide) stay at
+ * 1× and the existing sm-up media queries handle them. True desktops
+ * (≥1280px) get a progressively larger scale.
+ */
+function useContentScale() {
+  const [scale, setScale] = useState(1);
+
+  useEffect(() => {
+    function updateScale() {
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+
+      const DESIGN_W = 1024;
+      const DESIGN_H = 640;
+
+      const scaleX = w / DESIGN_W;
+      const scaleY = h / DESIGN_H;
+      const s = Math.min(scaleX, scaleY);
+
+      // Never shrink below 1× (mobile untouched), cap at 2.5×
+      setScale(Math.max(1, Math.min(s, 2.5)));
+    }
+
+    updateScale();
+    window.addEventListener('resize', updateScale);
+    return () => window.removeEventListener('resize', updateScale);
+  }, []);
+
+  return scale;
+}
+
 function Game3Inner() {
   const playerName = usePlayerStore((s) => s.playerName);
   const [audioReady, setAudioReady] = useState(false);
@@ -324,6 +361,7 @@ function Game3Inner() {
   const [wrongValue, setWrongValue] = useState(null);
   const [hasErred, setHasErred] = useState(false);
   const [celebrate, setCelebrate] = useState(false);
+  const contentScale = useContentScale();
 
   // Preload audio assets the moment the user enters this game — starts
   // fetching all audio files so they play instantly when speak() is called.
@@ -419,6 +457,65 @@ function Game3Inner() {
     );
   }
 
+  // ── Shared content fragment (rendered inside both mobile & scaled wrappers) ──
+  const gameArea = (
+    <>
+      <div className="flex w-full flex-none items-center justify-between">
+        <TopBar totalRounds={TOTAL_ROUNDS} stars={stars} muted={muted} onToggleMute={() => { cancelAudio(); setMuted((m) => !m); }} />
+      </div>
+
+      {phase === 'complete' ? (
+        <div className="flex w-full flex-1 min-h-0 items-center justify-center overflow-y-auto">
+          <CompletionScreen stars={stars} total={TOTAL_ROUNDS} onPlayAgain={playAgain} />
+        </div>
+      ) : (
+        <div className="flex w-full flex-1 min-h-0 flex-col items-center justify-center overflow-y-auto">
+          <h1 className="font-heading mt-1 flex-none text-lg font-bold text-white/95 drop-shadow [@media(min-width:640px)_and_(min-height:560px)]:mt-2 [@media(min-width:640px)_and_(min-height:560px)]:text-2xl">
+            🐙 Ollie's Number Reef
+          </h1>
+          <p className="font-body flex-none text-xs font-bold text-white/80 [@media(min-width:640px)_and_(min-height:560px)]:text-base">
+            Round {roundIndex + 1} of {TOTAL_ROUNDS}
+          </p>
+          <span className="font-body mt-0.5 flex-none rounded-full bg-white/20 px-3 py-0.5 text-[11px] font-extrabold uppercase tracking-wide text-white/85 [@media(min-width:640px)_and_(min-height:560px)]:text-xs">
+            {levelTheme.label}
+          </span>
+          <RoundDots total={TOTAL_ROUNDS} current={roundIndex} />
+
+          <OllieBubble promptParts={promptParts} isWrong={!!wrongValue} />
+
+          <div className="mt-2 flex flex-none flex-col items-center gap-1.5 [@media(min-width:640px)_and_(min-height:560px)]:mt-5 [@media(min-width:640px)_and_(min-height:560px)]:gap-2">
+            <span className="font-body rounded-full bg-white/85 px-3 py-0.5 text-xs font-extrabold text-teal-700 shadow [@media(min-width:640px)_and_(min-height:560px)]:text-sm">
+              {getSliderPrompt(blockIndex)}
+            </span>
+            <NumberSlider
+              highlighted={highlighted}
+              onChange={setHighlighted}
+              showAllWords={showAllWords}
+              referenceNumber={round.reference}
+              disabled={phase !== 'playing'}
+            />
+          </div>
+
+          <div className="mt-3 flex flex-none flex-wrap items-center justify-center gap-2 [@media(min-width:640px)_and_(min-height:560px)]:mt-6 [@media(min-width:640px)_and_(min-height:560px)]:gap-4">
+            {round.options.map((opt) => (
+              <AnswerPill
+                key={opt.value}
+                option={opt}
+                emoji={levelTheme.emoji}
+                baseClass={levelTheme.pill}
+                onTap={() => handleAnswer(opt.value)}
+                disabled={phase !== 'playing'}
+                isWrong={wrongValue === opt.value}
+                isCorrectChosen={phase === 'success' && opt.value === round.correct}
+                isDimmed={phase === 'success' && opt.value !== round.correct}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+    </>
+  );
+
   return (
     <div className="relative h-[100dvh] w-full overflow-hidden bg-gradient-to-b from-[#8FE9E4] via-[#2FA8C9] to-[#123A6B]">
       <link
@@ -457,73 +554,47 @@ function Game3Inner() {
       <SwimmingFish />
       <SeaFloor />
 
+      {/* fixed-position overlays live OUTSIDE the scale transform so they
+          still cover the viewport correctly. */}
       {celebrate && <Celebration onDone={() => setCelebrate(false)} />}
 
-      <div className="relative z-10 mx-auto flex h-full max-w-5xl flex-col items-center overflow-hidden px-4 py-2 [@media(min-width:640px)_and_(min-height:560px)]:py-4">
-        <div className="flex w-full flex-none items-center justify-between">
-          <TopBar totalRounds={TOTAL_ROUNDS} stars={stars} muted={muted} onToggleMute={() => { cancelAudio(); setMuted((m) => !m); }} />
+      {phase === 'complete' && (
+        <Confetti
+          numberOfPieces={160}
+          recycle={false}
+          gravity={0.2}
+          colors={['#5EEAD4', '#38BDF8', '#A78BFA', '#FCD34D', '#FB7185']}
+          style={{ position: 'fixed', inset: 0, zIndex: 20, pointerEvents: 'none' }}
+        />
+      )}
+
+      {phase === 'success' && (
+        <SuccessOverlay
+          message={getResultMessage(round)}
+          isLastRound={roundIndex + 1 >= TOTAL_ROUNDS}
+          streak={streak}
+          accent={levelTheme.accent}
+          onNext={nextRound}
+        />
+      )}
+
+      {contentScale > 1 ? (
+        /* ── Scaled layout for large screens ────────────────────────── */
+        <div className="relative z-10 flex h-full w-full items-center justify-center overflow-visible">
+          <div
+            style={{ transform: `scale(${contentScale})`, transformOrigin: 'center center' }}
+          >
+            <div className="mx-auto flex max-w-5xl flex-col items-center px-4 py-2 [@media(min-width:640px)_and_(min-height:560px)]:py-4">
+              {gameArea}
+            </div>
+          </div>
         </div>
-
-        {phase === 'complete' ? (
-          <div className="flex w-full flex-1 min-h-0 items-center justify-center overflow-y-auto">
-            <CompletionScreen stars={stars} total={TOTAL_ROUNDS} onPlayAgain={playAgain} />
-          </div>
-        ) : (
-          <div className="flex w-full flex-1 min-h-0 flex-col items-center justify-center overflow-y-auto">
-            <h1 className="font-heading mt-1 flex-none text-lg font-bold text-white/95 drop-shadow [@media(min-width:640px)_and_(min-height:560px)]:mt-2 [@media(min-width:640px)_and_(min-height:560px)]:text-2xl">
-              🐙 Ollie's Number Reef
-            </h1>
-            <p className="font-body flex-none text-xs font-bold text-white/80 [@media(min-width:640px)_and_(min-height:560px)]:text-base">
-              Round {roundIndex + 1} of {TOTAL_ROUNDS}
-            </p>
-            <span className="font-body mt-0.5 flex-none rounded-full bg-white/20 px-3 py-0.5 text-[11px] font-extrabold uppercase tracking-wide text-white/85 [@media(min-width:640px)_and_(min-height:560px)]:text-xs">
-              {levelTheme.label}
-            </span>
-            <RoundDots total={TOTAL_ROUNDS} current={roundIndex} />
-
-            <OllieBubble promptParts={promptParts} isWrong={!!wrongValue} />
-
-            <div className="mt-2 flex flex-none flex-col items-center gap-1.5 [@media(min-width:640px)_and_(min-height:560px)]:mt-5 [@media(min-width:640px)_and_(min-height:560px)]:gap-2">
-              <span className="font-body rounded-full bg-white/85 px-3 py-0.5 text-xs font-extrabold text-teal-700 shadow [@media(min-width:640px)_and_(min-height:560px)]:text-sm">
-                {getSliderPrompt(blockIndex)}
-              </span>
-              <NumberSlider
-                highlighted={highlighted}
-                onChange={setHighlighted}
-                showAllWords={showAllWords}
-                referenceNumber={round.reference}
-                disabled={phase !== 'playing'}
-              />
-            </div>
-
-            <div className="mt-3 flex flex-none flex-wrap items-center justify-center gap-2 [@media(min-width:640px)_and_(min-height:560px)]:mt-6 [@media(min-width:640px)_and_(min-height:560px)]:gap-4">
-              {round.options.map((opt) => (
-                <AnswerPill
-                  key={opt.value}
-                  option={opt}
-                  emoji={levelTheme.emoji}
-                  baseClass={levelTheme.pill}
-                  onTap={() => handleAnswer(opt.value)}
-                  disabled={phase !== 'playing'}
-                  isWrong={wrongValue === opt.value}
-                  isCorrectChosen={phase === 'success' && opt.value === round.correct}
-                  isDimmed={phase === 'success' && opt.value !== round.correct}
-                />
-              ))}
-            </div>
-
-            {phase === 'success' && (
-              <SuccessOverlay
-                message={getResultMessage(round)}
-                isLastRound={roundIndex + 1 >= TOTAL_ROUNDS}
-                streak={streak}
-                accent={levelTheme.accent}
-                onNext={nextRound}
-              />
-            )}
-          </div>
-        )}
-      </div>
+      ) : (
+        /* ── Original mobile / tablet layout (scale === 1) ──────────── */
+        <div className="relative z-10 mx-auto flex h-full max-w-5xl flex-col items-center overflow-hidden px-4 py-2 [@media(min-width:640px)_and_(min-height:560px)]:py-4">
+          {gameArea}
+        </div>
+      )}
     </div>
   );
 }
@@ -883,18 +954,8 @@ function SuccessOverlay({ message, isLastRound, streak, accent, onNext }) {
 }
 
 function CompletionScreen({ stars, total, onPlayAgain }) {
-  const { width, height } = useWindowSize();
   return (
     <div className="relative mt-10 flex flex-col items-center rounded-[2.5rem] bg-white/90 px-8 py-10 text-center shadow-2xl [@media(min-width:640px)_and_(min-height:560px)]:px-14">
-      <Confetti
-        width={width}
-        height={height}
-        numberOfPieces={160}
-        recycle={false}
-        gravity={0.2}
-        colors={['#5EEAD4', '#38BDF8', '#A78BFA', '#FCD34D', '#FB7185']}
-        style={{ position: 'fixed', inset: 0, zIndex: 20, pointerEvents: 'none' }}
-      />
       <div className="text-7xl">🐚🏆</div>
       <h2 className="font-heading mt-3 text-3xl font-bold text-slate-800 [@media(min-width:640px)_and_(min-height:560px)]:text-4xl">Reef treasure collected!</h2>
       <p className="font-body mt-2 text-lg font-semibold text-slate-500">
