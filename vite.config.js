@@ -7,4 +7,7 @@ export default defineConfig({
     react(),
     tailwindcss(),
   ],
+  // SPA fallback — lets direct URL access to /p/:code work in dev and
+  // preview by serving index.html for any path the router handles.
+  appType: 'spa',
 });
