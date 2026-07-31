@@ -27,7 +27,8 @@ export default function StudentBadge({ student, classInfo, onClose }) {
   const badgeRef = useRef(null);
   const [downloading, setDownloading] = useState(false);
 
-  const loginUrl = `${SITE_URL}/p/${student.code}`;
+  const code = student.code || student.studentId?.slice(0, 8) || '------';
+  const loginUrl = `${SITE_URL}/p/${code}`;
   const displayName = student.nickname || student.fullName || 'Student';
 
   const handleDownload = useCallback(async () => {
@@ -92,7 +93,7 @@ export default function StudentBadge({ student, classInfo, onClose }) {
                 Code
               </p>
               <p className="mt-0.5 font-mono text-lg font-black tracking-[0.15em] text-slate-700">
-                {student.code}
+                {code}
               </p>
             </div>
 

@@ -322,16 +322,14 @@ function StudentRow({ student, teacherCode }) {
             <span className="rounded-full bg-slate-100 px-2 py-1 font-mono text-[10px] font-bold tracking-wider text-slate-600">
               {student.code || student.studentId?.slice(0, 8)}
             </span>
-            {student.code && (
-              <button
-                type="button"
-                onClick={() => setShowBadge(true)}
-                title="Generate badge with QR code"
-                className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-sky-100 to-indigo-100 text-sm transition hover:from-sky-200 hover:to-indigo-200"
-              >
-                🏷️
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={() => setShowBadge(true)}
+              title="Generate badge with QR code"
+              className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-sky-100 to-indigo-100 text-sm transition hover:from-sky-200 hover:to-indigo-200"
+            >
+              🏷️
+            </button>
           </div>
 
           {/* Edit / Delete actions */}
