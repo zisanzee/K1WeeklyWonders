@@ -32,7 +32,7 @@ import {
 import { CLASS_TYPE_CONFIG } from './teacherCodes';
 import { useStudentStore, addStudent, updateStudent, deleteStudent } from './students';
 import { fetchClassInfo } from './classInfo';
-import StudentBadge from './StudentBadge';
+import StudentBadge, { PrintAllBadgesButton } from './StudentBadge';
 
 const CLASS_TYPE_LABELS = {
   k1: { label: 'K1 Games', icon: '🎮', description: 'Manage K1 (Kindergarten 1) game arrangement — reorder, lock/unlock, and feature games.' },
@@ -122,15 +122,6 @@ function TeacherTabBar({ activeTab, onChange, disabled }) {
   );
 }
 
-function StudentAvatar({ name }) {
-  const initial = (name || '?').trim().charAt(0).toUpperCase() || '?';
-  return (
-    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-violet-500 text-sm font-black text-white">
-      {initial}
-    </span>
-  );
-}
-
 function AddStudentForm({ onAdd, isSaving, error }) {
   const [nickname, setNickname] = useState('');
   const [group, setGroup] = useState('');
@@ -209,6 +200,8 @@ function AddStudentForm({ onAdd, isSaving, error }) {
 // Inline-editable student row. Nickname and group can be edited in-place;
 // the code is read-only. Each row has a badge button to open the QR modal.
 function StudentRow({ student, teacherCode }) {
+  const teacherName = usePlayerStore((state) => state.playerName);
+  const className = usePlayerStore((state) => state.className);
   const [editing, setEditing] = useState(false);
   const [nickname, setNickname] = useState(student.nickname || '');
   const [group, setGroup] = useState(student.group || '');
@@ -255,86 +248,86 @@ function StudentRow({ student, teacherCode }) {
 
   return (
     <>
-      <li className="rounded-2xl border border-slate-100 bg-white p-3 shadow-sm">
+      <li className="rounded-2xl border border-slate-100 bg-white p-3 shadow-sm transition hover:border-indigo-200 hover:shadow-md sm:p-4">
         {error && (
-          <p className="mb-2 rounded-xl bg-rose-50 px-3 py-2 text-xs font-bold text-rose-600" role="alert">
+          <p className="mb-2.5 rounded-xl bg-rose-50 px-3 py-2 text-xs font-bold text-rose-600" role="alert">
             ⚠️ {error}
           </p>
         )}
 
-        <div className="flex items-center gap-3">
-          <StudentAvatar name={student.nickname || student.fullName} />
-
-          {editing ? (
-            <div className="flex min-w-0 flex-1 flex-col gap-2">
-              <input
-                type="text"
-                value={nickname}
-                maxLength={40}
-                onChange={(e) => setNickname(e.target.value)}
-                placeholder="Nickname"
+        {/* Inline edit keeps the full width so the inputs never get cramped on
+            narrow screens; the code/actions row is hidden while editing. */}
+        {editing ? (
+          <div className="flex flex-col gap-2">
+            <input
+              type="text"
+              value={nickname}
+              maxLength={40}
+              onChange={(e) => setNickname(e.target.value)}
+              placeholder="Nickname"
+              disabled={saving}
+              className="w-full rounded-xl border-2 border-indigo-300 bg-white px-3 py-2 text-sm font-bold text-slate-800 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 disabled:opacity-60"
+            />
+            <input
+              type="text"
+              value={group}
+              maxLength={40}
+              onChange={(e) => setGroup(e.target.value)}
+              placeholder="Group (optional)"
+              disabled={saving}
+              className="w-full rounded-xl border-2 border-indigo-300 bg-white px-3 py-2 text-sm font-bold text-slate-800 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 disabled:opacity-60"
+            />
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={handleSave}
+                disabled={saving || !nickname.trim()}
+                className="flex-1 rounded-xl bg-indigo-600 px-3 py-2 text-xs font-black text-white transition hover:bg-indigo-700 disabled:opacity-50 sm:flex-none sm:px-5"
+              >
+                {saving ? 'Saving…' : 'Save'}
+              </button>
+              <button
+                type="button"
+                onClick={handleCancel}
                 disabled={saving}
-                className="w-full rounded-xl border-2 border-indigo-300 bg-white px-3 py-2 text-sm font-bold text-slate-800 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 disabled:opacity-60"
-              />
-              <input
-                type="text"
-                value={group}
-                maxLength={40}
-                onChange={(e) => setGroup(e.target.value)}
-                placeholder="Group (optional)"
-                disabled={saving}
-                className="w-full rounded-xl border-2 border-indigo-300 bg-white px-3 py-2 text-sm font-bold text-slate-800 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 disabled:opacity-60"
-              />
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={handleSave}
-                  disabled={saving || !nickname.trim()}
-                  className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-black text-white transition hover:bg-indigo-700 disabled:opacity-50"
-                >
-                  {saving ? 'Saving…' : 'Save'}
-                </button>
-                <button
-                  type="button"
-                  onClick={handleCancel}
-                  disabled={saving}
-                  className="rounded-lg bg-slate-200 px-3 py-1.5 text-xs font-bold text-slate-600 transition hover:bg-slate-300 disabled:opacity-50"
-                >
-                  Cancel
-                </button>
-              </div>
+                className="flex-1 rounded-xl bg-slate-200 px-3 py-2 text-xs font-bold text-slate-600 transition hover:bg-slate-300 disabled:opacity-50 sm:flex-none sm:px-5"
+              >
+                Cancel
+              </button>
             </div>
-          ) : (
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-black text-slate-800">
-                {student.nickname || student.fullName}
-              </p>
-              {student.group && (
-                <span className="mt-0.5 inline-block rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] font-black text-indigo-700">
-                  {student.group}
-                </span>
-              )}
-            </div>
-          )}
-
-          {/* Code display + badge button */}
-          <div className="flex shrink-0 items-center gap-1.5">
-            <span className="rounded-full bg-slate-100 px-2 py-1 font-mono text-[10px] font-bold tracking-wider text-slate-600">
-              {student.code || student.studentId?.slice(0, 8)}
-            </span>
-            <button
-              type="button"
-              onClick={() => setShowBadge(true)}
-              title="Generate badge with QR code"
-              className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-sky-100 to-indigo-100 text-sm transition hover:from-sky-200 hover:to-indigo-200"
-            >
-              🏷️
-            </button>
           </div>
+        ) : (
+          <div className="flex items-center gap-3">
+            {/* Name, group and code — truncate so nothing overflows on mobile */}
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                <p className="truncate text-sm font-black text-slate-800 sm:text-base">
+                  {student.nickname || student.fullName || 'Student'}
+                </p>
+                {student.group && (
+                  <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] font-black text-indigo-700">
+                    {student.group}
+                  </span>
+                )}
+              </div>
+              <p className="mt-1 font-mono text-[11px] font-bold tracking-wider text-slate-400">
+                Code: {student.code || student.studentId?.slice(0, 8)}
+              </p>
+            </div>
 
-          {/* Edit / Delete actions */}
-          {!editing && (
-            <div className="flex shrink-0 gap-0.5">
+            {/* Row actions — fixed tap targets so they stay usable on touch screens */}
+            <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+              <button
+                type="button"
+                onClick={() => setShowBadge(true)}
+                title="Generate badge with QR code"
+                aria-label={`Generate badge for ${student.nickname || student.fullName}`}
+                className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-sky-100 to-indigo-100 text-indigo-600 transition hover:from-sky-200 hover:to-indigo-200 active:scale-95"
+              >
+                <svg viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor" aria-hidden="true">
+                  <path d="M3 11h8V3H3v8zm2-6h4v4H5V5zM13 3v8h8V3h-8zm6 6h-4V5h4v4zM3 21h8v-8H3v8zm2-6h4v4H5v-4zM18 13h-2v2h2v-2zM13 13h2v2h-2v-2zM18 18h2v2h-2v-2zM13 18h2v2h-2v-2z" />
+                </svg>
+              </button>
               <button
                 type="button"
                 onClick={() => {
@@ -343,28 +336,34 @@ function StudentRow({ student, teacherCode }) {
                   setEditing(true);
                   setError(null);
                 }}
-                className="flex h-8 w-8 items-center justify-center rounded-lg text-sm text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
                 title="Edit student"
+                aria-label={`Edit ${student.nickname || student.fullName}`}
+                className="flex h-9 w-9 items-center justify-center rounded-xl text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 active:scale-95"
               >
-                ✏️
+                <svg viewBox="0 0 24 24" className="h-[18px] w-[18px]" fill="currentColor" aria-hidden="true">
+                  <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34a.9959.9959 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z" />
+                </svg>
               </button>
               <button
                 type="button"
                 onClick={handleDelete}
-                className="flex h-8 w-8 items-center justify-center rounded-lg text-sm text-slate-400 transition hover:bg-rose-50 hover:text-rose-600"
                 title="Delete student"
+                aria-label={`Delete ${student.nickname || student.fullName}`}
+                className="flex h-9 w-9 items-center justify-center rounded-xl text-slate-400 transition hover:bg-rose-50 hover:text-rose-600 active:scale-95"
               >
-                🗑️
+                <svg viewBox="0 0 24 24" className="h-[18px] w-[18px]" fill="currentColor" aria-hidden="true">
+                  <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" />
+                </svg>
               </button>
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </li>
 
       {showBadge && (
         <StudentBadge
           student={student}
-          classInfo={{ className: 'K1 Weekly Wonders' }}
+          classInfo={{ className: className || 'K1 Weekly Wonders', teacherName }}
           onClose={() => setShowBadge(false)}
         />
       )}
@@ -391,6 +390,12 @@ function StudentsTab({ isReady, students, onAdd, isSaving, error, teacherCode })
           <p className="mt-1 text-sm font-semibold text-indigo-700">
             Add your first student using the form above.
           </p>
+        </div>
+      )}
+
+      {isReady && students.length > 0 && (
+        <div className="mb-3">
+          <PrintAllBadgesButton />
         </div>
       )}
 
