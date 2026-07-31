@@ -27,6 +27,15 @@ export const useStudentStore = create((set, get) => ({
     const state = get();
     if (state.loading) return;
 
+    const classId = usePlayerStore.getState().classId;
+
+    // The roster is class-scoped. If the store still holds a different class's
+    // students (e.g. after logging in as a different teacher), drop them before
+    // fetching so the stale list never flashes for the new class.
+    if (state.loadedClassId && state.loadedClassId !== classId) {
+      set({ students: [], loaded: false, loadedClassId: null, error: null });
+    }
+
     set({ loading: true, error: null });
 
     try {
@@ -49,6 +58,10 @@ export const useStudentStore = create((set, get) => ({
       set({ loading: false, error: error.message });
     }
   },
+
+  // Clears the cached roster — used when the logged-in teacher's class changes
+  // so a previous class's students never leak into the new session.
+  reset: () => set({ students: [], loaded: false, loading: false, error: null, loadedClassId: null }),
 
   addStudentLocal: (student) => {
     set((state) => ({ students: [...state.students, student] }));

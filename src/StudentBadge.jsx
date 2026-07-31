@@ -2,7 +2,7 @@ import { useRef, useCallback, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { motion, AnimatePresence } from 'motion/react';
 import QRCode from 'react-qr-code';
-import { toPng } from 'html-to-image';
+import { toPng, toJpeg } from 'html-to-image';
 import { jsPDF } from 'jspdf';
 import { useStudentStore } from './students';
 import { usePlayerStore } from './playerStore';
@@ -181,8 +181,11 @@ async function ensureLogoLoaded() {
   return logoPreload;
 }
 
-// Renders one badge off-screen and returns a PNG data URL at the given size.
-async function renderBadgeToPng(student, classInfo, widthPx, heightPx) {
+// Renders one badge off-screen and returns a JPEG data URL. JPEG is far
+// smaller than PNG for this gradient-heavy card, which keeps multi-class PDFs
+// from ballooning. The PDF page is white, so the JPEG's lossy (square) corners
+// are invisible there and the card still reads as the rounded design.
+async function renderBadgeToJpeg(student, classInfo, widthPx, heightPx) {
   await ensureLogoLoaded();
   await document.fonts.ready;
 
@@ -213,9 +216,10 @@ async function renderBadgeToPng(student, classInfo, widthPx, heightPx) {
   try {
     // The logo is pre-warmed above, so skip cache-busting: it would otherwise
     // re-fetch the asset with a fresh query string for every badge in the class.
-    return await toPng(holder, {
+    return await toJpeg(holder, {
       pixelRatio: BADGE_PIXEL_RATIO,
       backgroundColor: '#ffffff',
+      quality: 0.85,
     });
   } finally {
     root.unmount();
@@ -225,13 +229,13 @@ async function renderBadgeToPng(student, classInfo, widthPx, heightPx) {
 
 // Builds an A4 PDF with a 3×3 grid of badges, adding pages as needed.
 async function buildBadgesPdf(students, classInfo, filename, onProgress) {
-  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: true });
 
   for (let i = 0; i < students.length; i++) {
     if (i > 0 && i % PER_PAGE === 0) doc.addPage();
 
     onProgress?.(i + 1, students.length);
-    const dataUrl = await renderBadgeToPng(students[i], classInfo, BADGE_W_PX, BADGE_H_PX);
+    const dataUrl = await renderBadgeToJpeg(students[i], classInfo, BADGE_W_PX, BADGE_H_PX);
 
     const slot = i % PER_PAGE;
     const col = slot % GRID_COLS;
@@ -239,7 +243,7 @@ async function buildBadgesPdf(students, classInfo, filename, onProgress) {
     // Step each card by (size + gap) so the gutter stays uniform across the grid.
     doc.addImage(
       dataUrl,
-      'PNG',
+      'JPEG',
       MARGIN_X_MM + col * (CARD_W_MM + GAP_MM),
       MARGIN_Y_MM + row * (CARD_H_MM + GAP_MM),
       CARD_W_MM,
