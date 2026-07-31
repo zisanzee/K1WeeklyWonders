@@ -1,8 +1,8 @@
-import { useRef, useCallback, useState } from 'react';
+import { useEffect, useRef, useCallback, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { motion, AnimatePresence } from 'motion/react';
 import QRCode from 'react-qr-code';
-import { toPng, toJpeg } from 'html-to-image';
+import { toCanvas, toPng, toJpeg } from 'html-to-image';
 import { jsPDF } from 'jspdf';
 import { useStudentStore } from './students';
 import { usePlayerStore } from './playerStore';
@@ -115,38 +115,73 @@ function BadgeCard({ student, classInfo, qrSize = 160 }) {
   );
 }
 
-// Generates a single badge as a true transparent PNG (rounded corners are
-// real alpha, not white blocks) and triggers a download.
-async function downloadBadge(element, filename) {
-  if (!element) return;
-  // Pin the captured node to exact print dimensions so the export is
-  // deterministic regardless of how it is scaled on screen, then restore.
-  element.style.width = `${PRINT_WIDTH}px`;
-  element.style.height = `${PRINT_HEIGHT}px`;
-  // Drop the shadow for the capture — it would bleed past the rounded corners
-  // and look like a floating gray halo over a transparent background.
-  element.style.boxShadow = 'none';
-  // Force a synchronous reflow so children lay out at the pinned size.
-  void element.offsetHeight;
+// Traces a rounded-rectangle path (avoids the newer ctx.roundRect() API for
+// broader browser support) used to punch true alpha corners into the PNG.
+function traceRoundRect(ctx, x, y, w, h, r) {
+  const radius = Math.min(r, w / 2, h / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + radius, y);
+  ctx.lineTo(x + w - radius, y);
+  ctx.arcTo(x + w, y, x + w, y + radius, radius);
+  ctx.lineTo(x + w, y + h - radius);
+  ctx.arcTo(x + w, y + h, x + w - radius, y + h, radius);
+  ctx.lineTo(x + radius, y + h);
+  ctx.arcTo(x, y + h, x, y + h - radius, radius);
+  ctx.lineTo(x, y + radius);
+  ctx.arcTo(x, y, x + radius, y, radius);
+  ctx.closePath();
+}
+
+// Renders the badge off-screen at exactly PRINT_WIDTH×PRINT_HEIGHT and returns
+// a PNG data URL whose corners are true alpha. Rendering off-screen (instead of
+// capturing the live modal element) also means the download never depends on
+// how the preview is scaled, so it is pixel-identical on every device.
+async function renderBadgePngTransparent(student, classInfo) {
+  await ensureLogoLoaded();
+  await document.fonts.ready;
+
+  // Same off-screen holder technique as the PDF renderer — parked at the
+  // document origin (hidden behind the modal) so the capture is deterministic.
+  const holder = document.createElement('div');
+  holder.style.cssText = `position:fixed;left:0;top:0;z-index:-9999;width:${PRINT_WIDTH}px;height:${PRINT_HEIGHT}px;`;
+  document.body.appendChild(holder);
+
+  const root = createRoot(holder);
+  root.render(<BadgeCard student={student} classInfo={classInfo} qrSize={160} />);
+
+  // Let React commit and the browser finish layout before snapshotting.
+  await new Promise((resolve) => setTimeout(resolve, 50));
+
   try {
-    // No backgroundColor here: the card's own rounded-3xl + overflow-hidden
-    // clips the gradient, so the corners export as transparent PNG alpha
-    // instead of the white fill that produced the square corners before.
-    const dataUrl = await toPng(element, {
+    const canvas = await toCanvas(holder, {
       pixelRatio: PRINT_PIXEL_RATIO,
       cacheBust: true,
     });
-    const link = document.createElement('a');
-    link.download = filename;
-    link.href = dataUrl;
-    link.click();
-  } catch (err) {
-    console.error('Failed to generate badge image', err);
+
+    // Mask the canvas to the rounded card shape so the corners are transparent
+    // regardless of how html-to-image clips (or fails to clip) them.
+    const out = document.createElement('canvas');
+    out.width = canvas.width;
+    out.height = canvas.height;
+    const ctx = out.getContext('2d');
+    ctx.drawImage(canvas, 0, 0);
+    ctx.globalCompositeOperation = 'destination-in';
+    traceRoundRect(ctx, 0, 0, out.width, out.height, Math.round(24 * PRINT_PIXEL_RATIO));
+    ctx.fill();
+    return out.toDataURL('image/png');
   } finally {
-    element.style.width = '';
-    element.style.height = '';
-    element.style.boxShadow = '';
+    root.unmount();
+    document.body.removeChild(holder);
   }
+}
+
+// Generates a single badge as a true transparent PNG and triggers a download.
+async function downloadBadge(student, classInfo, filename) {
+  const dataUrl = await renderBadgePngTransparent(student, classInfo);
+  const link = document.createElement('a');
+  link.download = filename;
+  link.href = dataUrl;
+  link.click();
 }
 
 // navigator.clipboard requires a secure context; fall back to execCommand.
@@ -355,23 +390,37 @@ export function PrintAllBadgesButton({ className }) {
 }
 
 export default function StudentBadge({ student, classInfo, onClose }) {
-  const badgeRef = useRef(null);
+  const previewContainerRef = useRef(null);
   const [downloading, setDownloading] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [badgeScale, setBadgeScale] = useState(1);
+
+  // The badge always lays out at PRINT_WIDTH×PRINT_HEIGHT and is scaled down as
+  // a whole on narrow screens, so the preview is proportionally identical on
+  // every device instead of the fixed-px elements growing out of place.
+  useEffect(() => {
+    const el = previewContainerRef.current;
+    if (!el) return;
+    const update = () => setBadgeScale(Math.min(1, el.clientWidth / PRINT_WIDTH));
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
   const code = student.code || student.studentId?.slice(0, 8) || '------';
   const loginUrl = `${SITE_URL}/p/${code}`;
   const displayName = student.nickname || student.fullName || 'Student';
 
   const handleDownload = useCallback(async () => {
-    if (downloading || !badgeRef.current) return;
+    if (downloading) return;
     setDownloading(true);
     try {
-      await downloadBadge(badgeRef.current, `badge-${sanitizeFileName(displayName)}.png`);
+      await downloadBadge(student, classInfo, `badge-${sanitizeFileName(displayName)}.png`);
     } finally {
       setDownloading(false);
     }
-  }, [downloading, displayName]);
+  }, [downloading, displayName, student, classInfo]);
 
   const handleCopy = useCallback(async () => {
     try {
@@ -400,12 +449,31 @@ export default function StudentBadge({ student, classInfo, onClose }) {
           onClick={(e) => e.stopPropagation()}
           className="flex w-full max-w-lg flex-col items-center gap-4 rounded-[2rem] bg-white p-4 shadow-[0_24px_70px_rgba(0,0,0,0.3)] sm:p-6"
         >
-          {/* The badge itself — this is what gets captured as PNG */}
-          <div
-            ref={badgeRef}
-            className="relative aspect-[4.1/5.8] w-full max-w-[410px] overflow-hidden rounded-3xl shadow-sm"
-          >
-            <BadgeCard student={student} classInfo={classInfo} qrSize={160} />
+          {/* The badge itself — always laid out at print size, scaled down as a
+              whole on small screens so it looks identical on every device. */}
+          <div ref={previewContainerRef} className="flex w-full justify-center">
+            <div
+              style={{
+                position: 'relative',
+                width: Math.round(PRINT_WIDTH * badgeScale),
+                height: Math.round(PRINT_HEIGHT * badgeScale),
+              }}
+            >
+              <div
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  width: PRINT_WIDTH,
+                  height: PRINT_HEIGHT,
+                  transform: `scale(${badgeScale})`,
+                  transformOrigin: 'top left',
+                }}
+                className="relative overflow-hidden rounded-3xl shadow-sm"
+              >
+                <BadgeCard student={student} classInfo={classInfo} qrSize={160} />
+              </div>
+            </div>
           </div>
 
           {/* Link box with copy button */}
