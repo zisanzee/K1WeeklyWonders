@@ -41,6 +41,21 @@ export const usePlayerStore = create(
           teacherCode: code,
         });
       },
+      // Called when a student logs in via their generated code (route /p/:code).
+      // The server validates the code and returns the student's info + the class
+      // they belong to. The student is placed into their class with no
+      // teacher/admin privileges.
+      setStudentPlayer: (student, classInfo) => {
+        set({
+          playerName: student.nickname || student.fullName || 'Student',
+          classId: classInfo.classId,
+          className: classInfo.className,
+          classType: classInfo.classType || null,
+          isTeacher: false,
+          isAdmin: false,
+          teacherCode: null,
+        });
+      },
       resetPlayer: () => set({
         playerName: null,
         classId: null,

@@ -30,8 +30,9 @@ import {
   useGameAccessStore,
 } from './gameAccess';
 import { CLASS_TYPE_CONFIG } from './teacherCodes';
-import { useStudentStore, addStudent } from './students';
+import { useStudentStore, addStudent, updateStudent, deleteStudent } from './students';
 import { fetchClassInfo } from './classInfo';
+import StudentBadge from './StudentBadge';
 
 const CLASS_TYPE_LABELS = {
   k1: { label: 'K1 Games', icon: '🎮', description: 'Manage K1 (Kindergarten 1) game arrangement — reorder, lock/unlock, and feature games.' },
@@ -131,16 +132,16 @@ function StudentAvatar({ name }) {
 }
 
 function AddStudentForm({ onAdd, isSaving, error }) {
-  const [fullName, setFullName] = useState('');
   const [nickname, setNickname] = useState('');
+  const [group, setGroup] = useState('');
 
   const handleSubmit = (event) => {
     event.preventDefault();
-    const trimmedName = fullName.trim();
-    if (!trimmedName) return;
-    onAdd({ fullName: trimmedName, nickname: nickname.trim() }, () => {
-      setFullName('');
+    const trimmedNickname = nickname.trim();
+    if (!trimmedNickname) return;
+    onAdd({ fullName: trimmedNickname, nickname: trimmedNickname, group: group.trim() }, () => {
       setNickname('');
+      setGroup('');
     });
   };
 
@@ -150,24 +151,8 @@ function AddStudentForm({ onAdd, isSaving, error }) {
       className="mb-4 flex flex-col gap-2 rounded-2xl border border-indigo-100 bg-white p-3 shadow-sm sm:flex-row sm:items-end sm:gap-3 sm:p-4"
     >
       <div className="flex-1">
-        <label htmlFor="student-full-name" className="mb-1 block text-[11px] font-black text-slate-600">
-          Full name
-        </label>
-        <input
-          id="student-full-name"
-          type="text"
-          value={fullName}
-          maxLength={80}
-          onChange={(event) => setFullName(event.target.value)}
-          placeholder="e.g. Nur Aisyah binti Rahman"
-          disabled={isSaving}
-          className="w-full rounded-xl border-2 border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-bold text-slate-800 outline-none transition focus:border-indigo-400 focus:bg-white focus:ring-4 focus:ring-indigo-100 disabled:cursor-not-allowed disabled:opacity-60"
-        />
-      </div>
-
-      <div className="flex-1">
         <label htmlFor="student-nickname" className="mb-1 block text-[11px] font-black text-slate-600">
-          Nickname (optional)
+          Nickname
         </label>
         <input
           id="student-nickname"
@@ -181,9 +166,25 @@ function AddStudentForm({ onAdd, isSaving, error }) {
         />
       </div>
 
+      <div className="flex-1">
+        <label htmlFor="student-group" className="mb-1 block text-[11px] font-black text-slate-600">
+          Group (optional)
+        </label>
+        <input
+          id="student-group"
+          type="text"
+          value={group}
+          maxLength={40}
+          onChange={(event) => setGroup(event.target.value)}
+          placeholder="e.g. Red group"
+          disabled={isSaving}
+          className="w-full rounded-xl border-2 border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-bold text-slate-800 outline-none transition focus:border-indigo-400 focus:bg-white focus:ring-4 focus:ring-indigo-100 disabled:cursor-not-allowed disabled:opacity-60"
+        />
+      </div>
+
       <button
         type="submit"
-        disabled={isSaving || !fullName.trim()}
+        disabled={isSaving || !nickname.trim()}
         className="flex min-h-[2.75rem] shrink-0 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 px-4 text-sm font-black text-white shadow-sm transition hover:from-indigo-700 hover:to-violet-700 disabled:cursor-not-allowed disabled:opacity-50"
       >
         {isSaving ? (
@@ -205,7 +206,175 @@ function AddStudentForm({ onAdd, isSaving, error }) {
   );
 }
 
-function StudentsTab({ isReady, students, onAdd, isSaving, error }) {
+// Inline-editable student row. Nickname and group can be edited in-place;
+// the code is read-only. Each row has a badge button to open the QR modal.
+function StudentRow({ student, teacherCode }) {
+  const [editing, setEditing] = useState(false);
+  const [nickname, setNickname] = useState(student.nickname || '');
+  const [group, setGroup] = useState(student.group || '');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+  const [showBadge, setShowBadge] = useState(false);
+
+  const handleSave = async () => {
+    const trimmedNickname = nickname.trim();
+    if (!trimmedNickname) return;
+    setSaving(true);
+    setError(null);
+    try {
+      await updateStudent({
+        studentId: student.studentId,
+        nickname: trimmedNickname,
+        group: group.trim(),
+        teacherCode,
+      });
+      setEditing(false);
+    } catch (err) {
+      setError(err.message || 'Could not save changes.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleCancel = () => {
+    setNickname(student.nickname || '');
+    setGroup(student.group || '');
+    setEditing(false);
+    setError(null);
+  };
+
+  const handleDelete = async () => {
+    if (!window.confirm(`Remove ${student.nickname || 'this student'} from the roster?`)) return;
+    setError(null);
+    try {
+      await deleteStudent({ studentId: student.studentId, teacherCode });
+    } catch (err) {
+      setError(err.message || 'Could not delete student.');
+    }
+  };
+
+  return (
+    <>
+      <li className="rounded-2xl border border-slate-100 bg-white p-3 shadow-sm">
+        {error && (
+          <p className="mb-2 rounded-xl bg-rose-50 px-3 py-2 text-xs font-bold text-rose-600" role="alert">
+            ⚠️ {error}
+          </p>
+        )}
+
+        <div className="flex items-center gap-3">
+          <StudentAvatar name={student.nickname || student.fullName} />
+
+          {editing ? (
+            <div className="flex min-w-0 flex-1 flex-col gap-2">
+              <input
+                type="text"
+                value={nickname}
+                maxLength={40}
+                onChange={(e) => setNickname(e.target.value)}
+                placeholder="Nickname"
+                disabled={saving}
+                className="w-full rounded-xl border-2 border-indigo-300 bg-white px-3 py-2 text-sm font-bold text-slate-800 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 disabled:opacity-60"
+              />
+              <input
+                type="text"
+                value={group}
+                maxLength={40}
+                onChange={(e) => setGroup(e.target.value)}
+                placeholder="Group (optional)"
+                disabled={saving}
+                className="w-full rounded-xl border-2 border-indigo-300 bg-white px-3 py-2 text-sm font-bold text-slate-800 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 disabled:opacity-60"
+              />
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={handleSave}
+                  disabled={saving || !nickname.trim()}
+                  className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-black text-white transition hover:bg-indigo-700 disabled:opacity-50"
+                >
+                  {saving ? 'Saving…' : 'Save'}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCancel}
+                  disabled={saving}
+                  className="rounded-lg bg-slate-200 px-3 py-1.5 text-xs font-bold text-slate-600 transition hover:bg-slate-300 disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-black text-slate-800">
+                {student.nickname || student.fullName}
+              </p>
+              {student.group && (
+                <span className="mt-0.5 inline-block rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] font-black text-indigo-700">
+                  {student.group}
+                </span>
+              )}
+            </div>
+          )}
+
+          {/* Code display + badge button */}
+          <div className="flex shrink-0 items-center gap-1.5">
+            <span className="rounded-full bg-slate-100 px-2 py-1 font-mono text-[10px] font-bold tracking-wider text-slate-600">
+              {student.code || student.studentId?.slice(0, 8)}
+            </span>
+            {student.code && (
+              <button
+                type="button"
+                onClick={() => setShowBadge(true)}
+                title="Generate badge with QR code"
+                className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-sky-100 to-indigo-100 text-sm transition hover:from-sky-200 hover:to-indigo-200"
+              >
+                🏷️
+              </button>
+            )}
+          </div>
+
+          {/* Edit / Delete actions */}
+          {!editing && (
+            <div className="flex shrink-0 gap-0.5">
+              <button
+                type="button"
+                onClick={() => {
+                  setNickname(student.nickname || '');
+                  setGroup(student.group || '');
+                  setEditing(true);
+                  setError(null);
+                }}
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-sm text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+                title="Edit student"
+              >
+                ✏️
+              </button>
+              <button
+                type="button"
+                onClick={handleDelete}
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-sm text-slate-400 transition hover:bg-rose-50 hover:text-rose-600"
+                title="Delete student"
+              >
+                🗑️
+              </button>
+            </div>
+          )}
+        </div>
+      </li>
+
+      {showBadge && (
+        <StudentBadge
+          student={student}
+          classInfo={{ className: 'K1 Weekly Wonders' }}
+          onClose={() => setShowBadge(false)}
+        />
+      )}
+    </>
+  );
+}
+
+function StudentsTab({ isReady, students, onAdd, isSaving, error, teacherCode }) {
   return (
     <div>
       <AddStudentForm onAdd={onAdd} isSaving={isSaving} error={error} />
@@ -230,21 +399,11 @@ function StudentsTab({ isReady, students, onAdd, isSaving, error }) {
       {isReady && students.length > 0 && (
         <ul className="flex flex-col gap-2">
           {students.map((student) => (
-            <li
+            <StudentRow
               key={student.studentId}
-              className="flex items-center gap-3 rounded-2xl border border-slate-100 bg-white p-3 shadow-sm"
-            >
-              <StudentAvatar name={student.nickname || student.fullName} />
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-black text-slate-800">{student.fullName}</p>
-                {student.nickname && (
-                  <p className="truncate text-xs font-bold text-slate-500">"{student.nickname}"</p>
-                )}
-              </div>
-              <span className="shrink-0 rounded-full bg-slate-100 px-2 py-1 font-mono text-[10px] font-bold text-slate-500">
-                {student.studentId.slice(0, 8)}
-              </span>
-            </li>
+              student={student}
+              teacherCode={teacherCode}
+            />
           ))}
         </ul>
       )}
@@ -1245,13 +1404,13 @@ export default function GameAccessPanel({ onClose }) {
     };
   }, [activeTab, classId, classInfo]);
 
-  const handleAddStudent = async ({ fullName, nickname }, onSuccess) => {
+  const handleAddStudent = async ({ fullName, nickname, group }, onSuccess) => {
     if (isAddingStudent) return;
     setStudentError(null);
     setIsAddingStudent(true);
 
     try {
-      await addStudent({ fullName, nickname, teacherCode });
+      await addStudent({ fullName, nickname, group, teacherCode });
       onSuccess?.();
     } catch (err) {
       setStudentError(err.message || 'Could not add this student. Please try again.');
@@ -1348,6 +1507,7 @@ export default function GameAccessPanel({ onClose }) {
             onAdd={handleAddStudent}
             isSaving={isAddingStudent}
             error={studentError}
+            teacherCode={teacherCode}
           />
         )}
 

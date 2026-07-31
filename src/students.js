@@ -1,9 +1,18 @@
 import { create } from 'zustand';
 import { usePlayerStore } from './playerStore';
 
-// Copy this file into your React project alongside gameAccess.js, e.g.
-// src/students.js
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
+
+// Generates a short, kid-friendly login code: 6 uppercase alphanumeric chars.
+// Collision probability is negligible for typical class sizes.
+function generateStudentCode() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no I/1/O/0 to avoid confusion
+  let code = '';
+  for (let i = 0; i < 6; i++) {
+    code += chars[Math.floor(Math.random() * chars.length)];
+  }
+  return code;
+}
 
 export const useStudentStore = create((set, get) => ({
   students: [],
@@ -44,13 +53,33 @@ export const useStudentStore = create((set, get) => ({
   addStudentLocal: (student) => {
     set((state) => ({ students: [...state.students, student] }));
   },
+
+  // Inline update after the server confirms the edit — avoids a full re-fetch.
+  updateStudentLocal: (studentId, updates) => {
+    set((state) => ({
+      students: state.students.map((s) =>
+        s.studentId === studentId ? { ...s, ...updates } : s
+      ),
+    }));
+  },
+
+  removeStudentLocal: (studentId) => {
+    set((state) => ({
+      students: state.students.filter((s) => s.studentId !== studentId),
+    }));
+  },
 }));
 
-export async function addStudent({ fullName, nickname, teacherCode }) {
+// POST — add a new student. The server stores nickname, group, and the
+// generated code. `fullName` is still sent for compatibility but the UI
+// now emphasises nickname.
+export async function addStudent({ fullName, nickname, group, teacherCode }) {
+  const code = generateStudentCode();
+
   const response = await fetch(`${API_BASE}/api/students`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ fullName, nickname, teacherCode }),
+    body: JSON.stringify({ fullName, nickname, group, code, teacherCode }),
   });
 
   if (!response.ok) {
@@ -62,4 +91,58 @@ export async function addStudent({ fullName, nickname, teacherCode }) {
   useStudentStore.getState().addStudentLocal(student);
 
   return student;
+}
+
+// PUT — update an existing student's nickname and/or group. Code cannot be
+// changed through this endpoint.
+export async function updateStudent({ studentId, nickname, group, teacherCode }) {
+  const response = await fetch(
+    `${API_BASE}/api/students/${encodeURIComponent(studentId)}`,
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nickname, group, teacherCode }),
+    }
+  );
+
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    throw new Error(body.error || 'Could not update student');
+  }
+
+  const updated = await response.json();
+  useStudentStore.getState().updateStudentLocal(studentId, updated);
+
+  return updated;
+}
+
+// DELETE — remove a student from the roster.
+export async function deleteStudent({ studentId, teacherCode }) {
+  const response = await fetch(
+    `${API_BASE}/api/students/${encodeURIComponent(studentId)}`,
+    {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ teacherCode }),
+    }
+  );
+
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    throw new Error(body.error || 'Could not delete student');
+  }
+
+  useStudentStore.getState().removeStudentLocal(studentId);
+}
+
+// GET — validate a student code and return the student + class info for login.
+// Used by the /p/:code auto-login route. Returns null if invalid.
+export async function lookupStudentByCode(code) {
+  const response = await fetch(
+    `${API_BASE}/api/student-login/${encodeURIComponent(code)}`
+  );
+
+  if (!response.ok) return null;
+
+  return response.json();
 }

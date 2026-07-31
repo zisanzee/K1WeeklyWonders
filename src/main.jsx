@@ -24,6 +24,7 @@ const PhaserDemo = lazy(() => import("./BonusGames/BonusGame1/PhaserDemo"));
 const Game4 = lazy(() => import("./BonusGames/Game4/PhaserDemo"));
 const Game7 = lazy(() => import("./BonusGames/Game 7/PhaserDemo"));
 const GameAccessPage = lazy(() => import("./GameAccessPage"));
+const StudentLogin = lazy(() => import("./StudentLogin"));
 
 function GameLoading() {
   return (
@@ -72,6 +73,7 @@ ReactDOM.createRoot(document.getElementById("root")).render(
           <Route path="/game6" element={<Game6 />} />
           <Route path="/bonus-game1" element={<PhaserDemo />} />
           <Route path="/game-access" element={<GameAccessPage />} />
+          <Route path="/p/:code" element={<StudentLogin />} />
         </Routes>
       </Suspense>
     </BrowserRouter>
