@@ -42,6 +42,64 @@ export default function Home() {
 
 const MotionLink = motion.create(Link);
 
+// SVG padlock glyphs for the teacher access badge — emoji locks render
+// differently per platform, so drawing them gives a consistent, polished
+// look. State is signalled three ways so it reads at a glance: an open
+// lock's shackle leg lifts off the body (closed seats into it), the color
+// shifts emerald↔slate, and a bold ✓/✕ sits on the body.
+function AccessIcon({ unlocked }) {
+  const gradId = unlocked ? "lock-open-grad" : "lock-closed-grad";
+  const stops = unlocked
+    ? ["#6EE7B7", "#10B981", "#047857"]
+    : ["#94A3B8", "#475569", "#334155"];
+  const shackle = unlocked
+    ? "M7 10.8V8.4a5 5 0 0 1 10 0V7.4"
+    : "M7 10.8V8.4a5 5 0 0 1 10 0v2.4";
+
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className="h-[1.5rem] w-[1.5rem]"
+      fill="none"
+      aria-hidden="true"
+    >
+      <defs>
+        <linearGradient
+          id={gradId}
+          x1="4"
+          y1="4"
+          x2="20"
+          y2="22"
+          gradientUnits="userSpaceOnUse"
+        >
+          {stops.map((color, i) => (
+            <stop key={color} offset={`${i * 50}%`} stopColor={color} />
+          ))}
+        </linearGradient>
+      </defs>
+      <path d={shackle} stroke={`url(#${gradId})`} strokeWidth="2.3" strokeLinecap="round" />
+      <rect x="4.4" y="10" width="15.2" height="11.4" rx="3.4" fill={`url(#${gradId})`} />
+      <path d="M7.4 12.4h9.2" stroke="#fff" strokeWidth="1.1" strokeLinecap="round" opacity="0.5" />
+      {unlocked ? (
+        <path
+          d="M9.4 15.4l1.8 1.8 3.6-3.9"
+          stroke="#fff"
+          strokeWidth="2.2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      ) : (
+        <path
+          d="M10 14l4 4M14 14l-4 4"
+          stroke="#fff"
+          strokeWidth="2.2"
+          strokeLinecap="round"
+        />
+      )}
+    </svg>
+  );
+}
+
 function timeGreeting() {
   const hour = new Date().getHours();
   if (hour < 12) return "Good morning";
@@ -501,13 +559,15 @@ const GameCard = React.memo(function GameCard({
           role="img"
           aria-label={teacherAccessUnlocked ? "Unlocked for players" : "Locked for players"}
           title={teacherAccessUnlocked ? "Unlocked for players" : "Locked for players"}
-          className={`absolute top-3 z-30 flex h-9 w-9 items-center justify-center rounded-full border border-white/80 text-lg shadow-md ${
+          className={`absolute top-3 z-30 flex h-9 w-9 items-center justify-center rounded-full shadow-md ring-1 ring-inset ${
+            number !== "B" ? "left-14" : "left-3"
+          } ${
             teacherAccessUnlocked
-              ? "bg-emerald-500 text-white"
-              : "bg-slate-700 text-white"
-          } ${number !== "B" ? "left-14" : "left-3"}`}
+              ? "bg-white/95 ring-emerald-200 shadow-emerald-500/30"
+              : "bg-white/95 ring-slate-300 shadow-slate-500/25"
+          }`}
         >
-          {teacherAccessUnlocked ? "🔓" : "🔒"}
+          <AccessIcon unlocked={teacherAccessUnlocked} />
         </span>
       )}
 
