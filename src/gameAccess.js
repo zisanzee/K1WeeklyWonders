@@ -5,6 +5,12 @@ import { CLASS_TYPE_CONFIG } from './teacherCodes';
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
 let latestGameAccessRequest = 0;
 
+// Shared abort controller + timeout for the current in-flight fetchGameAccess
+// call, so we can cancel a hung request when a new one supersedes it or when
+// the network is unresponsive (e.g. Render cold-start).
+let activeAbortController = null;
+const FETCH_TIMEOUT_MS = 12_000; // 12 s — enough for a Render cold start
+
 export const GAME_CATALOG = [
   {
     key: '1',
@@ -160,9 +166,27 @@ export const useGameAccessStore = create((set, get) => ({
     if (!classId) return;
 
     const state = get();
+
+    // If a fetch for this classId is already in flight and hasn't been
+    // stuck for too long, let it finish — don't pile on duplicate requests.
     if (state.loading && state.loadingClassId === classId) return;
 
+    // Cancel any in-flight request (different classId or stuck request)
+    // so we never have two concurrent fetches racing to update state.
+    if (activeAbortController) {
+      activeAbortController.abort();
+      activeAbortController = null;
+    }
+
     const requestId = ++latestGameAccessRequest;
+    const controller = new AbortController();
+    activeAbortController = controller;
+
+    // Safety timeout: if the server doesn't respond within the window
+    // (Render cold-start can take 30-60 s, so we give a reasonable
+    // budget), abort the fetch and show an error so the user can retry
+    // instead of staring at a forever-spinner.
+    const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
 
     set({ loading: true, loadingClassId: classId, error: null });
 
@@ -176,10 +200,16 @@ export const useGameAccessStore = create((set, get) => ({
       : classId;
 
     try {
-      const response = await fetch(`${API_BASE}/api/game-access?classId=${encodeURIComponent(curriculumClassId)}`);
+      const response = await fetch(
+        `${API_BASE}/api/game-access?classId=${encodeURIComponent(curriculumClassId)}`,
+        { signal: controller.signal }
+      );
+
+      clearTimeout(timeoutId);
 
       if (!response.ok) {
-        throw new Error('Failed to load game access');
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body.error || `Server error (${response.status})`);
       }
 
       const rows = await response.json();
@@ -197,17 +227,33 @@ export const useGameAccessStore = create((set, get) => ({
         loadedClassId: classId,
         loading: false,
         loadingClassId: null,
+        error: null,
       });
     } catch (error) {
+      clearTimeout(timeoutId);
+
       if (requestId !== latestGameAccessRequest) return;
 
-      console.error(error);
+      // Distinguish a deliberate abort (timeout or superseded) from a
+      // genuine network / server error so the UI can show a helpful message.
+      const isAbort = error.name === 'AbortError';
+      const message = isAbort
+        ? 'The server is taking too long to respond. Please try again.'
+        : (error.message || 'Failed to load game access');
+
+      console.error(isAbort ? 'Game access fetch timed out' : 'Game access fetch failed', error);
 
       set({
         loading: false,
         loadingClassId: null,
-        error: error.message,
+        error: message,
       });
+    } finally {
+      // Clean up the shared controller reference only if it still
+      // belongs to this request (a newer request may have replaced it).
+      if (activeAbortController === controller) {
+        activeAbortController = null;
+      }
     }
   },
 

@@ -116,16 +116,23 @@ function HomeContent() {
   const [showStats, setShowStats] = useState(false);
   const [progressByGame, setProgressByGame] = useState({});
   const [loadingTo, setLoadingTo] = useState(null);
+  // After 8 s of waiting, show a more detailed message so the user knows
+  // we haven't frozen — the server might just be under load.
+  const [loadingTooLong, setLoadingTooLong] = useState(false);
 
   const gameAccessLoaded = useGameAccessStore((s) => s.loaded);
   const gameAccessLoadedClassId = useGameAccessStore((s) => s.loadedClassId);
-  const gameAccessLoading = useGameAccessStore((s) => s.loading);
   const gameAccessError = useGameAccessStore((s) => s.error);
   const fetchGameAccess = useGameAccessStore((s) => s.fetchGameAccess);
   const gameAccessReady = gameAccessLoaded && gameAccessLoadedClassId === classId;
 
   useEffect(() => {
-    if (classId) fetchGameAccess(classId);
+    if (!classId) return;
+    // Reset the "too long" flag whenever we start a fresh load.
+    setLoadingTooLong(false);
+    const tooLongTimer = setTimeout(() => setLoadingTooLong(true), 8_000);
+    fetchGameAccess(classId);
+    return () => clearTimeout(tooLongTimer);
   }, [classId, fetchGameAccess]);
 
   const unlocked = useGameAccessStore((state) => state.unlocked);
@@ -453,13 +460,24 @@ function HomeContent() {
               {gameAccessError ? (
                 <>
                   <span className="text-4xl">😕</span>
-                  <p className="font-body font-bold">We couldn't load your class games.</p>
-                  <button type="button" onClick={() => fetchGameAccess(classId)} className="font-body rounded-full bg-white px-5 py-2 text-sm font-bold text-sky-700 shadow-sm">Try again</button>
+                  <p className="font-body max-w-xs text-sm font-bold leading-relaxed">{gameAccessError}</p>
+                  <button
+                    type="button"
+                    onClick={() => fetchGameAccess(classId)}
+                    className="font-body rounded-full bg-white px-5 py-2 text-sm font-bold text-sky-700 shadow-[0_4px_0_rgba(0,0,0,0.12)] transition-transform hover:-translate-y-0.5 active:translate-y-1 active:shadow-none"
+                  >
+                    Try again
+                  </button>
                 </>
               ) : (
                 <>
                   <span className="h-9 w-9 animate-spin rounded-full border-4 border-white/90 border-t-transparent" />
-                  <p className="font-body font-bold">{gameAccessLoading ? 'Loading your class games…' : 'Preparing your class games…'}</p>
+                  <p className="font-body font-bold">Loading your class games…</p>
+                  {loadingTooLong && (
+                    <p className="font-body max-w-xs text-xs font-semibold text-white/70">
+                      Still working on it — the server may be waking up or under heavy load. Thanks for your patience!
+                    </p>
+                  )}
                 </>
               )}
             </div>
