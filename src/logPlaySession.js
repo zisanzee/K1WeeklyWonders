@@ -94,10 +94,25 @@ export async function logPlaySession({
   }
 }
 
+// Shared helper: fetch with a timeout so a hung request (Render cold-start,
+// network partition) doesn't leave the stats panel spinning forever.
+async function fetchWithTimeout(url, options = {}, timeoutMs = 15_000) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, { ...options, signal: controller.signal });
+    clearTimeout(timeoutId);
+    return res;
+  } catch (err) {
+    clearTimeout(timeoutId);
+    throw err;
+  }
+}
+
 // Overall totals + a per-game breakdown (see GET /api/stats on the server).
 export async function fetchStats(teacherCode) {
   try {
-    const res = await fetch(withQuery('/api/stats', { teacherCode }));
+    const res = await fetchWithTimeout(withQuery('/api/stats', { teacherCode }));
     if (!res.ok) throw new Error(`Server responded ${res.status} ${res.statusText}`);
     return await res.json();
   } catch (err) {
@@ -110,7 +125,7 @@ export async function fetchStats(teacherCode) {
 // (see GET /api/summary on the server).
 export async function fetchSummary({ classId, playerName, teacherCode }) {
   try {
-    const res = await fetch(withQuery('/api/summary', { classId, playerName, teacherCode }));
+    const res = await fetchWithTimeout(withQuery('/api/summary', { classId, playerName, teacherCode }));
     if (!res.ok) throw new Error(`Server responded ${res.status} ${res.statusText}`);
     return await res.json();
   } catch (err) {
@@ -123,7 +138,7 @@ export async function fetchSummary({ classId, playerName, teacherCode }) {
 // the "show all plays" view (see GET /api/plays on the server).
 export async function fetchAllPlays(teacherCode) {
   try {
-    const res = await fetch(withQuery('/api/plays', { teacherCode }));
+    const res = await fetchWithTimeout(withQuery('/api/plays', { teacherCode }));
     if (!res.ok) throw new Error(`Server responded ${res.status} ${res.statusText}`);
     return await res.json();
   } catch (err) {

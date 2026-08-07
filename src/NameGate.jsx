@@ -46,14 +46,21 @@ export default function NameGate({ gameLabel, children }) {
     setCodeError(null);
     setIsSubmittingCode(true);
 
+    // Abort if the server doesn't respond within 10 s — prevents the login
+    // spinner from hanging forever during a Render cold-start or network
+    // partition. Falls back to the local teacherCodes.js lookup.
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10_000);
+
     try {
-      // Try the server-first. If the API endpoint isn't deployed yet
-      // (Phases 1-4), the fetch will throw and we fall back to local.
       const response = await fetch(`${API_BASE}/api/teacher-login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ code }),
+        signal: controller.signal,
       });
+
+      clearTimeout(timeoutId);
 
       const data = await response.json();
 
@@ -70,7 +77,9 @@ export default function NameGate({ gameLabel, children }) {
 
       setTeacher(data, code);
     } catch (err) {
-      // Network error — server not available, use local fallback.
+      clearTimeout(timeoutId);
+
+      // Network error or timeout — server not available, use local fallback.
       const local = lookupTeacher(code);
       if (!local) {
         setCodeError('Could not connect to the server. Please try again.');

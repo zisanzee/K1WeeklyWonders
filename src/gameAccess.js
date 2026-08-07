@@ -1,6 +1,5 @@
 import { create } from 'zustand';
 import { usePlayerStore } from './playerStore';
-import { CLASS_TYPE_CONFIG } from './teacherCodes';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
 let latestGameAccessRequest = 0;
@@ -190,18 +189,12 @@ export const useGameAccessStore = create((set, get) => ({
 
     set({ loading: true, loadingClassId: classId, error: null });
 
-    // Resolve the classId through the curriculum mapping: if the current
-    // player has a classType, read from the curriculum storage for that
-    // type instead of the raw classId. This ensures all classes sharing
-    // the same classType see identical game arrangements.
-    const playerClassType = usePlayerStore.getState().classType;
-    const curriculumClassId = playerClassType
-      ? (CLASS_TYPE_CONFIG[playerClassType]?.classId || classId)
-      : classId;
-
+    // The server resolves classId → classType internally and returns that
+    // type's game arrangement. The client just passes the player's classId
+    // as-is — no client-side CLASS_TYPE_CONFIG mapping needed anymore.
     try {
       const response = await fetch(
-        `${API_BASE}/api/game-access?classId=${encodeURIComponent(curriculumClassId)}`,
+        `${API_BASE}/api/game-access?classId=${encodeURIComponent(classId)}`,
         { signal: controller.signal }
       );
 

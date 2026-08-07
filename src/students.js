@@ -25,6 +25,8 @@ export const useStudentStore = create((set, get) => ({
     if (!teacherCode) return;
 
     const state = get();
+    // If a fetch is already in flight, don't stack another one — but if the
+    // previous fetch has been stuck for >15 s (server timeout), allow a retry.
     if (state.loading) return;
 
     const classId = usePlayerStore.getState().classId;
@@ -38,10 +40,19 @@ export const useStudentStore = create((set, get) => ({
 
     set({ loading: true, error: null });
 
+    // Abort if the server doesn't respond within 12 s — same window the
+    // game-access fetch uses. This prevents a hung request from permanently
+    // blocking the student roster tab.
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 12_000);
+
     try {
       const response = await fetch(
-        `${API_BASE}/api/students?teacherCode=${encodeURIComponent(teacherCode)}`
+        `${API_BASE}/api/students?teacherCode=${encodeURIComponent(teacherCode)}`,
+        { signal: controller.signal }
       );
+
+      clearTimeout(timeoutId);
 
       if (!response.ok) throw new Error('Failed to load students');
 
@@ -54,8 +65,12 @@ export const useStudentStore = create((set, get) => ({
         loading: false,
       });
     } catch (error) {
+      clearTimeout(timeoutId);
+      const message = error.name === 'AbortError'
+        ? 'The server is taking too long. Please try again.'
+        : error.message;
       console.error(error);
-      set({ loading: false, error: error.message });
+      set({ loading: false, error: message });
     }
   },
 
@@ -149,13 +164,24 @@ export async function deleteStudent({ studentId, teacherCode }) {
 }
 
 // GET — validate a student code and return the student + class info for login.
-// Used by the /p/:code auto-login route. Returns null if invalid.
+// Used by the /p/:code auto-login route. Returns null if invalid or timed out.
 export async function lookupStudentByCode(code) {
-  const response = await fetch(
-    `${API_BASE}/api/student-login/${encodeURIComponent(code)}`
-  );
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 10_000);
 
-  if (!response.ok) return null;
+  try {
+    const response = await fetch(
+      `${API_BASE}/api/student-login/${encodeURIComponent(code)}`,
+      { signal: controller.signal }
+    );
 
-  return response.json();
+    clearTimeout(timeoutId);
+
+    if (!response.ok) return null;
+
+    return response.json();
+  } catch {
+    clearTimeout(timeoutId);
+    return null;
+  }
 }

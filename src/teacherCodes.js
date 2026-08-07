@@ -1,9 +1,7 @@
-// Teacher codes — local fallback for when the server-side login endpoint
-// (POST /api/teacher-login) isn't deployed yet. NameGate.jsx tries the
-// API first, falls back to this lookup if the server is unavailable.
-//
-// Once the server migration (Phases 1-4) is complete, this file should
-// be deleted — the server becomes the single source of truth.
+// Local fallback for teacher-code authentication. NameGate.jsx tries the
+// server first (POST /api/teacher-login); this lookup is only used when the
+// server is unreachable. Keep in sync with the DB — the server is the
+// single source of truth for roles and class assignments.
 export const TEACHER_CODES = {
   '12/10/22': {
     name: 'Siti Soleha',
@@ -17,32 +15,8 @@ export const TEACHER_CODES = {
     className: 'Test class',
     classId: 'test2026-jyx',
     classType: 'k1',
-    role: 'teacher',
+    role: 'admin',
   },
-};
-
-// Temporary mapping: each classType maps to a classId used for game-access
-// storage, and the teacher code whose auth resolves to that classId on the
-// server. The server derives the classId from the teacher code, so writes
-// must use a code that resolves to the correct storage classId.
-//
-// IMPORTANT: The config's `classId` is the STORAGE LOCATION for that
-// curriculum, NOT which classes read from it. Which curriculum a class
-// sees is determined by its own `classType` (from teacherCodes or the
-// server). The fetchGameAccess store resolves every read through this
-// mapping: a class with classType 'k1' reads from k1's storage, a
-// class with classType 'k2' reads from k2's storage, regardless of
-// the class's own classId.
-//
-// Since both current classes (k12026-pny, test2026-jyx) have classType
-// 'k1', both read from k1's storage — they see identical K1 games.
-// The admin's K2 tab reads/writes a different storage location.
-//
-// Once the server supports classType-scoped writes (Phases 1-4), delete
-// this entire config — the server will handle classType directly.
-export const CLASS_TYPE_CONFIG = {
-  k1: { classId: 'k12026-pny', writeCode: '12/10/22' },
-  k2: { classId: 'test2026-jyx', writeCode: '92702689' },
 };
 
 // Looks up a code and returns the matching teacher object, or null.

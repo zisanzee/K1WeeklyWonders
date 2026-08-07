@@ -20,16 +20,16 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { usePlayerStore } from './playerStore';
 import {
-  setGameOrder,
-  setGameShiny,
-  setGameUnlocked,
-  addGameToClass,
-  removeGameFromClass,
+  setGameOrderForType,
+  setGameShinyForType,
+  setGameUnlockedForType,
+  addGameToType,
+  removeGameFromType,
+  fetchGameAccessForType,
   mergeRows,
   GAME_CATALOG,
   useGameAccessStore,
 } from './gameAccess';
-import { CLASS_TYPE_CONFIG } from './teacherCodes';
 import { useStudentStore, addStudent, updateStudent, deleteStudent } from './students';
 import { fetchClassInfo } from './classInfo';
 import StudentBadge, { PrintAllBadgesButton } from './StudentBadge';
@@ -761,17 +761,11 @@ function DragPreview({ game }) {
 }
 
 // Admin-only: full edit controls for a specific class type (k1 or k2).
-// Uses classId-based endpoints as a fallback until the server supports
-// classType-scoped reads/writes (Phases 1-4 in the server repo).
-// Uses writeCode (a teacher code that resolves to the target classId on the
-// server) for all API writes, since the server derives classId from the
-// teacher code rather than from body.classId. K1 uses 12/10/22 → k12026-pny,
-// K2 uses 92702689 → test2026-jyx.
+// All reads and writes are keyed by classType directly — the server handles
+// classType-scoped GameAccess with admin-only gating.
 function GameAccessTypeEditor({
   classType,
-  classId,
-  teacherCode,     // the logged-in user's code (for auth display only)
-  writeCode,       // the code whose classId matches this editor's target
+  teacherCode,
   isSaving,
   onGlobalError,
   onGlobalSavingChange,
@@ -801,21 +795,13 @@ function GameAccessTypeEditor({
     })
   );
 
-  const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
-
-  // Fetch games via classId-based endpoint (server doesn't support
-  // ?classType= yet — Phases 1-4). Merge raw rows with GAME_CATALOG
-  // so the sortable slots have emoji, label, hue, subtitle, etc.
+  // Fetch games by classType via the admin-only endpoint.
   useEffect(() => {
     if (fetchAttemptedRef.current) return;
     fetchAttemptedRef.current = true;
     setLoading(true);
 
-    fetch(`${API_BASE}/api/game-access?classId=${encodeURIComponent(classId)}`)
-      .then((res) => {
-        if (!res.ok) throw new Error('Failed to load');
-        return res.json();
-      })
+    fetchGameAccessForType(classType, teacherCode)
       .then((rows) => {
         const merged = mergeRows(rows);
         setGames(merged);
@@ -826,7 +812,7 @@ function GameAccessTypeEditor({
         setLocalError(err.message);
         setLoading(false);
       });
-  }, [classId, teacherCode]);
+  }, [classType, teacherCode]);
 
   // Initialize draft once games are loaded
   useEffect(() => {
@@ -972,14 +958,11 @@ function GameAccessTypeEditor({
         (game, index) => originalGames[index]?.key !== game.key
       );
 
-      // Use classId-based mutators until the server supports classType
-      // (Phases 1-4 in the server repo). Swap to setGameOrderForType/
-      // setGameUnlockedForType etc. once the server is updated.
       if (orderChanged) {
-        await setGameOrder(
+        await setGameOrderForType(
           draftGames.map((game) => game.key),
-          writeCode,
-          classId
+          classType,
+          teacherCode
         );
       }
 
@@ -995,10 +978,10 @@ function GameAccessTypeEditor({
 
       await Promise.all([
         ...accessChanges.map((game) =>
-          setGameUnlocked(game.key, game.unlocked, writeCode, classId)
+          setGameUnlockedForType(game.key, game.unlocked, classType, teacherCode)
         ),
         ...shinyChanges.map((game) =>
-          setGameShiny(game.key, game.shiny, writeCode, classId)
+          setGameShinyForType(game.key, game.shiny, classType, teacherCode)
         ),
       ]);
 
@@ -1020,13 +1003,12 @@ function GameAccessTypeEditor({
 
     try {
       if (isAdded) {
-        await removeGameFromClass(game.key, writeCode, classId);
+        await removeGameFromType(game.key, classType, teacherCode);
       } else {
-        await addGameToClass(game.key, writeCode, classId);
+        await addGameToType(game.key, classType, teacherCode);
       }
-      // Refresh games after shop change using classId-based endpoint
-      const res = await fetch(`${API_BASE}/api/game-access?classId=${encodeURIComponent(classId)}`);
-      const rows = await res.json();
+      // Refresh games after shop change
+      const rows = await fetchGameAccessForType(classType, teacherCode);
       const nextGames = mergeRows(rows);
       setGames(nextGames);
       const snapshot = copyGames(nextGames);
@@ -1238,64 +1220,38 @@ function GameAccessTypeEditor({
 }
 
 // Non-admin teacher: read-only game list for their own class type.
-// Reads the curriculum for the teacher's classType (not their direct
-// classId), so all K1 classes see the same K1 curriculum, all K2
-// classes see the same K2 curriculum, etc.
-function ReadOnlyGameList({ classType }) {
-  const [games, setGames] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [loadedType, setLoadedType] = useState(null);
-
-  const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
+// Uses the main gameAccess store — the server resolves classId→classType
+// automatically, so every class of the same type sees identical data.
+function ReadOnlyGameList({ classId }) {
+  const games = useGameAccessStore((s) => s.games);
+  const loaded = useGameAccessStore((s) => s.loaded);
+  const loadedClassId = useGameAccessStore((s) => s.loadedClassId);
+  const error = useGameAccessStore((s) => s.error);
+  const loading = useGameAccessStore((s) => s.loading);
+  const fetchGameAccess = useGameAccessStore((s) => s.fetchGameAccess);
 
   useEffect(() => {
-    let active = true;
-    setLoading(true);
+    if (!classId) return;
+    if (loaded && loadedClassId === classId) return;
+    fetchGameAccess(classId);
+  }, [classId, loaded, loadedClassId, fetchGameAccess]);
 
-    // Map classType to the classId used for curriculum storage
-    const curriculumClassId = CLASS_TYPE_CONFIG[classType]?.classId;
-    if (!curriculumClassId) {
-      setError(`No curriculum configured for "${classType}"`);
-      setLoading(false);
-      return;
+  const isReady = loaded && loadedClassId === classId;
+
+  if (!isReady) {
+    if (error) {
+      return (
+        <p className="rounded-2xl border border-rose-300 bg-rose-50 px-3 py-3 text-sm font-bold text-rose-800">
+          ⚠️ {error}
+        </p>
+      );
     }
 
-    fetch(`${API_BASE}/api/game-access?classId=${encodeURIComponent(curriculumClassId)}`)
-      .then((res) => {
-        if (!res.ok) throw new Error('Failed to load');
-        return res.json();
-      })
-      .then((rows) => {
-        if (!active) return;
-        const merged = mergeRows(rows);
-        setGames(merged);
-        setLoadedType(classType);
-        setLoading(false);
-      })
-      .catch((err) => {
-        if (!active) return;
-        setError(err.message);
-        setLoading(false);
-      });
-
-    return () => { active = false; };
-  }, [classType]);
-
-  if (loading) {
     return (
       <div className="flex items-center gap-2 rounded-2xl border border-indigo-100 bg-indigo-50 px-3 py-2.5 text-xs font-bold text-indigo-700">
         <span className="h-3 w-3 animate-spin rounded-full border-2 border-indigo-400 border-t-transparent" />
         Loading games…
       </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <p className="rounded-2xl border border-rose-300 bg-rose-50 px-3 py-3 text-sm font-bold text-rose-800">
-        ⚠️ {error}
-      </p>
     );
   }
 
@@ -1563,8 +1519,6 @@ export default function GameAccessPanel({ onClose }) {
           <GameAccessTypeEditor
             key="k1-editor"
             classType="k1"
-            classId={CLASS_TYPE_CONFIG.k1.classId}
-            writeCode={CLASS_TYPE_CONFIG.k1.writeCode}
             teacherCode={teacherCode}
             isSaving={globalSaving}
             onGlobalError={setGlobalError}
@@ -1576,8 +1530,6 @@ export default function GameAccessPanel({ onClose }) {
           <GameAccessTypeEditor
             key="k2-editor"
             classType="k2"
-            classId={CLASS_TYPE_CONFIG.k2.classId}
-            writeCode={CLASS_TYPE_CONFIG.k2.writeCode}
             teacherCode={teacherCode}
             isSaving={globalSaving}
             onGlobalError={setGlobalError}
@@ -1586,7 +1538,7 @@ export default function GameAccessPanel({ onClose }) {
         )}
 
         {activeTab === 'games' && !isAdmin && (
-          <ReadOnlyGameList classType={userClassType || 'k1'} />
+          <ReadOnlyGameList classId={classId} />
         )}
       </main>
     </div>
