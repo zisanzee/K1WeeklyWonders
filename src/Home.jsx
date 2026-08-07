@@ -128,12 +128,14 @@ function HomeContent() {
 
   useEffect(() => {
     if (!classId) return;
+    // Already have fresh data for this class — skip the fetch entirely.
+    if (gameAccessReady) return;
     // Reset the "too long" flag whenever we start a fresh load.
     setLoadingTooLong(false);
     const tooLongTimer = setTimeout(() => setLoadingTooLong(true), 8_000);
     fetchGameAccess(classId);
     return () => clearTimeout(tooLongTimer);
-  }, [classId, fetchGameAccess]);
+  }, [classId, gameAccessReady, fetchGameAccess]);
 
   const unlocked = useGameAccessStore((state) => state.unlocked);
   const orderedGames = useGameAccessStore((state) => state.games);
