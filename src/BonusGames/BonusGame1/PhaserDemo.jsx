@@ -54,7 +54,7 @@ function PhaserDemoInner() {
   const [selectedNumber, setSelectedNumber] = useState(null);
 
   return (
-    <div className="relative flex h-[100dvh] w-full flex-col items-center overflow-hidden bg-gradient-to-b from-[#3FB6EA] via-[#8FE0FA] to-[#FFE9A8] px-2 pb-1 pt-1 sm:px-4 sm:pb-4 sm:pt-3">
+    <div className="relative flex h-[100dvh] w-full flex-col items-center overflow-hidden bg-gradient-to-b from-[#3FB6EA] via-[#8FE0FA] to-[#FFE9A8] px-0 pb-0 pt-0 sm:px-4 sm:pb-4 sm:pt-3">
       <link
         rel="stylesheet"
         href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;700&family=Nunito:wght@600;800&display=swap"
@@ -100,12 +100,12 @@ function PhaserDemoInner() {
 
       <Link
         to="/"
-        className="font-body relative z-20  flex items-center gap-1 self-start rounded-full bg-white/90  font-extrabold text-slate-700 shadow-[0_4px_0_rgba(0,0,0,0.15)] transition-transform hover:-translate-y-0.5 active:translate-y-1 active:shadow-none px-3 py-1.5 text-xs sm:px-4 sm:py-2 sm:text-sm md:text-base"
+        className="font-body relative z-20 flex items-center gap-0.5 self-start rounded-full bg-white/90 font-extrabold text-slate-700 shadow-[0_4px_0_rgba(0,0,0,0.15)] transition-transform hover:-translate-y-0.5 active:translate-y-1 active:shadow-none px-2 py-1 text-[10px] sm:px-4 sm:py-2 sm:text-sm md:text-base"
       >
         ⬅️ Home
       </Link>
 
-      <div className="relative z-10 flex w-full min-h-0 flex-1 flex-col items-center justify-center max-w-2xl gap-1 md:flex-row md:items-center md:gap-6">
+      <div className="relative z-10 flex w-full min-h-0 flex-1 flex-col items-center justify-center max-w-2xl gap-0.5 sm:gap-1 md:flex-row md:items-center md:gap-6">
         {/* Number rail — a horizontal strip above the game on phones/tablets,
             a vertical strip along the left on wider screens. Same panel,
             just re-flowed via the grid + flex direction below. */}
@@ -113,13 +113,13 @@ function PhaserDemoInner() {
           initial={{ opacity: 0, y: -18 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.45, ease: 'easeOut' }}
-          className="font-body relative order-1 flex w-full max-w-md flex-none flex-col items-center gap-1 rounded-[1.25rem] bg-white/85 px-2 py-1 shadow-[0_5px_0_rgba(0,0,0,0.12)] backdrop-blur-sm sm:gap-1.5 sm:rounded-[1.75rem] sm:px-3 sm:py-2 md:order-none md:w-20 md:max-w-none md:flex-none md:justify-center md:gap-3 md:self-stretch md:px-2 md:py-4"
+          className="font-body relative order-1 flex w-full max-w-md flex-none flex-col items-center gap-0.5 rounded-lg bg-white/85 px-1 py-0.5 shadow-[0_3px_0_rgba(0,0,0,0.12)] backdrop-blur-sm sm:gap-1.5 sm:rounded-[1.75rem] sm:px-3 sm:py-2 md:order-none md:w-20 md:max-w-none md:flex-none md:justify-center md:gap-3 md:self-stretch md:px-2 md:py-4"
         >
           {/* Selected word — always reserves its own slot at the top of the
               rail (in-flow, not floated) so it can never drift into the
               game canvas below it, no matter how much vertical space the
               browser/nav chrome eats into the viewport. */}
-          <div className="pointer-events-none relative z-10 order-first flex h-7 w-full flex-none items-center justify-center sm:h-8 md:h-9">
+          <div className="pointer-events-none relative z-10 order-first flex h-5 w-full flex-none items-center justify-center sm:h-8 md:h-9">
             <AnimatePresence mode="wait">
               {selectedNumber !== null && (
                 <motion.span
@@ -128,7 +128,7 @@ function PhaserDemoInner() {
                   animate={{ opacity: 1, scale: 1, y: 0 }}
                   exit={{ opacity: 0, scale: 0.8, y: -6 }}
                   transition={{ type: 'spring', stiffness: 500, damping: 24 }}
-                  className="whitespace-nowrap rounded-full bg-amber-50 px-3 py-1 font-heading text-lg font-bold text-orange-600 shadow-[0_3px_0_rgba(0,0,0,0.1)] sm:text-lg md:text-base"
+                  className="whitespace-nowrap rounded-full bg-amber-50 px-2 py-0.5 font-heading text-sm font-bold text-orange-600 shadow-[0_2px_0_rgba(0,0,0,0.1)] sm:px-3 sm:py-1 sm:text-lg md:text-base"
                 >
                   {numberWords[selectedNumber - 1]}
                 </motion.span>
@@ -144,7 +144,7 @@ function PhaserDemoInner() {
             variants={gridVariants}
             initial="hidden"
             animate="show"
-            className="grid grid-cols-10 gap-1 sm:gap-1.5 md:grid-cols-1 md:gap-1.5"
+            className="grid grid-cols-10 gap-0.5 sm:gap-1.5 md:grid-cols-1 md:gap-1.5"
           >
             {Array.from({ length: 10 }, (_, idx) => idx + 1).map((i) => {
               const isSelected = selectedNumber === i;
@@ -161,7 +161,7 @@ function PhaserDemoInner() {
                   animate={{ scale: isSelected ? 1.1 : 1, y: isSelected ? -2 : 0 }}
                   transition={{ type: 'spring', stiffness: 420, damping: 22 }}
                   className={cn(
-                    'font-heading relative flex aspect-square items-center justify-center rounded-lg text-lg font-bold shadow-[0_3px_0_rgba(0,0,0,0.15)] transition-colors sm:rounded-xl sm:text-sm md:h-10 md:w-10 md:rounded-2xl md:text-lg',
+                    'font-heading relative flex aspect-square items-center justify-center rounded-md text-sm font-bold shadow-[0_2px_0_rgba(0,0,0,0.15)] transition-colors sm:rounded-xl sm:text-sm md:h-10 md:w-10 md:rounded-2xl md:text-lg',
                     isSelected
                       ? 'bg-gradient-to-b from-amber-300 to-orange-400 text-white ring-2 ring-amber-200 ring-offset-1'
                       : 'bg-white text-slate-600 hover:bg-amber-50'

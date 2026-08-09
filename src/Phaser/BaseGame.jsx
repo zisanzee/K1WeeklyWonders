@@ -153,20 +153,24 @@ export default function BaseGame({
         style={{
           width: boxSize.width || undefined,
           height: boxSize.height || undefined,
-          // Until the first measurement lands, fall back to something
-          // reasonable so there's no zero-size flash.
+          // Until the first measurement lands, fall back to filling the
+          // parent — no reason to hold back 2% on mobile when every pixel
+          // matters for small hands tapping game elements.
           ...(boxSize.width
             ? {}
-            : { aspectRatio: `${aspect.width} / ${aspect.height}`, maxWidth: '98%', maxHeight: '98%' }),
+            : { aspectRatio: `${aspect.width} / ${aspect.height}`, maxWidth: '100%', maxHeight: '100%' }),
         }}
       >
-        {/* Soft glow behind the frame — cheap (one blurred div, no
-            animation cost) but reads as much more "designed" than a bare
-            canvas. */}
-        <div className="pointer-events-none absolute -inset-2 rounded-[2.5rem] bg-gradient-to-br from-white/50 via-yellow-100/40 to-sky-200/50 blur-xl" />
+        {/* Soft glow behind the frame — sm+ only. On phones the glow just
+            wastes pixels that the canvas could use, and the blurred edges
+            are invisible against a phone bezel anyway. */}
+        <div className="pointer-events-none absolute -inset-2 hidden rounded-[2.5rem] bg-gradient-to-br from-white/50 via-yellow-100/40 to-sky-200/50 blur-xl sm:block" />
+        {/* Container border/ring/shadow are stripped back to nearly nothing
+            on mobile so the Phaser canvas fills the screen edge-to-edge.
+            sm+ restores the decorative frame now that we have room for it. */}
         <div
           ref={containerRef}
-          className="relative h-full w-full overflow-hidden rounded-[2rem] border-[6px] border-white/80 shadow-2xl ring-4 ring-white/30"
+          className="relative h-full w-full overflow-hidden rounded-lg border-0 shadow-none ring-0 sm:rounded-[2rem] sm:border-[6px] sm:border-white/80 sm:shadow-2xl sm:ring-4 sm:ring-white/30"
         />
       </div>
     </div>
