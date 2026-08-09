@@ -161,16 +161,19 @@ export default function BaseGame({
             : { aspectRatio: `${aspect.width} / ${aspect.height}`, maxWidth: '100%', maxHeight: '100%' }),
         }}
       >
-        {/* Soft glow behind the frame — sm+ only. On phones the glow just
-            wastes pixels that the canvas could use, and the blurred edges
-            are invisible against a phone bezel anyway. */}
-        <div className="pointer-events-none absolute -inset-2 hidden rounded-[2.5rem] bg-gradient-to-br from-white/50 via-yellow-100/40 to-sky-200/50 blur-xl sm:block" />
-        {/* Container border/ring/shadow are stripped back to nearly nothing
-            on mobile so the Phaser canvas fills the screen edge-to-edge.
-            sm+ restores the decorative frame now that we have room for it. */}
+        {/* Subtle edge glow — zero layout cost (absolute + blur extends
+            outward), cheap to render (one blurred gradient div, no
+            animation), and gives the canvas a soft "lit from behind" look
+            even on a phone where there's no frame to speak of. */}
+        <div className="pointer-events-none absolute -inset-[3px] rounded-[2.5rem] bg-gradient-to-br from-white/30 via-transparent to-sky-200/25 blur-md sm:-inset-2 sm:from-white/50 sm:via-yellow-100/40 sm:to-sky-200/50 sm:blur-xl" />
+        {/* Outline + shadow on mobile — outline sits outside the box so it
+            costs zero layout pixels, and box-shadow never affects layout.
+            Together they give just enough definition that the canvas reads
+            as intentional, not accidentally borderless. sm+ restores the
+            full decorative frame. */}
         <div
           ref={containerRef}
-          className="relative h-full w-full overflow-hidden rounded-lg border-0 shadow-none ring-0 sm:rounded-[2rem] sm:border-[6px] sm:border-white/80 sm:shadow-2xl sm:ring-4 sm:ring-white/30"
+          className="relative h-full w-full overflow-hidden rounded-xl outline outline-[2px] -outline-offset-[1px] outline-white/20 shadow-lg shadow-black/5 sm:rounded-[2rem] sm:border-[6px] sm:border-white/80 sm:shadow-2xl sm:ring-4 sm:ring-white/30 sm:outline-none"
         />
       </div>
     </div>

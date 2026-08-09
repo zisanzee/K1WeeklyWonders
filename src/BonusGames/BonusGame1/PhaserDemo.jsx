@@ -100,9 +100,9 @@ function PhaserDemoInner() {
 
       <Link
         to="/"
-        className="font-body relative z-20 flex items-center gap-0.5 self-start rounded-full bg-white/90 font-extrabold text-slate-700 shadow-[0_4px_0_rgba(0,0,0,0.15)] transition-transform hover:-translate-y-0.5 active:translate-y-1 active:shadow-none px-2 py-1 text-[10px] sm:px-4 sm:py-2 sm:text-sm md:text-base"
+        className="font-body relative z-20 flex items-center gap-1.5 self-start rounded-full bg-white/65 font-bold text-slate-600 shadow-[0_2px_0_rgba(0,0,0,0.06)] ring-1 ring-white/40 backdrop-blur-sm transition-all hover:-translate-y-0.5 hover:bg-white/80 hover:shadow-[0_3px_0_rgba(0,0,0,0.10)] active:translate-y-0.5 active:shadow-none px-4 py-2 text-sm sm:px-5 sm:py-2.5 sm:text-base md:text-lg"
       >
-        ⬅️ Home
+        🏠 Home
       </Link>
 
       <div className="relative z-10 flex w-full min-h-0 flex-1 flex-col items-center justify-center max-w-2xl gap-0.5 sm:gap-1 md:flex-row md:items-center md:gap-6">
