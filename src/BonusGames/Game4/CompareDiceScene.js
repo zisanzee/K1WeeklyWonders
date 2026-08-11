@@ -91,6 +91,58 @@ function makePromptTexture(scene, promptWord, key) {
   return key;
 }
 
+// Renders mixed-color prompt text into a single canvas texture — same
+// approach as makePromptTexture but generic: each part can specify its
+// own {text, color, size}. Used for prompts where only one word needs a
+// different color (e.g. "Roll" in blue).
+function makeMixedColorTexture(scene, parts, key, {
+  fontFamily = PROMPT_FONT_FAMILY,
+  fontWeight = PROMPT_FONT_WEIGHT,
+  strokeColor = PROMPT_STROKE_COLOR,
+  strokeWidth = PROMPT_STROKE_WIDTH,
+  gap = PROMPT_GAP,
+} = {}) {
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  const fontFor = (p) => `${fontWeight} ${p.size}px ${fontFamily}`;
+
+  let totalWidth = 0;
+  let maxAscent = 0;
+  let maxDescent = 0;
+  parts.forEach((p) => {
+    ctx.font = fontFor(p);
+    const m = ctx.measureText(p.text);
+    totalWidth += m.width;
+    maxAscent = Math.max(maxAscent, m.actualBoundingBoxAscent || p.size * 0.8);
+    maxDescent = Math.max(maxDescent, m.actualBoundingBoxDescent || p.size * 0.25);
+  });
+  totalWidth += gap * (parts.length - 1);
+
+  const pad = strokeWidth + 8;
+  canvas.width = Math.ceil(totalWidth) + pad * 2;
+  canvas.height = Math.ceil(maxAscent + maxDescent) + pad * 2;
+  const baselineY = pad + maxAscent;
+
+  ctx.textBaseline = 'alphabetic';
+  ctx.textAlign = 'left';
+  ctx.lineJoin = 'round';
+
+  let x = pad;
+  parts.forEach((p) => {
+    ctx.font = fontFor(p);
+    ctx.lineWidth = strokeWidth;
+    ctx.strokeStyle = strokeColor;
+    ctx.strokeText(p.text, x, baselineY);
+    ctx.fillStyle = p.color;
+    ctx.fillText(p.text, x, baselineY);
+    x += ctx.measureText(p.text).width + gap;
+  });
+
+  if (scene.textures.exists(key)) scene.textures.remove(key);
+  scene.textures.addCanvas(key, canvas);
+  return key;
+}
+
 export default class CompareDiceScene extends BaseScene {
   constructor() {
     super('CompareDiceScene');
@@ -106,7 +158,6 @@ export default class CompareDiceScene extends BaseScene {
     // idle -> rolling -> selecting -> revealing -> (next round: idle)
     this.phase = 'idle';
     this.selectedSide = null;
-    this.hasRolledEver = false;
     // Track the roll-idle pulse tween so it can be killed/restarted cleanly
     // around the press-feedback tween in onRollButtonPressed.
     this._rollIdleTween = null;
@@ -142,13 +193,19 @@ export default class CompareDiceScene extends BaseScene {
     });
     addMuteButton(this, 16, 68, { anchor: 'topLeft' });
 
-    this.promptText = this.add.text(width / 2, 212, 'Tap Roll to start!', {
+    this.promptText = this.add.text(width / 2, 212, '', {
       ...HEADLINE_STYLE,
       fontSize: '50px',
       color: '#c2410c',
       align: 'center',
       wordWrap: { width: width - 50 },
     }).setOrigin(0.5).setDepth(20);
+    // "Roll" in blue, the rest in warm orange.
+    this.showPlainPrompt([
+      { text: 'Tap ', color: '#c2410c', size: 50 },
+      { text: 'Roll', color: '#3aa6ff', size: 50 },
+      { text: ' to start!', color: '#c2410c', size: 50 },
+    ]);
 
     // Box size comes straight from the level config (dice stays compact +
     // square; domino is noticeably bigger and taller/rectangular to match
@@ -210,6 +267,41 @@ export default class CompareDiceScene extends BaseScene {
     });
   }
 
+  // Creates the pulsing "?" overlay on a slot — called at level start
+  // and again at the beginning of every round so the player always sees
+  // that the dice/domino haven't been rolled yet.
+  _addNotRolledMark(slot) {
+    if (slot.notRolledMark) {
+      this.tweens.killTweensOf(slot.notRolledMark);
+      slot.notRolledMark.destroy();
+      slot.notRolledMark = null;
+    }
+    const markFontSize = Math.round(Math.min(slot.w, slot.h) * 0.3);
+    const mark = this.add.text(slot.x, slot.y, '\u2753', {
+      fontSize: `${markFontSize}px`,
+      stroke: '#ffffff',
+      strokeThickness: 6,
+    }).setOrigin(0.5).setDepth(4);
+    mark.setPadding({ top: Math.round(markFontSize * 0.35), bottom: Math.round(markFontSize * 0.15) });
+    this.tweens.add({
+      targets: mark, scale: { from: 0.92, to: 1.05 }, duration: 850, yoyo: true, repeat: -1, ease: 'Sine.easeInOut',
+    });
+    slot.notRolledMark = mark;
+  }
+
+  // Fades out the question-mark overlay and brings the slot image to full
+  // opacity — called every time the player taps Roll.
+  _clearNotRolledMark(slot) {
+    if (slot.notRolledMark) {
+      this.tweens.killTweensOf(slot.notRolledMark);
+      this.tweens.add({
+        targets: slot.notRolledMark, alpha: 0, scale: 0.5, duration: 200, ease: 'Sine.easeIn',
+        onComplete: () => { slot.notRolledMark?.destroy(); slot.notRolledMark = null; },
+      });
+    }
+    slot.img.setAlpha(1);
+  }
+
   buildSlot(x, y, w, h, level, sideLabel) {
     const card = this.add.graphics().setDepth(1);
     card.fillStyle(0xffffff, 0.85);
@@ -228,25 +320,6 @@ export default class CompareDiceScene extends BaseScene {
     const s = fitScale * sizeBoost;
     img.setScale(s);
     img._baseScale = s;
-    // Dimmed + a big "not rolled yet" question mark overlay until the
-    // first roll of the level, so the starting face never reads as an
-    // already-rolled result.
-    img.setAlpha(0.3);
-
-    // Emoji glyphs commonly get clipped at the top by Phaser's canvas text
-    // bounding-box calc (BasePreloadScene's own loading emoji has the same
-    // fix) — setPadding compensates for the extra ascent so it renders in
-    // full instead of looking cut off.
-    const markFontSize = Math.round(Math.min(w, h) * 0.3);
-    const notRolledMark = this.add.text(x, y, '❓', {
-      fontSize: `${markFontSize}px`,
-      stroke: '#ffffff',
-      strokeThickness: 6,
-    }).setOrigin(0.5).setDepth(4);
-    notRolledMark.setPadding({ top: Math.round(markFontSize * 0.35), bottom: Math.round(markFontSize * 0.15) });
-    this.tweens.add({
-      targets: notRolledMark, scale: { from: 0.92, to: 1.05 }, duration: 850, yoyo: true, repeat: -1, ease: 'Sine.easeInOut',
-    });
 
     // Uses Phaser's OWN default hit area (auto-derived from the zone's
     // width/height + origin) instead of a hand-rolled Rectangle — a
@@ -257,9 +330,13 @@ export default class CompareDiceScene extends BaseScene {
     zone.disableInteractive();
     zone.on('pointerdown', () => this.onSlotTapped(sideLabel));
 
-    return {
-      x, y, w, h, img, zone, notRolledMark, value: initialValue, side: sideLabel, selectionRing: null,
+    const slot = {
+      x, y, w, h, img, zone, notRolledMark: null, value: initialValue, side: sideLabel, selectionRing: null,
     };
+    // Dim the image and show the question-mark overlay from the start.
+    slot.img.setAlpha(0.3);
+    this._addNotRolledMark(slot);
+    return slot;
   }
 
   textureKeyFor(level, value) {
@@ -269,13 +346,33 @@ export default class CompareDiceScene extends BaseScene {
   // Plain single-color/single-size messages ('Rolling...', 'Tap Roll to
   // start!', etc.) — swaps back to the regular Phaser Text object and
   // hides/stops the emphasized round-prompt image if it was showing.
-  showPlainPrompt(text) {
+  //
+  // When called with an array of {text, color, size} parts instead of a
+  // plain string, renders a mixed-color canvas texture so individual
+  // words (e.g. "Roll" in blue) can have their own color.
+  showPlainPrompt(textOrParts) {
     if (this.promptEmphasisImg) {
       this.tweens.killTweensOf(this.promptEmphasisImg);
       this.promptEmphasisImg.setVisible(false);
     }
+
+    if (Array.isArray(textOrParts)) {
+      this.promptText.setVisible(false);
+      const key = makeMixedColorTexture(this, textOrParts, 'prompt-plain');
+      if (!this.promptPlainImg) {
+        this.promptPlainImg = this.add.image(this.promptText.x, this.promptText.y, key)
+          .setOrigin(0.5)
+          .setDepth(20);
+      } else {
+        this.promptPlainImg.setTexture(key);
+      }
+      this.promptPlainImg.setVisible(true);
+      return;
+    }
+
+    if (this.promptPlainImg) this.promptPlainImg.setVisible(false);
     this.promptText.setVisible(true);
-    this.promptText.setText(text);
+    this.promptText.setText(textOrParts);
   }
 
   // The "Tap the Bigger/Smaller one!" round prompt — rendered as a single
@@ -284,6 +381,7 @@ export default class CompareDiceScene extends BaseScene {
   // overshoot and left gently pulsing while the player is choosing.
   showRoundPrompt(promptWord) {
     this.promptText.setVisible(false);
+    if (this.promptPlainImg) this.promptPlainImg.setVisible(false);
 
     const key = makePromptTexture(this, promptWord, 'prompt-emphasis');
     if (!this.promptEmphasisImg) {
@@ -344,22 +442,14 @@ export default class CompareDiceScene extends BaseScene {
       targets: this.rollBtn, scale: this.rollBtn._baseScale * 0.86, duration: 90, yoyo: true, ease: 'Sine.easeOut',
     });
 
-    // First-ever roll of the level: clear the "not rolled yet" markers and
-    // bring the dice/domino up to full opacity.
-    if (!this.hasRolledEver) {
-      this.hasRolledEver = true;
-      [this.leftSlot, this.rightSlot].forEach((slot) => {
-        this.tweens.add({
-          targets: slot.notRolledMark, alpha: 0, scale: 0.5, duration: 200, ease: 'Sine.easeIn', onComplete: () => slot.notRolledMark.destroy(),
-        });
-        this.tweens.add({ targets: slot.img, alpha: 1, duration: 200 });
-      });
-    }
-
-    // Kill any leftover tweens on the slot images (e.g. from a previous
-    // celebrate/shake) before starting the roll animation, so the roll
-    // tweens start from a clean slate instead of fighting old ones.
+    // Kill leftover tweens on slot images (celebrate/shake from previous
+    // round) BEFORE clearing marks, so the alpha tween from
+    // _clearNotRolledMark isn't immediately killed.
     [this.leftSlot, this.rightSlot].forEach((s) => this.tweens.killTweensOf(s.img));
+
+    // Clear the question-mark overlay and bring images to full opacity —
+    // every roll, not just the first, since marks now reappear each round.
+    [this.leftSlot, this.rightSlot].forEach((s) => this._clearNotRolledMark(s));
 
     const level = this.level;
     const [a, b] = this.rollPair(level);
@@ -676,10 +766,13 @@ export default class CompareDiceScene extends BaseScene {
       // shake wiggle, leftover roll animation) before resetting, so the
       // next roll starts from a clean slate and old tweens don't fight it.
       this.tweens.killTweensOf(slot.img);
-      slot.img.setAlpha(1);
+      slot.img.setAlpha(0.3);
       slot.img.setAngle(0);
       slot.img.setScale(slot.img._baseScale);
       slot.img.setX(slot.x);
+      // Re-add the question-mark overlay so every round starts with a
+      // clear "not rolled yet" indicator, not just the first round.
+      this._addNotRolledMark(slot);
     });
 
     this.roundIndex += 1;
@@ -692,7 +785,11 @@ export default class CompareDiceScene extends BaseScene {
     this.tweens.add({ targets: this.roundPill.container, scale: 1.15, duration: 150, yoyo: true, ease: 'Sine.easeInOut' });
 
     this.phase = 'idle';
-    this.showPlainPrompt('Tap Roll for the next round!');
+    this.showPlainPrompt([
+      { text: 'Tap ', color: '#c2410c', size: 50 },
+      { text: 'Roll', color: '#3aa6ff', size: 50 },
+      { text: ' for the next round!', color: '#c2410c', size: 50 },
+    ]);
     this.checkBtn.container.setVisible(false);
     this.rollBtn.setVisible(true);
     this.rollBtn.setInteractive({ useHandCursor: true });
