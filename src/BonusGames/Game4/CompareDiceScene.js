@@ -107,6 +107,9 @@ export default class CompareDiceScene extends BaseScene {
     this.phase = 'idle';
     this.selectedSide = null;
     this.hasRolledEver = false;
+    // Track the roll-idle pulse tween so it can be killed/restarted cleanly
+    // around the press-feedback tween in onRollButtonPressed.
+    this._rollIdleTween = null;
   }
 
   create() {
@@ -165,9 +168,7 @@ export default class CompareDiceScene extends BaseScene {
     this.rollBtn._baseScale = baseScale;
     this.rollBtn.setInteractive({ useHandCursor: true });
     this.rollBtn.on('pointerdown', () => this.onRollButtonPressed());
-    this.rollIdleTween = this.tweens.add({
-      targets: this.rollBtn, scale: baseScale * 1.06, duration: 700, yoyo: true, repeat: -1, ease: 'Sine.easeInOut',
-    });
+    this._startRollIdleTween();
 
     // "Check Answer" button — sits in the exact same spot as the roll
     // button and swaps in once dice have settled, so there's only ever
@@ -191,6 +192,24 @@ export default class CompareDiceScene extends BaseScene {
     this.input.once('pointerdown', () => ensureBgMusic(this));
   }
 
+  // Start or restart the gentle pulse on the roll button. Kills any
+  // existing idle tween first so there's never two fighting over scale.
+  _startRollIdleTween() {
+    if (this._rollIdleTween) {
+      this._rollIdleTween.destroy();
+      this._rollIdleTween = null;
+    }
+    if (!this.rollBtn || !this.rollBtn._baseScale) return;
+    this._rollIdleTween = this.tweens.add({
+      targets: this.rollBtn,
+      scale: this.rollBtn._baseScale * 1.06,
+      duration: 700,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut',
+    });
+  }
+
   buildSlot(x, y, w, h, level, sideLabel) {
     const card = this.add.graphics().setDepth(1);
     card.fillStyle(0xffffff, 0.85);
@@ -200,15 +219,15 @@ export default class CompareDiceScene extends BaseScene {
 
     const initialValue = level.minValue;
     const img = this.add.image(x, y, this.textureKeyFor(level, initialValue)).setDepth(2);
-const maxW = w * 0.8;
-const maxH = h * 0.86;
+    const maxW = w * 0.8;
+    const maxH = h * 0.86;
 
-const fitScale = Math.min(maxW / img.width, maxH / img.height);
-const sizeBoost = level.key === 'domino' ? 1.5 : 1;
+    const fitScale = Math.min(maxW / img.width, maxH / img.height);
+    const sizeBoost = level.key === 'domino' ? 1.5 : 1;
 
-const s = fitScale * sizeBoost;
-img.setScale(s);
-img._baseScale = s;
+    const s = fitScale * sizeBoost;
+    img.setScale(s);
+    img._baseScale = s;
     // Dimmed + a big "not rolled yet" question mark overlay until the
     // first roll of the level, so the starting face never reads as an
     // already-rolled result.
@@ -305,6 +324,18 @@ img._baseScale = s;
     if (this.phase !== 'idle') return;
     this.phase = 'rolling';
     this.rollBtn.disableInteractive();
+
+    // Kill the idle pulse before applying press feedback so the two
+    // tweens don't fight over rollBtn.scale. A new idle tween will be
+    // started later in advanceRound().
+    if (this._rollIdleTween) {
+      this._rollIdleTween.destroy();
+      this._rollIdleTween = null;
+    }
+    // Reset to base scale first so the press tween starts from a known
+    // value, not from wherever the idle pulse left it.
+    this.rollBtn.setScale(this.rollBtn._baseScale);
+
     this.showPlainPrompt('Rolling...');
     this.playSound('rollVoice');
 
@@ -325,6 +356,11 @@ img._baseScale = s;
       });
     }
 
+    // Kill any leftover tweens on the slot images (e.g. from a previous
+    // celebrate/shake) before starting the roll animation, so the roll
+    // tweens start from a clean slate instead of fighting old ones.
+    [this.leftSlot, this.rightSlot].forEach((s) => this.tweens.killTweensOf(s.img));
+
     const level = this.level;
     const [a, b] = this.rollPair(level);
     this.leftSlot.value = a;
@@ -333,7 +369,17 @@ img._baseScale = s;
     Promise.all([
       this.rollItem(this.leftSlot, level, a),
       this.rollItem(this.rightSlot, level, b),
-    ]).then(() => this.beginRound());
+    ]).then(() => this.beginRound()).catch((err) => {
+      // Safety net: if a rollItem promise rejects (e.g. a missing texture
+      // causes setTexture to throw), force the round to proceed instead of
+      // leaving the game frozen in 'rolling' phase forever. Log the error
+      // so it shows up in the console for debugging.
+      console.error('[CompareDice] rollItem failed, forcing beginRound:', err);
+      // Force the correct texture onto each slot before moving on.
+      this.leftSlot.img.setTexture(this.textureKeyFor(level, this.leftSlot.value));
+      this.rightSlot.img.setTexture(this.textureKeyFor(level, this.rightSlot.value));
+      this.beginRound();
+    });
   }
 
   // Picks two values within [minValue, maxValue] whose absolute difference
@@ -359,14 +405,52 @@ img._baseScale = s;
   // face textures while squashing scaleX toward 0 and bobbing vertically
   // (reads like a tumbling/flipping die), then lands with a little
   // overshoot-and-settle bounce instead of snapping straight to size.
+  //
+  // Returns a Promise that ALWAYS resolves — a safety timeout guarantees
+  // the game never freezes waiting for a tween that might have been killed
+  // or skipped by an edge-case frame timing.
   rollItem(slot, level, finalValue) {
+    // Guard: if the texture key doesn't exist, setTexture will silently
+    // fail in Phaser but could leave the image blank. Log a warning so
+    // this is visible during development.
+    const targetKey = this.textureKeyFor(level, finalValue);
+    if (!this.textures.exists(targetKey)) {
+      console.warn(`[CompareDice] rollItem: texture "${targetKey}" not found`);
+    }
+
     return new Promise((resolve) => {
+      let settled = false;
+      const done = () => { if (!settled) { settled = true; resolve(); } };
+
+      // Safety net: resolve after 3.5s regardless of animation state.
+      // This covers edge cases where a tween onComplete never fires
+      // (e.g. the tween was killed during a rapid scene transition).
+      const safetyTimer = this.time.delayedCall(3500, () => {
+        if (!settled) {
+          console.warn('[CompareDice] rollItem safety timeout fired, forcing resolve');
+          flipTimer?.remove();
+          this.tweens.killTweensOf(slot.img);
+          slot.img.setAngle(0);
+          slot.img.setY(slot.y);
+          slot.img.setScale(slot.img._baseScale);
+          if (this.textures.exists(targetKey)) {
+            slot.img.setTexture(targetKey);
+          }
+          done();
+        }
+      });
+
       const flipTimer = this.time.addEvent({
         delay: 90,
         loop: true,
         callback: () => {
           const randVal = Phaser.Math.Between(level.minValue, level.maxValue);
-          slot.img.setTexture(this.textureKeyFor(level, randVal));
+          const randKey = this.textureKeyFor(level, randVal);
+          // Only setTexture if the key exists — avoids a silent no-op
+          // that could leave a stale intermediate frame.
+          if (this.textures.exists(randKey)) {
+            slot.img.setTexture(randKey);
+          }
         },
       });
 
@@ -391,18 +475,22 @@ img._baseScale = s;
       });
 
       this.time.delayedCall(stepDuration * 2 * cycles, () => {
+        if (settled) return;
         flipTimer.remove();
+        safetyTimer.remove();
         this.tweens.killTweensOf(slot.img);
         slot.img.setAngle(0);
         slot.img.setY(slot.y);
-        slot.img.setTexture(this.textureKeyFor(level, finalValue));
+        if (this.textures.exists(targetKey)) {
+          slot.img.setTexture(targetKey);
+        }
         slot.img.setScale(slot.img._baseScale * 1.22);
         this.tweens.add({
           targets: slot.img,
           scale: slot.img._baseScale,
           duration: 220,
           ease: 'Back.easeOut',
-          onComplete: resolve,
+          onComplete: done,
         });
       });
     });
@@ -461,7 +549,13 @@ img._baseScale = s;
     this.tweens.killTweensOf(this.checkBtn.container);
     if (ready) {
       this.checkBtn.setBg(0xffd93d);
-      this.checkBtn.container.setInteractive({ useHandCursor: true });
+      // Reuse the existing input config from createPillButton instead of
+      // recreating a new hit area (which could have different bounds).
+      if (this.checkBtn.container.input) {
+        this.checkBtn.container.input.enabled = true;
+      } else {
+        this.checkBtn.container.setInteractive({ useHandCursor: true });
+      }
       this.checkBtn.container.setScale(1);
       this.tweens.add({
         targets: this.checkBtn.container, scale: 1.05, duration: 500, yoyo: true, repeat: -1, ease: 'Sine.easeInOut',
@@ -578,6 +672,10 @@ img._baseScale = s;
     [this.leftSlot, this.rightSlot].forEach((slot) => {
       slot.selectionRing?.destroy();
       slot.selectionRing = null;
+      // Kill any tweens still running on the slot image (celebrate bounce,
+      // shake wiggle, leftover roll animation) before resetting, so the
+      // next roll starts from a clean slate and old tweens don't fight it.
+      this.tweens.killTweensOf(slot.img);
       slot.img.setAlpha(1);
       slot.img.setAngle(0);
       slot.img.setScale(slot.img._baseScale);
@@ -598,6 +696,9 @@ img._baseScale = s;
     this.checkBtn.container.setVisible(false);
     this.rollBtn.setVisible(true);
     this.rollBtn.setInteractive({ useHandCursor: true });
+    // Restart the gentle pulse on the roll button — it was killed in
+    // onRollButtonPressed and hasn't been running since then.
+    this._startRollIdleTween();
   }
 
   finishLevel() {
@@ -605,6 +706,12 @@ img._baseScale = s;
     const passed = this.correctCount >= level.passThreshold;
     const elapsedSeconds = Math.round((this.time.now - this.startTime) / 1000);
 
+    // Stop the idle pulse — the roll button is about to be hidden and
+    // won't need it again (end overlay takes over).
+    if (this._rollIdleTween) {
+      this._rollIdleTween.destroy();
+      this._rollIdleTween = null;
+    }
     this.tweens.killTweensOf(this.rollBtn);
     this.rollBtn.setVisible(false);
     this.checkBtn.container.setVisible(false);

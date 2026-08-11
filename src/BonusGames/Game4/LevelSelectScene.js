@@ -42,7 +42,6 @@ const title = this.add.text(width / 2, 164, 'Bigger or Smaller?', {
 
 
 
-    title.setShadow(0, 6, '#18406f', 0, false, true);
     this.tweens.add({
       targets: title,
       angle: 2,
