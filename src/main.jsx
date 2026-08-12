@@ -25,6 +25,7 @@ const Game4 = lazy(() => import("./BonusGames/Game4/PhaserDemo"));
 const Game7 = lazy(() => import("./BonusGames/Game 7/PhaserDemo"));
 const GameAccessPage = lazy(() => import("./GameAccessPage"));
 const StudentLogin = lazy(() => import("./StudentLogin"));
+const BetaHome = lazy(() => import("./BetaHome"));
 
 function GameLoading() {
   return (
@@ -47,6 +48,7 @@ ReactDOM.createRoot(document.getElementById("root")).render(
       <Suspense fallback={<GameLoading />}>
         <Routes>
           <Route path="/" element={<Home />} />
+          <Route path="/beta-ezwonders" element={<BetaHome />} />
           <Route path="/game1" element={<Game1 />} />
           <Route path="/game2" element={<Game2 />} />
           <Route path="/game3" element={<Game3 />} />

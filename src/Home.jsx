@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion } from "motion/react";
-import StatsPanel from "./StatsPanel";
 import NameGate from "./NameGate";
 import NextGameTimer from "./NextGameTimer";
 import { usePlayerStore } from "./playerStore";
@@ -113,7 +112,6 @@ function HomeContent() {
   const classId = usePlayerStore((s) => s.classId);
   const isTeacher = usePlayerStore((s) => s.isTeacher);
   const resetPlayer = usePlayerStore((s) => s.resetPlayer);
-  const [showStats, setShowStats] = useState(false);
   const [progressByGame, setProgressByGame] = useState({});
   const [loadingTo, setLoadingTo] = useState(null);
   // After 8 s of waiting, show a more detailed message so the user knows
@@ -322,7 +320,7 @@ function HomeContent() {
 
   <motion.button
     type="button"
-    onClick={() => setShowStats(true)}
+    onClick={() => navigate("/game-access?tab=stats")}
     whileHover={{ y: -2 }}
     whileTap={{ y: 1 }}
     className="flex items-center gap-1.5 rounded-full bg-white/90 px-4 py-2 text-sm font-extrabold text-slate-700 shadow-[0_4px_0_rgba(0,0,0,0.15)] sm:text-base"
@@ -332,7 +330,6 @@ function HomeContent() {
 </div>
       )}
 
-      {showStats && <StatsPanel onClose={() => setShowStats(false)} />}
 
       <div className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 sm:h-44 sm:w-44 md:h-56 md:w-56">
         <svg viewBox="0 0 200 200" className="absolute inset-0 h-full w-full animate-spin-slow">

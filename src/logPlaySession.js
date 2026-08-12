@@ -147,6 +147,43 @@ export async function fetchAllPlays(teacherCode) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Weekly leaderboard — one trophy per completed play since the most recent
+// Friday noon (same Friday→Friday window as NextGameTimer). The client sends
+// its local week start as `since` so the boundary matches the player's
+// timezone; the server aggregates and sorts. Returns
+// [{ playerName, trophies }] or [] on any failure (leaderboard should never
+// block the rest of the home page).
+// ---------------------------------------------------------------------------
+
+function getWeekStart() {
+  const now = new Date();
+  const daysSinceFriday = (now.getDay() + 2) % 7; // Fri→0, Sat→1 … Thu→6
+  const lastFriday = new Date(now);
+  lastFriday.setDate(now.getDate() - daysSinceFriday);
+  lastFriday.setHours(12, 0, 0, 0);
+  if (lastFriday.getTime() > now.getTime()) {
+    lastFriday.setDate(lastFriday.getDate() - 7);
+  }
+  return lastFriday;
+}
+
+export async function fetchLeaderboard(classId) {
+  try {
+    const res = await fetchWithTimeout(
+      withQuery('/api/leaderboard', {
+        classId,
+        since: getWeekStart().toISOString(),
+      })
+    );
+    if (!res.ok) return [];
+    const data = await res.json();
+    return Array.isArray(data) ? data : [];
+  } catch {
+    return [];
+  }
+}
+
 export async function deletePlayerGame(game, playerName, teacherCode) {
   const res = await fetch(`${API_BASE}/api/plays`, {
     method: 'DELETE',

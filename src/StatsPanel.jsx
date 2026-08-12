@@ -118,7 +118,7 @@ const SLOW_THRESHOLD_MS = 3000;
 // How long an armed delete button stays "Confirm?" before resetting.
 const CONFIRM_TIMEOUT_MS = 4000;
 
-export default function StatsPanel({ onClose }) {
+export default function StatsPanel({ onClose, embedded = false }) {
   // Access to this panel is already decided at the name/code prompt (Home
   // only renders the Stats button for teachers) — this just reads who's in.
   const teacherName = usePlayerStore((s) => s.playerName);
@@ -222,7 +222,9 @@ export default function StatsPanel({ onClose }) {
 
   // Lock background scroll while the modal is open, and let Escape close it —
   // both matter on iPad, where the page behind can scroll under a tap-drag.
+  // When embedded as a tab on the teacher-controls page, neither applies.
   useEffect(() => {
+    if (embedded) return undefined;
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     const handleKey = (e) => {
@@ -233,7 +235,7 @@ export default function StatsPanel({ onClose }) {
       document.body.style.overflow = prevOverflow;
       window.removeEventListener('keydown', handleKey);
     };
-  }, [onClose]);
+  }, [onClose, embedded]);
 
   const handleSwitchTeacher = () => {
     resetPlayer();
@@ -375,8 +377,8 @@ export default function StatsPanel({ onClose }) {
   // and each cell decides for itself.
   const streakOrTimeHeader = filter === 'all' ? 'Streak / Time' : activeIsBonus ? 'Time' : 'Streak';
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-3 sm:p-4" onClick={onClose}>
+  const inner = (
+    <>
       <style>{`
         @keyframes wake-progress {
           0% { transform: translateX(-100%); }
@@ -384,14 +386,6 @@ export default function StatsPanel({ onClose }) {
         }
         .animate-wake-progress { animation: wake-progress 1.4s ease-in-out infinite; }
       `}</style>
-
-      <motion.div
-        initial={{ scale: 0.9, opacity: 0, y: 20 }}
-        animate={{ scale: 1, opacity: 1, y: 0 }}
-        transition={{ type: 'spring', stiffness: 260, damping: 24 }}
-        className="relative flex h-[90dvh] w-full max-w-4xl flex-col overflow-hidden rounded-[2rem] bg-white shadow-2xl sm:h-[85vh]"
-        onClick={(e) => e.stopPropagation()}
-      >
         <div className="flex items-center justify-between border-b border-slate-100 bg-gradient-to-r from-pink-50 via-white to-purple-50 px-4 py-3 sm:px-6 sm:py-4">
           <h2 className="flex items-center gap-2.5">
             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-pink-500 to-purple-500 text-lg shadow-md sm:h-11 sm:w-11 sm:text-xl">
@@ -411,13 +405,15 @@ export default function StatsPanel({ onClose }) {
             >
               <span className={status === 'loading' ? 'inline-block animate-spin' : ''}>🔄</span>
             </button>
-            <button
-              onClick={onClose}
-              aria-label="Close"
-              className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-lg font-bold text-slate-500 transition-colors active:scale-90 active:bg-slate-200 sm:h-11 sm:w-11 sm:hover:bg-slate-200"
-            >
-              ✕
-            </button>
+            {!embedded && (
+              <button
+                onClick={onClose}
+                aria-label="Close"
+                className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-lg font-bold text-slate-500 transition-colors active:scale-90 active:bg-slate-200 sm:h-11 sm:w-11 sm:hover:bg-slate-200"
+              >
+                ✕
+              </button>
+            )}
           </div>
         </div>
 
@@ -835,6 +831,27 @@ export default function StatsPanel({ onClose }) {
             </AnimatePresence>
           )}
         </div>
+    </>
+  );
+
+  if (embedded) {
+    return (
+      <div className="overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-md">
+        {inner}
+      </div>
+    );
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-3 sm:p-4" onClick={onClose}>
+      <motion.div
+        initial={{ scale: 0.9, opacity: 0, y: 20 }}
+        animate={{ scale: 1, opacity: 1, y: 0 }}
+        transition={{ type: 'spring', stiffness: 260, damping: 24 }}
+        className="relative flex h-[90dvh] w-full max-w-4xl flex-col overflow-hidden rounded-[2rem] bg-white shadow-2xl sm:h-[85vh]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {inner}
       </motion.div>
     </div>
   );

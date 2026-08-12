@@ -33,6 +33,7 @@ import {
 import { useStudentStore, addStudent, updateStudent, deleteStudent } from './students';
 import { fetchClassInfo } from './classInfo';
 import StudentBadge, { PrintAllBadgesButton } from './StudentBadge';
+import StatsPanel from './StatsPanel';
 
 const CLASS_TYPE_LABELS = {
   k1: { label: 'K1 Games', icon: '🎮', description: 'Manage K1 (Kindergarten 1) game arrangement — reorder, lock/unlock, and feature games.' },
@@ -43,6 +44,7 @@ function AdminTabBar({ activeTab, onChange, disabled, adminClassType }) {
   const tabs = [
     { key: 'k1-games', label: 'K1 Games', icon: '🎮', description: CLASS_TYPE_LABELS.k1.description },
     { key: 'k2-games', label: 'K2 Games', icon: '🎯', description: CLASS_TYPE_LABELS.k2.description },
+    { key: 'stats', label: 'Stats', icon: '📊', description: 'See who has been playing and how they are doing.' },
     { key: 'students', label: 'Students', icon: '🧑‍🎓', description: 'Manage the students enrolled in this class.' },
     { key: 'settings', label: 'Settings', icon: '⚙️', description: 'Configure settings for this class.' },
   ];
@@ -84,6 +86,7 @@ function AdminTabBar({ activeTab, onChange, disabled, adminClassType }) {
 function TeacherTabBar({ activeTab, onChange, disabled }) {
   const tabs = [
     { key: 'games', label: 'Games', icon: '🎮', description: 'View your class\'s current game arrangement.' },
+    { key: 'stats', label: 'Stats', icon: '📊', description: 'See who has been playing and how they are doing.' },
     { key: 'students', label: 'Students', icon: '🧑‍🎓', description: 'Manage the students enrolled in this class.' },
     { key: 'settings', label: 'Settings', icon: '⚙️', description: 'Configure settings for this class.' },
   ];
@@ -1323,7 +1326,7 @@ function ReadOnlyGameList({ classId }) {
   );
 }
 
-export default function GameAccessPanel({ onClose }) {
+export default function GameAccessPanel({ onClose, initialTab }) {
   const teacherCode = usePlayerStore((state) => state.teacherCode);
   const classId = usePlayerStore((state) => state.classId);
   const isAdmin = usePlayerStore((state) => state.isAdmin);
@@ -1344,15 +1347,18 @@ export default function GameAccessPanel({ onClose }) {
   const [classInfoStatus, setClassInfoStatus] = useState('idle');
   const [classInfoError, setClassInfoError] = useState(null);
 
-  // Determine initial tab based on role and classType
+  // Determine initial tab based on role, classType, and any ?tab= override
+  // passed in from the route (e.g. Home's "View Stats" deep-link).
   useEffect(() => {
     if (activeTab) return;
-    if (isAdmin) {
+    if (initialTab === 'stats') {
+      setActiveTab('stats');
+    } else if (isAdmin) {
       setActiveTab(userClassType === 'k2' ? 'k2-games' : 'k1-games');
     } else {
       setActiveTab('games');
     }
-  }, [isAdmin, userClassType, activeTab]);
+  }, [isAdmin, userClassType, activeTab, initialTab]);
 
   // The roster is class-scoped. When the logged-in teacher's class changes
   // (logout → login as a different teacher), drop the previous class's cached
@@ -1426,6 +1432,7 @@ export default function GameAccessPanel({ onClose }) {
   const activeTabConfig = (() => {
     if (activeTab === 'students') return { description: 'Manage the students enrolled in this class.' };
     if (activeTab === 'settings') return { description: 'Configure settings for this class.' };
+    if (activeTab === 'stats') return { description: 'See who has been playing and how they are doing.' };
     if (activeTab === 'k1-games') return { description: CLASS_TYPE_LABELS.k1.description };
     if (activeTab === 'k2-games') return { description: CLASS_TYPE_LABELS.k2.description };
     if (activeTab === 'games') return { description: "View your class's current game arrangement." };
@@ -1495,6 +1502,8 @@ export default function GameAccessPanel({ onClose }) {
             </motion.p>
           )}
         </AnimatePresence>
+
+        {activeTab === 'stats' && <StatsPanel embedded />}
 
         {activeTab === 'students' && (
           <StudentsTab

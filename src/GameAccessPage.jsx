@@ -1,4 +1,4 @@
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
 import NameGate from './NameGate';
 import GameAccessPanel from './GameAccessPanel';
@@ -27,6 +27,8 @@ export default function GameAccessPage() {
 function GameAccessPageContent() {
   const navigate = useNavigate();
   const isTeacher = usePlayerStore((s) => s.isTeacher);
+  const [searchParams] = useSearchParams();
+  const initialTab = searchParams.get('tab') || undefined;
 
   if (!isTeacher) {
     return (
@@ -57,5 +59,5 @@ function GameAccessPageContent() {
   // works fine as a page body too. Its close button / backdrop click /
   // Escape key all call onClose, so routing that to "/" instead of a
   // setState toggle is the only change needed to make it feel like a page.
-  return <GameAccessPanel onClose={() => navigate('/')} />;
+  return <GameAccessPanel onClose={() => navigate('/')} initialTab={initialTab} />;
 }
