@@ -10,7 +10,6 @@ import {
 } from "./gameAccess";
 import { fetchSummary } from "./logPlaySession";
 import { Helmet } from "react-helmet-async";
-import RotateHint from "./RotateHint";
 
 export default function Home() {
   return (
@@ -22,8 +21,6 @@ export default function Home() {
           content="K1 Weekly Wonders offers free interactive numeracy games for Kindergarten 1 students. Practice counting, number recognition, part-whole relationships, sequencing, and more."
         />
       </Helmet>
-
-      <RotateHint />
 
       <section className="hidden">
         <h1>Weekly Numeracy Games for Kindergarten 1</h1>

@@ -6,6 +6,7 @@ import "./index.css";
 import Home from "./Home";
 import { HelmetProvider } from "react-helmet-async";
 import { warmupSpeech } from "./Phaser/common/speech";
+import RotateHint from "./RotateHint";
 
 // Prime the TTS engine immediately so every game's first utterance plays
 // with zero delay — by the time the player taps a game tile, the
@@ -46,6 +47,7 @@ function GameLoading() {
 ReactDOM.createRoot(document.getElementById("root")).render(
   <HelmetProvider>
     <BrowserRouter>
+      <RotateHint />
       <Suspense fallback={<GameLoading />}>
         <Routes>
           <Route path="/" element={<Home />} />
