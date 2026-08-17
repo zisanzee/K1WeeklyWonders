@@ -11,7 +11,7 @@ const GAME_LABELS = {
   game5: '🚀 Making & Splitting Groups',
   game6: "🗝️ Part-Part-Whole",
   game7: "🥚 Mama Bird's Eggs",
-  game8: "🗝️ name not set yet",
+  game8: "🍕 Pizza Order!",
   game9: "🗝️ name not set yet",
   bonusGame1: "9️⃣ Number Pop",
 };

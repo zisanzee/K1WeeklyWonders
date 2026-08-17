@@ -116,6 +116,19 @@ export const GAME_CATALOG = [
     gradient: 'linear-gradient(135deg, #FFD76A 0%, #FFB347 55%, #FF7A59 100%)',
     ring: 'ring-[#FFEBC0]',
   },
+  {
+    key: '8',
+    emoji: '\uD83C\uDF55',
+    label: 'Pizza Order!',
+    title: 'Pizza Order!',
+    subtitle: 'Number Bonds\n(Pizza Toppings)',
+    hue: '#FB923C',
+    tint: '#FFF4E8',
+    to: '/Game8',
+    progressKey: 'game8',
+    gradient: 'linear-gradient(135deg, #FFC46B 0%, #FF8A5C 55%, #FF5F6D 100%)',
+    ring: 'ring-[#FFE3C0]',
+  },
 ];
 
 export const GAME_KEYS = GAME_CATALOG.map((game) => game.key);
