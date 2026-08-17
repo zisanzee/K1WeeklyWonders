@@ -9,6 +9,7 @@ import NextGameTimer from "./NextGameTimer";
 import { usePlayerStore } from "./playerStore";
 import { useGameAccessStore, isGameUnlockedNow } from "./gameAccess";
 import { fetchSummary, fetchLeaderboard } from "./logPlaySession";
+import RotateHint from "./RotateHint";
 
 // ---------------------------------------------------------------------------
 // Shared utility
@@ -1687,6 +1688,8 @@ export default function BetaHome() {
           content="EZ Wonders offers fun, interactive numeracy and learning games for young children. Practice counting, numbers, and more through playful activities."
         />
       </Helmet>
+
+      <RotateHint />
 
       <NameGate gameLabel="EZ Wonders">
         <BetaHomeContent />
