@@ -24,9 +24,10 @@ function setMuted(value) {
 }
 
 // Call once from each scene's create(). Reuses the existing bgMusic Sound
-// if one's already playing from a previous scene instead of restarting it,
-// and defers play() until Phaser's AudioContext actually unlocks if the
-// browser blocked autoplay before any touch/click happened.
+// if one's already playing from a previous scene instead of restarting it.
+// Attempts playback immediately (the same path the voice clips take, which
+// is why they autoplay), then also retries when the AudioContext unlocks if
+// a browser still deferred the first play.
 export function ensureBgMusic(scene) {
   scene.sound.mute = isMuted();
 
@@ -40,13 +41,11 @@ export function ensureBgMusic(scene) {
     if (!music.isPlaying) music.play();
   };
 
-  if (!music.isPlaying) {
-    if (scene.sound.locked) {
-      scene.sound.once('unlocked', tryPlay);
-    } else {
-      tryPlay();
-    }
-  }
+  // Don't gate on `sound.locked` — that's what made music wait for the
+  // first click while the voice clips started straight away. Play now and
+  // let the unlock listener act as a retry only if the browser blocked it.
+  tryPlay();
+  scene.sound.once('unlocked', tryPlay);
 
   return music;
 }
