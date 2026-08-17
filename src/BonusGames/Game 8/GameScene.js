@@ -15,17 +15,17 @@ import { playNumberVoice } from '../../Phaser/common/numbersVoice';
 
 // Layout constants (720x1080 base resolution — see Phaser/config.js).
 // Sized for small hands: a big pizza, big tappable containers, big chefs.
-const PIZZA_CENTER = { x: 360, y: 520 };
-const PIZZA_DIAMETER = 460;
+const PIZZA_CENTER = { x: 360, y: 556 };
+const PIZZA_DIAMETER = 520;
 const SLOT_COLS = 5;
 const SLOT_ROWS = 4;
-const SLOT_GAP = 76;
-const SLOT_RADIUS = 31; // matches the topping footprint so drops look natural
-const TOPPING_SIZE = 60;
+const SLOT_GAP = 88;
+const SLOT_RADIUS = 33; // matches the topping footprint so drops look natural
+const TOPPING_SIZE = 64;
 const CONTAINER_SIZE = 130;
 const CONTAINER_Y = 210;
 const CONTAINER_SPACING = 136;
-const SNAP_RADIUS = 66;
+const SNAP_RADIUS = 74;
 const CHEF_HEIGHT = 400;
 const DELIVER_WIDTH = 260;
 const DELIVER_Y = 890;
@@ -215,19 +215,23 @@ export default class GameScene extends BaseScene {
     });
 
     // 6. Chef speech bubbles (updated every round).
-    this.ekaBubble = this.createPillButton(140, 630, '', {
-      fontSize: '44px',
-      paddingX: 24,
-      paddingY: 12,
+    this.ekaBubble = this.createPillButton(70, 630, '', {
+      fontSize: '60px',
+      paddingX: 26,
+      paddingY: 14,
       interactive: false,
       depth: 20,
+      bgColor: 0x4dabf7,
+      textColor: '#ffffff',
     });
-    this.zeeBubble = this.createPillButton(width - 140, 630, '', {
-      fontSize: '44px',
-      paddingX: 24,
-      paddingY: 12,
+    this.zeeBubble = this.createPillButton(width - 70, 630, '', {
+      fontSize: '60px',
+      paddingX: 26,
+      paddingY: 14,
       interactive: false,
       depth: 20,
+      bgColor: 0x51cf66,
+      textColor: '#ffffff',
     });
 
     // 7. Deliver button (asset image, not a text pill) — sits between the
@@ -478,7 +482,7 @@ export default class GameScene extends BaseScene {
     this.board.setAlpha(1);
 
     this.setChefsTexture(false);
-    this.roundPill.setText(`Round ${roundIndex + 1}/${TOTAL_ROUNDS}`);
+    this.roundPill.setText(`Round\n${roundIndex + 1}/${TOTAL_ROUNDS}`);
     this.tryAgainToast.setVisible(false);
 
     this.ekaBubble.container.setVisible(true);
