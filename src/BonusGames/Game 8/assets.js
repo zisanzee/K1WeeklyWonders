@@ -23,8 +23,8 @@ export const IMAGES = {
   'container-bellPepper':'https://res.cloudinary.com/hijmipga/image/upload/v1786966208/container-bellpepper_hyp5cc.png', // original image size 540x614
     'pepperoni':'https://res.cloudinary.com/hijmipga/image/upload/v1786966207/pepperoni_dmy911.png', // original image size 307x307
     'tomato':'https://res.cloudinary.com/hijmipga/image/upload/v1786966209/tomato_ddxlni.png', // original image size 307x307
-    'olives':'https://res.cloudinary.com/hijmipga/image/upload/v1786966207/olives_y9oxmb.png', // original image size 307x307
-    'mushrooms':'https://res.cloudinary.com/hijmipga/image/upload/v1786966207/mushrooms_s3w6pb.png', // original image size 307x307
+    'olives':'https://res.cloudinary.com/hijmipga/image/upload/v1787049578/olives_1_cck4o5.png', // original image size 307x307
+    'mushrooms':'https://res.cloudinary.com/hijmipga/image/upload/v1787049578/mushrooms_1_npre78.png', // original image size 307x307
     'bellPepper':'https://res.cloudinary.com/hijmipga/image/upload/v1786966208/bell-pepper_mxte2f.png', // original image size 307x307
     'deliver-button': 'https://res.cloudinary.com/hijmipga/image/upload/v1786973869/deliver-button_aj6f9d.png', // original image size 808x409
 };
@@ -42,7 +42,11 @@ export const AUDIO = {
     'vo-5':'https://res.cloudinary.com/hijmipga/video/upload/v1786972996/the_order_needs_hjqlcd.mp3', // The order needs [this will on the level 2]
     'vo-6':'https://res.cloudinary.com/hijmipga/video/upload/v1786969948/Help_chef_Zee_put_the_remaining_toppings_pavrnh.mp3', // Help chef Zee put the remaining toppings
     'vo-7':'https://res.cloudinary.com/hijmipga/video/upload/v1786972996/what_is_the_missing_number_mckrba.mp3', // What is the missing number? [this will be when the number bond phase starts]
-
+'vo-8':'https://res.cloudinary.com/hijmipga/video/upload/v1787049895/toppings_ylqhhw.mp3', // Toppings [say after number]
+'vo-9':'https://res.cloudinary.com/hijmipga/video/upload/v1787049895/topping_vjomlc.mp3', // Topping [if the number is 1, say "topping" instead of "toppings"]
+'vo-10': 'https://res.cloudinary.com/hijmipga/video/upload/v1787050454/click_on_deliver_qys0as.mp3', // Click on Deliver when the toppings are added.
+'vo-11': 'https://res.cloudinary.com/hijmipga/video/upload/v1787050935/chef_Eka_has_already_put_some_toppings_zkh36d.mp3', // Chef Eka has already put some toppings. 
+'vo-12': 'https://res.cloudinary.com/hijmipga/video/upload/v1787052689/count_up_from_the_number_already_there_mvnygd.mp3', // Count up from the number already there.
     // Feedback — correct / try again
     'vo-correct':'https://res.cloudinary.com/hijmipga/video/upload/v1785410887/vo-correct-2_ytcsm1.mp3', // "Yay! You did it!"
     'vo-try-again':'https://res.cloudinary.com/hijmipga/video/upload/v1785410886/vo-try-again-1_qvkrhx.mp3', // "Not quite! Try again."

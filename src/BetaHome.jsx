@@ -839,7 +839,7 @@ const GameCard = motion.create(function GameCard({
 
         {/* Featured pennant */}
         {isFeatured && (
-          <div className="absolute -top-1 left-3 sm:left-5 z-10">
+          <div className="absolute top-0 left-3 sm:left-5 z-10">
             <motion.div
               animate={reduceMotion ? {} : { y: [0, -3, 0] }}
               transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}

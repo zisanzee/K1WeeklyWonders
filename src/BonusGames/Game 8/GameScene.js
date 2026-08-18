@@ -9,7 +9,7 @@
 
 import * as Phaser from 'phaser';
 import BaseScene from '../../Phaser/BaseScene';
-import { buildRoundSequence, TOTAL_ROUNDS, MODES } from './levels';
+import { buildRoundSequence, TOTAL_ROUNDS, MODES, ROUNDS_PER_HALF } from './levels';
 import { ensureBgMusic, addMuteButton } from './audioState';
 import { playNumberVoice } from '../../Phaser/common/numbersVoice';
 
@@ -30,6 +30,9 @@ const CHEF_HEIGHT = 400;
 const DELIVER_WIDTH = 260;
 const DELIVER_Y = 890;
 const DANCE_SCALE_FACTOR = 1.5;
+const PIZZA_BOND_SCALE = 0.65;
+const PIZZA_BOND_CENTER = { x: 360, y: 320 };
+const LOCK_GLOW_COLOR = 0x4dabf7; // blue locked-topping highlight
 
 const CONTAINER_DEFS = [
   { containerKey: 'container-pepperoni', toppingKey: 'pepperoni' },
@@ -68,6 +71,12 @@ function playVoice(scene, key, onComplete) {
   return sound;
 }
 
+// "topping" (singular) vs "toppings" (plural) — plays right after a spoken
+// number so the child hears e.g. "three … toppings".
+function playToppingVoice(scene, number, onComplete) {
+  playVoice(scene, number === 1 ? 'vo-9' : 'vo-8', onComplete);
+}
+
 // Measures a texture's native pixel size without leaving it on screen.
 function measureTexture(scene, key) {
   const probe = scene.add.image(-1000, -1000, key);
@@ -84,6 +93,7 @@ function makeOrderTexture(scene, total, key) {
   const parts = [
     { text: 'Order: ', size: 48, color: '#ffffff', stroke: '#0f3d5c' },
     { text: `${total}`, size: 92, color: '#e63946', stroke: '#ffffff' },
+    { text: ' toppings', size: 48, color: '#ffffff', stroke: '#0f3d5c' },
   ];
   const fontFor = (p) => `900 ${p.size}px Fredoka, sans-serif`;
 
@@ -147,6 +157,7 @@ export default class GameScene extends BaseScene {
     this.bondObjects = []; // container(s) holding the current number-bond UI
     this.optionPills = []; // [{ pill, x, value }]
     this.orderImage = null; // mixed-size "Order: N" banner (level 2)
+    this.levelStartGroup = null; // container holding the current start page
 
     // Background music + first-tap unlock, same pattern as the other games.
     ensureBgMusic(this);
@@ -248,7 +259,7 @@ export default class GameScene extends BaseScene {
       strokeThickness: 8,
     }).setOrigin(0.5).setDepth(35).setVisible(false);
 
-    this.setupRound(0);
+    this.showLevelStart(1);
   }
 
   buildChef(key, x, y, flip = false) {
@@ -264,6 +275,7 @@ export default class GameScene extends BaseScene {
 
   buildSlots() {
     this.slots = [];
+    this.slotOutlines = [];
     for (let r = 0; r < SLOT_ROWS; r += 1) {
       for (let c = 0; c < SLOT_COLS; c += 1) {
         // Skip the 4 grid corners so the spot arrangement stays round and
@@ -284,6 +296,7 @@ export default class GameScene extends BaseScene {
         spot.lineStyle(2, 0xffffff, 0.5);
         spot.strokeCircle(x, y, SLOT_RADIUS);
         this.board.add(spot);
+        this.slotOutlines.push(spot);
       }
     }
   }
@@ -456,6 +469,10 @@ export default class GameScene extends BaseScene {
     });
   }
 
+  setContainersVisible(visible) {
+    this.containers.forEach((container) => container.setVisible(visible));
+  }
+
   // -------------------------------------------------------------------------
   // Round / phase state machine
   // -------------------------------------------------------------------------
@@ -480,9 +497,18 @@ export default class GameScene extends BaseScene {
     });
     this.destroyBondUI();
     this.board.setAlpha(1);
+    this.tweens.killTweensOf(this.board);
+    this.board.setPosition(0, 0);
+    this.board.setScale(1);
+    this.board.setVisible(true);
+    this.slotOutlines.forEach((o) => o.setVisible(true));
+    this.setContainersVisible(true);
+    this.chefEka.setVisible(true);
+    this.chefZee.setVisible(true);
 
     this.setChefsTexture(false);
     this.roundPill.setText(`Round\n${roundIndex + 1}/${TOTAL_ROUNDS}`);
+    this.roundPill.container.setVisible(true);
     this.tryAgainToast.setVisible(false);
 
     this.ekaBubble.container.setVisible(true);
@@ -529,12 +555,13 @@ export default class GameScene extends BaseScene {
     for (let i = 0; i < this.slots.length && i < count; i += 1) {
       const slot = this.slots[i];
 
-      // Gold glow + ring marks Eka's locked toppings so it's clear these
-      // can't be moved or removed.
+      // Alternating red/blue ring marks Eka's locked toppings so it's clear
+      // these can't be moved or removed (gold blended into the crust).
+      const color = LOCK_GLOW_COLOR;
       const glow = this.add.graphics();
-      glow.fillStyle(0xffd93d, 0.22);
+      glow.fillStyle(color, 0.22);
       glow.fillCircle(slot.x, slot.y, SLOT_RADIUS + 4);
-      glow.lineStyle(5, 0xffd93d, 0.95);
+      glow.lineStyle(5, color, 0.95);
       glow.strokeCircle(slot.x, slot.y, SLOT_RADIUS + 4);
       slot.lockedGlow = glow;
       this.board.add(glow);
@@ -551,35 +578,41 @@ export default class GameScene extends BaseScene {
   }
 
   playPhaseAVoice() {
-    const round = this.round;
-    if (this.roundIndex === 0) {
-      // vo-1 plays exactly once, on the very first round of the whole game.
-      playVoice(this, 'vo-1', () => this.playFirstHalfChain(round));
-    } else if (round.mode === MODES.FIRST_HALF) {
-      this.playFirstHalfChain(round);
+    // vo-1 now lives on the level 1 start page, so rounds just run their
+    // half-specific chain.
+    if (this.round.mode === MODES.FIRST_HALF) {
+      this.playFirstHalfChain(this.round);
     } else {
-      this.playSecondHalfChain(round);
+      this.playSecondHalfChain(this.round);
     }
   }
 
   playFirstHalfChain(round) {
     playVoice(this, 'vo-2', () => {
       playNumberVoice(this, round.ekaWants, false, () => {
-        playVoice(this, 'vo-3', () => {
-          playNumberVoice(this, round.zeeWants);
+        playToppingVoice(this, round.ekaWants, () => {
+          playVoice(this, 'vo-3', () => {
+            playNumberVoice(this, round.zeeWants, false, () => {
+              playToppingVoice(this, round.zeeWants);
+            });
+          });
         });
       });
     });
   }
 
   playSecondHalfChain(round) {
-    // "Chef Eka has put [n]. The order needs [total]. Help chef Zee put the
-    // remaining toppings."
+    // "Chef Eka has put [n] topping(s). The order needs [total] topping(s).
+    // Help chef Zee put the remaining toppings."
     playVoice(this, 'vo-4', () => {
       playNumberVoice(this, round.ekaHas, false, () => {
-        playVoice(this, 'vo-5', () => {
-          playNumberVoice(this, round.total, false, () => {
-            playVoice(this, 'vo-6');
+        playToppingVoice(this, round.ekaHas, () => {
+          playVoice(this, 'vo-5', () => {
+            playNumberVoice(this, round.total, false, () => {
+              playToppingVoice(this, round.total, () => {
+                playVoice(this, 'vo-6');
+              });
+            });
           });
         });
       });
@@ -629,16 +662,32 @@ export default class GameScene extends BaseScene {
   enterNumberBond() {
     this.phase = 'numberBond';
     this.setContainersInteractive(false);
+    this.setContainersVisible(false); // phase 2 shows no containers
     this.deliverBtn.setVisible(false);
     this.deliverBtn.disableInteractive();
     this.ekaBubble.container.setVisible(false);
     this.zeeBubble.container.setVisible(false);
+    this.chefEka.setVisible(false); // chefs only reappear for the dance
+    this.chefZee.setVisible(false);
     this.bannerText.setText('Answer the number bond!');
     this.bannerText.setVisible(true);
     if (this.orderImage) this.orderImage.setVisible(false);
     this.tryAgainToast.setVisible(false);
-    // Dim the pizza so the bond reads clearly over it.
-    this.board.setAlpha(0.45);
+
+    // Move the completed pizza up and shrink it so it sits above the bond.
+    this.board.setAlpha(1);
+    this.slotOutlines.forEach((o) => o.setVisible(false));
+    const bondBoardX = PIZZA_BOND_CENTER.x - PIZZA_CENTER.x * PIZZA_BOND_SCALE;
+    const bondBoardY = PIZZA_BOND_CENTER.y - PIZZA_CENTER.y * PIZZA_BOND_SCALE;
+    this.tweens.add({
+      targets: this.board,
+      x: bondBoardX,
+      y: bondBoardY,
+      scaleX: PIZZA_BOND_SCALE,
+      scaleY: PIZZA_BOND_SCALE,
+      duration: 350,
+      ease: 'Sine.easeOut',
+    });
 
     playVoice(this, 'vo-7'); // "What is the missing number?"
     this.buildNumberBond();
@@ -667,18 +716,17 @@ export default class GameScene extends BaseScene {
     const bond = this.add.container(0, 0).setDepth(40);
     this.bondObjects = [bond];
 
-    // Soft white panel so the bond is readable over the pizza art.
-    const panel = this.add.graphics();
-    panel.fillStyle(0xffffff, 0.95);
-    panel.fillRoundedRect(PIZZA_CENTER.x - 230, 270, 460, 310, 28);
-    bond.add(panel);
-
-    const top = { x: 360, y: 360 };
-    const left = { x: 245, y: 500 };
-    const right = { x: 475, y: 500 };
+    const top = { x: 360, y: 585 };
+    const left = { x: 250, y: 730 };
+    const right = { x: 470, y: 730 };
 
     const line = this.add.graphics();
-    line.lineStyle(10, 0xf06595, 1);
+    // Thick white outline first, then a darker core line on top — the two
+    // together read as a clear stroked connector against the background art.
+    line.lineStyle(18, 0xffffff, 1);
+    line.lineBetween(top.x, top.y, left.x, left.y);
+    line.lineBetween(top.x, top.y, right.x, right.y);
+    line.lineStyle(10, 0x0f3d5c, 1);
     line.lineBetween(top.x, top.y, left.x, left.y);
     line.lineBetween(top.x, top.y, right.x, right.y);
     bond.add(line);
@@ -692,15 +740,15 @@ export default class GameScene extends BaseScene {
 
     // Option pills.
     this.optionPills = [];
-    const xs = [245, 360, 475];
+    const xs = [180, 360, 540];
     round.options.forEach((value, i) => {
-      const pill = this.createPillButton(xs[i], 680, `${value}`, {
-        fontSize: '42px',
-        minWidth: 112,
-        minHeight: 84,
-        paddingX: 24,
-        paddingY: 14,
-        depth: 41,
+      const pill = this.createPillButton(xs[i], 920, `${value}`, {
+        fontSize: '54px',
+        minWidth: 128,
+        minHeight: 93,
+        paddingX: 28,
+        paddingY: 18,
+        depth: 2,
         bgColor: 0xffffff,
       });
       this.optionPills.push({ pill, x: xs[i], value });
@@ -746,6 +794,7 @@ export default class GameScene extends BaseScene {
       this.playRoundCompleteCelebration(() => {
         if (this.phase !== 'numberBond') return;
         if (isLast) this.finishGame();
+        else if (this.roundIndex === ROUNDS_PER_HALF - 1) this.showLevelStart(2);
         else this.setupRound(this.roundIndex + 1);
       });
     } else {
@@ -783,6 +832,193 @@ export default class GameScene extends BaseScene {
     });
     this.optionPills = [];
     this.bondQuestionText = null;
+  }
+
+  // -------------------------------------------------------------------------
+  // Level start pages
+  // -------------------------------------------------------------------------
+
+  showLevelStart(level) {
+    this.phase = 'levelStart';
+    this.destroyBondUI();
+
+    // Hide all gameplay UI while the start page is up.
+    this.setContainersVisible(false);
+    this.deliverBtn.setVisible(false);
+    this.deliverBtn.disableInteractive();
+    this.ekaBubble.container.setVisible(false);
+    this.zeeBubble.container.setVisible(false);
+    this.chefEka.setVisible(false);
+    this.chefZee.setVisible(false);
+    this.board.setVisible(false);
+    this.roundPill.container.setVisible(false);
+    this.bannerText.setVisible(false);
+    if (this.orderImage) this.orderImage.setVisible(false);
+    this.tryAgainToast.setVisible(false);
+
+    const group = this.add.container(0, 0).setDepth(60);
+    this.levelStartGroup = group;
+
+    // White page background for a clean, professional start screen.
+    group.add(
+      this.add.rectangle(
+        this.scale.width / 2,
+        this.scale.height / 2,
+        this.scale.width,
+        this.scale.height,
+        0xffffff,
+        1
+      )
+    );
+
+    if (level === 1) {
+      this.buildLevel1Start(group);
+      playVoice(this, 'vo-1', () => playVoice(this, 'vo-10'));
+    } else {
+      this.buildLevel2Start(group);
+      playVoice(this, 'vo-11', () => playVoice(this, 'vo-12'));
+    }
+  }
+
+  buildLevel1Start(group) {
+    const { width } = this.scale;
+
+    // Whole page shifted down so the chefs clear the header card, with the
+    // pizza emoji kept clear of the card top (its bottom was being clipped).
+    group.add(this.add.text(width / 2, 120, '\uD83C\uDF55', { fontSize: '56px' }).setOrigin(0.5));
+
+    const card = this.add.graphics();
+    card.fillStyle(0xe7f5ff, 1);
+    // Taller box so the two-line title never overflows the rounded background.
+    card.fillRoundedRect(width / 2 - 300, 160, 600, 160, 24);
+    card.lineStyle(3, 0x74c0fc, 1);
+    card.strokeRoundedRect(width / 2 - 300, 160, 600, 160, 24);
+    group.add(card);
+
+    const title = this.add.text(width / 2, 240, 'Help the chefs make the pizza!', {
+      fontSize: '46px',
+      fontFamily: 'Fredoka, sans-serif',
+      fontStyle: 'bold',
+      color: '#000000',
+      align: 'center',
+      wordWrap: { width: width - 100 },
+    }).setOrigin(0.5);
+    group.add(title);
+
+    const eka = this.add.image(190, 660, 'chefEka').setOrigin(0.5, 1).setScale(0.48);
+    const zee = this.add.image(width - 190, 660, 'chefZee').setOrigin(0.5, 1).setScale(0.48).setFlipX(true);
+    group.add([eka, zee]);
+
+    const ekaName = this.add.text(190, 740, 'Chef Eka', {
+      fontSize: '38px',
+      fontFamily: 'Fredoka, sans-serif',
+      fontStyle: 'bold',
+      color: '#000000',
+    }).setOrigin(0.5);
+    const zeeName = this.add.text(width - 190, 740, 'Chef Zee', {
+      fontSize: '38px',
+      fontFamily: 'Fredoka, sans-serif',
+      fontStyle: 'bold',
+      color: '#000000',
+    }).setOrigin(0.5);
+    group.add([ekaName, zeeName]);
+
+    const hint = this.add.text(width / 2, 850, 'Click on Deliver when the toppings are added', {
+      fontSize: '36px',
+      fontFamily: 'Fredoka, sans-serif',
+      fontStyle: 'bold',
+      color: '#000000',
+      align: 'center',
+      wordWrap: { width: width - 60 },
+    }).setOrigin(0.5);
+    group.add(hint);
+
+    this.addPlayButton(group, 950, () => this.setupRound(0));
+  }
+
+  buildLevel2Start(group) {
+    const { width } = this.scale;
+
+    group.add(this.add.text(width / 2, 64, '\uD83C\uDF55', { fontSize: '56px' }).setOrigin(0.5));
+
+    const card = this.add.graphics();
+    card.fillStyle(0xe7f5ff, 1);
+    card.fillRoundedRect(width / 2 - 300, 96, 600, 92, 24);
+    card.lineStyle(3, 0x74c0fc, 1);
+    card.strokeRoundedRect(width / 2 - 300, 96, 600, 92, 24);
+    group.add(card);
+
+    const title = this.add.text(width / 2, 142, 'Count up from the number already there!', {
+      fontSize: '40px',
+      fontFamily: 'Fredoka, sans-serif',
+      fontStyle: 'bold',
+      color: '#000000',
+      align: 'center',
+      wordWrap: { width: width - 100 },
+    }).setOrigin(0.5);
+    group.add(title);
+
+    // Example pizza that already has toppings on it.
+    const pizzaTex = measureTexture(this, 'emptyPizza');
+    const pizza = this.add.image(width / 2, 480, 'emptyPizza').setScale(380 / pizzaTex.w);
+    group.add(pizza);
+
+    const toppingKeys = CONTAINER_DEFS.map((d) => d.toppingKey);
+    const exampleSpots = [
+      { x: width / 2 - 90, y: 430 },
+      { x: width / 2 + 10, y: 400 },
+      { x: width / 2 + 80, y: 480 },
+    ];
+    exampleSpots.forEach((pos, i) => {
+      const color = LOCK_GLOW_COLOR;
+      const ring = this.add.graphics();
+      ring.fillStyle(color, 0.22);
+      ring.fillCircle(pos.x, pos.y, 30);
+      ring.lineStyle(5, color, 0.95);
+      ring.strokeCircle(pos.x, pos.y, 30);
+      group.add(ring);
+      group.add(this.add.image(pos.x, pos.y, toppingKeys[i % toppingKeys.length]).setScale(0.17));
+    });
+
+    const caption = this.add.text(width / 2, 700, 'This pizza already has 3 toppings.', {
+      fontSize: '32px',
+      fontFamily: 'Fredoka, sans-serif',
+      fontStyle: 'bold',
+      color: '#000000',
+    }).setOrigin(0.5);
+    group.add(caption);
+
+    this.addPlayButton(group, 880, () => this.setupRound(ROUNDS_PER_HALF));
+  }
+
+  addPlayButton(group, y, onPlay) {
+    const btn = this.createPillButton(this.scale.width / 2, y, 'Play \u25B6\uFE0F', {
+      fontSize: '40px',
+      paddingX: 56,
+      paddingY: 22,
+      depth: 62,
+      bgColor: 0x37b24d,
+      textColor: '#ffffff',
+    });
+    group.add(btn.container);
+
+    // Gentle pulse so the CTA reads as tappable.
+    this.tweens.add({
+      targets: btn.container,
+      scaleX: { from: 1, to: 1.05 },
+      scaleY: { from: 1, to: 1.05 },
+      duration: 650,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut',
+    });
+
+    btn.on('pointerup', () => {
+      this.tweens.killTweensOf(btn.container);
+      this.levelStartGroup?.destroy();
+      this.levelStartGroup = null;
+      onPlay();
+    });
   }
 
   // -------------------------------------------------------------------------
@@ -842,9 +1078,11 @@ export default class GameScene extends BaseScene {
     chefs.forEach((chef, i) => {
       const danceScale = orig[i].scale * DANCE_SCALE_FACTOR;
 
-      // Chefs layered on top of everything while dancing.
+      // Phase 2 hid the chefs — pop them back in on top of everything.
+      chef.setVisible(true);
       chef.setDepth(80);
       chef.setTexture(chef.celebratingKey);
+      chef.setScale(0);
       this.tweens.killTweensOf(chef);
 
       this.tweens.add({
@@ -853,7 +1091,7 @@ export default class GameScene extends BaseScene {
         y: danceY,
         scale: danceScale,
         duration: 350,
-        ease: 'Sine.easeOut',
+        ease: 'Back.easeOut',
         onComplete: () => {
           this.tweens.add({
             targets: chef,
