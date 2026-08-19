@@ -162,7 +162,7 @@ export default class GameScene extends BaseScene {
     // Background music + first-tap unlock, same pattern as the other games.
     ensureBgMusic(this);
     this.input.once('pointerdown', () => ensureBgMusic(this));
-    addMuteButton(this, 16, 16, { anchor: 'topLeft' });
+    addMuteButton(this, 16, 16, { anchor: 'topLeft', depth: 1000 });
 
     // A tap (no movement) shouldn't spawn a topping — only real drags.
     this.input.dragDistanceThreshold = 8;
@@ -457,9 +457,42 @@ export default class GameScene extends BaseScene {
     return this.slots.filter((s) => s.topping).length;
   }
 
-  playSound(key) {
+  playSound(key, volume = 1.2) {
     if (key && this.cache.audio.exists(key)) {
-      this.sound.play(key, { volume: 1.2 });
+      this.sound.play(key, { volume });
+    }
+  }
+
+  // Bursts falling moneyForConfetti images from the top of the scene. Kept
+  // in-scene so the confetti uses the game's money art (not the old generic
+  // react-confetti) and can be timed around the cha-ching sound.
+  moneyConfettiBurst(count = 40, depth = 95) {
+    if (!this.textures.exists('moneyForConfetti')) return;
+
+    // Cache the probe size once — the confetti pieces are all one scale.
+    if (!this.moneyConfettiScale) {
+      const probe = this.add.image(-1000, -1000, 'moneyForConfetti');
+      this.moneyConfettiScale = 70 / probe.width;
+      probe.destroy();
+    }
+
+    const { width, height } = this.scale;
+    for (let i = 0; i < count; i += 1) {
+      const piece = this.add.image(
+        Phaser.Math.Between(0, width),
+        Phaser.Math.Between(-260, -20),
+        'moneyForConfetti'
+      ).setScale(this.moneyConfettiScale).setDepth(depth);
+
+      this.tweens.add({
+        targets: piece,
+        y: height + 120,
+        angle: Phaser.Math.Between(-540, 540),
+        delay: Phaser.Math.Between(0, 500),
+        duration: Phaser.Math.Between(1400, 2200),
+        ease: 'Sine.easeIn',
+        onComplete: () => piece.destroy(),
+      });
     }
   }
 
@@ -623,13 +656,15 @@ export default class GameScene extends BaseScene {
     if (this.phase !== 'topping') return;
 
     if (this.filledCount() === this.round.total) {
-      // Phase A success — local celebration only, then on to the number bond.
+      // Phase A success — cha-ching + money confetti, then a short beat so
+      // both can land before the number-bond phase takes over.
       this.phase = 'transition';
       this.setContainersInteractive(false);
       this.deliverBtn.disableInteractive();
-      this.game.events.emit('game8-deliver-correct');
+      this.playSound('cha-ching-fx', 0.5);
+      this.moneyConfettiBurst(40);
       this.celebrateChefs(false);
-      this.time.delayedCall(900, () => this.enterNumberBond());
+      this.time.delayedCall(1600, () => this.enterNumberBond());
     } else {
       this.mistakes += 1;
       playVoice(this, 'vo-try-again');
@@ -699,19 +734,23 @@ export default class GameScene extends BaseScene {
     let leftValue;
     let rightValue;
     let topValue;
+    let questionColor;
     if (round.mode === MODES.FIRST_HALF) {
       // Total is the unknown; both parts are known.
       leftValue = round.ekaWants;
       rightValue = round.zeeWants;
       topValue = '?';
       this.bondAnswer = round.total;
+      questionColor = 0xffb347; // matches the '?' (top) circle border
     } else {
       // The missing part is the unknown; the other part and total are known.
       leftValue = round.ekaHas;
       rightValue = '?';
       topValue = round.total;
       this.bondAnswer = round.zeeNeeds;
+      questionColor = 0x51cf66; // matches the '?' (right) circle border
     }
+    this.optionColor = questionColor;
 
     const bond = this.add.container(0, 0).setDepth(40);
     this.bondObjects = [bond];
@@ -738,7 +777,8 @@ export default class GameScene extends BaseScene {
     // Remember which circle holds the '?' so it can be filled in on a win.
     this.bondQuestionText = leftValue === '?' ? leftText : rightValue === '?' ? rightText : topText;
 
-    // Option pills.
+    // Option pills — colored to match the '?' circle's border so the child
+    // can visually connect each option to the circle they're filling in.
     this.optionPills = [];
     const xs = [180, 360, 540];
     round.options.forEach((value, i) => {
@@ -749,7 +789,8 @@ export default class GameScene extends BaseScene {
         paddingX: 28,
         paddingY: 18,
         depth: 2,
-        bgColor: 0xffffff,
+        bgColor: questionColor,
+        textColor: '#ffffff',
       });
       this.optionPills.push({ pill, x: xs[i], value });
       const wrapper = this.optionPills[this.optionPills.length - 1];
@@ -761,7 +802,7 @@ export default class GameScene extends BaseScene {
     const circle = this.add.graphics();
     circle.fillStyle(0xffffff, 1);
     circle.fillCircle(pos.x, pos.y, 70);
-    circle.lineStyle(7, color, 1);
+    circle.lineStyle(12, color, 1);
     circle.strokeCircle(pos.x, pos.y, 70);
     bond.add(circle);
 
@@ -787,7 +828,6 @@ export default class GameScene extends BaseScene {
         this.bondQuestionText.setText(`${this.bondAnswer}`);
       }
 
-      this.game.events.emit('game8-round-correct');
       playVoice(this, 'vo-correct');
 
       const isLast = this.roundIndex === TOTAL_ROUNDS - 1;
@@ -817,7 +857,7 @@ export default class GameScene extends BaseScene {
       ease: 'Sine.easeInOut',
       onComplete: () => {
         pill.container.setX(baseX);
-        pill.setBg(0xffffff);
+        pill.setBg(this.optionColor);
       },
     });
   }
@@ -859,136 +899,26 @@ export default class GameScene extends BaseScene {
     const group = this.add.container(0, 0).setDepth(60);
     this.levelStartGroup = group;
 
-    // White page background for a clean, professional start screen.
-    group.add(
-      this.add.rectangle(
-        this.scale.width / 2,
-        this.scale.height / 2,
-        this.scale.width,
-        this.scale.height,
-        0xffffff,
-        1
-      )
-    );
-
     if (level === 1) {
-      this.buildLevel1Start(group);
+      this.buildLevelStartPage(group, 'level1playimg', 1000, () => this.setupRound(0));
       playVoice(this, 'vo-1', () => playVoice(this, 'vo-10'));
     } else {
-      this.buildLevel2Start(group);
+      this.buildLevelStartPage(group, 'level2playimg', 1000, () => this.setupRound(ROUNDS_PER_HALF));
       playVoice(this, 'vo-11', () => playVoice(this, 'vo-12'));
     }
   }
 
-  buildLevel1Start(group) {
-    const { width } = this.scale;
+  // Start pages are now full-page artwork — the assets carry the title and
+  // instructions, so the page only needs the cover-fit background plus the
+  // single play button.
+  buildLevelStartPage(group, imageKey, playY, onPlay) {
+    const { width, height } = this.scale;
+    const bg = this.add.image(width / 2, height / 2, imageKey);
+    const cover = Math.max(width / bg.width, height / bg.height);
+    bg.setScale(cover);
+    group.add(bg);
 
-    // Whole page shifted down so the chefs clear the header card, with the
-    // pizza emoji kept clear of the card top (its bottom was being clipped).
-    group.add(this.add.text(width / 2, 120, '\uD83C\uDF55', { fontSize: '56px' }).setOrigin(0.5));
-
-    const card = this.add.graphics();
-    card.fillStyle(0xe7f5ff, 1);
-    // Taller box so the two-line title never overflows the rounded background.
-    card.fillRoundedRect(width / 2 - 300, 160, 600, 160, 24);
-    card.lineStyle(3, 0x74c0fc, 1);
-    card.strokeRoundedRect(width / 2 - 300, 160, 600, 160, 24);
-    group.add(card);
-
-    const title = this.add.text(width / 2, 240, 'Help the chefs make the pizza!', {
-      fontSize: '46px',
-      fontFamily: 'Fredoka, sans-serif',
-      fontStyle: 'bold',
-      color: '#000000',
-      align: 'center',
-      wordWrap: { width: width - 100 },
-    }).setOrigin(0.5);
-    group.add(title);
-
-    const eka = this.add.image(190, 660, 'chefEka').setOrigin(0.5, 1).setScale(0.48);
-    const zee = this.add.image(width - 190, 660, 'chefZee').setOrigin(0.5, 1).setScale(0.48).setFlipX(true);
-    group.add([eka, zee]);
-
-    const ekaName = this.add.text(190, 740, 'Chef Eka', {
-      fontSize: '38px',
-      fontFamily: 'Fredoka, sans-serif',
-      fontStyle: 'bold',
-      color: '#000000',
-    }).setOrigin(0.5);
-    const zeeName = this.add.text(width - 190, 740, 'Chef Zee', {
-      fontSize: '38px',
-      fontFamily: 'Fredoka, sans-serif',
-      fontStyle: 'bold',
-      color: '#000000',
-    }).setOrigin(0.5);
-    group.add([ekaName, zeeName]);
-
-    const hint = this.add.text(width / 2, 850, 'Click on Deliver when the toppings are added', {
-      fontSize: '36px',
-      fontFamily: 'Fredoka, sans-serif',
-      fontStyle: 'bold',
-      color: '#000000',
-      align: 'center',
-      wordWrap: { width: width - 60 },
-    }).setOrigin(0.5);
-    group.add(hint);
-
-    this.addPlayButton(group, 950, () => this.setupRound(0));
-  }
-
-  buildLevel2Start(group) {
-    const { width } = this.scale;
-
-    group.add(this.add.text(width / 2, 64, '\uD83C\uDF55', { fontSize: '56px' }).setOrigin(0.5));
-
-    const card = this.add.graphics();
-    card.fillStyle(0xe7f5ff, 1);
-    card.fillRoundedRect(width / 2 - 300, 96, 600, 92, 24);
-    card.lineStyle(3, 0x74c0fc, 1);
-    card.strokeRoundedRect(width / 2 - 300, 96, 600, 92, 24);
-    group.add(card);
-
-    const title = this.add.text(width / 2, 142, 'Count up from the number already there!', {
-      fontSize: '40px',
-      fontFamily: 'Fredoka, sans-serif',
-      fontStyle: 'bold',
-      color: '#000000',
-      align: 'center',
-      wordWrap: { width: width - 100 },
-    }).setOrigin(0.5);
-    group.add(title);
-
-    // Example pizza that already has toppings on it.
-    const pizzaTex = measureTexture(this, 'emptyPizza');
-    const pizza = this.add.image(width / 2, 480, 'emptyPizza').setScale(380 / pizzaTex.w);
-    group.add(pizza);
-
-    const toppingKeys = CONTAINER_DEFS.map((d) => d.toppingKey);
-    const exampleSpots = [
-      { x: width / 2 - 90, y: 430 },
-      { x: width / 2 + 10, y: 400 },
-      { x: width / 2 + 80, y: 480 },
-    ];
-    exampleSpots.forEach((pos, i) => {
-      const color = LOCK_GLOW_COLOR;
-      const ring = this.add.graphics();
-      ring.fillStyle(color, 0.22);
-      ring.fillCircle(pos.x, pos.y, 30);
-      ring.lineStyle(5, color, 0.95);
-      ring.strokeCircle(pos.x, pos.y, 30);
-      group.add(ring);
-      group.add(this.add.image(pos.x, pos.y, toppingKeys[i % toppingKeys.length]).setScale(0.17));
-    });
-
-    const caption = this.add.text(width / 2, 700, 'This pizza already has 3 toppings.', {
-      fontSize: '32px',
-      fontFamily: 'Fredoka, sans-serif',
-      fontStyle: 'bold',
-      color: '#000000',
-    }).setOrigin(0.5);
-    group.add(caption);
-
-    this.addPlayButton(group, 880, () => this.setupRound(ROUNDS_PER_HALF));
+    this.addPlayButton(group, playY, onPlay);
   }
 
   addPlayButton(group, y, onPlay) {
@@ -1051,9 +981,9 @@ export default class GameScene extends BaseScene {
     }
   }
 
-  // Big end-of-round celebration: confetti fires via the React layer's
-  // game8-round-correct listener, while here both chefs center, enlarge and
-  // dance on top of a dim overlay for a few seconds before the next round.
+  // Big end-of-round celebration: money confetti fires in-scene while both
+  // chefs center, enlarge and dance on top of a dim overlay for a few
+  // seconds before the next round.
   playRoundCompleteCelebration(onDone) {
     const { width, height } = this.scale;
     const chefs = [this.chefEka, this.chefZee];
@@ -1106,9 +1036,12 @@ export default class GameScene extends BaseScene {
       });
     });
 
-    // Confetti bursts while the chefs are dancing (the wiggle starts right
-    // after the 350ms zoom-in).
-    this.time.delayedCall(350, () => this.game.events.emit('game8-dance'));
+    // Money confetti bursts while the chefs are dancing (the wiggle starts
+    // right after the 350ms zoom-in).
+    this.time.delayedCall(350, () => {
+      this.moneyConfettiBurst(36);
+      this.time.delayedCall(450, () => this.moneyConfettiBurst(26));
+    });
 
     // Return to original spots, then continue to the next round.
     this.time.delayedCall(2100, () => {
@@ -1163,6 +1096,8 @@ export default class GameScene extends BaseScene {
       stars,
     });
 
+    this.moneyConfettiBurst(70);
+    this.time.delayedCall(500, () => this.moneyConfettiBurst(40));
     this.showEndOverlay(stars);
   }
 

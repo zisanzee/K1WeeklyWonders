@@ -27,12 +27,16 @@ export const IMAGES = {
     'mushrooms':'https://res.cloudinary.com/hijmipga/image/upload/v1787049578/mushrooms_1_npre78.png', // original image size 307x307
     'bellPepper':'https://res.cloudinary.com/hijmipga/image/upload/v1786966208/bell-pepper_mxte2f.png', // original image size 307x307
     'deliver-button': 'https://res.cloudinary.com/hijmipga/image/upload/v1786973869/deliver-button_aj6f9d.png', // original image size 808x409
+    'level1playimg':'https://res.cloudinary.com/hijmipga/image/upload/v1787129236/level1page_pexic2.png', // original image size 1024x1536
+    'level2playimg':'https://res.cloudinary.com/hijmipga/image/upload/v1787129229/level2page_iuqqfx.png', // original image size 1024x1536
+    'moneyForConfetti':'https://res.cloudinary.com/hijmipga/image/upload/v1787129227/money_liha5j.png', // original image size 170x100
 };
 
 export const AUDIO = {
   'bgMusic': 'https://res.cloudinary.com/hijmipga/video/upload/v1786963247/bgMusic_jqvugi.mp4',
   'grab-fx':'https://res.cloudinary.com/hijmipga/video/upload/v1786969011/grab-fx_fe9mvy.mp3',
   'paste-fx':'https://res.cloudinary.com/hijmipga/video/upload/v1786969011/paste-fx_dhth1q.mp4',
+  'cha-ching-fx':'https://res.cloudinary.com/hijmipga/video/upload/v1787130284/Cha-Ching_-_Sound_effect_p4m7auGQBO4_-1787130236928_ezsx1k.mp3',
 
   // below are voice lines
    'vo-1':'https://res.cloudinary.com/hijmipga/video/upload/v1786969949/Help_the_Chefs_complete_the_pizza_by_adding_toppings_etjapw.mp3', // Help the Chefs complete the pizza by adding toppings
@@ -60,6 +64,7 @@ export const AUDIO = {
 const AUDIO_TYPE_OVERRIDES = {
   bgMusic: 'mp3',
   'paste-fx': 'mp3',
+  'cha-ching-fx': 'mp3',
 };
 
 // Flattened manifest for BasePreloadScene({ assets: ASSET_MANIFEST, ... }).

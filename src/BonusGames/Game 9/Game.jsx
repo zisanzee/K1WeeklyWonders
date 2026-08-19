@@ -7,36 +7,34 @@ import { logPlaySession } from '../../logPlaySession';
 
 export default function Game({ playerName }) {
   // Factory (not a static array) — BaseGame calls this once per mount so a
-  // fresh set of scene instances is created each time. There is no level
-  // select in Game 8: PreloadScene goes straight into GameScene.
+  // fresh set of scene instances is created each time. PreloadScene goes
+  // straight into GameScene; add a LevelSelectScene here (following Game 7's
+  // pattern) if the design later calls for level cards.
   const buildScenes = () => [
     new BasePreloadScene({
       key: 'PreloadScene',
       assets: ASSET_MANIFEST,
       nextSceneKey: 'GameScene',
-      loadingEmoji: '\uD83C\uDF55',
-      loadingText: 'Getting the pizza ready...',
+      loadingEmoji: '\uD83C\uDFAE',
+      loadingText: 'Getting the game ready...',
     }),
     new GameScene(),
   ];
 
-  // Fires once, when the full 10-round run is complete.
+  // Fires when the game is complete — see the game's finish logic.
   const handleComplete = (payload, currentPlayerName) => {
     logPlaySession({
-      game: 'game8',
+      game: 'game9',
       playerName: currentPlayerName || 'Guest',
       ...payload,
     });
   };
 
-  // No React-layer confetti anymore — the money confetti is spawned inside
-  // GameScene from the moneyForConfetti texture, so there's nothing extra to
-  // subscribe to via onPhaserReady.
   return (
     <BaseGame
       playerName={playerName}
       buildScenes={buildScenes}
-      completeEventName="game8-complete"
+      completeEventName="game9-complete"
       onComplete={handleComplete}
     />
   );

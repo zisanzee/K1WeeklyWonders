@@ -129,6 +129,19 @@ export const GAME_CATALOG = [
     gradient: 'linear-gradient(135deg, #FFC46B 0%, #FF8A5C 55%, #FF5F6D 100%)',
     ring: 'ring-[#FFE3C0]',
   },
+  {
+    key: '9',
+    emoji: '\uD83C\uDFAE',
+    label: 'Game 9',
+    title: 'Game 9',
+    subtitle: 'New Game\n(Coming Soon)',
+    hue: '#22D3EE',
+    tint: '#EDFCFE',
+    to: '/Game9',
+    progressKey: 'game9',
+    gradient: 'linear-gradient(135deg, #7DEBFF 0%, #33C7E8 55%, #5B7CFF 100%)',
+    ring: 'ring-[#D7F5FC]',
+  },
 ];
 
 export const GAME_KEYS = GAME_CATALOG.map((game) => game.key);

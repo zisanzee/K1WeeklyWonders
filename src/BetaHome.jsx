@@ -65,6 +65,33 @@ function timeGreeting() {
   return "Good evening";
 }
 
+function useTimeGreeting() {
+  const [greeting, setGreeting] = useState(timeGreeting);
+
+  useEffect(() => {
+    const refresh = () => setGreeting(timeGreeting());
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === "visible") refresh();
+    };
+
+    // A long-open tab never re-renders on its own, so without this the
+    // greeting sticks to the time-of-day period it was first shown in.
+    const id = setInterval(refresh, 60_000);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+    // pageshow also fires on back-forward cache restores, where React state
+    // is brought back without a fresh render.
+    window.addEventListener("pageshow", refresh);
+
+    return () => {
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
+      window.removeEventListener("pageshow", refresh);
+    };
+  }, []);
+
+  return greeting;
+}
+
 // ---------------------------------------------------------------------------
 // Vector icon library — replaces every emoji with a consistent SVG glyph.
 // Filled icons use `currentColor`; outline icons use stroke.
@@ -1005,6 +1032,7 @@ function SectionHeader({ icon, eyebrow, title, accent, icon2, reduceMotion }) {
 // ===========================================================================
 
 function PlayerName({ playerName, roleLabel, roleIcon }) {
+  const greeting = useTimeGreeting();
   return (
     <div className="flex min-w-0 flex-col items-start">
       <span
@@ -1014,7 +1042,7 @@ function PlayerName({ playerName, roleLabel, roleIcon }) {
           color: "#7c3aed",
         }}
       >
-        {timeGreeting()}
+        {greeting}
         {roleLabel && (
           <span className="inline-flex items-center gap-0.5 rounded-full bg-white/70 px-1.5 py-px text-[9px] sm:text-[10px]" style={{ color: "#6d28d9" }}>
             <Icon name={roleIcon || "key"} size="0.9em" />
