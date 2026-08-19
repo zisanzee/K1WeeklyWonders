@@ -176,6 +176,8 @@ function HomeContent() {
       if (isGameUnlockedNow(5, isTeacher)) import("./Game5");
       if (isGameUnlockedNow(6, isTeacher)) import("./Game6");
       if (isGameUnlockedNow(7, isTeacher)) import("./BonusGames/Game 7/PhaserDemo");
+      if (isGameUnlockedNow(8, isTeacher)) import("./BonusGames/Game 8/PhaserDemo");
+      if (isGameUnlockedNow(9, isTeacher)) import("./BonusGames/Game 9/PhaserDemo");
       if (isGameUnlockedNow('b1', isTeacher)) import("./BonusGames/BonusGame1/PhaserDemo");
     };
 

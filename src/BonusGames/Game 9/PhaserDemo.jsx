@@ -7,8 +7,8 @@ import { usePlayerStore } from '../../playerStore';
 
 export default function PhaserDemo() {
   return (
-    <NameGate gameLabel="Game 9">
-      <GameAccessGate gameNumber={9} gameLabel="Game 9">
+    <NameGate gameLabel="Game 9: Polly's Treasure Quest">
+      <GameAccessGate gameNumber={9} gameLabel="Polly's Treasure Quest">
         <PhaserDemoInner />
       </GameAccessGate>
     </NameGate>

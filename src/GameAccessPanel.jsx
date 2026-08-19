@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { AnimatePresence, motion } from 'motion/react';
 import {
   closestCenter,
@@ -1467,6 +1468,13 @@ export default function GameAccessPanel({ onClose, initialTab }) {
               </h1>
             </div>
           </div>
+
+          <Link
+            to="/beta-ezwonders"
+            className="flex h-11 shrink-0 items-center gap-1.5 rounded-xl bg-white/15 px-4 text-sm font-black text-white transition hover:bg-white/25"
+          >
+            ✨ Beta Homepage
+          </Link>
         </div>
 
         <p className="mx-auto max-w-5xl pb-4 text-xs font-semibold leading-relaxed text-white/90 sm:text-sm">
