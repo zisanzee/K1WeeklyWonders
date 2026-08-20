@@ -3,13 +3,13 @@
 // Children drag eggs from a bottomless basket into two nests (blue & yellow)
 // so the total eggs across both nests equals the round's target number.
 //
-// 4 levels alternating split/fill mode, two birds (Robin / Owl), two
-// number ranges (1-5 / 1-10). All level parameters come from levels.js;
-// the scene itself is level-agnostic.
+// One continuous 12-round run with no level-select screen: 6 split-mode
+// rounds (level 1), then the scene auto-advances into 6 fill-mode rounds
+// (level 2). Both levels use Robin and the 1-10 range. All level parameters
+// come from levels.js; the scene itself is level-agnostic.
 
-import * as Phaser from 'phaser';
 import BaseScene from '../../Phaser/BaseScene';
-import { LEVELS, buildRounds, progress } from './levels';
+import { LEVELS, buildRounds, TOTAL_ROUNDS } from './levels';
 import { ensureBgMusic, addMuteButton } from './audioState';
 import { playNumberVoice } from '../../Phaser/common/numbersVoice';
 
@@ -76,6 +76,12 @@ export default class GameScene extends BaseScene {
 
   init(data) {
     this.levelIndex = data?.levelIndex ?? 0;
+    // Cumulative rounds finished in earlier levels, so the round indicator
+    // can count 1-12 across the whole run instead of resetting at level 2.
+    this.roundOffset = data?.roundOffset ?? this.levelIndex * LEVELS[0].rounds;
+    // Seconds already spent in earlier levels, carried across the level
+    // 1 -> level 2 restart so the final log reports the full run's time.
+    this.cumulativeElapsed = data?.cumulativeElapsed ?? 0;
     this.level = LEVELS[this.levelIndex];
     this.rounds = buildRounds(this.level);
     this.roundIndex = 0;
@@ -131,18 +137,8 @@ export default class GameScene extends BaseScene {
       wordWrap: { width: width - 40 },
     }).setOrigin(0.5).setDepth(20);
 
-    // 4. Round indicator (top-right pill)
-    this.roundPill = this.createPillButton(width - 16, 16, `Round ${this.roundIndex + 1}/${this.rounds.length}`, {
-      fontSize: '16px',
-      paddingX: 12,
-      paddingY: 7,
-      anchor: 'topRight',
-      interactive: false,
-      depth: 25,
-    });
-
-    // 5. Star counter (top-right, below round indicator)
-    this.createPillButton(width - 16, 52, `\u2B50 ${progress.totalStars()}/${LEVELS.length}`, {
+    // 4. Round indicator (top-right pill) — counts 1-12 across both levels.
+    this.roundPill = this.createPillButton(width - 16, 16, `Round ${this.roundOffset + this.roundIndex + 1}/${TOTAL_ROUNDS}`, {
       fontSize: '16px',
       paddingX: 12,
       paddingY: 7,
@@ -164,8 +160,8 @@ export default class GameScene extends BaseScene {
     // 9. Buttons
     this.buildButtons();
 
-    // 10. Stop any in-progress voice when leaving this scene
-    // (e.g. pressing Home or going to Level Select mid-voice).
+    // 10. Stop any in-progress voice when leaving/restarting this scene
+    // (e.g. pressing Home or auto-advancing to level 2 mid-voice).
     this.events.on('shutdown', () => {
       if (this.currentVoice) {
         this.currentVoice.stop();
@@ -517,34 +513,16 @@ export default class GameScene extends BaseScene {
 
   buildButtons() {
     const { width, height } = this.scale;
-    // Buttons moved up from the bottom edge and enlarged.
-    const btnY = height - 60;
+    // Check sits lower and much bigger than before.
+    const btnY = height - 52;
 
-    // Home — redesigned with background color
-    this.createPillButton(50, btnY, '\uD83C\uDFE0', {
-      fontSize: '26px', paddingX: 18, paddingY: 14, depth: 20, bgColor: 0x3fb6ea, textColor: '#ffffff',
-    }).on('pointerup', () => {
-      // Stop any in-progress voice before switching scenes.
-      if (this.currentVoice) {
-        this.currentVoice.stop();
-        this.currentVoice.destroy();
-        this.currentVoice = null;
-      }
-      this.scene.start('LevelSelectScene');
-    });
-
-    // Check — bigger primary green button
+    // Check — much bigger primary green button, moved toward the bottom.
     this.checkBtn = this.createPillButton(width / 2, btnY, 'Check \u2705', {
-      fontSize: '26px', paddingX: 32, paddingY: 14, depth: 20, bgColor: 0x51cf66, textColor: '#ffffff',
+      fontSize: '36px', paddingX: 52, paddingY: 22, depth: 20, bgColor: 0x51cf66, textColor: '#ffffff',
     });
     this.checkBtn.on('pointerup', () => this.checkAnswer());
 
-    // Reset — redesigned with background color
-    this.createPillButton(width - 50, btnY, '\uD83D\uDD04', {
-      fontSize: '26px', paddingX: 18, paddingY: 14, depth: 20, bgColor: 0xf06595, textColor: '#ffffff',
-    }).on('pointerup', () => this.resetRound());
-
-    // Hint — only on fill levels (level 2 & 4, i.e. mode === 'fill').
+    // Hint — only on fill levels (level 2, i.e. mode === 'fill').
     // Positioned lower on the right side, below the nest area.
     if (this.level.mode === 'fill') {
       this.hintBtn = this.createPillButton(width - 12, height * 0.72, '\uD83D\uDCA1 Hint', {
@@ -613,7 +591,7 @@ export default class GameScene extends BaseScene {
     // Bigger, bolder highlighted number (digit or word) with a warm
     // red-orange color and heavy white stroke for punch.
     const highlightFontSize = Math.min(80, width * 0.12);
-    this.highlightNum = this.add.text(width / 2, height  / 2 - 100 , display, {
+    this.highlightNum = this.add.text(width / 2, height / 2 - 180, display, {
       fontSize: `${highlightFontSize}px`,
       fontFamily: 'Fredoka, sans-serif',
       fontStyle: 'bold',
@@ -708,7 +686,7 @@ export default class GameScene extends BaseScene {
       const anyNestEmpty = this.level.mode === 'split'
         ? blueCount === 0 || yellowCount === 0
         : yellowCount === 0;
-      this.playIncorrectFeedback(anyNestEmpty, blueCount, yellowCount, target);
+      this.playIncorrectFeedback(anyNestEmpty);
     }
   }
 
@@ -817,7 +795,7 @@ export default class GameScene extends BaseScene {
   // 4.7 playIncorrectFeedback()
   // -----------------------------------------------------------------------
 
-  playIncorrectFeedback(anyNestEmpty, blueCount, yellowCount, target) {
+  playIncorrectFeedback(anyNestEmpty) {
     // Shake the bird as a visual cue.
     this.tweens.add({
       targets: this.bird,
@@ -839,7 +817,7 @@ export default class GameScene extends BaseScene {
     this.checkBtn.container.setInteractive({ useHandCursor: true });
   }
 
-  showWrongCount(blueCount, yellowCount, target) {
+  showWrongCount(blueCount, yellowCount) {
     const { width } = this.scale;
     const highlightFontSize = Math.min(80, width * 0.12);
 
@@ -907,7 +885,7 @@ export default class GameScene extends BaseScene {
       this.destroyInteractiveEggs();
 
       // Update round pill.
-      this.roundPill.setText(`Round ${this.roundIndex + 1}/${this.rounds.length}`);
+      this.roundPill.setText(`Round ${this.roundOffset + this.roundIndex + 1}/${TOTAL_ROUNDS}`);
       this.tweens.add({ targets: this.roundPill.container, scale: 1.15, duration: 150, yoyo: true });
 
       // Destroy and recreate target banner number highlight.
@@ -965,41 +943,40 @@ export default class GameScene extends BaseScene {
   }
 
   completeLevel() {
-    // Mark level complete in progress.
-    progress.completeLevel(this.levelIndex);
-
     const isLastLevel = this.levelIndex === LEVELS.length - 1;
 
-    // Voice: level-complete or game-complete.
-    if (isLastLevel) {
-      playVoice(this, 'vo-game-complete');
-    } else {
-      playVoice(this, 'vo-level-complete');
+    // Total elapsed time across the whole run (carried over from level 1).
+    this.elapsedSeconds =
+      this.cumulativeElapsed + Math.round((this.time.now - this.startTime) / 1000);
+
+    if (!isLastLevel) {
+      // Smooth transition into level 2 — no completion screen. The React
+      // level-complete confetti burst carries over into the first moments
+      // of the next half (rounds 7-12).
+      this.game.events.emit('game7-level-complete', { levelIndex: this.levelIndex });
+      this.scene.start('GameScene', {
+        levelIndex: 1,
+        roundOffset: LEVELS[0].rounds,
+        cumulativeElapsed: this.elapsedSeconds,
+      });
+      return;
     }
 
-    // Emit level-complete event for confetti overlay.
+    // Final level complete.
+    playVoice(this, 'vo-game-complete');
     this.game.events.emit('game7-level-complete', { levelIndex: this.levelIndex });
-
-    // Compute elapsed time & mistakes (no mistake tracking in this game, so 0).
-    const elapsedSeconds = Math.round((this.time.now - this.startTime) / 1000);
-
-    // Emit game7-complete for logPlaySession on every level completion,
-    // not just the last one. Matches Game4's pattern: stars/totalRounds
-    // scale with the level index so each level logs its own progress.
     this.game.events.emit('game7-complete', {
-      elapsedSeconds,
+      elapsedSeconds: this.elapsedSeconds,
       mistakes: 0,
-      level: this.levelIndex + 1,
-      levelKey: this.level.key,
-      stars: this.levelIndex + 1,
-      totalRounds: this.levelIndex + 1,
+      stars: LEVELS.length,
+      totalRounds: TOTAL_ROUNDS,
     });
 
     // Show end overlay.
-    this.showEndOverlay(isLastLevel);
+    this.showEndOverlay();
   }
 
-  showEndOverlay(isLastLevel) {
+  showEndOverlay() {
     const { width, height } = this.scale;
 
     this.add.rectangle(width / 2, height / 2, width, height, 0x0f3d5c, 0.55).setDepth(40);
@@ -1014,16 +991,14 @@ export default class GameScene extends BaseScene {
     panel.fillStyle(0xffffff, 1);
     panel.fillRoundedRect(-panelW / 2, -panelH / 2, panelW, panelH, 28);
 
-    const title = this.add.text(0, -50, isLastLevel ? 'All Done!' : 'Level Complete!', {
+    const title = this.add.text(0, -50, 'All Done!', {
       fontSize: '32px',
       fontFamily: 'Fredoka, sans-serif',
       fontStyle: 'bold',
       color: '#0f3d5c',
     }).setOrigin(0.5);
 
-    const subtitle = this.add.text(0, 0, isLastLevel
-      ? "You're a number bond superstar!"
-      : 'Amazing! You finished the level!', {
+    const subtitle = this.add.text(0, 0, "You're a number bond superstar!", {
       fontSize: '22px',
       fontFamily: 'Fredoka, sans-serif',
       color: '#4a6478',
@@ -1033,28 +1008,11 @@ export default class GameScene extends BaseScene {
 
     panelGroup.add([panel, title, subtitle]);
 
-    const btnY = height / 2 + 80;
-
-    if (isLastLevel) {
-      this.createPillButton(width / 2, btnY, 'Level Select \uD83C\uDFE0', {
-        fontSize: '22px', paddingX: 26, paddingY: 14, depth: 42,
-      }).on('pointerup', () => {
-        this.scene.start('LevelSelectScene');
-      });
-    } else {
-      // "Next Level" button.
-      this.createPillButton(width / 2 - 80, btnY, 'Next Level \u27A1\uFE0F', {
-        fontSize: '20px', paddingX: 20, paddingY: 12, depth: 42,
-      }).on('pointerup', () => {
-        this.scene.start('GameScene', { levelIndex: this.levelIndex + 1 });
-      });
-
-      this.createPillButton(width / 2 + 80, btnY, 'Levels \uD83C\uDFE0', {
-        fontSize: '20px', paddingX: 20, paddingY: 12, depth: 42,
-      }).on('pointerup', () => {
-        this.scene.start('LevelSelectScene');
-      });
-    }
+    this.createPillButton(width / 2, height / 2 + 80, 'Play Again \uD83D\uDD04', {
+      fontSize: '22px', paddingX: 26, paddingY: 14, depth: 42,
+    }).on('pointerup', () => {
+      this.scene.start('GameScene', { levelIndex: 0 });
+    });
   }
 
   // -----------------------------------------------------------------------
@@ -1124,8 +1082,7 @@ export default class GameScene extends BaseScene {
     // Show the current nest counts below each nest.
     const hBlue = this.blueSlots.filter((s) => s.occupiedBy).length;
     const hYellow = this.yellowSlots.filter((s) => s.occupiedBy).length;
-    const hRound = this.rounds[this.roundIndex];
-    this.showWrongCount(hBlue, hYellow, hRound.target);
+    this.showWrongCount(hBlue, hYellow);
 
     // Soft radial glow behind each locked Blue Nest egg — concentric filled
     // circles with decreasing alpha simulate a blurry glow effect. Fades in,
