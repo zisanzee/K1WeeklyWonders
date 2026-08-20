@@ -117,7 +117,7 @@ function missionSpeech(round) {
     return `Split the ${round.total} ${round.cargo.name} between the two rockets, any way you like!`;
   }
   if (round.mode === 'half') {
-    return `Split the ${round.total} ${round.cargo.name} evenly. Red and Blue Need the same amount!`;
+    return `Split the ${round.total} ${round.cargo.name} evenly. Red and Blue need the same amount!`;
   }
   return `Load ${round.targetA} into Red, and ${round.targetB} into Blue!`;
 }
@@ -398,7 +398,7 @@ function Game5Inner() {
             <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
               <CargoBay items={poolItems} count={poolCount} cargo={round.cargo} disabled={phase !== 'playing'} pulse={bayPulse} />
 
-              <div className="mt-2 flex w-full flex-1 min-h-0 flex-row items-start justify-center gap-2 [@media(min-width:640px)_and_(min-height:560px)]:mt-4 [@media(min-width:640px)_and_(min-height:560px)]:gap-4">
+              <div className="mt-2 flex w-full flex-1 flex-row items-start justify-center gap-2 [@media(min-width:640px)_and_(min-height:560px)]:mt-4 [@media(min-width:640px)_and_(min-height:560px)]:gap-4">
                 <RocketZone
                   id="left"
                   label="Red Rocket"
@@ -627,30 +627,30 @@ const MissionHeader = React.memo(function MissionHeader({ round }) {
         <span className="text-2xl [@media(min-width:640px)_and_(min-height:560px)]:text-3xl">{round.cargo.emoji}</span>
       </div>
       <p className="font-body text-xs font-bold text-slate-600 [@media(min-width:640px)_and_(min-height:560px)]:text-sm">
-  {round.mode === 'free' && `Split the ${round.cargo.name} any way you like!`}
+        {round.mode === 'free' && `Split the ${round.cargo.name} any way you like!`}
 
-{round.mode === 'half' && (
-  <>
-    Split the {round.cargo.name} evenly!
-    <br />
-    The <span className='text-red-600 text-lg font-bold'>Red</span> and <span className='text-blue-600 text-lg font-bold'>Blue</span> rockets need the same amount!
-  </>
-)}
+        {round.mode === 'half' && (
+          <>
+            Split the {round.cargo.name} evenly!
+            <br />
+            The <span className="text-lg font-bold text-red-600">Red</span> and{' '}
+            <span className="text-lg font-bold text-blue-600">Blue</span> rockets need the same amount!
+          </>
+        )}
 
-  {round.mode === 'target' && (
-    <>
-      <span className='text-red-600 text-lg'>Red</span> needs{' '}
-      <span className="text-lg font-extrabold text-red-600 [@media(min-width:640px)_and_(min-height:560px)]:text-xl">
-        {numberWords[round.targetA - 1]}
-      </span>
-      , <span className='text-blue-600 text-lg'>Blue</span> needs{' '}
-      <span className="text-lg font-extrabold text-blue-600 [@media(min-width:640px)_and_(min-height:560px)]:text-xl">
-        {numberWords[round.targetB - 1]}
-      </span>
-      
-    </>
-  )}
-</p>
+        {round.mode === 'target' && (
+          <>
+            <span className="text-lg text-red-600">Red</span> needs{' '}
+            <span className="text-lg font-extrabold text-red-600 [@media(min-width:640px)_and_(min-height:560px)]:text-xl">
+              {numberWords[round.targetA - 1]}
+            </span>
+            , <span className="text-lg text-blue-600">Blue</span> needs{' '}
+            <span className="text-lg font-extrabold text-blue-600 [@media(min-width:640px)_and_(min-height:560px)]:text-xl">
+              {numberWords[round.targetB - 1]}
+            </span>
+          </>
+        )}
+      </p>
     </div>
   );
 });
@@ -753,7 +753,7 @@ const RocketZone = React.memo(function RocketZone({ id, count, items, cargo, dis
           `,
         }}
         className={cn(
-          'relative flex min-h-[clamp(5rem,17vh,8.5rem)] w-full flex-col items-center gap-1 overflow-hidden rounded-t-[2.5rem] rounded-b-2xl border-4 bg-gradient-to-b p-2 pt-8 shadow-inner transition-shadow [@media(min-width:640px)_and_(min-height:560px)]:gap-2 [@media(min-width:640px)_and_(min-height:560px)]:p-4 [@media(min-width:640px)_and_(min-height:560px)]:pt-9',
+          'relative flex min-h-[clamp(4.5rem,15vh,7.5rem)] w-full flex-col items-center gap-1 overflow-hidden rounded-t-[2.5rem] rounded-b-2xl border-4 bg-gradient-to-b p-2 pt-8 shadow-inner transition-shadow [@media(min-width:640px)_and_(min-height:560px)]:min-h-[clamp(7rem,20vh,11rem)] [@media(min-width:640px)_and_(min-height:560px)]:gap-2 [@media(min-width:640px)_and_(min-height:560px)]:p-4 [@media(min-width:640px)_and_(min-height:560px)]:pt-9',
           theme.body,
           isOver && `ring-4 ${theme.ring}`,
           shake && 'animate-shake',
@@ -817,16 +817,17 @@ const DraggableCargo = React.memo(function DraggableCargo({ id, emoji, rotation,
   );
 });
 
-// A standalone "look up any number" tool, shown during target rounds. Kept
-// visually consistent with MissionHeader (same white card, same rounded
-// corners) and uses indigo for its selected state rather than blue, so it
-// never reads as "the Blue rocket" by accident.
+// A standalone "look up any number" tool, shown during target rounds. The
+// card itself is transparent so it never competes with the rockets for
+// vertical space; the number buttons and the selected word keep their own
+// pill backgrounds for contrast. Indigo is used for the selected state
+// rather than blue, so it never reads as "the Blue rocket" by accident.
 const NumberHelper = React.memo(function NumberHelper({ selected, onSelect }) {
   return (
-    <div className="animate-pop-in mt-2 w-full max-w-2xl rounded-[1.5rem] bg-white/90 px-3 py-3 shadow-[0_6px_0_rgba(0,0,0,0.15)] [@media(min-width:640px)_and_(min-height:560px)]:mt-4 [@media(min-width:640px)_and_(min-height:560px)]:max-w-xs [@media(min-width:640px)_and_(min-height:560px)]:px-4 [@media(min-width:640px)_and_(min-height:560px)]:py-3">
+    <div className="animate-pop-in mt-1.5 flex w-full max-w-xs flex-col items-center [@media(min-width:640px)_and_(min-height:560px)]:mt-3">
       
 
-      <div className="mt-2 flex h-14 items-center justify-center">
+      <div className="flex h-9 items-center justify-center [@media(min-width:640px)_and_(min-height:560px)]:h-12">
         <AnimatePresence mode="wait">
           {selected === null ? (
             <motion.p
@@ -835,7 +836,7 @@ const NumberHelper = React.memo(function NumberHelper({ selected, onSelect }) {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.2 }}
-              className="font-body text-xs font-semibold text-slate-300 [@media(min-width:640px)_and_(min-height:560px)]:text-sm"
+              className="font-body text-[11px] font-semibold text-white/70 [@media(min-width:640px)_and_(min-height:560px)]:text-sm"
             >
               Pick a number below 👇
             </motion.p>
@@ -846,9 +847,9 @@ const NumberHelper = React.memo(function NumberHelper({ selected, onSelect }) {
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.8, y: -8 }}
               transition={{ type: 'spring', stiffness: 500, damping: 24 }}
-              className="rounded-2xl bg-indigo-50 px-5 py-1.5 shadow-inner"
+              className="rounded-xl bg-indigo-50 px-4 py-1 shadow-inner"
             >
-              <span className="font-heading text-xl font-bold text-indigo-600">
+              <span className="font-heading text-lg font-bold text-indigo-600 [@media(min-width:640px)_and_(min-height:560px)]:text-xl">
                 {numberWords[selected]}
               </span>
             </motion.div>
@@ -856,7 +857,7 @@ const NumberHelper = React.memo(function NumberHelper({ selected, onSelect }) {
         </AnimatePresence>
       </div>
 
-      <div className="mt-2 grid grid-cols-5 gap-1.5 [@media(min-width:640px)_and_(min-height:560px)]:gap-2">
+      <div className="mt-1.5 grid w-full grid-cols-5 gap-1.5 [@media(min-width:640px)_and_(min-height:560px)]:gap-2">
         {numberWords.map((_, i) => {
           const active = selected === i;
           return (
@@ -870,7 +871,7 @@ const NumberHelper = React.memo(function NumberHelper({ selected, onSelect }) {
               animate={{ scale: active ? 1.08 : 1 }}
               transition={{ type: 'spring', stiffness: 400, damping: 20 }}
               className={cn(
-                'font-heading aspect-square rounded-xl text-base font-bold shadow-sm transition-colors [@media(min-width:640px)_and_(min-height:560px)]:text-sm',
+                'font-heading aspect-square rounded-xl text-sm font-bold shadow-sm transition-colors [@media(min-width:640px)_and_(min-height:560px)]:text-sm',
                 active
                   ? 'bg-indigo-500 text-white ring-4 ring-indigo-200'
                   : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
