@@ -4,10 +4,11 @@
 // so the total eggs across both nests equals the round's target number.
 //
 // One continuous 12-round run with no level-select screen: 6 split-mode
-// rounds (level 1), then the scene auto-advances into 6 fill-mode rounds
-// (level 2). Both levels use Robin and the 1-10 range. All level parameters
-// come from levels.js; the scene itself is level-agnostic.
+// rounds with Robin (level 1), then the scene auto-advances into 6
+// fill-mode rounds with Owl (level 2). Both use the 1-10 range. All level
+// parameters come from levels.js; the scene itself is level-agnostic.
 
+import * as Phaser from 'phaser';
 import BaseScene from '../../Phaser/BaseScene';
 import { LEVELS, buildRounds, TOTAL_ROUNDS } from './levels';
 import { ensureBgMusic, addMuteButton } from './audioState';
@@ -691,6 +692,39 @@ export default class GameScene extends BaseScene {
   }
 
   // -----------------------------------------------------------------------
+  // In-scene confetti — round-correct & level-complete celebrations
+  // -----------------------------------------------------------------------
+
+  // Rains small tinted eggs down from the top of the scene, mirroring the
+  // money-confetti pattern from Game 8. Stays in-canvas (no React layer) so
+  // it's always visible and can be timed around the bird dance.
+  confettiBurst(count = 40, depth = 90) {
+    if (!this.textures.exists('egg')) return;
+
+    const { width, height } = this.scale;
+    for (let i = 0; i < count; i += 1) {
+      const piece = this.add.image(
+        Phaser.Math.Between(0, width),
+        Phaser.Math.Between(-height * 0.3, -20),
+        'egg'
+      )
+        .setScale(Phaser.Math.FloatBetween(0.08, 0.16))
+        .setTint(pickRandom(EGG_TINTS))
+        .setDepth(depth);
+
+      this.tweens.add({
+        targets: piece,
+        y: height + 120,
+        angle: Phaser.Math.Between(-540, 540),
+        delay: Phaser.Math.Between(0, 500),
+        duration: Phaser.Math.Between(1400, 2200),
+        ease: 'Sine.easeIn',
+        onComplete: () => piece.destroy(),
+      });
+    }
+  }
+
+  // -----------------------------------------------------------------------
   // 4.6 playCorrectFeedback()
   // -----------------------------------------------------------------------
 
@@ -780,13 +814,15 @@ export default class GameScene extends BaseScene {
     // 3. Correct voice at random.
     playVoice(this, pickRandom(CORRECT_VOICES));
 
-    // 4. Emit confetti event for React layer.
-    this.game.events.emit('game7-round-correct');
+    // 4. In-scene confetti rains while the bird dances (zooms in ~350ms).
+    this.confettiBurst(30);
 
-    // 5. Extra celebration time (~930ms after bird returns), then confetti
-    //    burst right before advancing.
+    // 5. A second burst mid-dance for a fuller celebration, then advance.
+    this.time.delayedCall(1000, () => {
+      if (!this.scene.isActive()) return;
+      this.confettiBurst(24);
+    });
     this.time.delayedCall(2800, () => {
-      this.game.events.emit('game7-round-correct');
       this.nextRound();
     });
   }
@@ -950,21 +986,22 @@ export default class GameScene extends BaseScene {
       this.cumulativeElapsed + Math.round((this.time.now - this.startTime) / 1000);
 
     if (!isLastLevel) {
-      // Smooth transition into level 2 — no completion screen. The React
-      // level-complete confetti burst carries over into the first moments
-      // of the next half (rounds 7-12).
-      this.game.events.emit('game7-level-complete', { levelIndex: this.levelIndex });
-      this.scene.start('GameScene', {
-        levelIndex: 1,
-        roundOffset: LEVELS[0].rounds,
-        cumulativeElapsed: this.elapsedSeconds,
+      // Smooth transition into level 2 — no completion screen. A final
+      // confetti burst plays over a short beat, then the next half starts.
+      this.confettiBurst(60);
+      this.time.delayedCall(1400, () => {
+        if (!this.scene.isActive()) return;
+        this.scene.start('GameScene', {
+          levelIndex: 1,
+          roundOffset: LEVELS[0].rounds,
+          cumulativeElapsed: this.elapsedSeconds,
+        });
       });
       return;
     }
 
     // Final level complete.
     playVoice(this, 'vo-game-complete');
-    this.game.events.emit('game7-level-complete', { levelIndex: this.levelIndex });
     this.game.events.emit('game7-complete', {
       elapsedSeconds: this.elapsedSeconds,
       mistakes: 0,
@@ -972,7 +1009,8 @@ export default class GameScene extends BaseScene {
       totalRounds: TOTAL_ROUNDS,
     });
 
-    // Show end overlay.
+    // Celebrate over the end screen.
+    this.confettiBurst(70);
     this.showEndOverlay();
   }
 
