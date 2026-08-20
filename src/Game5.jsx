@@ -58,15 +58,6 @@ const CARGO_TYPES = [
   { key: 'planet', emoji: '🪐', name: 'mini planets' },
 ];
 
-function shuffle(arr) {
-  const a = [...arr];
-  for (let i = a.length - 1; i > 0; i -= 1) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-  return a;
-}
-
 // Rounds 0-2: any two-way split. Rounds 3-4: split exactly in half (Red and
 // Blue must match). Rounds 5-9: load a specific target pair with totals kept
 // inside the friendly 1-5 range.
@@ -389,7 +380,7 @@ function Game5Inner() {
             </div>
 
             <div className="mt-1 flex flex-none items-center justify-center gap-3 [@media(min-width:640px)_and_(min-height:560px)]:mt-2 [@media(min-width:640px)_and_(min-height:560px)]:gap-4">
-              <NovaPrompt round={round} streak={streak} isWrong={!!feedback} />
+              <NovaPrompt streak={streak} isWrong={!!feedback} />
               <MissionHeader round={round} />
             </div>
 
@@ -438,9 +429,9 @@ function Game5Inner() {
               <NumberHelper selected={selectedNumber} onSelect={setSelectedNumber} />
             )}
 
-            <div className="mt-2 flex flex-none flex-col items-center gap-1.5 pb-2 [@media(min-width:640px)_and_(min-height:560px)]:mt-3">
+            <div className="relative mt-2 flex flex-none flex-col items-center pb-2 [@media(min-width:640px)_and_(min-height:560px)]:mt-3">
               {feedback && (
-                <p className="font-body animate-pop-in rounded-full bg-white/90 px-4 py-1.5 text-xs font-bold text-indigo-700 shadow [@media(min-width:640px)_and_(min-height:560px)]:text-sm">
+                <p className="font-body animate-pop-in pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 -translate-x-1/2 whitespace-nowrap rounded-full bg-white/90 px-4 py-1.5 text-xs font-bold text-indigo-700 shadow [@media(min-width:640px)_and_(min-height:560px)]:text-sm">
                   {feedback.type === 'incomplete' && `🛰️ ${feedback.poolCount} more cargo to place!`}
                   {feedback.type === 'empty-side' && '🚀 Every rocket needs at least one!'}
                   {feedback.type === 'uneven' && '⚖️ Not even yet — keep balancing!'}
@@ -462,8 +453,6 @@ function Game5Inner() {
                 leftCount={leftCount}
                 rightCount={rightCount}
                 total={round.total}
-                cargo={round.cargo}
-                mode={round.mode}
                 isLastRound={roundIndex + 1 >= TOTAL_ROUNDS}
                 streak={streak}
                 onNext={nextRound}
@@ -487,21 +476,20 @@ export default function Game5() {
   );
 }
 
+// Generated once at module load so the stars stay stable across renders
+// without calling the impure Math.random() during render.
+const STARFIELD_STARS = Array.from({ length: 26 }, (_, i) => ({
+  id: i,
+  left: Math.random() * 100,
+  top: Math.random() * 90,
+  size: 4 + Math.random() * 6,
+  delay: Math.random() * 2.4,
+}));
+
 function Starfield() {
-  const stars = useMemo(
-    () =>
-      Array.from({ length: 26 }, (_, i) => ({
-        id: i,
-        left: Math.random() * 100,
-        top: Math.random() * 90,
-        size: 4 + Math.random() * 6,
-        delay: Math.random() * 2.4,
-      })),
-    []
-  );
   return (
     <div className="pointer-events-none absolute inset-0">
-      {stars.map((s) => (
+      {STARFIELD_STARS.map((s) => (
         <span
           key={s.id}
           className="animate-twinkle absolute rounded-full bg-white"
@@ -580,7 +568,7 @@ const RoundDots = React.memo(function RoundDots({ total, current, markers = [] }
   );
 });
 
-const NovaPrompt = React.memo(function NovaPrompt({ round, streak, isWrong }) {
+const NovaPrompt = React.memo(function NovaPrompt({ streak, isWrong }) {
   return (
     <div className="relative shrink-0">
       <motion.span
@@ -769,6 +757,13 @@ const RocketZone = React.memo(function RocketZone({ id, count, items, cargo, dis
         <span className="font-body absolute -top-3 left-1/2 z-10 mt-3 -translate-x-1/2 whitespace-nowrap rounded-full bg-white/95 px-2.5 py-0.5 text-[11px] font-extrabold text-slate-600 shadow [@media(min-width:640px)_and_(min-height:560px)]:px-3 [@media(min-width:640px)_and_(min-height:560px)]:text-sm">
           {theme.label}
         </span>
+        {/* Target-mode goal badge — the number this rocket is aiming for.
+            Positioned out of the flow so it never costs vertical space. */}
+        {goal !== null && (
+          <span className="font-body absolute right-2 top-8 z-10 flex items-center gap-0.5 rounded-full bg-white/95 px-2 py-0.5 text-[11px] font-extrabold text-slate-700 shadow [@media(min-width:640px)_and_(min-height:560px)]:px-2.5 [@media(min-width:640px)_and_(min-height:560px)]:text-sm">
+            🎯 {goal}
+          </span>
+        )}
         <div className="mt-2 [@media(min-width:640px)_and_(min-height:560px)]:mt-2.5">
           <BigNumber value={count} className="text-white" />
         </div>
@@ -886,7 +881,7 @@ const NumberHelper = React.memo(function NumberHelper({ selected, onSelect }) {
   );
 });
 
-function SuccessOverlay({ leftCount, rightCount, total, cargo, isLastRound, streak, onNext }) {
+function SuccessOverlay({ leftCount, rightCount, total, isLastRound, streak, onNext }) {
   const { width, height } = useWindowSize();
   return (
     <div className="fixed inset-0 z-30 flex items-center justify-center bg-black/30 p-4">
