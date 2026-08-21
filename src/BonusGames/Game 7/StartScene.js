@@ -32,10 +32,10 @@ export default class StartScene extends BaseScene {
       ease: 'Sine.easeOut',
     });
 
-    // 2. Play button — big, sunny, pinned to the bottom center. Uses the
+    // 2. Play button — big, sunny, pinned near the bottom center. Uses the
     // same rounded pill button as the rest of the game so it inherits the
     // press-bounce + drop-shadow feedback kids already know.
-    const playBtn = this.createPillButton(width / 2, height - 130, '▶  Play', {
+    const playBtn = this.createPillButton(width / 2, height - 76, '▶  Play', {
       fontSize: '32px',
       bgColor: 0xffd93d,
       textColor: '#173b59',

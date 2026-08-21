@@ -15,7 +15,7 @@ export const IMAGES = {
   'egg-basket': 'https://res.cloudinary.com/hijmipga/image/upload/v1785408188/basket_kteadm.png',
   'yellow-nest': 'https://res.cloudinary.com/hijmipga/image/upload/v1785408188/yellow_nest_nd006e.png',
   'egg': 'https://res.cloudinary.com/hijmipga/image/upload/v1785408554/egg_yynq0q.png',
-  'gameStart': 'https://res.cloudinary.com/hijmipga/image/upload/v1787302622/gameStart_n4kqmp.png',
+  'gameStart': 'https://res.cloudinary.com/hijmipga/image/upload/v1787309122/gameStart_n4kqmp.png',
 };
 
 export const AUDIO = {
