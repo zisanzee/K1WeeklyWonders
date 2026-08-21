@@ -108,7 +108,7 @@ export const GAME_CATALOG = [
     emoji: '🥚',
     label: "Mama Bird's Eggs",
     title: "Mama Bird's Eggs",
-    subtitle: 'Number Bonds\n(Split & Fill)',
+    subtitle: 'Number Bonds\n(1-10)',
     hue: '#FFBB54',
     tint: '#FFF7EB',
     to: '/Game7',
