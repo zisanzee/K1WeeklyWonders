@@ -1,13 +1,13 @@
 // levels.js
 // Level definitions for Game 7 (Number Bonds — "Mama Bird's Eggs").
 // 2 levels × 6 rounds = one continuous 12-round run with no level-select
-// screen. Level 1 is split mode (Robin), Level 2 is fill mode (Owl); both
-// use the 1-10 range. Rounds alternate format within a level: 3 numerals
-// then 3 spelled-out words.
+// screen. Both levels are fill mode (Blue Nest pre-filled, child adds to
+// the Yellow Nest); they differ only in how the target is shown — Level 1
+// (Robin) uses numerals, Level 2 (Owl) uses spelled-out words.
 
 export const LEVELS = [
-  { key: 'level1', name: 'Level 1', subtitle: 'Robin \u2014 Split (1-10)', bird: 'robin', range: [1, 10], mode: 'split', rounds: 6 },
-  { key: 'level2', name: 'Level 2', subtitle: 'Owl \u2014 Fill (1-10)',  bird: 'owl', range: [1, 10], mode: 'fill',  rounds: 6 },
+  { key: 'level1', name: 'Level 1', subtitle: 'Robin \u2014 Fill (1-10)', bird: 'robin', range: [1, 10], mode: 'fill', format: 'numeral', rounds: 6 },
+  { key: 'level2', name: 'Level 2', subtitle: 'Owl \u2014 Fill (1-10)',    bird: 'owl',   range: [1, 10], mode: 'fill', format: 'spelled', rounds: 6 },
 ];
 
 // Total rounds across the whole run, used by the round indicator so it can
@@ -27,8 +27,8 @@ function shuffle(arr) {
 // `given` is only meaningful in 'fill' mode (Blue Nest's starting count).
 // A target of 1 can't be split across two nests meaningfully, so the
 // usable target pool always starts at 2.
-// Each level has 6 rounds: first 3 display the number as a numeral digit,
-// last 3 display it as a spelled-out word.
+// Every level is fill mode now; the only per-level difference is how the
+// target is shown, carried by the level's own `format`.
 export function buildRounds(level) {
   const [, max] = level.range;
   const minTarget = 2;
@@ -56,13 +56,12 @@ export function buildRounds(level) {
     }
   }
 
-  // Assign format: first half of the level's rounds show numerals, second
-  // half spell the number.
-  const numeralCount = Math.ceil(level.rounds / 2);
-  const rounds = rawRounds.map((r, i) => ({
+  // All rounds in a level share the level's display format — level 1 shows
+  // digits, level 2 shows number words.
+  const rounds = rawRounds.map((r) => ({
     target: r.target,
     given: r.given,
-    format: i < numeralCount ? 'numeral' : 'spelled',
+    format: level.format ?? 'numeral',
   }));
 
   return rounds;

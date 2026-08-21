@@ -40,13 +40,11 @@ export function ensureBgMusic(scene) {
     if (!music.isPlaying) music.play();
   };
 
-  if (!music.isPlaying) {
-    if (scene.sound.locked) {
-      scene.sound.once('unlocked', tryPlay);
-    } else {
-      tryPlay();
-    }
-  }
+  // Don't gate on `sound.locked` — that made the music wait for the first
+  // click while the voice clips started straight away. Try now, and let the
+  // unlock listener act as a retry only if the browser blocked this play.
+  tryPlay();
+  scene.sound.once('unlocked', tryPlay);
 
   return music;
 }

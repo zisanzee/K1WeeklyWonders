@@ -20,6 +20,13 @@ import { playNumberVoice } from '../../Phaser/common/numbersVoice';
 
 const EGG_TINTS = [0xff6fa5, 0xffd23f, 0x6fd66f, 0xa06fe0]; // pink, yellow, green, purple
 const NUMBER_WORDS = ['', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
+// Per-level hue so the two halves of the run read as distinct — warm golden
+// for Robin's level, cool blue for Owl's. Applied both as a background-image
+// tint and a matching wash so the difference is clearly visible.
+const LEVEL_TINTS = {
+  0: 0xffd98a, // warm golden
+  1: 0x8fc6ff, // cool blue
+};
 const BASKET_EGG_COUNT = 3; // 3 fixed slots in the basket
 const BASKET_SLOT_GAP = 80; // horizontal gap between each basket egg slot
 const BASKET_SNAP_RADIUS_FACTOR = 0.14; // fraction of width for basket drop-zone
@@ -108,6 +115,18 @@ export default class GameScene extends BaseScene {
     const bg = this.add.image(width / 2, 0, 'background').setOrigin(0.5, 0).setDepth(0);
     const cover = Math.max(width / bg.width, height / bg.height);
     bg.setScale(cover);
+
+    // Per-level hue shift so the two halves of the run look unmistakably
+    // different — warm golden for Robin's level, cool blue for Owl's.
+    // Tinting the background image itself (plus a matching wash) makes the
+    // change obvious; a translucent overlay alone was too subtle.
+    const tintColor = LEVEL_TINTS[this.levelIndex] ?? 0xffffff;
+    bg.setTint(tintColor);
+    this.add.rectangle(width / 2, height / 2, width, height, tintColor, 0.3).setDepth(0.5);
+
+    // Smooth fade-in from the game's navy on every scene entry — both the
+    // initial level 1 and the level 1 -> 2 transition come through here.
+    this.cameras.main.fadeIn(500, 15, 61, 92);
 
     // 2. Bird sprite — perched top-right area, gentle float tween.
     //    Depth is high so it always renders above eggs (even during drag at depth 50).
@@ -234,9 +253,13 @@ export default class GameScene extends BaseScene {
     this.add.image(yellowX, nestY, 'yellow-nest').setDepth(1).setScale(nestScale);
     this.yellowSlots = this.makeSlots(yellowX, nestY, cols, rows, slotSize, gapX, gapY, gridPixelW, gridPixelH);
 
-    // Draw faint slot circles on top of nest art.
-    this.drawSlotCircles(this.blueSlots);
+    // Draw faint slot circles on top of nest art. In fill mode the Blue Nest
+    // never accepts eggs, so its empty-slot circles are hidden — only the
+    // locked given-eggs show against the nest art.
     this.drawSlotCircles(this.yellowSlots);
+    if (this.level.mode === 'split') {
+      this.drawSlotCircles(this.blueSlots);
+    }
   }
 
   makeSlots(centerX, centerY, cols, rows, slotSize, gapX, gapY, gridPixelW, gridPixelH) {
@@ -514,8 +537,8 @@ export default class GameScene extends BaseScene {
 
   buildButtons() {
     const { width, height } = this.scale;
-    // Check sits lower and much bigger than before.
-    const btnY = height - 52;
+    // Check sits lower, much bigger than before, and just above the bottom edge.
+    const btnY = height - 70;
 
     // Check — much bigger primary green button, moved toward the bottom.
     this.checkBtn = this.createPillButton(width / 2, btnY, 'Check \u2705', {
@@ -565,7 +588,9 @@ export default class GameScene extends BaseScene {
 
     // White pill background behind the banner for contrast against the art.
     const bannerFontSize = Math.min(32, width * 0.075);
-    const fullText = `This family has \n ${display} eggs altogether.`;
+    // The sentence always spells the target as a digit in both levels — only
+    // the big highlighted number below uses the level's display format.
+    const fullText = `This family has \n ${target} eggs altogether.`;
     const tempMeasure = this.add.text(0, 0, fullText, {
       fontSize: `${bannerFontSize}px`,
       fontFamily: 'Fredoka, sans-serif',
@@ -580,7 +605,7 @@ export default class GameScene extends BaseScene {
       width / 2 - bannerW / 2, targetY - bannerH / 2, bannerW, bannerH, 20
     );
 
-    // Main banner text — shows the number as a digit or a word.
+    // Main banner text — always shows the target as a numeral digit.
     this.targetBanner = this.add.text(width / 2, targetY, fullText, {
       fontSize: `${bannerFontSize}px`,
       fontFamily: 'Fredoka, sans-serif',
@@ -987,14 +1012,18 @@ export default class GameScene extends BaseScene {
 
     if (!isLastLevel) {
       // Smooth transition into level 2 — no completion screen. A final
-      // confetti burst plays over a short beat, then the next half starts.
+      // confetti burst plays over a short beat, then the camera fades out
+      // to the navy and the next half fades back in.
       this.confettiBurst(60);
-      this.time.delayedCall(1400, () => {
+      this.time.delayedCall(900, () => {
         if (!this.scene.isActive()) return;
-        this.scene.start('GameScene', {
-          levelIndex: 1,
-          roundOffset: LEVELS[0].rounds,
-          cumulativeElapsed: this.elapsedSeconds,
+        this.cameras.main.fadeOut(500, 15, 61, 92);
+        this.cameras.main.once('camerafadeoutcomplete', () => {
+          this.scene.start('GameScene', {
+            levelIndex: 1,
+            roundOffset: LEVELS[0].rounds,
+            cumulativeElapsed: this.elapsedSeconds,
+          });
         });
       });
       return;
@@ -1049,7 +1078,10 @@ export default class GameScene extends BaseScene {
     this.createPillButton(width / 2, height / 2 + 80, 'Play Again \uD83D\uDD04', {
       fontSize: '22px', paddingX: 26, paddingY: 14, depth: 42,
     }).on('pointerup', () => {
-      this.scene.start('GameScene', { levelIndex: 0 });
+      this.cameras.main.fadeOut(400, 15, 61, 92);
+      this.cameras.main.once('camerafadeoutcomplete', () => {
+        this.scene.start('GameScene', { levelIndex: 0 });
+      });
     });
   }
 
