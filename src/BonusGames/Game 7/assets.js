@@ -15,6 +15,7 @@ export const IMAGES = {
   'egg-basket': 'https://res.cloudinary.com/hijmipga/image/upload/v1785408188/basket_kteadm.png',
   'yellow-nest': 'https://res.cloudinary.com/hijmipga/image/upload/v1785408188/yellow_nest_nd006e.png',
   'egg': 'https://res.cloudinary.com/hijmipga/image/upload/v1785408554/egg_yynq0q.png',
+  'gameStart': 'https://res.cloudinary.com/hijmipga/image/upload/v1787302622/gameStart_n4kqmp.png',
 };
 
 export const AUDIO = {
@@ -66,6 +67,7 @@ export const ASSET_MANIFEST = [
   { type: 'image', key: 'owl-happy', url: IMAGES['owl-happy'] },
   { type: 'image', key: 'egg-basket', url: IMAGES['egg-basket'] },
   { type: 'image', key: 'egg', url: IMAGES.egg },
+  { type: 'image', key: 'gameStart', url: IMAGES.gameStart },
   ...Object.entries(AUDIO)
     .filter(([, url]) => url) // skip any voice line you haven't recorded/linked yet
     .map(([key, url]) => {

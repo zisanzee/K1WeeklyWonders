@@ -2,22 +2,24 @@
 import BaseGame from '../../Phaser/BaseGame';
 import BasePreloadScene from '../../Phaser/BasePreloadScene';
 import GameScene from './GameScene';
+import StartScene from './StartScene';
 import { ASSET_MANIFEST } from './assets';
 import { logPlaySession } from '../../logPlaySession';
 
 export default function Game({ playerName }) {
   // Factory (not a static array) — BaseGame calls this once per mount so a
   // fresh set of scene instances is created each time. There is no level
-  // select in Game 7: PreloadScene goes straight into GameScene, which runs
-  // the full 12-round game.
+  // select in Game 7: PreloadScene loads assets, StartScene shows the title
+  // art + Play button, and GameScene runs the full 12-round game.
   const buildScenes = () => [
     new BasePreloadScene({
       key: 'PreloadScene',
       assets: ASSET_MANIFEST,
-      nextSceneKey: 'GameScene',
+      nextSceneKey: 'StartScene',
       loadingEmoji: '\uD83E\uDD5A',
       loadingText: 'Getting the nests ready...',
     }),
+    new StartScene(),
     new GameScene(),
   ];
 
