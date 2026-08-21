@@ -546,11 +546,11 @@ export default class GameScene extends BaseScene {
     });
     this.checkBtn.on('pointerup', () => this.checkAnswer());
 
-    // Hint — only on fill levels (level 2, i.e. mode === 'fill').
+    // Hint — only on level 2 (the Owl level), and bigger than before.
     // Positioned lower on the right side, below the nest area.
-    if (this.level.mode === 'fill') {
+    if (this.levelIndex === 1) {
       this.hintBtn = this.createPillButton(width - 12, height * 0.72, '\uD83D\uDCA1 Hint', {
-        fontSize: '18px', paddingX: 16, paddingY: 10, depth: 20, anchor: 'topRight',
+        fontSize: '24px', paddingX: 26, paddingY: 16, depth: 20, anchor: 'topRight',
         bgColor: 0xffd93d, textColor: '#0f3d5c', simple: true,
       });
       this.hintBtn.on('pointerup', () => this.showHint());
