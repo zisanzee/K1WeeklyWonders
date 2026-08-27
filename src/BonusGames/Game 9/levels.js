@@ -63,7 +63,18 @@ function buildFindKeysRound() {
   const secondKey = whole - firstKey;
 
   const excludes = [firstKey, secondKey];
-  const firstDistractor = distractorExcluding(excludes);
+  // First-half distractor is always LARGER than the whole — a first-half key
+  // can never reach the total on its own, so a "too big" option is instantly
+  // ruled out, making the pick easier. (A value > whole is also automatically
+  // distinct from both correct keys, since each of those is < whole.) When
+  // whole is 9 or 10 no value in 1-9 exceeds it, so fall back to a plain
+  // distractor there.
+  let firstDistractor;
+  if (whole < 9) {
+    firstDistractor = randInt(whole + 1, 9);
+  } else {
+    firstDistractor = distractorExcluding(excludes);
+  }
   const secondDistractor = distractorExcluding([...excludes, firstDistractor]);
 
   return {

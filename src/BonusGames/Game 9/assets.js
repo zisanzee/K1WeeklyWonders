@@ -8,27 +8,42 @@
 // deliberately NOT spread in (unlike Game 7/8, which do read numbers).
 
 export const IMAGES = {
-  'keyFirstHalf-1': 'https://res.cloudinary.com/hijmipga/image/upload/v1787144581/firstHalf1_pqr5o3.png', // original size 300x250
-  'keyFirstHalf-2': 'https://res.cloudinary.com/hijmipga/image/upload/v1787144582/firstHalf2_piy1jl.png', // original size 300x250
-  'keyFirstHalf-3': 'https://res.cloudinary.com/hijmipga/image/upload/v1787144581/firstHalf3_vzhwqg.png', // original size 300x250
-  'keyFirstHalf-4': 'https://res.cloudinary.com/hijmipga/image/upload/v1787144581/firstHalf4_jehsiw.png', // original size 300x250
-  'keyFirstHalf-5': 'https://res.cloudinary.com/hijmipga/image/upload/v1787144581/firstHalf5_g5djvm.png', // original size 300x250
-  'keyFirstHalf-6': 'https://res.cloudinary.com/hijmipga/image/upload/v1787144582/firstHalf6_aqi1sh.png', // original size 300x250
-  'keyFirstHalf-7': 'https://res.cloudinary.com/hijmipga/image/upload/v1787144582/firstHalf7_fon5v1.png', // original size 300x250
-  'keyFirstHalf-8': 'https://res.cloudinary.com/hijmipga/image/upload/v1787144582/firstHalf8_ycs6bs.png', // original size 300x250
-  'keyFirstHalf-9': 'https://res.cloudinary.com/hijmipga/image/upload/v1787144582/firstHalf9_urnssn.png', // original size 300x250
-  'keySecondHalf-1': 'https://res.cloudinary.com/hijmipga/image/upload/v1787144582/secondHalf1_u0rgzy.png', // original size 300x250
-  'keySecondHalf-2': 'https://res.cloudinary.com/hijmipga/image/upload/v1787144583/secondHalf2_dgcccz.png', // original size 300x250
-  'keySecondHalf-3': 'https://res.cloudinary.com/hijmipga/image/upload/v1787144583/secondHalf3_hwbmpv.png', // original size 300x250
-  'keySecondHalf-4': 'https://res.cloudinary.com/hijmipga/image/upload/v1787144583/secondHalf4_r5tevu.png', // original size 300x250
-  'keySecondHalf-5': 'https://res.cloudinary.com/hijmipga/image/upload/v1787144583/secondHalf5_qpdxkr.png', // original size 300x250
-  'keySecondHalf-6': 'https://res.cloudinary.com/hijmipga/image/upload/v1787144583/secondHalf6_u1us4c.png', // original size 300x250
-  'keySecondHalf-7': 'https://res.cloudinary.com/hijmipga/image/upload/v1787144584/secondHalf7_eduhri.png', // original size 300x250
-  'keySecondHalf-8': 'https://res.cloudinary.com/hijmipga/image/upload/v1787144585/secondHalf8_fszuvf.png', // original size 300x250
-  'keySecondHalf-9': 'https://res.cloudinary.com/hijmipga/image/upload/v1787144585/secondHalf9_m3rx7c.png', // original size 300x250
-  'chest-locked': 'https://res.cloudinary.com/hijmipga/image/upload/v1787144581/chestLocked_g3wcyg.png', // original size 350x310 [add the appropriate number on it]
-  'chest-unlocked': 'https://res.cloudinary.com/hijmipga/image/upload/v1787144581/chestOpen_ddrxqs.png', // original size 350x310 [add the appropriate number on it]
-  'background': 'https://res.cloudinary.com/hijmipga/image/upload/v1787144583/game9bg_ciju8l.png', // original size 614x922
+  'keyFirstHalf-1': 'https://res.cloudinary.com/hijmipga/image/upload/v1787830268/firstHalf1_venbtq.png', // original size 300x250
+  'keyFirstHalf-2': 'https://res.cloudinary.com/hijmipga/image/upload/v1787830269/firstHalf2_mbifhx.png', // original size 300x250
+  'keyFirstHalf-3': 'https://res.cloudinary.com/hijmipga/image/upload/v1787830260/firstHalf3_snaplq.png', // original size 300x250
+  'keyFirstHalf-4': 'https://res.cloudinary.com/hijmipga/image/upload/v1787830260/firstHalf4_vcxqzb.png', // original size 300x250
+  'keyFirstHalf-5': 'https://res.cloudinary.com/hijmipga/image/upload/v1787830261/firstHalf5_pfrask.png', // original size 300x250
+  'keyFirstHalf-6': 'https://res.cloudinary.com/hijmipga/image/upload/v1787830261/firstHalf6_acknxe.png', // original size 300x250
+  'keyFirstHalf-7': 'https://res.cloudinary.com/hijmipga/image/upload/v1787830260/firstHalf7_eeynjy.png', // original size 300x250
+  'keyFirstHalf-8': 'https://res.cloudinary.com/hijmipga/image/upload/v1787830261/firstHalf8_cy5ybk.png', // original size 300x250
+  'keyFirstHalf-9': 'https://res.cloudinary.com/hijmipga/image/upload/v1787830260/firstHalf9_pun556.png', // original size 300x250
+  'keySecondHalf-1': 'https://res.cloudinary.com/hijmipga/image/upload/v1787830265/secondHalf1_bl4rib.png', // original size 300x250
+  'keySecondHalf-2': 'https://res.cloudinary.com/hijmipga/image/upload/v1787830265/secondHalf2_cdrm2a.png', // original size 300x250
+  'keySecondHalf-3': 'https://res.cloudinary.com/hijmipga/image/upload/v1787830265/secondHalf3_tx5udi.png', // original size 300x250
+  'keySecondHalf-4': 'https://res.cloudinary.com/hijmipga/image/upload/v1787830265/secondHalf4_h8coqb.png', // original size 300x250
+  'keySecondHalf-5': 'https://res.cloudinary.com/hijmipga/image/upload/v1787830265/secondHalf5_rxndze.png', // original size 300x250
+  'keySecondHalf-6': 'https://res.cloudinary.com/hijmipga/image/upload/v1787830265/secondHalf6_otyiho.png', // original size 300x250
+  'keySecondHalf-7': 'https://res.cloudinary.com/hijmipga/image/upload/v1787830266/secondHalf7_iflhr1.png', // original size 300x250
+  'keySecondHalf-8': 'https://res.cloudinary.com/hijmipga/image/upload/v1787830266/secondHalf8_wtgxrg.png', // original size 300x250
+  'keySecondHalf-9': 'https://res.cloudinary.com/hijmipga/image/upload/v1787830268/secondHalf9_gw2g0h.png', // original size 300x250
+  'pearl1':'https://res.cloudinary.com/hijmipga/image/upload/v1787830261/Pearl1_xwxyxl.png', // original size 200x80
+  'pearl2':'https://res.cloudinary.com/hijmipga/image/upload/v1787830261/Pearl2_bwhorg.png', // original size 200x80
+  'pearl3':'https://res.cloudinary.com/hijmipga/image/upload/v1787830260/Pearl3_jslndc.png', // original size 200x80
+  'pearl4':'https://res.cloudinary.com/hijmipga/image/upload/v1787830260/Pearl4_ih7x3h.png', // original size 200x80
+  'pearl5':'https://res.cloudinary.com/hijmipga/image/upload/v1787830262/Pearl5_mdwvpg.png', // original size 200x80
+  'pearl6':'https://res.cloudinary.com/hijmipga/image/upload/v1787830262/Pearl6_qj5xpt.png', // original size 200x80
+  'pearl7':'https://res.cloudinary.com/hijmipga/image/upload/v1787830261/Pearl7_my6a5d.png', // original size 200x80
+  'pearl8':'https://res.cloudinary.com/hijmipga/image/upload/v1787830261/Pearl8_ifwxtu.png', // original size 200x80
+  'pearl9':'https://res.cloudinary.com/hijmipga/image/upload/v1787830261/Pearl9_ujypzt.png', // original size 200x80
+  'pearl10':'https://res.cloudinary.com/hijmipga/image/upload/v1787830262/Pearl10_uurw2m.png', // original size 200x80
+  'feather':'https://res.cloudinary.com/hijmipga/image/upload/v1787833589/feather_evirhe.png', // original size 360x360
+
+
+  'Level-1-start':'https://res.cloudinary.com/hijmipga/image/upload/v1787836934/level-1-start_yabmjh.png', // original size 1024x1536
+  'Level-2-start':'https://res.cloudinary.com/hijmipga/image/upload/v1787836934/level-2-start_hsrlxr.png', // original size 1024x1536
+  'chest-locked': 'https://res.cloudinary.com/hijmipga/image/upload/v1787830268/chestLocked_jsthgk.png', // original size 360x350 [add the appropriate number on it]
+  'chest-unlocked': 'https://res.cloudinary.com/hijmipga/image/upload/v1787830268/chestOpen_rv69bf.png', // original size 360x350 [add the appropriate number on it]
+  'background': 'https://res.cloudinary.com/hijmipga/image/upload/v1787830261/game9bg_u0kvdp.png', // original size 614x922
   'Polly': 'https://res.cloudinary.com/hijmipga/image/upload/v1787151620/polly_fhxtn9.png', // original size 500x600 [character that asks questions — Polly the pirate parrot]
   'PollyHappy': 'https://res.cloudinary.com/hijmipga/image/upload/v1787151621/pollyHappy_peifqb.png', // original size 500x600
 };
