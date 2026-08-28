@@ -64,6 +64,15 @@ const LEVEL1_CHESTS_PANEL_H = 275;
 const OPTION_CHEST_HEIGHT = 185;
 const PEARL_CHEST_WIDTH = 165;
 
+// Level 2 — hint button + hint overlay (hint is only offered on the
+// find-the-keys rounds). Button sits mid-right (vertically centered, hugging
+// the right edge); the overlay is a dimmed modal showing the Hint art, closed
+// by tapping anywhere.
+const HINT_BUTTON_X = 640;
+const HINT_BUTTON_Y = 500;
+const HINT_BUTTON_HEIGHT = 104; // desired on-screen button height (native 538x358)
+const HINT_IMAGE_MAX_WIDTH = 620; // cap so the wide Hint art fits on 720px screens
+
 // Safe voice playback — skips gracefully if a clip failed to load, and stops
 // any previous voice so lines never overlap.
 function playVoice(scene, key, onComplete) {
@@ -121,6 +130,7 @@ export default class GameScene extends BaseScene {
     this.chestOptions = [];
     this.mainChest = null;
     this.pollyIdleTween = null;
+    this.hintActive = false;
 
     // Background music + first-tap unlock, same pattern as the other games.
     ensureBgMusic(this);
@@ -777,6 +787,53 @@ export default class GameScene extends BaseScene {
       this.popIn(tray.key, this.keyScale, 120 + i * 70);
       this.popIn(tray.pearl, tray.pearlScale, 160 + i * 70);
     });
+
+    // Hint is offered on the find-the-keys level only (rebuilt each round).
+    this.buildHintButton();
+  }
+
+  // Level-2 hint button (top-right, below the round pill). Opens the Hint art
+  // overlay so the child can get a nudge on how to make the chest's total.
+  buildHintButton() {
+    const tex = measureTexture(this, 'Hint-button');
+    const scale = HINT_BUTTON_HEIGHT / tex.h;
+    const btn = this.add
+      .image(HINT_BUTTON_X, HINT_BUTTON_Y, 'Hint-button')
+      .setScale(scale)
+      .setDepth(22)
+      .setInteractive({ useHandCursor: true });
+    btn.on('pointerup', () => this.showHint());
+    this.roundLayer.add(btn);
+    this.hintBtn = btn;
+  }
+
+  // Full-screen dimmed overlay with the Hint art centered; tapping anywhere
+  // closes it. Gated so double-taps can't stack multiple overlays.
+  showHint() {
+    if (this.phase !== 'playing' || this.hintActive) return;
+    this.hintActive = true;
+
+    const { width, height } = this.scale;
+    const veil = this.add
+      .rectangle(width / 2, height / 2, width, height, 0x000000, 0.6)
+      .setDepth(120)
+      .setInteractive();
+
+    const tex = measureTexture(this, 'Hint');
+    const scale = Math.min(HINT_IMAGE_MAX_WIDTH, width - 60) / tex.w;
+    const hint = this.add
+      .image(width / 2, height / 2, 'Hint')
+      .setScale(scale)
+      .setDepth(121)
+      .setInteractive();
+
+    const close = () => {
+      veil.destroy();
+      hint.destroy();
+      this.hintActive = false;
+    };
+    veil.on('pointerup', close);
+    hint.on('pointerup', close);
   }
 
   buildSlot(x) {

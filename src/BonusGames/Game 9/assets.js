@@ -39,8 +39,10 @@ export const IMAGES = {
   'feather':'https://res.cloudinary.com/hijmipga/image/upload/v1787833589/feather_evirhe.png', // original size 360x360
 
 
-  'Level-1-start':'https://res.cloudinary.com/hijmipga/image/upload/v1787836934/level-1-start_yabmjh.png', // original size 1024x1536
-  'Level-2-start':'https://res.cloudinary.com/hijmipga/image/upload/v1787836934/level-2-start_hsrlxr.png', // original size 1024x1536
+  'Hint':'https://res.cloudinary.com/hijmipga/image/upload/v1787905537/hint_qlddfb.png', // original size 585x329
+  'Hint-button':'https://res.cloudinary.com/hijmipga/image/upload/v1787905537/hint-button_hiifez.png', // original size 538x358
+  'Level-1-start':'https://res.cloudinary.com/hijmipga/image/upload/v1787904962/level-1-start_yabmjh.png', // original size 1024x1535
+  'Level-2-start':'https://res.cloudinary.com/hijmipga/image/upload/v1787906574/level-2-start_hsrlxr.png', // original size 1023x1535
   'chest-locked': 'https://res.cloudinary.com/hijmipga/image/upload/v1787830268/chestLocked_jsthgk.png', // original size 360x350 [add the appropriate number on it]
   'chest-unlocked': 'https://res.cloudinary.com/hijmipga/image/upload/v1787830268/chestOpen_rv69bf.png', // original size 360x350 [add the appropriate number on it]
   'background': 'https://res.cloudinary.com/hijmipga/image/upload/v1787830261/game9bg_u0kvdp.png', // original size 614x922
