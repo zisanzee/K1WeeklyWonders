@@ -25,33 +25,75 @@ const LOGO_URL =
 
 const FONT = "'Fredoka', system-ui, sans-serif";
 
-const PAGE_BACKGROUND = [
-  "radial-gradient(1400px 800px at 50% -15%, rgba(244,114,182,0.45) 0%, transparent 58%)",
-  "radial-gradient(1100px 700px at 110% 10%, rgba(96,165,250,0.45) 0%, transparent 55%)",
-  "radial-gradient(1000px 700px at -10% 15%, rgba(167,139,250,0.4) 0%, transparent 55%)",
-  "radial-gradient(950px 650px at -10% 108%, rgba(251,191,36,0.42) 0%, transparent 58%)",
-  "radial-gradient(950px 650px at 108% 108%, rgba(52,211,153,0.42) 0%, transparent 58%)",
-  "radial-gradient(700px 500px at 50% 115%, rgba(251,113,133,0.35) 0%, transparent 60%)",
-  "linear-gradient(180deg, #fff5fb 0%, #eef7ff 28%, #fef9e8 58%, #ecfeff 82%, #faf5ff 100%)",
-].join(", ");
+// "Aurora dusk" — one deep indigo scene melting through violet into magenta.
+// Every corner glow stays inside that indigo → violet → magenta family
+// (with a single cool cyan accent), so the page reads as one curated
+// jewel-tone wash instead of a rainbow of unrelated blobs. Layers are sized
+// 100% 100% no-repeat so they stretch the full page height once — no tiling
+// seams however long the page grows.
+const PAGE_BACKGROUND_LAYERS = [
+  "radial-gradient(48% 40% at 12% 6%, rgba(167,139,250,0.55) 0%, transparent 66%)",
+  "radial-gradient(44% 36% at 90% 12%, rgba(244,114,182,0.45) 0%, transparent 66%)",
+  "radial-gradient(46% 38% at 14% 50%, rgba(129,140,248,0.5) 0%, transparent 68%)",
+  "radial-gradient(42% 34% at 90% 58%, rgba(216,180,254,0.42) 0%, transparent 68%)",
+  "radial-gradient(46% 38% at 12% 88%, rgba(34,211,238,0.24) 0%, transparent 68%)",
+  "radial-gradient(42% 34% at 88% 96%, rgba(232,121,249,0.34) 0%, transparent 68%)",
+];
+const PAGE_BASE_GRADIENT =
+  "linear-gradient(160deg, #191338 0%, #2a1b5e 26%, #3b1f8f 50%, #5b21b6 72%, #7c2d9e 88%, #86198f 100%)";
 
+const PAGE_BACKGROUND_IMAGE = [...PAGE_BACKGROUND_LAYERS, PAGE_BASE_GRADIENT].join(", ");
+const PAGE_BACKGROUND_REPEAT =
+  PAGE_BACKGROUND_LAYERS.map(() => "no-repeat").join(", ") + ", no-repeat";
+const PAGE_BACKGROUND_SIZE =
+  PAGE_BACKGROUND_LAYERS.map(() => "100% 100%").join(", ") + ", 100% 100%";
+
+// Small library of cheap, transform-only keyframes for ambient background
+// motion. CSS animations (rather than JS-driven Framer Motion loops) so
+// the browser can run them off the main thread — important on older
+// phones where the JS thread is already busy during scroll.
+const DECOR_KEYFRAMES = `
+@keyframes bh-drift-a { 0%,100% { transform: translate(0,0); } 50% { transform: translate(24px,-18px); } }
+@keyframes bh-drift-b { 0%,100% { transform: translate(0,0); } 50% { transform: translate(-24px,20px); } }
+@keyframes bh-bob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-12px); } }
+@keyframes bh-spin-bob { 0% { transform: translateY(0) rotate(0deg); } 50% { transform: translateY(8px) rotate(180deg); } 100% { transform: translateY(0) rotate(360deg); } }
+@keyframes bh-spin-bob-rev { 0% { transform: translateY(0) rotate(360deg); } 50% { transform: translateY(-8px) rotate(180deg); } 100% { transform: translateY(0) rotate(0deg); } }
+@keyframes bh-twinkle-bob { 0%,100% { transform: translateY(0); opacity: .4; } 50% { transform: translateY(-9px); opacity: 1; } }
+@keyframes bh-sway { 0%,100% { transform: translateY(0) rotate(-3deg); } 50% { transform: translateY(-13px) rotate(3deg); } }
+@keyframes bh-rock { 0%,100% { transform: rotate(-6deg) translateY(0); } 50% { transform: rotate(6deg) translateY(-6px); } }
+@keyframes bh-spin-slow { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+@keyframes bh-shine { 0% { transform: translateX(-20%); opacity: 0; } 15% { opacity: .9; } 55% { transform: translateX(220%); opacity: 0; } 100% { transform: translateX(220%); opacity: 0; } }
+@keyframes bh-sparkle { 0% { transform: scale(0) rotate(0deg); opacity: 0; } 18% { transform: scale(1) rotate(90deg); opacity: 1; } 38% { transform: scale(.4) rotate(180deg); opacity: .6; } 58% { transform: scale(1) rotate(270deg); opacity: 1; } 100% { transform: scale(0) rotate(360deg); opacity: 0; } }
+@keyframes bh-card-bob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+`;
+
+// Glossy 3D card colors lifted straight from the logo's lettering and
+// icons (green "ez", blue "wonders.com" bar, purple controller, pink/
+// magenta "wonders", gold stars & numbers, cyan letters, orange dots,
+// indigo sky, coral accent) so every card reads as part of one badge.
 const CARD_GRADIENTS = [
-  "linear-gradient(145deg, #34d399 0%, #10b981 42%, #0891b2 100%)",
-  "linear-gradient(145deg, #60a5fa 0%, #3b82f6 45%, #6366f1 100%)",
-  "linear-gradient(145deg, #c084fc 0%, #a855f7 42%, #7c3aed 100%)",
-  "linear-gradient(145deg, #fb7185 0%, #f43f5e 42%, #e11d48 100%)",
-  "linear-gradient(145deg, #fbbf24 0%, #f59e0b 42%, #f97316 100%)",
-  "linear-gradient(145deg, #2dd4bf 0%, #14b8a6 42%, #0d9488 100%)",
-  "linear-gradient(145deg, #f472b6 0%, #ec4899 42%, #db2777 100%)",
-  "linear-gradient(145deg, #818cf8 0%, #6366f1 42%, #4f46e5 100%)",
-  "linear-gradient(145deg, #fcd34d 0%, #f59e0b 45%, #ef4444 100%)",
+  "linear-gradient(145deg, #6ee7b7 0%, #34d399 45%, #0d9488 100%)",
+  "linear-gradient(145deg, #7dd3fc 0%, #38bdf8 45%, #2563eb 100%)",
+  "linear-gradient(145deg, #c4b5fd 0%, #a78bfa 45%, #7c3aed 100%)",
+  "linear-gradient(145deg, #f9a8d4 0%, #f472b6 45%, #db2777 100%)",
+  "linear-gradient(145deg, #fde68a 0%, #fbbf24 45%, #f59e0b 100%)",
+  "linear-gradient(145deg, #a5f3fc 0%, #22d3ee 45%, #0e7490 100%)",
+  "linear-gradient(145deg, #d8b4fe 0%, #c084fc 45%, #9333ea 100%)",
+  "linear-gradient(145deg, #a5b4fc 0%, #818cf8 45%, #4f46e5 100%)",
+  "linear-gradient(145deg, #fda4af 0%, #fb7185 45%, #e11d48 100%)",
 ];
 
-const LOCKED_GRADIENT = "linear-gradient(145deg, #9ca3af 0%, #6b7280 45%, #4b5563 100%)";
+const LOCKED_GRADIENT = "linear-gradient(145deg, #97a8d4 0%, #6f7fc4 45%, #333e7a 100%)";
 
-const TEXT_DARK = "#0f172a";
-const TEXT_SOFT = "#475569";
-const TEXT_MUTED = "#94a3b8";
+const TEXT_DARK = "#f8fafc";
+const TEXT_SOFT = "#c7d2fe";
+const TEXT_MUTED = "#8795cf";
+
+// Frosted glass shared by the non-card chrome (hero, timer card, loading
+// state, footer). A faint white veil over the aurora so every panel feels
+// cut from the same dark scene, with just enough luminance for light text.
+const PANEL_BACKGROUND =
+  "linear-gradient(165deg, rgba(255,255,255,0.12) 0%, rgba(255,255,255,0.05) 100%)";
 
 const MotionLink = motion.create(Link);
 
@@ -362,27 +404,19 @@ function Icon({ name, size = "1em", className, style, strokeWidth = 2 }) {
 // Sparkle — tiny animated starburst (sm+ only, SVG)
 // ---------------------------------------------------------------------------
 function Sparkle({ delay = 0, className }) {
+  // Pure CSS transform/opacity animation so the browser can run every
+  // sparkle off the main thread — keeps dozens of concurrent loops off
+  // the JS thread on older phones.
   return (
-    <motion.svg
+    <svg
       viewBox="0 0 24 24"
+      aria-hidden="true"
+      focusable="false"
       className={cn("hidden sm:block h-4 w-4", className)}
-      initial={{ scale: 0, rotate: 0 }}
-      animate={{
-        scale: [0, 1, 0.4, 1, 0],
-        rotate: [0, 90, 180, 270, 360],
-        opacity: [0, 1, 0.6, 1, 0],
-      }}
-      transition={{
-        duration: 3,
-        delay,
-        repeat: Infinity,
-        repeatDelay: 3,
-        ease: "easeInOut",
-      }}
-      fill="#fbbf24"
+      style={{ animation: `bh-sparkle 3s ease-in-out ${delay}s infinite`, fill: "#ffca28" }}
     >
       <path d="M12 2l1.9 6.1L20 10l-6.1 1.9L12 18l-1.9-6.1L4 10l6.1-1.9L12 2z" />
-    </motion.svg>
+    </svg>
   );
 }
 
@@ -405,7 +439,7 @@ function ProgressBadge({ progress }) {
           className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 sm:px-3 sm:py-1 text-[11px] sm:text-xs font-black text-white shadow-md sm:shadow-lg ring-2 ring-white/50"
           style={{
             fontFamily: FONT,
-            background: "linear-gradient(135deg, #fbbf24 0%, #f59e0b 50%, #ef4444 100%)",
+            background: "linear-gradient(135deg, #ffe486 0%, #ffca28 50%, #ff8a3d 100%)",
           }}
         >
           <Icon name="star" size="0.8em" />
@@ -420,7 +454,7 @@ function ProgressBadge({ progress }) {
           className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 sm:px-3 sm:py-1 text-[11px] sm:text-xs font-black text-white shadow-md sm:shadow-lg ring-2 ring-white/50"
           style={{
             fontFamily: FONT,
-            background: "linear-gradient(135deg, #fb923c 0%, #f43f5e 50%, #dc2626 100%)",
+            background: "linear-gradient(135deg, #ff9ecb 0%, #ff4fa3 50%, #d6127a 100%)",
           }}
         >
           <Icon name="fire" size="0.8em" />
@@ -436,7 +470,10 @@ function ProgressBadge({ progress }) {
 // ---------------------------------------------------------------------------
 function LockOverlay() {
   return (
-    <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-2 sm:gap-3 rounded-[inherit] bg-slate-900/50 sm:bg-slate-900/55 backdrop-blur-[2px] sm:backdrop-blur-[4px] overflow-hidden">
+    <div
+      className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-2 sm:gap-3 rounded-[inherit] overflow-hidden"
+      style={{ background: "linear-gradient(165deg, rgba(11,30,70,0.66) 0%, rgba(24,44,92,0.76) 100%)" }}
+    >
       <Sparkle delay={0} className="absolute top-4 sm:top-6 left-5 sm:left-8 h-4 w-4 sm:h-5 sm:w-5" />
       <Sparkle delay={0.6} className="absolute top-7 sm:top-10 right-6 sm:right-10 h-3.5 w-3.5 sm:h-4 sm:w-4" />
       <Sparkle delay={1.1} className="absolute bottom-8 sm:bottom-10 left-7 sm:left-12 h-3.5 w-3.5 sm:h-4 sm:w-4" />
@@ -457,7 +494,7 @@ function LockOverlay() {
         style={{
           fontFamily: FONT,
           color: "#1e293b",
-          background: "linear-gradient(135deg, #fde68a 0%, #fbbf24 50%, #fb923c 100%)",
+          background: "linear-gradient(135deg, #ffe486 0%, #ffca28 50%, #ff8a3d 100%)",
         }}
       >
         Coming soon
@@ -472,16 +509,19 @@ function LockOverlay() {
 // everywhere else in the chrome.
 // ---------------------------------------------------------------------------
 function WobbleEmoji({ emoji, size = "text-5xl sm:text-6xl", isOpen = true }) {
+  // The perpetual bob is a CSS transform animation (compositor-driven, one
+  // per card but off the JS thread); hover/tap stay as transient Framer
+  // gestures on an inner element so they don't fight the idle bob.
   return (
-    <motion.span
-      className={cn(size, "drop-shadow-[0_4px_6px_rgba(0,0,0,0.16)] sm:drop-shadow-[0_8px_12px_rgba(0,0,0,0.18)]")}
-      animate={isOpen ? { y: [0, -3, 0] } : {}}
-      transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
-      whileHover={isOpen ? { scale: 1.15, rotate: [0, -6, 6, 0] } : {}}
-      whileTap={isOpen ? { scale: 0.92 } : {}}
-    >
-      {emoji}
-    </motion.span>
+    <span className={cn("inline-block", isOpen && "animate-[bh-card-bob_4s_ease-in-out_infinite]")}>
+      <motion.span
+        className={cn(size, "drop-shadow-[0_4px_6px_rgba(0,0,0,0.16)] sm:drop-shadow-[0_8px_12px_rgba(0,0,0,0.18)]")}
+        whileHover={isOpen ? { scale: 1.15, rotate: [0, -6, 6, 0] } : {}}
+        whileTap={isOpen ? { scale: 0.92 } : {}}
+      >
+        {emoji}
+      </motion.span>
+    </span>
   );
 }
 
@@ -520,19 +560,21 @@ function TimerLeaderboardCard({ classId, playerName }) {
   const playerEntry =
     playerRank >= 0 ? { ...leaderboard[playerRank], rank: playerRank + 1 } : null;
 
-  const medalColors = ["#f59e0b", "#94a3b8", "#ea580c"];
+  const medalColors = ["#a78bfa", "#67e8f9", "#f472b6"];
   const podiumBg = [
-    "linear-gradient(180deg, #fde68a 0%, #fbbf24 50%, #f59e0b 100%)",
-    "linear-gradient(180deg, #e2e8f0 0%, #cbd5e1 50%, #94a3b8 100%)",
-    "linear-gradient(180deg, #fdba74 0%, #fb923c 50%, #ea580c 100%)",
+    "linear-gradient(180deg, #c4b5fd 0%, #8b5cf6 55%, #6d28d9 100%)",
+    "linear-gradient(180deg, #a5f3fc 0%, #22d3ee 55%, #0891b2 100%)",
+    "linear-gradient(180deg, #f9a8d4 0%, #ec4899 55%, #db2777 100%)",
   ];
   const podiumHeights = ["h-20 sm:h-28", "h-14 sm:h-20", "h-12 sm:h-16"];
 
   return (
     <div
-      className="mx-auto w-full max-w-2xl overflow-hidden rounded-[1.75rem] sm:rounded-[2rem] border-[3px] sm:border-4 border-white/90 shadow-xl sm:shadow-2xl"
+      className="mx-auto w-full max-w-2xl overflow-hidden rounded-[1.75rem] sm:rounded-[2rem] border-[3px] sm:border-4 border-white/25 shadow-xl sm:shadow-2xl"
       style={{
-        background: "linear-gradient(180deg, rgba(255,255,255,0.95) 0%, rgba(248,250,252,0.95) 100%)",
+        background: PANEL_BACKGROUND,
+        backdropFilter: "blur(14px)",
+        WebkitBackdropFilter: "blur(14px)",
       }}
     >
       {/* Timer strip */}
@@ -540,7 +582,7 @@ function TimerLeaderboardCard({ classId, playerName }) {
         <NextGameTimer withTopOffset={false} />
       </div>
 
-      <div className="mx-4 sm:mx-6 mt-3 sm:mt-4 h-1 rounded-full bg-gradient-to-r from-pink-300 via-purple-300 via-sky-300 to-emerald-300" />
+      <div className="mx-4 sm:mx-6 mt-3 sm:mt-4 h-1 rounded-full bg-gradient-to-r from-pink-400 via-violet-400 to-cyan-400" />
 
       {/* Leaderboard */}
       <div className="px-3 py-4 sm:px-6 sm:py-6" style={{ fontFamily: FONT }}>
@@ -548,7 +590,7 @@ function TimerLeaderboardCard({ classId, playerName }) {
           <motion.span
             animate={{ rotate: [-6, 8, -6], scale: [1, 1.1, 1] }}
             transition={{ duration: 3.5, repeat: Infinity, ease: "easeInOut" }}
-            className="text-3xl sm:text-4xl md:text-5xl text-amber-500"
+            className="text-3xl sm:text-4xl md:text-5xl text-fuchsia-300"
           >
             <Icon name="trophy" size="1em" />
           </motion.span>
@@ -557,7 +599,7 @@ function TimerLeaderboardCard({ classId, playerName }) {
             style={{
               fontFamily: FONT,
               color: TEXT_DARK,
-              background: "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)",
+              background: "linear-gradient(135deg, #c4b5fd 0%, #f9a8d4 100%)",
               WebkitBackgroundClip: "text",
               WebkitTextFillColor: "transparent",
               backgroundClip: "text",
@@ -569,7 +611,7 @@ function TimerLeaderboardCard({ classId, playerName }) {
 
         {loading ? (
           <div className="flex flex-col items-center justify-center gap-2 sm:gap-3 py-4 sm:py-6">
-            <span className="h-7 w-7 sm:h-8 sm:w-8 animate-spin rounded-full border-[3px] sm:border-4 border-purple-400 border-t-transparent border-l-pink-400 border-b-sky-400" />
+            <span className="h-7 w-7 sm:h-8 sm:w-8 animate-spin rounded-full border-[3px] sm:border-4 border-blue-400 border-t-transparent border-l-pink-400 border-b-cyan-400" />
             <p className="text-xs sm:text-sm font-bold" style={{ color: TEXT_SOFT }}>
               Loading champions…
             </p>
@@ -612,9 +654,9 @@ function TimerLeaderboardCard({ classId, playerName }) {
                   >
                     {top3[1].playerName}
                   </div>
-                  <div className="mt-0.5 sm:mt-1 flex items-center gap-0.5 rounded-full bg-slate-100 px-1.5 sm:px-2 py-0.5 text-xs sm:text-sm font-black ring-1 ring-slate-200" style={{ color: "#475569" }}>
+                  <div className="mt-0.5 sm:mt-1 flex items-center gap-0.5 rounded-full bg-cyan-100 px-1.5 sm:px-2 py-0.5 text-xs sm:text-sm font-black ring-1 ring-cyan-200" style={{ color: "#155e75" }}>
                     <span className="text-sm sm:text-base">{top3[1].trophies}</span>
-                    <Icon name="trophy" size="1.1em" className="text-amber-500" />
+                    <Icon name="trophy" size="1.1em" className="text-cyan-600" />
                   </div>
                   <div className="mt-1.5 sm:mt-2 w-full flex flex-col items-center">
                     <div
@@ -643,7 +685,7 @@ function TimerLeaderboardCard({ classId, playerName }) {
                   <motion.div
                     animate={{ y: [0, -3, 0], rotate: [-4, 4, -4] }}
                     transition={{ duration: 2.6, repeat: Infinity, ease: "easeInOut" }}
-                    className="mb-0.5 text-2xl sm:text-5xl text-amber-500"
+                    className="mb-0.5 text-2xl sm:text-5xl text-fuchsia-300"
                   >
                     <Icon name="crown" size="1em" />
                   </motion.div>
@@ -657,19 +699,19 @@ function TimerLeaderboardCard({ classId, playerName }) {
                   >
                     {top3[0].playerName}
                   </div>
-                  <div className="mt-0.5 sm:mt-1 flex items-center gap-0.5 rounded-full bg-amber-100 px-1.5 sm:px-2.5 py-0.5 text-xs sm:text-sm font-black ring-1 sm:ring-2 ring-amber-200" style={{ color: "#b45309" }}>
+                  <div className="mt-0.5 sm:mt-1 flex items-center gap-0.5 rounded-full bg-violet-200/80 px-1.5 sm:px-2.5 py-0.5 text-xs sm:text-sm font-black ring-1 sm:ring-2 ring-violet-300" style={{ color: "#4c1d95" }}>
                     <span className="text-sm sm:text-base">{top3[0].trophies}</span>
-                    <Icon name="trophy" size="1.1em" className="text-amber-600" />
+                    <Icon name="trophy" size="1.1em" className="text-violet-600" />
                   </div>
                   <div className="mt-1.5 sm:mt-2 w-full flex flex-col items-center">
                     <div
                       className={cn(
-                        "w-full rounded-t-2xl sm:rounded-t-3xl rounded-b-md sm:rounded-b-lg shadow-lg sm:shadow-2xl ring-2 sm:ring-4 ring-amber-200/70 flex flex-col-reverse items-center justify-end pb-1 sm:pb-2",
+                        "w-full rounded-t-2xl sm:rounded-t-3xl rounded-b-md sm:rounded-b-lg shadow-lg sm:shadow-2xl ring-2 sm:ring-4 ring-violet-300/70 flex flex-col-reverse items-center justify-end pb-1 sm:pb-2",
                         podiumHeights[0]
                       )}
                       style={{ background: podiumBg[0] }}
                     >
-                      <span className="text-2xl sm:text-4xl font-black text-amber-900 drop-shadow-sm leading-none">
+                      <span className="text-2xl sm:text-4xl font-black text-violet-50 drop-shadow-sm leading-none">
                         1<span className="text-xs sm:text-base align-super">st</span>
                       </span>
                     </div>
@@ -695,9 +737,9 @@ function TimerLeaderboardCard({ classId, playerName }) {
                   >
                     {top3[2].playerName}
                   </div>
-                  <div className="mt-0.5 sm:mt-1 flex items-center gap-0.5 rounded-full bg-orange-100 px-1.5 sm:px-2 py-0.5 text-xs sm:text-sm font-black ring-1 ring-orange-200" style={{ color: "#9a3412" }}>
+                  <div className="mt-0.5 sm:mt-1 flex items-center gap-0.5 rounded-full bg-pink-100 px-1.5 sm:px-2 py-0.5 text-xs sm:text-sm font-black ring-1 ring-pink-200" style={{ color: "#9d174d" }}>
                     <span className="text-sm sm:text-base">{top3[2].trophies}</span>
-                    <Icon name="trophy" size="1.1em" className="text-amber-500" />
+                    <Icon name="trophy" size="1.1em" className="text-pink-500" />
                   </div>
                   <div className="mt-1.5 sm:mt-2 w-full flex flex-col items-center">
                     <div
@@ -724,7 +766,7 @@ function TimerLeaderboardCard({ classId, playerName }) {
                 transition={{ delay: 0.6, type: "spring", stiffness: 320, damping: 24 }}
                 className="relative overflow-hidden rounded-xl sm:rounded-2xl px-3 sm:px-4 py-2 sm:py-3 shadow-md sm:shadow-lg ring-1 sm:ring-2 ring-violet-200"
                 style={{
-                  background: "linear-gradient(135deg, rgba(196,181,253,0.25) 0%, rgba(219,234,254,0.25) 100%)",
+                  background: "linear-gradient(135deg, rgba(155,81,224,0.16) 0%, rgba(34,211,238,0.16) 100%)",
                 }}
               >
                 <div className="absolute -right-5 -top-5 text-5xl sm:text-7xl opacity-10 text-violet-500">
@@ -733,7 +775,7 @@ function TimerLeaderboardCard({ classId, playerName }) {
                 <div className="relative flex items-center justify-between gap-2 sm:gap-3">
                   <span
                     className="inline-flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-xl sm:rounded-2xl text-xs sm:text-base font-black text-white shadow-md sm:shadow-lg ring-1 sm:ring-2 ring-white/60"
-                    style={{ background: "linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%)" }}
+                    style={{ background: "linear-gradient(135deg, #9b51e0 0%, #6d28d9 100%)" }}
                   >
                     #{playerEntry.rank}
                   </span>
@@ -742,7 +784,7 @@ function TimerLeaderboardCard({ classId, playerName }) {
                   </span>
                   <span
                     className="inline-flex items-center gap-0.5 rounded-full px-2 sm:px-3 py-1 text-[10px] sm:text-xs font-black text-white shadow-sm sm:shadow-md ring-1 sm:ring-2 ring-white/60"
-                    style={{ background: "linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)" }}
+                    style={{ background: "linear-gradient(135deg, #ffca28 0%, #f59e0b 100%)" }}
                   >
                     <span className="text-sm sm:text-base">{playerEntry.trophies}</span>
                     <Icon name="trophy" size="1em" />
@@ -837,16 +879,26 @@ const GameCard = motion.create(function GameCard({
         <div className="hidden sm:block pointer-events-none absolute -top-6 -right-6 h-24 w-24 rounded-full bg-white/18 blur-2xl" />
         <div className="hidden sm:block pointer-events-none absolute -bottom-8 -left-8 h-28 w-28 rounded-full bg-black/8 blur-2xl" />
 
-        {/* Game number badge */}
-        {displayNumber !== "" && (
-          <motion.div
-            whileHover={isOpen ? { scale: 1.1, rotate: 10 } : {}}
-            className="absolute top-3 right-3 sm:top-4 sm:right-4 z-10 flex h-9 w-9 sm:h-12 sm:w-12 items-center justify-center rounded-xl sm:rounded-2xl text-sm sm:text-lg font-black text-white shadow-lg sm:shadow-xl ring-2 sm:ring-4 ring-white/60"
-            style={{ fontFamily: FONT, background: "linear-gradient(145deg, rgba(0,0,0,0.35) 0%, rgba(0,0,0,0.55) 100%)" }}
-          >
-            {displayNumber}
-          </motion.div>
-        )}
+        {/* Game number badge — bonus games get a "BONUS" pill instead of a digit */}
+        {displayNumber !== "" &&
+          (game.isBonus ? (
+            <motion.div
+              whileHover={isOpen ? { scale: 1.06 } : {}}
+              className="absolute top-3 right-3 sm:top-4 sm:right-4 z-10 flex items-center gap-1 rounded-full px-2 py-1 sm:px-2.5 sm:py-1.5 text-[9px] sm:text-xs font-black uppercase tracking-wider text-white shadow-lg sm:shadow-xl ring-2 sm:ring-4 ring-white/60"
+              style={{ fontFamily: FONT, background: "linear-gradient(145deg, rgba(11,30,70,0.55) 0%, rgba(11,30,70,0.75) 100%)" }}
+            >
+              <Icon name="star" size="0.8em" className="text-amber-300" />
+              BONUS
+            </motion.div>
+          ) : (
+            <motion.div
+              whileHover={isOpen ? { scale: 1.1, rotate: 10 } : {}}
+              className="absolute top-3 right-3 sm:top-4 sm:right-4 z-10 flex h-9 w-9 sm:h-12 sm:w-12 items-center justify-center rounded-xl sm:rounded-2xl text-sm sm:text-lg font-black text-white shadow-lg sm:shadow-xl ring-2 sm:ring-4 ring-white/60"
+              style={{ fontFamily: FONT, background: "linear-gradient(145deg, rgba(11,30,70,0.4) 0%, rgba(11,30,70,0.6) 100%)" }}
+            >
+              {displayNumber}
+            </motion.div>
+          ))}
 
         {/* Teacher-only: player-facing lock state indicator */}
         {isTeacher && (
@@ -864,37 +916,39 @@ const GameCard = motion.create(function GameCard({
           </div>
         )}
 
-        {/* Featured pennant */}
+        {/* Featured badge — simple pill, not a hanging banner */}
         {isFeatured && (
-          <div className="absolute top-0 left-3 sm:left-5 z-10">
-            <motion.div
-              animate={reduceMotion ? {} : { y: [0, -3, 0] }}
-              transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
-              className="relative"
-            >
+          <motion.div
+            initial={{ opacity: 0, scale: 0.7, y: -8 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            transition={{ type: "spring", stiffness: 320, damping: 18 }}
+            className="absolute top-3 left-3 sm:top-4 sm:left-4 z-10"
+          >
+            <div className="relative">
               <div
-                className="flex items-center gap-1 rounded-b-xl sm:rounded-b-2xl bg-gradient-to-b from-yellow-300 via-amber-400 to-orange-400 px-2.5 py-1 sm:px-4 sm:py-1.5 text-[9px] sm:text-xs font-black tracking-wide shadow-md sm:shadow-lg ring-2 ring-white/70"
-                style={{ fontFamily: FONT, color: "#78350f" }}
+                className="absolute -inset-1 -z-10 rounded-full opacity-70"
+                style={{ background: "radial-gradient(circle, rgba(103,232,249,0.5) 0%, transparent 72%)" }}
+              />
+              <div
+                className="relative flex items-center gap-1 rounded-full px-2.5 py-1 sm:px-3 sm:py-1 text-[9px] sm:text-xs font-black tracking-wide text-indigo-950 ring-1 ring-white/80 shadow-md"
+                style={{
+                  fontFamily: FONT,
+                  background: "linear-gradient(135deg, #a5f3fc 0%, #c4b5fd 100%)",
+                }}
               >
-                <Icon name="star" size="0.8em" />
+                <Icon name="star" size="0.8em" className="text-fuchsia-500" />
                 FEATURED
               </div>
-              <div
-                className="absolute left-0 right-0 mx-auto w-0 h-0 -bottom-2"
-                style={{
-                  borderLeft: "8px solid transparent",
-                  borderRight: "8px solid transparent",
-                  borderTop: "8px solid #f59e0b",
-                }}
-              />
-            </motion.div>
-          </div>
+            </div>
+          </motion.div>
         )}
 
         {/* Sparkles */}
         {isOpen && (
           <>
-            <Sparkle delay={index * 0.15} className="absolute top-3 left-3 sm:top-4 sm:left-4 h-3 w-3 sm:h-3.5 sm:w-3.5 z-10" />
+            {!isFeatured && (
+              <Sparkle delay={index * 0.15} className="absolute top-3 left-3 sm:top-4 sm:left-4 h-3 w-3 sm:h-3.5 sm:w-3.5 z-10" />
+            )}
             <Sparkle delay={0.4 + index * 0.1} className="absolute bottom-20 sm:bottom-24 right-3 sm:right-4 h-2.5 w-2.5 sm:h-3 sm:w-3 z-10" />
           </>
         )}
@@ -957,10 +1011,15 @@ const GameCard = motion.create(function GameCard({
 
 function Divider() {
   return (
-    <div className="mt-1.5 sm:mt-2 flex items-center justify-center gap-1.5 sm:gap-2">
-      <span className="h-1 w-8 sm:w-12 rounded-full" style={{ background: "linear-gradient(90deg, transparent, #ec4899)" }} />
-      <span className="h-2 w-2 sm:h-2.5 sm:w-2.5 rounded-full" style={{ background: "#8b5cf6" }} />
-      <span className="h-1 w-8 sm:w-12 rounded-full" style={{ background: "linear-gradient(90deg, #3b82f6, transparent)" }} />
+    <div className="mt-1.5 sm:mt-2 flex items-center justify-center">
+      <span
+        className="h-1.5 sm:h-2 w-36 sm:w-56 rounded-full"
+        style={{
+          background:
+            "linear-gradient(90deg, #f9a8d4 0%, #c4b5fd 24%, #93c5fd 48%, #86efac 72%, #fde047 100%)",
+          boxShadow: "0 2px 10px -2px rgba(167,139,250,0.55)",
+        }}
+      />
     </div>
   );
 }
@@ -978,7 +1037,7 @@ function SectionHeader({ icon, eyebrow, title, accent, icon2, reduceMotion }) {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           className="inline-flex items-center gap-1 sm:gap-2 rounded-full px-3 py-0.5 sm:px-4 sm:py-1.5 text-[10px] sm:text-xs font-black tracking-[0.18em] sm:tracking-[0.22em] uppercase shadow-sm sm:shadow-md ring-2 ring-white/70"
-          style={{ fontFamily: FONT, color: "#fff", background: accent }}
+          style={{ fontFamily: FONT, color: "#1e1b4b", background: accent }}
         >
           <span className="text-xs sm:text-sm"><Icon name={icon2 || "sparkle"} size="1em" /></span>
           {eyebrow}
@@ -995,7 +1054,7 @@ function SectionHeader({ icon, eyebrow, title, accent, icon2, reduceMotion }) {
           animate={reduceMotion ? {} : { y: [0, -3, 0] }}
           transition={{ duration: 4.5, repeat: Infinity, ease: "easeInOut" }}
           className="text-2xl sm:text-3xl md:text-4xl drop-shadow-sm sm:drop-shadow-md"
-          style={{ color: "#ec4899" }}
+          style={{ color: "#ff4fa3" }}
         >
           <Icon name={icon} size="1em" />
         </motion.span>
@@ -1017,7 +1076,7 @@ function SectionHeader({ icon, eyebrow, title, accent, icon2, reduceMotion }) {
           animate={reduceMotion ? {} : { y: [0, -3, 0] }}
           transition={{ duration: 5, repeat: Infinity, ease: "easeInOut", delay: 0.3 }}
           className="text-2xl sm:text-3xl md:text-4xl drop-shadow-sm sm:drop-shadow-md"
-          style={{ color: "#3b82f6" }}
+          style={{ color: "#22d3ee" }}
         >
           <Icon name={icon} size="1em" />
         </motion.span>
@@ -1038,8 +1097,8 @@ function PlayerName({ playerName, roleLabel, roleIcon }) {
       <span
         className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] sm:text-xs font-black uppercase tracking-[0.14em] sm:tracking-[0.18em] shadow-sm sm:shadow-md ring-1 sm:ring-2 ring-white/70"
         style={{
-          background: "linear-gradient(135deg, rgba(167,139,250,0.18) 0%, rgba(236,72,153,0.18) 100%)",
-          color: "#7c3aed",
+          background: "linear-gradient(135deg, rgba(34,211,238,0.3) 0%, rgba(244,114,182,0.3) 100%)",
+          color: "#a5f3fc",
         }}
       >
         {greeting}
@@ -1051,15 +1110,15 @@ function PlayerName({ playerName, roleLabel, roleIcon }) {
         )}
       </span>
       <span
-        className="mt-1 sm:mt-2 block max-w-full break-words text-3xl sm:text-4xl md:text-5xl lg:text-6xl leading-[1.05] font-black"
+        className="mt-1 sm:mt-2 block max-w-full break-words text-2xl sm:text-4xl md:text-5xl lg:text-6xl leading-[1.05] font-black"
         style={{
           fontFamily: FONT,
           fontWeight: 900,
-          background: "linear-gradient(135deg, #ec4899 0%, #8b5cf6 25%, #3b82f6 50%, #10b981 75%, #f59e0b 100%)",
+          background: "linear-gradient(135deg, #a7f3d0 0%, #67e8f9 25%, #f9a8d4 50%, #c4b5fd 75%, #fde68a 100%)",
           WebkitBackgroundClip: "text",
           WebkitTextFillColor: "transparent",
           backgroundClip: "text",
-          filter: "drop-shadow(0 1px 3px rgba(139,92,246,0.2))",
+          filter: "drop-shadow(0 1px 4px rgba(167,139,250,0.45))",
         }}
       >
         {playerName}
@@ -1082,7 +1141,7 @@ function SwitchPlayerButton({ onReset }) {
       style={{
         fontFamily: FONT,
         fontWeight: 800,
-        background: "linear-gradient(135deg, #8b5cf6 0%, #6366f1 50%, #3b82f6 100%)",
+        background: "linear-gradient(135deg, #9b51e0 0%, #6d28d9 50%, #2563eb 100%)",
       }}
     >
       <Icon name="switch" size="1.1em" />
@@ -1097,114 +1156,46 @@ function SwitchPlayerButton({ onReset }) {
 // ===========================================================================
 
 function FloatingDecor() {
+  // Positioned `absolute` inside the full-height page shell (not `fixed`
+  // to the viewport), so these shapes scroll naturally with the content —
+  // spread across the ENTIRE page instead of just the first screenful.
+  // Colour comes entirely from PAGE_BACKGROUND now (a single coordinated
+  // system); this layer only adds small figurative icon accents on top,
+  // so the two don't compete or fall out of sync with each other.
   return (
-    <div className="pointer-events-none fixed inset-0 overflow-hidden -z-0 select-none">
-      <div className="hidden sm:block">
-        <motion.div
-          animate={{ x: [0, 30, 0], y: [0, -20, 0] }}
-          transition={{ duration: 18, repeat: Infinity, ease: "easeInOut" }}
-          className="absolute left-[-5%] top-[8%] h-72 w-72 md:h-80 md:w-80 rounded-full blur-3xl opacity-35"
-          style={{ background: "radial-gradient(circle, #f9a8d4 0%, transparent 70%)" }}
-        />
-        <motion.div
-          animate={{ x: [0, -30, 0], y: [0, 25, 0] }}
-          transition={{ duration: 22, repeat: Infinity, ease: "easeInOut" }}
-          className="absolute right-[-5%] top-[4%] h-80 w-80 md:h-96 md:w-96 rounded-full blur-3xl opacity-35"
-          style={{ background: "radial-gradient(circle, #93c5fd 0%, transparent 70%)" }}
-        />
-        <motion.div
-          animate={{ x: [0, 20, 0], y: [0, 30, 0] }}
-          transition={{ duration: 20, repeat: Infinity, ease: "easeInOut" }}
-          className="absolute left-[10%] bottom-[5%] h-72 w-72 md:h-80 md:w-80 rounded-full blur-3xl opacity-30"
-          style={{ background: "radial-gradient(circle, #fde68a 0%, transparent 70%)" }}
-        />
-        <motion.div
-          animate={{ x: [0, -25, 0], y: [0, -25, 0] }}
-          transition={{ duration: 26, repeat: Infinity, ease: "easeInOut" }}
-          className="absolute right-[8%] bottom-[6%] h-72 w-72 md:h-80 md:w-80 rounded-full blur-3xl opacity-30"
-          style={{ background: "radial-gradient(circle, #a7f3d0 0%, transparent 70%)" }}
-        />
-      </div>
-
-      {/* Clouds */}
-      <motion.span
-        animate={{ y: [0, -14, 0] }}
-        transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }}
-        className="absolute left-[8%] top-[14%] text-2xl sm:text-4xl md:text-5xl opacity-30 text-slate-400"
-      >
+    <div className="pointer-events-none absolute inset-0 overflow-hidden -z-0 select-none">
+      <span className="absolute left-[7%] top-[9%] text-2xl sm:text-4xl md:text-5xl opacity-60 text-white animate-[bh-bob_10s_ease-in-out_infinite]">
         <Icon name="cloud" size="1em" />
-      </motion.span>
-
-      {/* Stars */}
-      <motion.span
-        animate={{ y: [0, 10, 0], rotate: [0, 360] }}
-        transition={{ duration: 9, repeat: Infinity, ease: "easeInOut" }}
-        className="absolute right-[10%] top-[22%] text-2xl sm:text-3xl md:text-4xl opacity-60 text-amber-400"
-      >
+      </span>
+      <span className="absolute right-[9%] top-[17%] text-2xl sm:text-3xl md:text-4xl opacity-90 text-amber-300 animate-[bh-spin-bob_9s_ease-in-out_infinite]">
         <Icon name="star" size="1em" />
-      </motion.span>
-
-      {/* Sparkle */}
-      <motion.span
-        animate={{ y: [0, -10, 0], opacity: [0.4, 1, 0.4] }}
-        transition={{ duration: 7, repeat: Infinity, ease: "easeInOut" }}
-        className="absolute bottom-[22%] left-[12%] text-2xl sm:text-3xl md:text-4xl opacity-60 text-pink-400"
-      >
+      </span>
+      <span className="absolute left-[11%] top-[27%] text-2xl sm:text-3xl md:text-4xl opacity-85 text-pink-300 animate-[bh-twinkle-bob_7s_ease-in-out_infinite]">
         <Icon name="sparkle" size="1em" />
-      </motion.span>
-
-      {/* Balloon */}
-      <motion.span
-        animate={{ y: [0, -14, 0], rotate: [-3, 3, -3] }}
-        transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }}
-        className="absolute right-[7%] bottom-[22%] text-3xl sm:text-4xl md:text-5xl opacity-60 text-rose-400"
-      >
+      </span>
+      <span className="absolute right-[7%] top-[37%] text-3xl sm:text-4xl md:text-5xl opacity-80 text-rose-300 animate-[bh-sway_10s_ease-in-out_infinite]">
         <Icon name="balloon" size="1em" />
-      </motion.span>
+      </span>
+      <span className="absolute left-[9%] top-[63%] text-2xl sm:text-3xl md:text-4xl opacity-80 text-cyan-300 animate-[bh-twinkle-bob_8s_ease-in-out_infinite] [animation-delay:-3s]">
+        <Icon name="sparkle" size="1em" />
+      </span>
+      <span className="absolute right-[10%] top-[82%] text-2xl sm:text-3xl md:text-4xl opacity-80 text-rose-300 animate-[bh-sway_11s_ease-in-out_infinite] [animation-delay:-4s]">
+        <Icon name="balloon" size="1em" />
+      </span>
 
       <div className="hidden sm:block">
-        <motion.span
-          animate={{ y: [0, 14, 0] }}
-          transition={{ duration: 12, repeat: Infinity, ease: "easeInOut", delay: 2 }}
-          className="absolute right-[14%] top-[9%] text-3xl md:text-4xl opacity-30 text-slate-400"
-        >
+        <span className="absolute right-[14%] top-[47%] text-3xl md:text-4xl opacity-55 text-white animate-[bh-bob_12s_ease-in-out_infinite] [animation-delay:-5s]">
           <Icon name="cloud" size="1em" />
-        </motion.span>
-        <motion.span
-          animate={{ y: [0, -10, 0], rotate: [360, 0] }}
-          transition={{ duration: 10, repeat: Infinity, ease: "easeInOut", delay: 1.5 }}
-          className="absolute left-[14%] top-[30%] text-2xl md:text-3xl opacity-50 text-violet-400"
-        >
+        </span>
+        <span className="absolute left-[14%] top-[52%] text-2xl md:text-3xl opacity-85 text-violet-300 animate-[bh-spin-bob-rev_10s_ease-in-out_infinite] [animation-delay:-2s]">
           <Icon name="star" size="1em" />
-        </motion.span>
-        <motion.span
-          animate={{ y: [0, 10, 0], opacity: [0.4, 1, 0.4] }}
-          transition={{ duration: 8, repeat: Infinity, ease: "easeInOut", delay: 2.5 }}
-          className="absolute bottom-[28%] right-[18%] text-2xl md:text-3xl opacity-50 text-cyan-400"
-        >
-          <Icon name="sparkle" size="1em" />
-        </motion.span>
-        <motion.span
-          animate={{ y: [0, -18, 0], rotate: [3, -3, 3] }}
-          transition={{ duration: 12, repeat: Infinity, ease: "easeInOut", delay: 1 }}
-          className="absolute left-[6%] bottom-[14%] text-4xl md:text-5xl opacity-50 text-rose-400"
-        >
-          <Icon name="balloon" size="1em" />
-        </motion.span>
-        <motion.div
-          animate={{ rotate: [-6, 6, -6], y: [0, -6, 0] }}
-          transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }}
-          className="absolute right-[22%] bottom-[16%] text-4xl md:text-5xl opacity-45 text-violet-400"
-        >
+        </span>
+        <div className="absolute right-[22%] top-[71%] text-4xl md:text-5xl opacity-80 text-fuchsia-300 animate-[bh-rock_10s_ease-in-out_infinite]">
           <Icon name="rainbow" size="1em" />
-        </motion.div>
-        <motion.span
-          animate={{ rotate: 360 }}
-          transition={{ duration: 60, repeat: Infinity, ease: "linear" }}
-          className="absolute left-[22%] top-[52%] text-3xl md:text-4xl opacity-40 text-indigo-400"
-        >
+        </div>
+        <span className="absolute left-[22%] top-[87%] text-3xl md:text-4xl opacity-75 text-indigo-200 animate-[bh-spin-slow_60s_linear_infinite]">
           <Icon name="planet" size="1em" />
-        </motion.span>
+        </span>
       </div>
     </div>
   );
@@ -1322,19 +1313,31 @@ function BetaHomeContent() {
   return (
     <div
       className="relative flex min-h-[100dvh] w-full flex-col overflow-hidden"
-      style={{ background: PAGE_BACKGROUND, fontFamily: FONT, colorScheme: "light" }}
+      style={{
+        backgroundImage: PAGE_BACKGROUND_IMAGE,
+        backgroundRepeat: PAGE_BACKGROUND_REPEAT,
+        backgroundSize: PAGE_BACKGROUND_SIZE,
+        fontFamily: FONT,
+        colorScheme: "light",
+      }}
     >
+      <style>{DECOR_KEYFRAMES}</style>
       <link
         rel="stylesheet"
         href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700;800;900&display=swap"
       />
 
-      {/* Subtle dot pattern over the gradient for texture */}
+      {/* Subtle dot pattern over the gradient for texture. `absolute`
+          (not `fixed`) so it scrolls with the page — one less fixed
+          layer for the browser to keep re-pinning to the viewport
+          during a fast scroll. */}
       <div
-        className="pointer-events-none fixed inset-0 z-0 opacity-[0.35]"
+        className="pointer-events-none absolute inset-0 z-0 opacity-70"
         style={{
-          backgroundImage: "radial-gradient(rgba(148,163,184,0.14) 1px, transparent 1.5px)",
-          backgroundSize: "26px 26px",
+          backgroundImage:
+            "radial-gradient(rgba(255,255,255,0.35) 1.2px, transparent 1.4px), radial-gradient(rgba(255,255,255,0.28) 1.2px, transparent 1.4px), radial-gradient(rgba(255,202,40,0.3) 2px, transparent 2.2px)",
+          backgroundSize: "30px 30px, 30px 30px, 90px 90px",
+          backgroundPosition: "0 0, 15px 15px, 45px 30px",
         }}
       />
 
@@ -1344,48 +1347,59 @@ function BetaHomeContent() {
           TEACHER NAV BAR
           ================================================================ */}
       {isTeacher && (
-        <div className="fixed left-0 right-0 top-0 z-50 flex flex-wrap items-center justify-between gap-2 px-3 py-3 sm:px-6" style={{ fontFamily: FONT }}>
-          <motion.button
-            type="button"
-            onClick={() => navigate("/game-access")}
-            whileHover={{ y: -2, scale: 1.03 }}
-            whileTap={{ y: 0, scale: 0.98 }}
-            className="flex items-center gap-1.5 sm:gap-2 rounded-full px-3.5 py-1.5 sm:px-5 sm:py-2.5 text-xs sm:text-base font-black text-white shadow-md sm:shadow-xl ring-2 sm:ring-4 ring-white/70"
-            style={{ background: "linear-gradient(135deg, #10b981 0%, #059669 50%, #0891b2 100%)", fontWeight: 800 }}
-          >
-            <Icon name="shield" size="1em" />
-            Teacher controls
-          </motion.button>
+        <div className="fixed left-0 right-0 top-0 z-50" style={{ fontFamily: FONT }}>
+          <div className="mx-auto flex w-full max-w-4xl flex-wrap items-center justify-between gap-2 px-3 py-3 sm:px-6">
+            <motion.button
+              type="button"
+              onClick={() => navigate("/game-access")}
+              whileHover={{ y: -2, scale: 1.03 }}
+              whileTap={{ y: 0, scale: 0.98 }}
+              className="flex items-center gap-1.5 sm:gap-2 rounded-full px-3.5 py-1.5 sm:px-5 sm:py-2.5 text-xs sm:text-base font-black text-white shadow-md sm:shadow-xl ring-2 sm:ring-4 ring-white/70"
+              style={{ background: "linear-gradient(135deg, #4ade80 0%, #16a34a 50%, #0891b2 100%)", fontWeight: 800 }}
+            >
+              <Icon name="shield" size="1em" />
+              Teacher controls
+            </motion.button>
 
-          <motion.button
-            type="button"
-            onClick={() => navigate("/")}
-            whileHover={{ y: -2, scale: 1.03 }}
-            whileTap={{ y: 0, scale: 0.98 }}
-            className="flex items-center gap-1.5 sm:gap-2 rounded-full px-3.5 py-1.5 sm:px-5 sm:py-2.5 text-xs sm:text-base font-black text-white shadow-md sm:shadow-xl ring-2 sm:ring-4 ring-white/70"
-            style={{ background: "linear-gradient(135deg, #8b5cf6 0%, #6366f1 50%, #3b82f6 100%)", fontWeight: 800 }}
-          >
-            <Icon name="gamepad" size="1em" />
-            Classic Home
-          </motion.button>
+            <motion.button
+              type="button"
+              onClick={() => navigate("/")}
+              whileHover={{ y: -2, scale: 1.03 }}
+              whileTap={{ y: 0, scale: 0.98 }}
+              className="flex items-center gap-1.5 sm:gap-2 rounded-full px-3.5 py-1.5 sm:px-5 sm:py-2.5 text-xs sm:text-base font-black text-white shadow-md sm:shadow-xl ring-2 sm:ring-4 ring-white/70"
+              style={{ background: "linear-gradient(135deg, #9b51e0 0%, #6d28d9 50%, #2563eb 100%)", fontWeight: 800 }}
+            >
+              <Icon name="gamepad" size="1em" />
+              Classic Home
+            </motion.button>
+          </div>
         </div>
       )}
 
       {/* ================================================================
           HEADER / HERO
           ================================================================ */}
-      <div className="relative z-10 mx-auto w-full max-w-4xl px-3 sm:px-6 pt-8 sm:pt-12 md:pt-14">
+      <div
+        className={cn(
+          "relative z-10 mx-auto w-full max-w-4xl px-3 sm:px-6",
+          isTeacher ? "pt-16 sm:pt-20 md:pt-24" : "pt-8 sm:pt-12 md:pt-14"
+        )}
+      >
         <motion.div
           initial={reduceMotion ? false : { opacity: 0, y: 16, scale: 0.98 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           transition={{ type: "spring", stiffness: 260, damping: 24 }}
-          className="relative overflow-hidden rounded-[1.75rem] sm:rounded-[2.25rem] border-[3px] sm:border-4 border-white/80 shadow-xl sm:shadow-2xl px-4 py-4 sm:px-7 sm:py-6"
-          style={{ background: "linear-gradient(165deg, rgba(255,255,255,0.92) 0%, rgba(248,250,252,0.88) 100%)" }}
+          className="relative overflow-hidden rounded-[1.75rem] sm:rounded-[2.25rem] border-[3px] sm:border-4 border-white/25 shadow-xl sm:shadow-2xl px-4 py-4 sm:px-7 sm:py-6"
+          style={{
+            background: PANEL_BACKGROUND,
+            backdropFilter: "blur(14px)",
+            WebkitBackdropFilter: "blur(14px)",
+          }}
         >
-          <div className="pointer-events-none absolute -top-4 -right-4 text-[4.5rem] sm:text-[7rem] opacity-[0.05] text-slate-500">
+          <div className="pointer-events-none absolute -top-4 -right-4 text-[4.5rem] sm:text-[7rem] opacity-[0.09] text-indigo-200">
             <Icon name="dice" size="1em" />
           </div>
-          <div className="pointer-events-none absolute -bottom-6 -left-2 text-[5rem] sm:text-[8rem] opacity-[0.04] text-slate-500">
+          <div className="pointer-events-none absolute -bottom-6 -left-2 text-[5rem] sm:text-[8rem] opacity-[0.08] text-indigo-200">
             <Icon name="puzzle" size="1em" />
           </div>
 
@@ -1402,7 +1416,7 @@ function BetaHomeContent() {
                 transition={{ duration: 45, repeat: Infinity, ease: "linear" }}
                 className="hidden sm:block absolute -inset-4 md:-inset-5 rounded-full opacity-40"
                 style={{
-                  background: "conic-gradient(from 0deg, #ec4899, #8b5cf6, #3b82f6, #10b981, #f59e0b, #ec4899)",
+                  background: "conic-gradient(from 0deg, #ff4fa3, #9b51e0, #2563eb, #4ade80, #ffca28, #ff4fa3)",
                   filter: "blur(12px)",
                 }}
               />
@@ -1411,7 +1425,7 @@ function BetaHomeContent() {
                 alt="EZ Wonders"
                 animate={{ y: reduceMotion ? 0 : [0, -3, 0] }}
                 transition={{ duration: 3.5, repeat: Infinity, ease: "easeInOut" }}
-                className="relative h-auto w-24 sm:w-40 md:w-48 lg:w-56 drop-shadow-xl sm:drop-shadow-2xl"
+                className="relative h-auto w-20 sm:w-40 md:w-48 lg:w-56 drop-shadow-xl sm:drop-shadow-2xl"
                 loading="eager"
                 decoding="async"
                 fetchPriority="high"
@@ -1456,8 +1470,13 @@ function BetaHomeContent() {
           initial={{ opacity: 0, y: 20, scale: 0.98 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           transition={{ type: "spring", stiffness: 260, damping: 22 }}
-          className="relative z-10 mx-auto mb-10 mt-8 flex w-full max-w-lg flex-col items-center gap-3 sm:gap-4 rounded-[1.75rem] sm:rounded-[2.25rem] border-[3px] sm:border-4 border-white/80 bg-white/95 px-5 py-10 sm:px-8 sm:py-14 text-center shadow-xl sm:shadow-2xl"
-          style={{ fontFamily: FONT }}
+          className="relative z-10 mx-auto mb-10 mt-8 flex w-full max-w-lg flex-col items-center gap-3 sm:gap-4 rounded-[1.75rem] sm:rounded-[2.25rem] border-[3px] sm:border-4 border-white/25 px-5 py-10 sm:px-8 sm:py-14 text-center shadow-xl sm:shadow-2xl"
+          style={{
+            fontFamily: FONT,
+            background: PANEL_BACKGROUND,
+            backdropFilter: "blur(14px)",
+            WebkitBackdropFilter: "blur(14px)",
+          }}
         >
           <Sparkle delay={0} className="absolute top-4 left-5 sm:top-5 sm:left-6 h-4 w-4 sm:h-5 sm:w-5" />
           <Sparkle delay={0.5} className="absolute top-6 right-6 sm:top-7 sm:right-8 h-3.5 w-3.5 sm:h-4 sm:w-4" />
@@ -1479,7 +1498,7 @@ function BetaHomeContent() {
                 whileTap={{ y: 0, scale: 0.98 }}
                 onClick={() => fetchGameAccess(classId)}
                 className="mt-2 inline-flex items-center gap-1.5 rounded-full px-5 py-2.5 sm:px-7 sm:py-3 text-sm sm:text-base font-black text-white shadow-lg sm:shadow-xl ring-2 sm:ring-4 ring-white/70"
-                style={{ fontFamily: FONT, fontWeight: 800, background: "linear-gradient(135deg, #8b5cf6 0%, #6366f1 50%, #3b82f6 100%)" }}
+                style={{ fontFamily: FONT, fontWeight: 800, background: "linear-gradient(135deg, #9b51e0 0%, #6d28d9 50%, #2563eb 100%)" }}
               >
                 <Icon name="switch" size="1em" />
                 Try again
@@ -1488,12 +1507,12 @@ function BetaHomeContent() {
           ) : (
             <>
               <div className="relative">
-                <span className="h-11 w-11 sm:h-14 sm:w-14 animate-spin rounded-full border-4 sm:border-[5px] border-purple-400 border-t-transparent border-l-pink-400 border-b-sky-400 border-r-emerald-400" />
+                <span className="h-11 w-11 sm:h-14 sm:w-14 animate-spin rounded-full border-4 sm:border-[5px] border-blue-400 border-t-transparent border-l-pink-400 border-b-cyan-400 border-r-emerald-400" />
                 <Sparkle delay={0.3} className="absolute -top-2 -right-2 h-3.5 w-3.5 sm:h-4 sm:w-4" />
               </div>
               <p
                 className="text-base sm:text-lg md:text-xl font-black"
-                style={{ fontFamily: FONT, background: "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}
+                style={{ fontFamily: FONT, background: "linear-gradient(135deg, #c4b5fd 0%, #f9a8d4 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}
               >
                 Loading your games…
               </p>
@@ -1520,7 +1539,7 @@ function BetaHomeContent() {
             icon="star"
             eyebrow="Spotlight"
             title="This Week's Wonders"
-            accent="linear-gradient(135deg, #f59e0b 0%, #ef4444 100%)"
+            accent="linear-gradient(135deg, #67e8f9 0%, #c4b5fd 100%)"
             icon2="sparkle"
             reduceMotion={reduceMotion}
           />
@@ -1557,7 +1576,7 @@ function BetaHomeContent() {
             icon="gamepad"
             eyebrow="Pick a game"
             title="All Games"
-            accent="linear-gradient(135deg, #8b5cf6 0%, #3b82f6 100%)"
+            accent="linear-gradient(135deg, #f9a8d4 0%, #c4b5fd 100%)"
             icon2="dice"
             reduceMotion={reduceMotion}
           />
@@ -1590,17 +1609,17 @@ function BetaHomeContent() {
           <motion.div
             animate={{ y: [0, -4, 0] }}
             transition={{ duration: 3.5, repeat: Infinity, ease: "easeInOut" }}
-            className="text-5xl sm:text-7xl md:text-8xl text-rose-400"
+            className="text-5xl sm:text-7xl md:text-8xl text-pink-300"
           >
             <Icon name="balloon" size="1em" />
           </motion.div>
           <h3
             className="text-xl sm:text-2xl md:text-3xl font-black"
-            style={{ fontFamily: FONT, background: "linear-gradient(135deg, #ec4899 0%, #8b5cf6 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}
+            style={{ fontFamily: FONT, background: "linear-gradient(135deg, #f9a8d4 0%, #c4b5fd 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}
           >
             No games yet!
           </h3>
-          <p className="text-sm sm:text-base font-semibold max-w-sm" style={{ color: TEXT_SOFT }}>
+          <p className="text-sm sm:text-base font-semibold max-w-sm" style={{ color: "rgba(255,255,255,0.92)" }}>
             Your teacher will add games soon. Check back later for lots of fun!
           </p>
         </motion.div>
@@ -1615,13 +1634,17 @@ function BetaHomeContent() {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ type: "spring", stiffness: 260, damping: 22 }}
-          className="mx-auto max-w-5xl overflow-hidden rounded-[1.75rem] sm:rounded-[2.25rem] border-[3px] sm:border-4 border-white/80 shadow-xl sm:shadow-2xl px-4 py-4 sm:px-7 sm:py-6 md:px-9 md:py-8 text-center relative"
-          style={{ background: "linear-gradient(165deg, rgba(255,255,255,0.92) 0%, rgba(248,250,252,0.88) 100%)" }}
+          className="mx-auto max-w-5xl overflow-hidden rounded-[1.75rem] sm:rounded-[2.25rem] border-[3px] sm:border-4 border-white/25 shadow-xl sm:shadow-2xl px-4 py-4 sm:px-7 sm:py-6 md:px-9 md:py-8 text-center relative"
+          style={{
+            background: PANEL_BACKGROUND,
+            backdropFilter: "blur(14px)",
+            WebkitBackdropFilter: "blur(14px)",
+          }}
         >
-          <div className="pointer-events-none absolute -top-4 -right-4 text-5xl sm:text-7xl opacity-[0.05] text-slate-500">
+          <div className="pointer-events-none absolute -top-4 -right-4 text-5xl sm:text-7xl opacity-[0.09] text-indigo-200">
             <Icon name="sparkle" size="1em" />
           </div>
-          <div className="pointer-events-none absolute -bottom-3 -left-2 text-5xl sm:text-7xl opacity-[0.04] text-slate-500">
+          <div className="pointer-events-none absolute -bottom-3 -left-2 text-5xl sm:text-7xl opacity-[0.08] text-indigo-200">
             <Icon name="rainbow" size="1em" />
           </div>
           <Sparkle delay={0.2} className="absolute top-4 left-5 sm:top-5 sm:left-6 h-3.5 w-3.5 sm:h-4 sm:w-4" />
@@ -1629,7 +1652,7 @@ function BetaHomeContent() {
 
           <p
             className="inline-flex items-center gap-1.5 sm:gap-2 rounded-full px-3 py-1 sm:px-4 sm:py-1.5 text-[10px] sm:text-xs font-black tracking-[0.18em] sm:tracking-[0.24em] uppercase shadow-sm sm:shadow-md ring-2 ring-white/70"
-            style={{ fontFamily: FONT, color: "#fff", background: "linear-gradient(135deg, #8b5cf6 0%, #ec4899 50%, #f59e0b 100%)" }}
+            style={{ fontFamily: FONT, color: "#fff", background: "linear-gradient(135deg, #2563eb 0%, #ff4fa3 50%, #ffca28 100%)" }}
           >
             <Icon name="sparkle" size="0.9em" />
             EZ WONDERS
@@ -1637,11 +1660,11 @@ function BetaHomeContent() {
           </p>
           <p className="mt-3 sm:mt-4 text-sm sm:text-base md:text-lg font-bold" style={{ fontFamily: FONT, color: TEXT_DARK }}>
             © {new Date().getFullYear()} · Created by{" "}
-            <span className="font-black" style={{ color: "#8b5cf6" }}>
+            <span className="font-black" style={{ color: "#a78bfa" }}>
               Towhid Hossain
             </span>{" "}
             &{" "}
-            <span className="font-black" style={{ color: "#ec4899" }}>
+            <span className="font-black" style={{ color: "#f472b6" }}>
               Siti Soleha
             </span>
           </p>
@@ -1649,11 +1672,11 @@ function BetaHomeContent() {
             A collaborative numeracy project for joyful early learning
           </p>
           <div className="mt-3 sm:mt-4 flex items-center justify-center gap-2 sm:gap-3 text-xl sm:text-2xl md:text-3xl">
-            <motion.span animate={{ y: [0, -3, 0] }} transition={{ duration: 3.5, repeat: Infinity }} className="text-pink-400"><Icon name="palette" size="1em" /></motion.span>
-            <motion.span animate={{ y: [0, -3, 0] }} transition={{ duration: 3.5, repeat: Infinity, delay: 0.2 }} className="text-violet-400"><Icon name="abacus" size="1em" /></motion.span>
-            <motion.span animate={{ y: [0, -3, 0] }} transition={{ duration: 3.5, repeat: Infinity, delay: 0.4 }} className="text-sky-400"><Icon name="book" size="1em" /></motion.span>
-            <motion.span animate={{ y: [0, -3, 0] }} transition={{ duration: 3.5, repeat: Infinity, delay: 0.6 }} className="text-emerald-400"><Icon name="target" size="1em" /></motion.span>
-            <motion.span animate={{ y: [0, -3, 0] }} transition={{ duration: 3.5, repeat: Infinity, delay: 0.8 }} className="text-amber-400"><Icon name="star" size="1em" /></motion.span>
+            <motion.span animate={{ y: [0, -3, 0] }} transition={{ duration: 3.5, repeat: Infinity }} className="text-pink-300"><Icon name="palette" size="1em" /></motion.span>
+            <motion.span animate={{ y: [0, -3, 0] }} transition={{ duration: 3.5, repeat: Infinity, delay: 0.2 }} className="text-violet-300"><Icon name="abacus" size="1em" /></motion.span>
+            <motion.span animate={{ y: [0, -3, 0] }} transition={{ duration: 3.5, repeat: Infinity, delay: 0.4 }} className="text-cyan-300"><Icon name="book" size="1em" /></motion.span>
+            <motion.span animate={{ y: [0, -3, 0] }} transition={{ duration: 3.5, repeat: Infinity, delay: 0.6 }} className="text-emerald-300"><Icon name="target" size="1em" /></motion.span>
+            <motion.span animate={{ y: [0, -3, 0] }} transition={{ duration: 3.5, repeat: Infinity, delay: 0.8 }} className="text-amber-300"><Icon name="star" size="1em" /></motion.span>
           </div>
         </motion.div>
       </footer>
@@ -1667,27 +1690,32 @@ function BetaHomeContent() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[999] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm"
+            className="fixed inset-0 z-[999] flex items-center justify-center bg-slate-900/70"
           >
             <motion.div
               initial={{ opacity: 0, scale: 0.9, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: 10 }}
               transition={{ type: "spring", stiffness: 320, damping: 24 }}
-              className="relative overflow-hidden rounded-3xl border-4 border-white/90 bg-white px-8 py-7 shadow-2xl"
-              style={{ fontFamily: FONT }}
+              className="relative overflow-hidden rounded-3xl border-4 border-white/25 px-8 py-7 shadow-2xl"
+              style={{
+                fontFamily: FONT,
+                background: PANEL_BACKGROUND,
+                backdropFilter: "blur(16px)",
+                WebkitBackdropFilter: "blur(16px)",
+              }}
             >
               <Sparkle delay={0} className="absolute top-3 left-3 h-4 w-4" />
               <Sparkle delay={0.4} className="absolute top-4 right-5 h-4 w-4" />
               <div className="flex items-center gap-4">
                 <div className="relative">
-                  <span className="h-9 w-9 animate-spin rounded-full border-[4px] border-purple-400 border-t-transparent border-l-pink-400 border-b-sky-400" />
-                  <span className="absolute inset-0 flex items-center justify-center text-lg text-violet-500">
+                  <span className="h-9 w-9 animate-spin rounded-full border-[4px] border-blue-400 border-t-transparent border-l-pink-400 border-b-cyan-400" />
+                  <span className="absolute inset-0 flex items-center justify-center text-lg text-violet-300">
                     <Icon name="gamepad" size="1em" />
                   </span>
                 </div>
                 <div className="flex flex-col">
-                  <p className="text-base sm:text-lg font-black" style={{ fontFamily: FONT, background: "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}>
+                  <p className="text-base sm:text-lg font-black" style={{ fontFamily: FONT, background: "linear-gradient(135deg, #c4b5fd 0%, #f9a8d4 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}>
                     Loading game…
                   </p>
                   <p className="text-xs font-semibold" style={{ color: TEXT_SOFT }}>
