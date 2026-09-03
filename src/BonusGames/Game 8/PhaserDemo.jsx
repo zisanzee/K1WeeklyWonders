@@ -19,7 +19,7 @@ function PhaserDemoInner() {
   const playerName = usePlayerStore((s) => s.playerName);
 
   return (
-    <div className="relative flex h-[100dvh] w-full flex-col items-center overflow-hidden bg-gradient-to-b from-[#3FB6EA] via-[#8FE0FA] to-[#FFE9A8] px-0 pb-0 pt-0 sm:px-4 sm:pb-4 sm:pt-3">
+    <div className="relative flex h-[100dvh] w-full flex-col items-center overflow-hidden bg-[linear-gradient(160deg,#1e1b5a_0%,#4338ca_22%,#7c3aed_46%,#9333ea_66%,#a21caf_84%,#be185d_100%)] px-0 pb-0 pt-0 sm:px-4 sm:pb-4 sm:pt-3">
       <link
         rel="stylesheet"
         href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;700&family=Nunito:wght@600;800&display=swap"
@@ -39,13 +39,13 @@ function PhaserDemoInner() {
       {/* Sun, top corner — same as the other bonus games for visual continuity */}
       <div className="pointer-events-none absolute -right-8 -top-8 h-24 w-24 sm:h-32 sm:w-32">
         <svg viewBox="0 0 200 200" className="absolute inset-0 h-full w-full animate-spin-slow">
-          <g fill="#FFD93D">
+          <g fill="#c4b5fd">
             {Array.from({ length: 12 }).map((_, i) => (
               <rect key={i} x="94" y="0" width="12" height="46" rx="6" transform={`rotate(${i * 30} 100 100)`} />
             ))}
           </g>
         </svg>
-        <div className="absolute inset-[18%] rounded-full bg-gradient-to-br from-yellow-200 to-orange-300 shadow-[0_0_30px_rgba(255,217,61,0.6)]" />
+        <div className="absolute inset-[18%] rounded-full bg-gradient-to-br from-violet-300 to-fuchsia-400 shadow-[0_0_30px_rgba(232,121,249,0.55)]" />
       </div>
 
       {/* Floating clouds + sparkles — zero layout cost, cheap GPU-composited
@@ -61,7 +61,7 @@ function PhaserDemoInner() {
 
       <Link
         to="/"
-        className="font-body relative z-20 flex items-center gap-1.5 self-start rounded-full bg-white/65 font-bold text-slate-600 shadow-[0_2px_0_rgba(0,0,0,0.06)] ring-1 ring-white/40 backdrop-blur-sm transition-all hover:-translate-y-0.5 hover:bg-white/80 hover:shadow-[0_3px_0_rgba(0,0,0,0.10)] active:translate-y-0.5 active:shadow-none px-4 py-2 text-sm sm:px-5 sm:py-2.5 sm:text-base md:text-lg"
+        className="font-body relative z-20 flex items-center gap-1.5 self-start rounded-full bg-white/10 font-bold text-white shadow-[0_2px_0_rgba(255,255,255,0.08)] ring-1 ring-white/25 backdrop-blur-sm transition-all hover:-translate-y-0.5 hover:bg-white/20 hover:shadow-[0_3px_0_rgba(255,255,255,0.14)] active:translate-y-0.5 active:shadow-none px-4 py-2 text-sm sm:px-5 sm:py-2.5 sm:text-base md:text-lg"
       >
         🏠 Home
       </Link>

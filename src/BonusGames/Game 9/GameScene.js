@@ -581,9 +581,9 @@ export default class GameScene extends BaseScene {
       paddingX: 42,
       paddingY: 18,
       depth: 70,
-      bgColor: 0xffd23f,
-      textColor: '#173b59',
-      borderColor: 0xf59e0b,
+      bgColor: 0x8b5cf6,
+      textColor: '#ffffff',
+      borderColor: 0x5b21b6,
     });
     button.container.setScale(0);
     this.tweens.add({

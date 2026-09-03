@@ -5,8 +5,8 @@ import { LEVELS, progress } from './levels';
 
 // A neutral sky theme for the menu itself, independent of any one level.
 const MENU_THEME = {
-  bgColors: ['#3fb6ea', '#8fe0fa', '#ffe9a8'],
-  groundColor: 'rgba(111, 207, 87, 0.85)',
+  bgColors: ['#1e1b5a', '#4f46e5', '#7c3aed'],
+  groundColor: 'rgba(147, 51, 234, 0.55)',
 };
 
 export default class LevelSelectScene extends BaseScene {

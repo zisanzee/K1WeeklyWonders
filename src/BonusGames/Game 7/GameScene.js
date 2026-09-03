@@ -126,7 +126,8 @@ export default class GameScene extends BaseScene {
 
     // Smooth fade-in from the game's navy on every scene entry — both the
     // initial level 1 and the level 1 -> 2 transition come through here.
-    this.cameras.main.fadeIn(500, 15, 61, 92);
+    // Aurora night indigo (was navy) — backdrop revealed during transitions.
+    this.cameras.main.fadeIn(500, 30, 27, 90);
 
     // 2. Bird sprite — perched top-right area, gentle float tween.
     //    Depth is high so it always renders above eggs (even during drag at depth 50).
@@ -1017,7 +1018,7 @@ export default class GameScene extends BaseScene {
       this.confettiBurst(60);
       this.time.delayedCall(900, () => {
         if (!this.scene.isActive()) return;
-        this.cameras.main.fadeOut(500, 15, 61, 92);
+        this.cameras.main.fadeOut(500, 30, 27, 90);
         this.cameras.main.once('camerafadeoutcomplete', () => {
           this.scene.start('GameScene', {
             levelIndex: 1,
@@ -1078,7 +1079,7 @@ export default class GameScene extends BaseScene {
     this.createPillButton(width / 2, height / 2 + 80, 'Play Again \uD83D\uDD04', {
       fontSize: '22px', paddingX: 26, paddingY: 14, depth: 42,
     }).on('pointerup', () => {
-      this.cameras.main.fadeOut(400, 15, 61, 92);
+      this.cameras.main.fadeOut(400, 30, 27, 90);
       this.cameras.main.once('camerafadeoutcomplete', () => {
         this.scene.start('GameScene', { levelIndex: 0 });
       });

@@ -122,10 +122,38 @@ export async function fetchStats(teacherCode) {
 }
 
 // One row per player+game — times played, best/last score, best streak
-// (see GET /api/summary on the server).
-export async function fetchSummary({ classId, playerName, teacherCode }) {
+// (see GET /api/summary on the server). The response shape follows who asks:
+//  - teacher code → class-wide, server-paginated object
+//    { rows, total, page, limit, hasMore } for the streaming teacher panel.
+//  - classId + playerName → a single player's plain array (Home/student
+//    progress view); the server returns that unpaginated since it's tiny.
+// The extra list params (page/limit/sortKey/sortDir/game/q) are only sent by
+// the teacher panel; withQuery drops any that are null/empty.
+export async function fetchSummary({
+  classId,
+  playerName,
+  teacherCode,
+  page,
+  limit,
+  sortKey,
+  sortDir,
+  game,
+  q,
+}) {
   try {
-    const res = await fetchWithTimeout(withQuery('/api/summary', { classId, playerName, teacherCode }));
+    const res = await fetchWithTimeout(
+      withQuery('/api/summary', {
+        classId,
+        playerName,
+        teacherCode,
+        page,
+        limit,
+        sortKey,
+        sortDir,
+        game,
+        q,
+      })
+    );
     if (!res.ok) throw new Error(`Server responded ${res.status} ${res.statusText}`);
     return await res.json();
   } catch (err) {
@@ -134,11 +162,22 @@ export async function fetchSummary({ classId, playerName, teacherCode }) {
   }
 }
 
-// Every individual play session, uncollapsed and most recent first — used by
-// the "show all plays" view (see GET /api/plays on the server).
-export async function fetchAllPlays(teacherCode) {
+// One page of individual play sessions, uncollapsed — the "show all plays"
+// view streams pages as the teacher scrolls (see GET /api/plays on the
+// server). Returns { rows, total, page, limit, hasMore }.
+export async function fetchPlaysPage({ teacherCode, page, limit, sortKey, sortDir, game, q }) {
   try {
-    const res = await fetchWithTimeout(withQuery('/api/plays', { teacherCode }));
+    const res = await fetchWithTimeout(
+      withQuery('/api/plays', {
+        teacherCode,
+        page,
+        limit,
+        sortKey,
+        sortDir,
+        game,
+        q,
+      })
+    );
     if (!res.ok) throw new Error(`Server responded ${res.status} ${res.statusText}`);
     return await res.json();
   } catch (err) {

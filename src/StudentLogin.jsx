@@ -62,15 +62,15 @@ export default function StudentLogin() {
 
   if (status === 'error') {
     return (
-      <main className="flex min-h-[100dvh] items-center justify-center bg-[#eaf8ff] px-4 py-6">
-        <div className="w-full max-w-sm rounded-[2rem] border border-white/80 bg-white/90 p-8 text-center shadow-[0_24px_70px_rgba(47,111,151,0.22)]">
+      <main className="aura-page flex min-h-[100dvh] items-center justify-center px-4 py-6">
+        <div className="aura-panel w-full max-w-sm rounded-[2rem] p-8 text-center">
           <span className="text-5xl">😕</span>
-          <h1 className="mt-4 text-xl font-black text-slate-800">Oops!</h1>
-          <p className="mt-2 text-sm font-semibold text-slate-600">{error}</p>
+          <h1 className="aura-text mt-4 text-xl font-black">Oops!</h1>
+          <p className="aura-soft mt-2 text-sm font-semibold">{error}</p>
           <button
             type="button"
             onClick={() => navigate('/', { replace: true })}
-            className="mt-6 rounded-2xl bg-gradient-to-r from-sky-500 to-indigo-600 px-6 py-3 text-sm font-black text-white shadow-sm transition hover:from-sky-600 hover:to-indigo-700"
+            className="aura-btn aura-btn-violet mt-6 px-6 py-3 text-sm font-black"
           >
             Go to home page
           </button>
@@ -81,10 +81,10 @@ export default function StudentLogin() {
 
   // Checking / loading state
   return (
-    <main className="flex min-h-[100dvh] items-center justify-center bg-[#eaf8ff] px-4 py-6">
+    <main className="aura-page flex min-h-[100dvh] items-center justify-center px-4 py-6">
       <div className="flex flex-col items-center gap-4">
-        <span className="inline-block h-8 w-8 animate-spin rounded-full border-[3px] border-sky-300 border-t-sky-600" />
-        <p className="text-sm font-bold text-slate-600">Logging you in…</p>
+        <span className="inline-block h-8 w-8 animate-spin rounded-full border-[3px] border-violet-300 border-t-fuchsia-400" />
+        <p className="aura-soft text-sm font-bold">Logging you in…</p>
       </div>
     </main>
   );

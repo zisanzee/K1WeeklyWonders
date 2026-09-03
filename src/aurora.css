@@ -1,0 +1,218 @@
+/* ---------------------------------------------------------------------------
+   Aurora theme — mirrors BetaHome exactly. Vivid indigo → violet → magenta
+   aurora background with LIGHT text, and BetaHome's frosted translucent-glass
+   surfaces. This is NOT pale "light mode" (white cards + dark text) and NOT
+   opaque dark-navy boxes — surfaces are translucent bright frosted glass over
+   the vivid aurora, just like BetaHome's own hero/timer panels.
+
+   Values below are lifted 1:1 from BetaHome.jsx so the chrome pages read as
+   the same theme:
+     - background = PAGE_BACKGROUND_LAYERS + PAGE_BASE_GRADIENT
+     - panels     = PANEL_BACKGROUND (white-glass veil over the aurora)
+     - text       = TEXT_DARK / TEXT_SOFT / TEXT_MUTED
+
+   Technique: `.aura-page` creates a stacking context (isolation) and paints
+   the aurora on a FIXED ::before layer (viewport-sized → never rescales as
+   content mounts), so dense admin pages get the same stable backdrop as
+   BetaHome.
+--------------------------------------------------------------------------- */
+
+.aura-page {
+  position: relative;
+  min-height: 100dvh;
+  isolation: isolate;
+  font-family: "Fredoka", system-ui, sans-serif;
+  color: #f8fafc;
+}
+
+/* Fixed, viewport-locked aurora backdrop (BetaHome's gradient + glows). */
+.aura-page::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(48% 40% at 12% 6%, rgba(167, 139, 250, 0.6) 0%, transparent 66%),
+    radial-gradient(44% 36% at 90% 12%, rgba(244, 114, 182, 0.5) 0%, transparent 66%),
+    radial-gradient(46% 38% at 14% 50%, rgba(129, 140, 248, 0.55) 0%, transparent 68%),
+    radial-gradient(42% 34% at 90% 58%, rgba(216, 180, 254, 0.48) 0%, transparent 68%),
+    radial-gradient(46% 38% at 12% 88%, rgba(34, 211, 238, 0.28) 0%, transparent 68%),
+    radial-gradient(42% 34% at 88% 96%, rgba(232, 121, 249, 0.4) 0%, transparent 68%),
+    linear-gradient(160deg, #1e1b5a 0%, #4338ca 22%, #7c3aed 46%, #9333ea 66%, #a21caf 84%, #be185d 100%);
+}
+
+/* Optional faint dot texture over the aurora (add `.aura-page--dots`). */
+.aura-page--dots::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image: radial-gradient(rgba(255, 255, 255, 0.18) 1px, transparent 1px);
+  background-size: 24px 24px;
+  opacity: 0.5;
+}
+
+/* Wrapper above the fixed backdrop (use if you need an explicit layer). */
+.aura-content {
+  position: relative;
+  z-index: 1;
+}
+
+/* --- Text tokens (LIGHT, on the vivid aurora) --------------------------- */
+.aura-text { color: #f8fafc; }
+.aura-soft { color: #c7d2fe; }
+.aura-muted { color: #aab6e2; }
+
+/* Gradient headline text — BetaHome's violet → pink on the dark scene. */
+.aura-heading {
+  background: linear-gradient(135deg, #c4b5fd 0%, #f9a8d4 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+}
+
+/* --- Frosted glass surfaces (BetaHome PANEL_BACKGROUND recipe) ----------
+   A translucent white-glass veil over the vivid aurora — bright frosted, NOT
+   opaque navy, NOT solid white. Light text stays legible because the aurora
+   shows through. */
+.aura-panel {
+  background: linear-gradient(165deg, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.05) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  color: #f8fafc;
+  box-shadow: 0 20px 44px -24px rgba(11, 8, 40, 0.65);
+}
+
+/* More opaque frosted glass for dense lists/tables (stats, admin rows). A
+   translucent deep-indigo glass — rich enough that the LIGHT text stays clearly
+   readable over the vivid aurora, but still frosted/aurora-tinted (not a flat
+   black or navy box). */
+.aura-card {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0) 45%),
+    linear-gradient(165deg, rgba(34, 26, 76, 0.6) 0%, rgba(52, 40, 110, 0.5) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  color: #f8fafc;
+  box-shadow: 0 16px 36px -22px rgba(6, 4, 22, 0.8);
+}
+
+.aura-table-head {
+  background: rgba(255, 255, 255, 0.1);
+  color: #c7d2fe;
+}
+
+.aura-table-row {
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  color: #f1f3ff;
+}
+.aura-table-row:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+/* --- Inputs (translucent on the aurora) --------------------------------- */
+.aura-input {
+  width: 100%;
+  border-radius: 0.75rem;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+.aura-input::placeholder { color: #b3bde4; }
+.aura-input:focus {
+  border-color: rgba(196, 181, 253, 0.9);
+  background: rgba(255, 255, 255, 0.16);
+  box-shadow: 0 0 0 4px rgba(167, 139, 250, 0.28);
+}
+
+/* --- Buttons / pills ---------------------------------------------------- */
+.aura-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45em;
+  border: none;
+  cursor: pointer;
+  border-radius: 999px;
+  font-weight: 800;
+  color: #fff;
+  font-family: "Fredoka", system-ui, sans-serif;
+  box-shadow: 0 8px 18px -10px rgba(11, 8, 40, 0.6);
+  transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
+}
+.aura-btn:hover { filter: brightness(1.06); }
+.aura-btn:active { transform: translateY(1px); }
+.aura-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.aura-btn-violet {
+  background: linear-gradient(135deg, #9b51e0 0%, #6d28d9 55%, #2563eb 100%);
+}
+.aura-btn-mint {
+  background: linear-gradient(135deg, #2cd4bd 0%, #16b3a6 55%, #0891b2 100%);
+}
+.aura-btn-gold {
+  background: linear-gradient(135deg, #ffca28 0%, #f59e0b 100%);
+  color: #3b2a00;
+}
+
+/* Ghost / secondary — translucent white-glass with light text (on aurora). */
+.aura-ghost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45em;
+  border-radius: 0.75rem;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.12);
+  color: #e9ecff;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.aura-ghost:hover {
+  background: rgba(255, 255, 255, 0.22);
+  color: #fff;
+}
+.aura-ghost:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Danger-ghost (delete etc.). */
+.aura-ghost-danger:hover {
+  background: rgba(244, 63, 94, 0.22);
+  color: #fecdd3;
+}
+
+/* --- Small chrome helpers ---------------------------------------------- */
+.aura-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border-radius: 999px;
+  padding: 0.25rem 0.7rem;
+  background: rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: #e9ecff;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.aura-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.75rem;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  color: #c7d2fe;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.aura-icon-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+}

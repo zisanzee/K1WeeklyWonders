@@ -18,7 +18,7 @@ export function createGameConfig({
   scenes,
   width = DEFAULT_BASE_RESOLUTION.width,
   height = DEFAULT_BASE_RESOLUTION.height,
-  backgroundColor = '#8fe0fa',
+  backgroundColor = '#1e1b5a',
   physics = DEFAULT_PHYSICS,
 }) {
   return {

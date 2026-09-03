@@ -24,8 +24,8 @@ export const LEVELS = [
     itemRadius: 48,
     objectEmojis: null,
     palette: [0xff6b6b, 0xffa94d, 0xffd43b, 0x94d82d, 0x51cf66],
-    bgColors: ['#3fb6ea', '#8fe0fa', '#ffe9a8'],
-    groundColor: 'rgba(111, 207, 87, 0.85)',
+    bgColors: ['#1e1b5a', '#4338ca', '#7c3aed'],
+    groundColor: 'rgba(147, 51, 234, 0.55)',
     accentColor: 0x3fb6ea,
   },
   {
@@ -44,8 +44,8 @@ export const LEVELS = [
       0xff6b6b, 0xffa94d, 0xffd43b, 0x94d82d, 0x51cf66,
       0x20c997, 0x22b8cf, 0x4dabf7, 0x845ef7, 0xf783ac,
     ],
-    bgColors: ['#ffb46b', '#ffe08a', '#cdeec0'],
-    groundColor: 'rgba(122, 87, 48, 0.55)',
+    bgColors: ['#241a63', '#5b21b6', '#9333ea'],
+    groundColor: 'rgba(109, 40, 217, 0.5)',
     accentColor: 0xff8f3f,
   },
   {
@@ -60,8 +60,8 @@ export const LEVELS = [
     itemRadius: 62,
     objectEmojis: ['🌸', '🌺', '🪷'],
     palette: [0xff6fa8, 0xb96bf0, 0xff8fc7, 0xff5c8a, 0xc65cd9],
-    bgColors: ['#f9a8d4', '#fbcfe8', '#fff1f8'],
-    groundColor: 'rgba(150, 190, 110, 0.6)',
+    bgColors: ['#1e1b5a', '#7c3aed', '#a21caf'],
+    groundColor: 'rgba(190, 24, 93, 0.5)',
     accentColor: 0xe0559f,
   },
   {
@@ -80,8 +80,8 @@ export const LEVELS = [
       0x0f9dc2, 0x22b8cf, 0x3bc9db, 0x4dabf7, 0x66d9e8,
       0x20c997, 0x38d9a9, 0x4dc9c9, 0x0ea5b7, 0x5eead4,
     ],
-    bgColors: ['#0f7ea0', '#3fc6d6', '#a9ecec'],
-    groundColor: 'rgba(232, 194, 115, 0.7)',
+    bgColors: ['#312e81', '#6d28d9', '#be185d'],
+    groundColor: 'rgba(79, 70, 229, 0.5)',
     accentColor: 0x0f9dc2,
   },
 ];

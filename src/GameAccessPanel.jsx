@@ -52,7 +52,7 @@ function AdminTabBar({ activeTab, onChange, disabled, adminClassType }) {
 
   return (
     <div className="mx-auto max-w-5xl overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-      <div role="tablist" aria-label="Admin panel sections" className="flex min-w-max gap-1 border-b border-white/15 sm:min-w-0 sm:gap-2">
+      <div role="tablist" aria-label="Admin panel sections" className="flex min-w-max gap-1 border-b border-white/25 sm:min-w-0 sm:gap-2">
         {tabs.map((tab) => {
           const isActive = tab.key === activeTab;
           return (
@@ -64,7 +64,7 @@ function AdminTabBar({ activeTab, onChange, disabled, adminClassType }) {
               onClick={() => onChange(tab.key)}
               disabled={disabled}
               className={`relative flex shrink-0 items-center gap-1.5 whitespace-nowrap px-3 py-2.5 text-xs font-black transition disabled:cursor-not-allowed disabled:opacity-50 sm:flex-1 sm:justify-center sm:px-4 sm:text-sm ${
-                isActive ? 'text-white' : 'text-white/60 hover:text-white/85'
+                isActive ? 'text-white' : 'text-slate-300/70 hover:text-white'
               }`}
             >
               <span className="text-sm sm:text-base">{tab.icon}</span>
@@ -94,7 +94,7 @@ function TeacherTabBar({ activeTab, onChange, disabled }) {
 
   return (
     <div className="mx-auto max-w-5xl overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-      <div role="tablist" aria-label="Teacher panel sections" className="flex min-w-max gap-1 border-b border-white/15 sm:min-w-0 sm:gap-2">
+      <div role="tablist" aria-label="Teacher panel sections" className="flex min-w-max gap-1 border-b border-white/25 sm:min-w-0 sm:gap-2">
         {tabs.map((tab) => {
           const isActive = tab.key === activeTab;
           return (
@@ -106,7 +106,7 @@ function TeacherTabBar({ activeTab, onChange, disabled }) {
               onClick={() => onChange(tab.key)}
               disabled={disabled}
               className={`relative flex shrink-0 items-center gap-1.5 whitespace-nowrap px-3 py-2.5 text-xs font-black transition disabled:cursor-not-allowed disabled:opacity-50 sm:flex-1 sm:justify-center sm:px-4 sm:text-sm ${
-                isActive ? 'text-white' : 'text-white/60 hover:text-white/85'
+                isActive ? 'text-white' : 'text-slate-300/70 hover:text-white'
               }`}
             >
               <span className="text-sm sm:text-base">{tab.icon}</span>
@@ -143,10 +143,10 @@ function AddStudentForm({ onAdd, isSaving, error }) {
   return (
     <form
       onSubmit={handleSubmit}
-      className="mb-4 flex flex-col gap-2 rounded-2xl border border-indigo-100 bg-white p-3 shadow-sm sm:flex-row sm:items-end sm:gap-3 sm:p-4"
+      className="mb-4 flex flex-col gap-2 rounded-2xl aura-card p-3 sm:flex-row sm:items-end sm:gap-3 sm:p-4"
     >
       <div className="flex-1">
-        <label htmlFor="student-nickname" className="mb-1 block text-[11px] font-black text-slate-600">
+        <label htmlFor="student-nickname" className="mb-1 block text-[11px] font-black aura-soft">
           Nickname
         </label>
         <input
@@ -157,12 +157,12 @@ function AddStudentForm({ onAdd, isSaving, error }) {
           onChange={(event) => setNickname(event.target.value)}
           placeholder="e.g. Aisyah"
           disabled={isSaving}
-          className="w-full rounded-xl border-2 border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-bold text-slate-800 outline-none transition focus:border-indigo-400 focus:bg-white focus:ring-4 focus:ring-indigo-100 disabled:cursor-not-allowed disabled:opacity-60"
+          className="aura-input px-3 py-2.5 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-60"
         />
       </div>
 
       <div className="flex-1">
-        <label htmlFor="student-group" className="mb-1 block text-[11px] font-black text-slate-600">
+        <label htmlFor="student-group" className="mb-1 block text-[11px] font-black aura-soft">
           Group (optional)
         </label>
         <input
@@ -173,14 +173,14 @@ function AddStudentForm({ onAdd, isSaving, error }) {
           onChange={(event) => setGroup(event.target.value)}
           placeholder="e.g. Red group"
           disabled={isSaving}
-          className="w-full rounded-xl border-2 border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-bold text-slate-800 outline-none transition focus:border-indigo-400 focus:bg-white focus:ring-4 focus:ring-indigo-100 disabled:cursor-not-allowed disabled:opacity-60"
+          className="aura-input px-3 py-2.5 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-60"
         />
       </div>
 
       <button
         type="submit"
         disabled={isSaving || !nickname.trim()}
-        className="flex min-h-[2.75rem] shrink-0 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 px-4 text-sm font-black text-white shadow-sm transition hover:from-indigo-700 hover:to-violet-700 disabled:cursor-not-allowed disabled:opacity-50"
+        className="aura-btn aura-btn-violet min-h-[2.75rem] shrink-0 gap-2 px-4 text-sm disabled:cursor-not-allowed disabled:opacity-50"
       >
         {isSaving ? (
           <>
@@ -193,7 +193,7 @@ function AddStudentForm({ onAdd, isSaving, error }) {
       </button>
 
       {error && (
-        <p className="w-full rounded-xl bg-rose-50 px-3 py-2 text-xs font-bold text-rose-600 sm:basis-full" role="alert">
+        <p className="w-full rounded-xl bg-rose-500/20 px-3 py-2 text-xs font-bold text-rose-100 sm:basis-full" role="alert">
           ⚠️ {error}
         </p>
       )}
@@ -252,9 +252,9 @@ function StudentRow({ student, teacherCode }) {
 
   return (
     <>
-      <li className="rounded-2xl border border-slate-100 bg-white p-3 shadow-sm transition hover:border-indigo-200 hover:shadow-md sm:p-4">
+      <li className="rounded-2xl aura-card p-3 transition sm:p-4">
         {error && (
-          <p className="mb-2.5 rounded-xl bg-rose-50 px-3 py-2 text-xs font-bold text-rose-600" role="alert">
+          <p className="mb-2.5 rounded-xl bg-rose-500/20 px-3 py-2 text-xs font-bold text-rose-100" role="alert">
             ⚠️ {error}
           </p>
         )}
@@ -270,7 +270,7 @@ function StudentRow({ student, teacherCode }) {
               onChange={(e) => setNickname(e.target.value)}
               placeholder="Nickname"
               disabled={saving}
-              className="w-full rounded-xl border-2 border-indigo-300 bg-white px-3 py-2 text-sm font-bold text-slate-800 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 disabled:opacity-60"
+              className="aura-input px-3 py-2 text-sm font-bold disabled:opacity-60"
             />
             <input
               type="text"
@@ -279,14 +279,14 @@ function StudentRow({ student, teacherCode }) {
               onChange={(e) => setGroup(e.target.value)}
               placeholder="Group (optional)"
               disabled={saving}
-              className="w-full rounded-xl border-2 border-indigo-300 bg-white px-3 py-2 text-sm font-bold text-slate-800 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 disabled:opacity-60"
+              className="aura-input px-3 py-2 text-sm font-bold disabled:opacity-60"
             />
             <div className="flex gap-2">
               <button
                 type="button"
                 onClick={handleSave}
                 disabled={saving || !nickname.trim()}
-                className="flex-1 rounded-xl bg-indigo-600 px-3 py-2 text-xs font-black text-white transition hover:bg-indigo-700 disabled:opacity-50 sm:flex-none sm:px-5"
+                className="aura-btn aura-btn-violet flex-1 px-3 py-2 text-xs disabled:opacity-50 sm:flex-none sm:px-5"
               >
                 {saving ? 'Saving…' : 'Save'}
               </button>
@@ -294,7 +294,7 @@ function StudentRow({ student, teacherCode }) {
                 type="button"
                 onClick={handleCancel}
                 disabled={saving}
-                className="flex-1 rounded-xl bg-slate-200 px-3 py-2 text-xs font-bold text-slate-600 transition hover:bg-slate-300 disabled:opacity-50 sm:flex-none sm:px-5"
+                className="aura-ghost flex-1 px-3 py-2 text-xs disabled:opacity-50 sm:flex-none sm:px-5"
               >
                 Cancel
               </button>
@@ -305,16 +305,16 @@ function StudentRow({ student, teacherCode }) {
             {/* Name, group and code — truncate so nothing overflows on mobile */}
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                <p className="truncate text-sm font-black text-slate-800 sm:text-base">
+                <p className="truncate text-sm font-black aura-text sm:text-base">
                   {student.nickname || student.fullName || 'Student'}
                 </p>
                 {student.group && (
-                  <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] font-black text-indigo-700">
+                  <span className="rounded-full bg-indigo-500/30 px-2 py-0.5 text-[10px] font-black text-indigo-100">
                     {student.group}
                   </span>
                 )}
               </div>
-              <p className="mt-1 font-mono text-[11px] font-bold tracking-wider text-slate-400">
+              <p className="mt-1 font-mono text-[11px] font-bold tracking-wider aura-muted">
                 Code: {student.code || student.studentId?.slice(0, 8)}
               </p>
             </div>
@@ -326,7 +326,7 @@ function StudentRow({ student, teacherCode }) {
                 onClick={() => setShowBadge(true)}
                 title="Generate badge with QR code"
                 aria-label={`Generate badge for ${student.nickname || student.fullName}`}
-                className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-sky-100 to-indigo-100 text-indigo-600 transition hover:from-sky-200 hover:to-indigo-200 active:scale-95"
+                className="aura-btn-gold aura-btn h-9 w-9 active:scale-95"
               >
                 <svg viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor" aria-hidden="true">
                   <path d="M3 11h8V3H3v8zm2-6h4v4H5V5zM13 3v8h8V3h-8zm6 6h-4V5h4v4zM3 21h8v-8H3v8zm2-6h4v4H5v-4zM18 13h-2v2h2v-2zM13 13h2v2h-2v-2zM18 18h2v2h-2v-2zM13 18h2v2h-2v-2z" />
@@ -342,7 +342,7 @@ function StudentRow({ student, teacherCode }) {
                 }}
                 title="Edit student"
                 aria-label={`Edit ${student.nickname || student.fullName}`}
-                className="flex h-9 w-9 items-center justify-center rounded-xl text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 active:scale-95"
+                className="aura-icon-btn h-9 w-9 active:scale-95"
               >
                 <svg viewBox="0 0 24 24" className="h-[18px] w-[18px]" fill="currentColor" aria-hidden="true">
                   <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34a.9959.9959 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z" />
@@ -353,7 +353,7 @@ function StudentRow({ student, teacherCode }) {
                 onClick={handleDelete}
                 title="Delete student"
                 aria-label={`Delete ${student.nickname || student.fullName}`}
-                className="flex h-9 w-9 items-center justify-center rounded-xl text-slate-400 transition hover:bg-rose-50 hover:text-rose-600 active:scale-95"
+                className="aura-icon-btn aura-ghost-danger h-9 w-9 active:scale-95"
               >
                 <svg viewBox="0 0 24 24" className="h-[18px] w-[18px]" fill="currentColor" aria-hidden="true">
                   <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" />
@@ -384,17 +384,17 @@ function StudentsTab({ isReady, students, onAdd, isSaving, error, teacherCode })
       <AddStudentForm onAdd={onAdd} isSaving={isSaving} error={error} />
 
       {!isReady && (
-        <div className="mb-3 flex items-center gap-2 rounded-2xl border border-indigo-100 bg-indigo-50 px-3 py-2.5 text-xs font-bold text-indigo-700">
-          <span className="h-3 w-3 animate-spin rounded-full border-2 border-indigo-400 border-t-transparent" />
+        <div className="mb-3 flex items-center gap-2 rounded-2xl border border-white/15 bg-white/10 px-3 py-2.5 text-xs font-bold aura-soft">
+          <span className="h-3 w-3 animate-spin rounded-full border-2 border-white/70 border-t-transparent" />
           Loading students…
         </div>
       )}
 
       {isReady && students.length === 0 && (
-        <div className="rounded-2xl border border-dashed border-indigo-200 bg-indigo-50/60 px-5 py-10 text-center">
+        <div className="rounded-2xl border border-dashed border-white/25 bg-white/10 px-5 py-10 text-center">
           <span className="text-4xl">🧑‍🎓</span>
-          <p className="mt-3 text-base font-black text-indigo-950">No students yet</p>
-          <p className="mt-1 text-sm font-semibold text-indigo-700">
+          <p className="mt-3 text-base font-black aura-text">No students yet</p>
+          <p className="mt-1 text-sm font-semibold aura-soft">
             Add your first student using the form above.
           </p>
         </div>
@@ -402,7 +402,7 @@ function StudentsTab({ isReady, students, onAdd, isSaving, error, teacherCode })
 
       {isReady && students.length > 0 && (
         <div className="mb-3 flex items-center justify-between gap-3">
-          <p className="text-sm font-black text-slate-700">
+          <p className="text-sm font-black aura-soft">
             {students.length} student{students.length === 1 ? '' : 's'}
           </p>
           <button
@@ -410,7 +410,7 @@ function StudentsTab({ isReady, students, onAdd, isSaving, error, teacherCode })
             onClick={() => fetchStudents(teacherCode)}
             disabled={loading}
             title="Refresh the student list"
-            className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-600 transition hover:border-indigo-200 hover:bg-indigo-50 disabled:cursor-not-allowed disabled:opacity-60"
+            className="aura-ghost gap-1.5 px-3 py-2 text-xs disabled:cursor-not-allowed disabled:opacity-60"
           >
             <svg viewBox="0 0 24 24" className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} fill="currentColor" aria-hidden="true">
               <path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z" />
@@ -453,7 +453,7 @@ function ClassImage({ image, className }) {
   }
 
   return (
-    <span className="flex h-20 w-20 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-200 to-violet-200 text-3xl shadow-sm sm:h-24 sm:w-24">
+    <span className="flex h-20 w-20 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500/35 to-violet-500/35 text-3xl shadow-sm sm:h-24 sm:w-24">
       🏫
     </span>
   );
@@ -462,8 +462,8 @@ function ClassImage({ image, className }) {
 function ClassInfoTab({ status, classInfo, error }) {
   if (status === 'loading') {
     return (
-      <div className="flex items-center gap-2 rounded-2xl border border-indigo-100 bg-indigo-50 px-3 py-2.5 text-xs font-bold text-indigo-700">
-        <span className="h-3 w-3 animate-spin rounded-full border-2 border-indigo-400 border-t-transparent" />
+      <div className="flex items-center gap-2 rounded-2xl border border-white/15 bg-white/10 px-3 py-2.5 text-xs font-bold aura-soft">
+        <span className="h-3 w-3 animate-spin rounded-full border-2 border-white/70 border-t-transparent" />
         Loading class information…
       </div>
     );
@@ -471,34 +471,34 @@ function ClassInfoTab({ status, classInfo, error }) {
 
   if (status === 'error' || !classInfo) {
     return (
-      <p className="rounded-2xl border border-rose-300 bg-rose-50 px-3 py-3 text-sm font-bold text-rose-800">
+      <p className="rounded-2xl border border-rose-500/30 bg-rose-500/20 px-3 py-3 text-sm font-bold text-rose-100">
         ⚠️ {error || 'Could not load class information.'}
       </p>
     );
   }
 
   return (
-    <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm sm:p-5">
+    <div className="rounded-2xl aura-card p-4 sm:p-5">
       <div className="flex items-center gap-4">
         <ClassImage image={classInfo.image} className={classInfo.className} />
         <div className="min-w-0">
-          <p className="truncate text-lg font-black text-slate-900">{classInfo.className}</p>
-          <p className="mt-0.5 font-mono text-xs font-bold text-slate-500">{classInfo.classId}</p>
+          <p className="truncate text-lg font-black aura-text">{classInfo.className}</p>
+          <p className="mt-0.5 font-mono text-xs font-bold aura-muted">{classInfo.classId}</p>
         </div>
       </div>
 
       <div className="mt-5">
-        <p className="mb-2 text-[11px] font-black uppercase tracking-wide text-slate-500">
+        <p className="mb-2 text-[11px] font-black uppercase tracking-wide aura-muted">
           Teachers
         </p>
         {classInfo.teachers.length === 0 ? (
-          <p className="text-sm font-semibold text-slate-500">No teachers assigned to this class yet.</p>
+          <p className="text-sm font-semibold aura-muted">No teachers assigned to this class yet.</p>
         ) : (
           <ul className="flex flex-wrap gap-2">
             {classInfo.teachers.map((name) => (
               <li
                 key={name}
-                className="rounded-full bg-indigo-50 px-3 py-1.5 text-xs font-black text-indigo-700"
+                className="rounded-full bg-indigo-500/30 px-3 py-1.5 text-xs font-black text-indigo-100"
               >
                 {name}
               </li>
@@ -552,7 +552,7 @@ function AccessToggle({ game, disabled, onToggle }) {
       className={`relative h-8 w-[3.25rem] shrink-0 rounded-full border-2 [--switch-x:20px] transition-colors duration-200 disabled:cursor-not-allowed disabled:opacity-55 sm:h-10 sm:w-[3.85rem] sm:[--switch-x:25px] ${
         game.unlocked
           ? 'border-emerald-500 bg-emerald-500'
-          : 'border-slate-300 bg-slate-200'
+          : 'border-white/40 bg-white/15'
       }`}
     >
       <motion.span
@@ -619,11 +619,11 @@ function SortableGameSlot({
       }}
       className={`relative min-h-[84px] overflow-hidden rounded-2xl border-2 border-dashed p-1.5 transition-colors duration-200 ${
         isHoveredSlot
-          ? 'border-indigo-400 bg-indigo-100/70'
+          ? 'border-indigo-400 bg-indigo-500/25'
           : game.isBonus
-            ? 'border-fuchsia-200 bg-fuchsia-50/45'
-            : 'border-indigo-100 bg-indigo-50/40'
-      } ${isJustMoved ? 'ring-2 ring-amber-300 ring-offset-2' : ''}`}
+            ? 'border-fuchsia-400/50 bg-fuchsia-500/15'
+            : 'border-white/20 bg-transparent'
+      } ${isJustMoved ? 'ring-2 ring-amber-300/70' : ''}`}
     >
       <SlotLabel game={game} />
 
@@ -665,8 +665,8 @@ function SortableGameSlot({
         }}
         className={`relative min-h-[72px] overflow-hidden rounded-xl border transition-shadow duration-150 sm:min-h-[78px] ${
           game.unlocked
-            ? 'border-white bg-white shadow-[0_5px_16px_rgba(41,65,109,0.1)]'
-            : 'border-slate-200 bg-slate-100'
+            ? 'border-indigo-400/40 aura-card'
+            : 'border-white/20 bg-white/10'
         }`}
       >
         {game.unlocked && (
@@ -683,7 +683,7 @@ function SortableGameSlot({
             disabled={disabled}
             {...attributes}
             {...listeners}
-            className="touch-none flex h-9 w-7 shrink-0 cursor-grab items-center justify-center rounded-lg text-lg text-slate-500 transition hover:bg-slate-100 hover:text-slate-800 active:cursor-grabbing disabled:cursor-not-allowed disabled:opacity-30 sm:h-10 sm:w-8"
+            className="touch-none flex h-9 w-7 shrink-0 cursor-grab items-center justify-center rounded-lg text-lg aura-muted transition hover:bg-white/15 hover:text-white active:cursor-grabbing disabled:cursor-not-allowed disabled:opacity-30 sm:h-10 sm:w-8"
           >
             ⠿
           </button>
@@ -692,21 +692,21 @@ function SortableGameSlot({
 
           <div className="min-w-0 flex-1">
             {game.isBonus && (
-              <p className="mb-0.5 text-[9px] font-black uppercase tracking-[0.1em] text-fuchsia-700 sm:text-[10px]">
+              <p className="mb-0.5 text-[9px] font-black uppercase tracking-[0.1em] text-fuchsia-200 sm:text-[10px]">
                 Bonus game
               </p>
             )}
 
-            <p className="text-[13px] font-extrabold leading-tight text-slate-900 sm:text-base">
+            <p className="text-[13px] font-extrabold leading-tight aura-text sm:text-base">
               {game.label}
             </p>
 
-            <p className="mt-1 whitespace-pre-line text-[10px] font-semibold leading-snug text-slate-600 sm:text-xs">
+            <p className="mt-1 whitespace-pre-line text-[10px] font-semibold leading-snug aura-soft sm:text-xs">
               {game.subtitle}
             </p>
 
             {game.shiny && (
-              <span className="mt-1 inline-flex rounded-full bg-amber-100 px-1.5 py-0.5 text-[8px] font-black text-amber-700 sm:text-[9px]">
+              <span className="mt-1 inline-flex rounded-full bg-amber-500/25 px-1.5 py-0.5 text-[8px] font-black text-amber-100 sm:text-[9px]">
                 ✨ Featured
               </span>
             )}
@@ -721,8 +721,8 @@ function SortableGameSlot({
               aria-label={`${game.shiny ? 'Remove shiny mark from' : 'Mark as shiny'} ${game.label}`}
               className={`flex h-8 w-8 items-center justify-center rounded-lg text-sm transition disabled:cursor-not-allowed disabled:opacity-50 sm:h-10 sm:w-10 sm:rounded-xl sm:text-lg ${
                 game.shiny
-                  ? 'bg-gradient-to-br from-amber-300 to-orange-400 text-white shadow-sm'
-                  : 'bg-slate-200 text-slate-500 hover:bg-amber-100 hover:text-amber-600'
+                  ? 'bg-gradient-to-br from-amber-400 to-orange-500 text-white shadow-sm'
+                  : 'bg-amber-500/25 text-amber-100 hover:bg-amber-500/40'
               }`}
             >
               ✨
@@ -748,15 +748,15 @@ function DragPreview({ game }) {
       initial={{ opacity: 0.5, scale: 0.96 }}
       animate={{ opacity: 1, scale: 1.02 }}
       transition={{ duration: 0.12 }}
-      className="flex w-[min(380px,calc(100vw-1.5rem))] items-center gap-3 rounded-2xl border border-indigo-200 bg-white px-3 py-3 shadow-[0_20px_50px_rgba(51,65,149,0.25)]"
+      className="flex w-[min(380px,calc(100vw-1.5rem))] items-center gap-3 rounded-2xl border border-white/25 aura-card px-3 py-3 shadow-[0_20px_50px_rgba(11,8,40,0.55)]"
     >
       <GameIcon game={game} />
 
       <div className="min-w-0">
-        <p className="text-[10px] font-black uppercase tracking-[0.1em] text-indigo-700">
+        <p className="text-[10px] font-black uppercase tracking-[0.1em] text-indigo-200">
           Moving game
         </p>
-        <p className="truncate text-sm font-extrabold text-slate-900">
+        <p className="truncate text-sm font-extrabold aura-text">
           {game.label}
         </p>
       </div>
@@ -1030,13 +1030,13 @@ function GameAccessTypeEditor({
   return (
     <>
       <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-stretch">
-        <div className="min-w-0 flex-1 rounded-2xl border border-indigo-100 bg-white px-4 py-3 shadow-sm sm:max-w-xs sm:px-5">
-          <p className="text-[10px] font-black uppercase tracking-wide text-indigo-400">
+        <div className="min-w-0 flex-1 rounded-2xl aura-card px-4 py-3 sm:max-w-xs sm:px-5">
+          <p className="text-[10px] font-black uppercase tracking-wide text-indigo-200">
             Player access
           </p>
-          <p className="mt-0.5 text-lg font-black text-slate-900 sm:text-xl">
+          <p className="mt-0.5 text-lg font-black aura-text sm:text-xl">
             {unlockedCount}
-            <span className="text-sm font-bold text-slate-500">
+            <span className="text-sm font-bold aura-muted">
               {' '}
               / {visibleGames.length} open
             </span>
@@ -1047,7 +1047,7 @@ function GameAccessTypeEditor({
           type="button"
           disabled={!isReady || localSaving || isSaving}
           onClick={() => handleBulk(!allUnlocked)}
-          className="min-h-[3.25rem] shrink-0 rounded-2xl bg-white px-4 text-sm font-black text-indigo-800 shadow-sm ring-1 ring-inset ring-indigo-100 transition hover:bg-indigo-50 disabled:cursor-not-allowed disabled:opacity-60 sm:min-w-[9rem]"
+          className="aura-ghost min-h-[3.25rem] shrink-0 px-4 text-sm disabled:cursor-not-allowed disabled:opacity-60 sm:min-w-[9rem]"
         >
           {allUnlocked ? 'Lock all' : 'Unlock all'}
         </button>
@@ -1059,7 +1059,7 @@ function GameAccessTypeEditor({
             initial={{ opacity: 0, y: -6 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -6 }}
-            className="mb-3 rounded-2xl border border-rose-300 bg-rose-50 px-3 py-3 text-sm font-bold text-rose-800"
+            className="mb-3 rounded-2xl border border-rose-500/30 bg-rose-500/20 px-3 py-3 text-sm font-bold text-rose-100"
           >
             ⚠️ {displayError}
           </motion.p>
@@ -1067,10 +1067,10 @@ function GameAccessTypeEditor({
       </AnimatePresence>
 
       {!isReady && (
-        <div className="mb-3 flex items-center gap-2 rounded-2xl border border-indigo-100 bg-indigo-50 px-3 py-2.5 text-xs font-bold text-indigo-700">
+        <div className="mb-3 flex items-center gap-2 rounded-2xl border border-white/15 bg-white/10 px-3 py-2.5 text-xs font-bold aura-soft">
           {loading ? (
             <>
-              <span className="h-3 w-3 animate-spin rounded-full border-2 border-indigo-400 border-t-transparent" />
+              <span className="h-3 w-3 animate-spin rounded-full border-2 border-white/70 border-t-transparent" />
               Loading {CLASS_TYPE_LABELS[classType]?.label || classType} games…
             </>
           ) : (
@@ -1079,13 +1079,13 @@ function GameAccessTypeEditor({
         </div>
       )}
 
-      <p className="mb-3 px-1 text-sm font-bold text-slate-700">
+      <p className="mb-3 px-1 text-sm font-bold aura-soft">
         Drag a slot to reorder, or hover over one to preview the new placement.
       </p>
 
       {/* Shop section */}
-      <div className="mb-6 rounded-2xl border border-violet-100 bg-violet-50 px-4 py-3">
-        <p className="mb-3 text-sm font-semibold text-violet-900">
+      <div className="mb-6 rounded-2xl border border-white/20 bg-white/10 px-4 py-3">
+        <p className="mb-3 text-sm font-semibold text-white">
           Game shop — <strong>+</strong> adds this game to {CLASS_TYPE_LABELS[classType]?.label || classType}, <strong>Remove</strong> takes it out.
         </p>
         <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -1093,18 +1093,18 @@ function GameAccessTypeEditor({
             const isAdded = visibleGames.some((item) => item.key === game.key);
             const isSavingThis = shopSavingKey === game.key;
             return (
-              <li key={game.key} className="flex items-center gap-3 rounded-2xl border border-slate-100 bg-white p-3 shadow-sm sm:p-4">
+              <li key={game.key} className="flex items-center gap-3 rounded-2xl aura-card p-3 sm:p-4">
                 <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-xl" style={{ background: game.tint }}>{game.emoji}</span>
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-black text-slate-800">{game.label}</p>
-                  <p className="mt-0.5 whitespace-pre-line text-[11px] font-semibold leading-snug text-slate-500">{game.subtitle}</p>
+                  <p className="truncate text-sm font-black aura-text">{game.label}</p>
+                  <p className="mt-0.5 whitespace-pre-line text-[11px] font-semibold leading-snug aura-muted">{game.subtitle}</p>
                 </div>
                 <button
                   type="button"
                   onClick={() => handleShopToggle(game)}
                   disabled={Boolean(shopSavingKey) || !isReady || localSaving || isSaving}
                   className={`min-h-10 shrink-0 rounded-xl px-3 text-xs font-black transition disabled:cursor-not-allowed disabled:opacity-55 ${
-                    isAdded ? 'bg-rose-50 text-rose-600 hover:bg-rose-100' : 'bg-indigo-600 text-white hover:bg-indigo-700'
+                    isAdded ? 'bg-rose-500/25 text-rose-100 hover:bg-rose-500/40' : 'bg-indigo-600 text-white hover:bg-indigo-500'
                   }`}
                 >
                   {isSavingThis ? 'Saving…' : isAdded ? 'Remove' : '+ Add'}
@@ -1160,12 +1160,12 @@ function GameAccessTypeEditor({
           </ul>
 
           {isReady && slottedGames.length === 0 && (
-            <div className="rounded-2xl border border-dashed border-indigo-200 bg-indigo-50/60 px-5 py-8 text-center">
+            <div className="rounded-2xl border border-dashed border-white/25 bg-white/10 px-5 py-8 text-center">
               <span className="text-4xl">&#127918;</span>
-              <p className="mt-3 text-base font-black text-indigo-950">
+              <p className="mt-3 text-base font-black aura-text">
                 {CLASS_TYPE_LABELS[classType]?.label || classType} has no games yet
               </p>
-              <p className="mt-1 text-sm font-semibold text-indigo-700">
+              <p className="mt-1 text-sm font-semibold aura-soft">
                 Add games from the shop above.
               </p>
             </div>
@@ -1178,13 +1178,13 @@ function GameAccessTypeEditor({
       </DndContext>
 
       {/* Footer */}
-      <div className="mt-6 border-t border-slate-200 pt-4">
+      <div className="mt-6 border-t border-white/20 pt-4">
         <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={handleReset}
             disabled={!hasChanges || localSaving || isSaving}
-            className="min-h-11 rounded-xl bg-slate-100 px-4 text-sm font-black text-slate-600 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-45"
+            className="aura-ghost min-h-11 px-4 text-sm disabled:cursor-not-allowed disabled:opacity-45"
           >
             Reset
           </button>
@@ -1193,7 +1193,7 @@ function GameAccessTypeEditor({
             type="button"
             onClick={handleConfirm}
             disabled={!hasChanges || localSaving || isSaving}
-            className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 px-4 text-sm font-black text-white shadow-sm transition hover:from-indigo-700 hover:to-violet-700 disabled:cursor-not-allowed disabled:opacity-45 sm:flex-none sm:min-w-[12rem]"
+            className="aura-btn aura-btn-violet min-h-11 flex-1 gap-2 px-4 text-sm disabled:cursor-not-allowed disabled:opacity-45 sm:flex-none sm:min-w-[12rem]"
           >
             {(localSaving || isSaving) ? (
               <>
@@ -1214,7 +1214,7 @@ function GameAccessTypeEditor({
         </div>
 
         {hasChanges && !localSaving && !isSaving && (
-          <p className="mt-2 text-center text-[11px] font-semibold text-amber-600">
+          <p className="mt-2 text-center text-[11px] font-semibold text-amber-200">
             You have unsaved changes.
           </p>
         )}
@@ -1245,15 +1245,15 @@ function ReadOnlyGameList({ classId }) {
   if (!isReady) {
     if (error) {
       return (
-        <p className="rounded-2xl border border-rose-300 bg-rose-50 px-3 py-3 text-sm font-bold text-rose-800">
+        <p className="rounded-2xl border border-rose-500/30 bg-rose-500/20 px-3 py-3 text-sm font-bold text-rose-100">
           ⚠️ {error}
         </p>
       );
     }
 
     return (
-      <div className="flex items-center gap-2 rounded-2xl border border-indigo-100 bg-indigo-50 px-3 py-2.5 text-xs font-bold text-indigo-700">
-        <span className="h-3 w-3 animate-spin rounded-full border-2 border-indigo-400 border-t-transparent" />
+      <div className="flex items-center gap-2 rounded-2xl border border-white/15 bg-white/10 px-3 py-2.5 text-xs font-bold aura-soft">
+        <span className="h-3 w-3 animate-spin rounded-full border-2 border-white/70 border-t-transparent" />
         Loading games…
       </div>
     );
@@ -1261,10 +1261,10 @@ function ReadOnlyGameList({ classId }) {
 
   if (games.length === 0) {
     return (
-      <div className="rounded-2xl border border-dashed border-indigo-200 bg-indigo-50/60 px-5 py-10 text-center">
+      <div className="rounded-2xl border border-dashed border-white/25 bg-white/10 px-5 py-10 text-center">
         <span className="text-4xl">🎮</span>
-        <p className="mt-3 text-base font-black text-indigo-950">No games configured yet</p>
-        <p className="mt-1 text-sm font-semibold text-indigo-700">
+        <p className="mt-3 text-base font-black aura-text">No games configured yet</p>
+        <p className="mt-1 text-sm font-semibold aura-soft">
           Ask an admin to add games for this class type.
         </p>
       </div>
@@ -1273,14 +1273,14 @@ function ReadOnlyGameList({ classId }) {
 
   return (
     <div>
-      <p className="mb-4 text-sm font-bold text-slate-700">
+      <p className="mb-4 text-sm font-bold aura-soft">
         Current game arrangement for your class (read-only).
       </p>
       <ul className="flex flex-col gap-2.5">
         {games.map((game, index) => (
           <li
             key={game.gameKey || index}
-            className="flex items-center gap-3 rounded-2xl border border-slate-100 bg-white p-3 shadow-sm sm:p-4"
+            className="flex items-center gap-3 rounded-2xl aura-card p-3 sm:p-4"
           >
             <span
               className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-base shadow-sm sm:h-12 sm:w-12 sm:text-lg"
@@ -1296,10 +1296,10 @@ function ReadOnlyGameList({ classId }) {
             </span>
 
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-extrabold leading-tight text-slate-900 sm:text-base">
+              <p className="text-sm font-extrabold leading-tight aura-text sm:text-base">
                 {game.label || game.gameKey}
               </p>
-              <p className="mt-1 whitespace-pre-line text-[10px] font-semibold leading-snug text-slate-600 sm:text-xs">
+              <p className="mt-1 whitespace-pre-line text-[10px] font-semibold leading-snug aura-soft sm:text-xs">
                 {game.subtitle || ''}
               </p>
             </div>
@@ -1308,14 +1308,14 @@ function ReadOnlyGameList({ classId }) {
               <span
                 className={`rounded-full px-2.5 py-1 text-[10px] font-black ${
                   game.unlocked
-                    ? 'bg-emerald-100 text-emerald-700'
-                    : 'bg-slate-100 text-slate-500'
+                    ? 'bg-emerald-500/25 text-emerald-100'
+                    : 'bg-white/10 text-slate-200'
                 }`}
               >
                 {game.unlocked ? '🔓 Unlocked' : '🔒 Locked'}
               </span>
               {game.shiny && (
-                <span className="rounded-full bg-amber-100 px-2.5 py-1 text-[10px] font-black text-amber-700">
+                <span className="rounded-full bg-amber-500/25 px-2.5 py-1 text-[10px] font-black text-amber-100">
                   ✨ Featured
                 </span>
               )}
@@ -1441,8 +1441,8 @@ export default function GameAccessPanel({ onClose, initialTab }) {
   })();
 
   return (
-    <div className="min-h-[100dvh] w-full bg-[#f5f7ff]">
-      <header className="sticky top-0 z-30 bg-gradient-to-br from-[#315ed8] via-[#5a3fc4] to-[#972aa8] px-4 pb-0 pt-[max(1rem,env(safe-area-inset-top))] shadow-[0_4px_24px_rgba(49,94,216,0.28)] sm:px-6 sm:pt-6 lg:px-10">
+    <div className="aura-page min-h-[100dvh] w-full">
+      <header className="sticky top-0 z-30 border-b border-white/15 bg-gradient-to-br from-[#315ed8]/95 via-[#5a3fc4]/95 to-[#972aa8]/95 px-4 pb-0 pt-[max(1rem,env(safe-area-inset-top))] shadow-[0_14px_40px_-28px_rgba(0,0,0,0.4)] backdrop-blur-xl sm:px-6 sm:pt-6 lg:px-10">
         <div className="mx-auto flex max-w-5xl items-start justify-between gap-3 pb-4">
           <div className="flex min-w-0 items-center gap-3">
             <button
@@ -1450,17 +1450,17 @@ export default function GameAccessPanel({ onClose, initialTab }) {
               onClick={onClose}
               disabled={globalSaving}
               aria-label="Back home"
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/15 text-xl text-white transition hover:bg-white/25 disabled:cursor-not-allowed disabled:opacity-50"
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-white/25 bg-white/15 text-xl text-white shadow-sm transition hover:bg-white/25 disabled:cursor-not-allowed disabled:opacity-50"
             >
               ←
             </button>
 
-            <span className="hidden h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white/20 text-2xl shadow-sm sm:flex sm:h-12 sm:w-12">
+            <span className="hidden h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white/15 text-2xl shadow-sm ring-1 ring-white/25 sm:flex sm:h-12 sm:w-12">
               🏫
             </span>
 
             <div className="min-w-0">
-              <p className="text-[11px] font-black uppercase tracking-[0.14em] text-white/80">
+              <p className="text-[11px] font-black uppercase tracking-[0.14em] text-white/70">
                 {isAdmin ? 'Admin controls' : 'Teacher controls'}
               </p>
               <h1 className="truncate text-xl font-black tracking-tight text-white sm:text-2xl lg:text-3xl">
@@ -1471,13 +1471,13 @@ export default function GameAccessPanel({ onClose, initialTab }) {
 
           <Link
             to="/beta-ezwonders"
-            className="flex h-11 shrink-0 items-center gap-1.5 rounded-xl bg-white/15 px-4 text-sm font-black text-white transition hover:bg-white/25"
+            className="flex h-11 shrink-0 items-center gap-1.5 rounded-xl border border-white/25 bg-white/15 px-4 text-sm font-black text-white shadow-sm transition hover:bg-white/25"
           >
             ✨ Beta Homepage
           </Link>
         </div>
 
-        <p className="mx-auto max-w-5xl pb-4 text-xs font-semibold leading-relaxed text-white/90 sm:text-sm">
+        <p className="mx-auto max-w-5xl pb-4 text-xs font-semibold leading-relaxed text-white/85 sm:text-sm">
           {activeTabConfig.description}
         </p>
 
@@ -1504,7 +1504,7 @@ export default function GameAccessPanel({ onClose, initialTab }) {
               initial={{ opacity: 0, y: -6 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -6 }}
-              className="mb-3 rounded-2xl border border-rose-300 bg-rose-50 px-3 py-3 text-sm font-bold text-rose-800"
+              className="mb-3 rounded-2xl border border-rose-500/30 bg-rose-500/20 px-3 py-3 text-sm font-bold text-rose-100"
             >
               ⚠️ {globalError}
             </motion.p>

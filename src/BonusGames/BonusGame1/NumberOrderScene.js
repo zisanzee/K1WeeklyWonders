@@ -218,7 +218,7 @@ const ORDER_WORD_STYLE = {
   smallest: { fontSize: 42, color: '#4CAF50' },
   biggest: { fontSize: 58, color: '#FF7043' },
 };
-const ORDER_TO_STYLE = { fontSize: 48, color: '#1f4f7a' };
+const ORDER_TO_STYLE = { fontSize: 48, color: '#f8fafc' };
 const ORDER_WORD_GAP = 22;
 const ORDER_STROKE_WIDTH = 6;
 const ORDER_STROKE_COLOR = '#ffffff';
@@ -425,7 +425,7 @@ const titleStyle = {
 this.add.text(width / 2, 30, 'Tap the numbers from', {
   ...titleStyle,
   fontSize: '48px',
-  color: '#1f4f7a',
+  color: '#f8fafc',
 }).setOrigin(0.5);
 
 // 'smallest' always renders green/smaller, 'biggest' always renders
@@ -987,9 +987,9 @@ this.nextChip = this.createLastTappedChip(width / 2, 152);
       fontSize: '25px',
       paddingX: 24,
       paddingY: 16,
-      bgColor: 0xffffff,
-      textColor: '#173b59',
-      borderColor: 0x173b59,
+      bgColor: 0x7c3aed,
+      textColor: '#ffffff',
+      borderColor: 0x5b21b6,
       minWidth: BTN_MIN_W,
       depth: 0,
     });

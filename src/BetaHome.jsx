@@ -25,22 +25,24 @@ const LOGO_URL =
 
 const FONT = "'Fredoka', system-ui, sans-serif";
 
-// "Aurora dusk" — one deep indigo scene melting through violet into magenta.
-// Every corner glow stays inside that indigo → violet → magenta family
-// (with a single cool cyan accent), so the page reads as one curated
-// jewel-tone wash instead of a rainbow of unrelated blobs. Layers are sized
-// 100% 100% no-repeat so they stretch the full page height once — no tiling
-// seams however long the page grows.
+// "Aurora dusk" — one indigo scene melting through violet into magenta,
+// brightened so the page never reads as dark mode while still holding a
+// night-sky depth that keeps the light text legible. Every corner glow
+// stays inside that indigo → violet → magenta family (with a single cool
+// cyan accent), so the page reads as one curated jewel-tone wash instead of
+// a rainbow of unrelated blobs. Layers are sized 100% 100% no-repeat so
+// they stretch the full page height once — no tiling seams however long the
+// page grows.
 const PAGE_BACKGROUND_LAYERS = [
-  "radial-gradient(48% 40% at 12% 6%, rgba(167,139,250,0.55) 0%, transparent 66%)",
-  "radial-gradient(44% 36% at 90% 12%, rgba(244,114,182,0.45) 0%, transparent 66%)",
-  "radial-gradient(46% 38% at 14% 50%, rgba(129,140,248,0.5) 0%, transparent 68%)",
-  "radial-gradient(42% 34% at 90% 58%, rgba(216,180,254,0.42) 0%, transparent 68%)",
-  "radial-gradient(46% 38% at 12% 88%, rgba(34,211,238,0.24) 0%, transparent 68%)",
-  "radial-gradient(42% 34% at 88% 96%, rgba(232,121,249,0.34) 0%, transparent 68%)",
+  "radial-gradient(48% 40% at 12% 6%, rgba(167,139,250,0.6) 0%, transparent 66%)",
+  "radial-gradient(44% 36% at 90% 12%, rgba(244,114,182,0.5) 0%, transparent 66%)",
+  "radial-gradient(46% 38% at 14% 50%, rgba(129,140,248,0.55) 0%, transparent 68%)",
+  "radial-gradient(42% 34% at 90% 58%, rgba(216,180,254,0.48) 0%, transparent 68%)",
+  "radial-gradient(46% 38% at 12% 88%, rgba(34,211,238,0.28) 0%, transparent 68%)",
+  "radial-gradient(42% 34% at 88% 96%, rgba(232,121,249,0.4) 0%, transparent 68%)",
 ];
 const PAGE_BASE_GRADIENT =
-  "linear-gradient(160deg, #191338 0%, #2a1b5e 26%, #3b1f8f 50%, #5b21b6 72%, #7c2d9e 88%, #86198f 100%)";
+  "linear-gradient(160deg, #1e1b5a 0%, #4338ca 22%, #7c3aed 46%, #9333ea 66%, #a21caf 84%, #be185d 100%)";
 
 const PAGE_BACKGROUND_IMAGE = [...PAGE_BACKGROUND_LAYERS, PAGE_BASE_GRADIENT].join(", ");
 const PAGE_BACKGROUND_REPEAT =
@@ -1314,9 +1316,6 @@ function BetaHomeContent() {
     <div
       className="relative flex min-h-[100dvh] w-full flex-col overflow-hidden"
       style={{
-        backgroundImage: PAGE_BACKGROUND_IMAGE,
-        backgroundRepeat: PAGE_BACKGROUND_REPEAT,
-        backgroundSize: PAGE_BACKGROUND_SIZE,
         fontFamily: FONT,
         colorScheme: "light",
       }}
@@ -1325,6 +1324,23 @@ function BetaHomeContent() {
       <link
         rel="stylesheet"
         href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700;800;900&display=swap"
+      />
+
+      {/* Aurora backdrop locked to the VIEWPORT (`fixed`), not the page.
+          The old version painted the gradient on this growing container with
+          `background-size:100% 100%`, so every time the game cards mounted
+          and the page got taller the whole gradient re-rasterised to the new
+          height — that's the flash/jump during load. A fixed, viewport-sized
+          layer never changes size, so the scene stays rock-stable while the
+          content above it loads and scrolls. */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none fixed inset-0 z-0"
+        style={{
+          backgroundImage: PAGE_BACKGROUND_IMAGE,
+          backgroundRepeat: PAGE_BACKGROUND_REPEAT,
+          backgroundSize: PAGE_BACKGROUND_SIZE,
+        }}
       />
 
       {/* Subtle dot pattern over the gradient for texture. `absolute`

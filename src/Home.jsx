@@ -200,7 +200,7 @@ function HomeContent() {
   };
 
   return (
-    <div className="relative flex min-h-[100dvh] w-full flex-col overflow-hidden bg-gradient-to-b from-[#3FB6EA] via-[#8FE0FA] to-[#FFE9A8]">
+    <div className="aura-page relative flex min-h-[100dvh] w-full flex-col overflow-hidden">
       <link
         rel="stylesheet"
         href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;700&family=Nunito:wght@600;800&display=swap"
@@ -315,7 +315,7 @@ function HomeContent() {
     onClick={() => navigate("/game-access")}
     whileHover={{ y: -2 }}
     whileTap={{ y: 1 }}
-    className="flex items-center gap-1.5 rounded-full bg-white/90 px-4 py-2 text-sm font-extrabold text-slate-700 shadow-[0_4px_0_rgba(0,0,0,0.15)] sm:text-base"
+    className="aura-btn aura-btn-violet flex items-center gap-1.5 px-4 py-2 text-sm sm:text-base"
   >
     🔓 Teacher controls
   </motion.button>
@@ -325,7 +325,7 @@ function HomeContent() {
     onClick={() => navigate("/game-access?tab=stats")}
     whileHover={{ y: -2 }}
     whileTap={{ y: 1 }}
-    className="flex items-center gap-1.5 rounded-full bg-white/90 px-4 py-2 text-sm font-extrabold text-slate-700 shadow-[0_4px_0_rgba(0,0,0,0.15)] sm:text-base"
+    className="aura-btn aura-btn-mint flex items-center gap-1.5 px-4 py-2 text-sm sm:text-base"
   >
     📊 View Stats
   </motion.button>
@@ -410,25 +410,25 @@ function HomeContent() {
         <NextGameTimer withTopOffset={isTeacher} />
 
         <div className="animate-pop-in mt-4 text-center">
-          <h1 className="font-heading text-[clamp(2.4rem,7vw,6rem)] font-bold leading-tight drop-shadow-[0_4px_0_rgba(0,0,0,0.15)]">
-            <span className="inline-block animate-wiggle text-yellow-300">K1</span>{" "}
-            <span className="text-[#FFF6DA]">Weekly</span>{" "}
-            <span className="text-pink-400">Wonders</span> 🌟
+          <h1 className="font-heading text-[clamp(2.4rem,7vw,6rem)] font-bold leading-tight drop-shadow-[0_2px_12px_rgba(139,92,246,0.45)]">
+            <span className="inline-block animate-wiggle text-indigo-200">K1</span>{" "}
+            <span className="text-violet-100">Weekly</span>{" "}
+            <span className="text-pink-200">Wonders</span> 🌟
           </h1>
-          <p className="font-body mt-3 text-[clamp(1rem,2.4vw,1.6rem)] font-medium text-white/90">
+          <p className="font-body mt-3 text-[clamp(1rem,2.4vw,1.6rem)] font-medium aura-soft">
             {greeting}, {playerName}! Pick a game and let's play! 🎈
           </p>
           <button
             type="button"
             onClick={resetPlayer}
-            className="font-body mt-2 rounded-full bg-white/20 px-3 py-1 text-xs font-bold text-white/80 backdrop-blur-sm transition-colors hover:bg-white/30 hover:text-white"
+            className="aura-ghost mt-2 px-3 py-1 text-xs"
           >
             Not {playerName}? Switch player
           </button>
         </div>
 
         <div className="relative mt-10 w-full max-w-4xl sm:mt-14">
-          <div className="pointer-events-none absolute inset-x-10 top-1/2 z-0 hidden -translate-y-1/2 border-t-[3px] border-dashed border-white/60 sm:block" />
+          <div className="pointer-events-none absolute inset-x-10 top-1/2 z-0 hidden -translate-y-1/2 border-t-[3px] border-dashed border-white/20 sm:block" />
 
           {gameAccessReady ? (
             <div className="relative z-10 flex flex-col items-center gap-6 sm:flex-row sm:flex-wrap sm:justify-center sm:gap-8 md:gap-10 lg:gap-14">
@@ -457,7 +457,7 @@ function HomeContent() {
               })}
             </div>
           ) : (
-            <div className="relative z-10 flex min-h-64 flex-col items-center justify-center gap-3 rounded-[2rem] bg-white/20 px-6 text-center text-white shadow-inner backdrop-blur-sm">
+            <div className="aura-panel relative z-10 flex min-h-64 flex-col items-center justify-center gap-3 rounded-[2rem] px-6 text-center">
               {gameAccessError ? (
                 <>
                   <span className="text-4xl">😕</span>
@@ -465,17 +465,17 @@ function HomeContent() {
                   <button
                     type="button"
                     onClick={() => fetchGameAccess(classId)}
-                    className="font-body rounded-full bg-white px-5 py-2 text-sm font-bold text-sky-700 shadow-[0_4px_0_rgba(0,0,0,0.12)] transition-transform hover:-translate-y-0.5 active:translate-y-1 active:shadow-none"
+                    className="aura-btn aura-btn-violet px-5 py-2 text-sm"
                   >
                     Try again
                   </button>
                 </>
               ) : (
                 <>
-                  <span className="h-9 w-9 animate-spin rounded-full border-4 border-white/90 border-t-transparent" />
+                  <span className="h-9 w-9 animate-spin rounded-full border-4 border-white/70 border-t-transparent" />
                   <p className="font-body font-bold">Loading your class games…</p>
                   {loadingTooLong && (
-                    <p className="font-body max-w-xs text-xs font-semibold text-white/70">
+                    <p className="font-body max-w-xs text-xs font-semibold text-indigo-100/80">
                       Still working on it — the server may be waking up or under heavy load. Thanks for your patience!
                     </p>
                   )}
@@ -485,19 +485,19 @@ function HomeContent() {
           )}
         </div>
 
-        <div className="mt-8 hidden items-center gap-3 text-white/70 sm:flex">
-          <span className="h-0.5 w-10 border-t-2 border-dashed border-white/50" />
+        <div className="mt-8 hidden items-center gap-3 text-indigo-100 sm:flex">
+          <span className="h-0.5 w-10 border-t-2 border-dashed border-white/20" />
           <span className="font-body text-sm font-bold">More wonders coming soon</span>
-          <span className="h-0.5 w-10 border-t-2 border-dashed border-white/50" />
+          <span className="h-0.5 w-10 border-t-2 border-dashed border-white/20" />
         </div>
       </div>
 
       {loadingTo && (
-        <div className="fixed inset-0 z-[999] flex items-center justify-center bg-slate-900/55">
-          <div className="rounded-3xl bg-white px-6 py-5 shadow-2xl">
+        <div className="fixed inset-0 z-[999] flex items-center justify-center bg-white/15 backdrop-blur-sm">
+          <div className="aura-panel rounded-3xl px-6 py-5">
             <div className="flex items-center gap-3">
-              <div className="h-5 w-5 animate-spin rounded-full border-4 border-sky-300 border-t-transparent" />
-              <p className="font-body text-sm font-bold text-slate-700">
+              <div className="h-5 w-5 animate-spin rounded-full border-4 border-white/70 border-t-transparent" />
+              <p className="aura-text font-body text-sm font-bold">
                 Loading game...
               </p>
             </div>
@@ -506,10 +506,10 @@ function HomeContent() {
       )}
 
       <div className="fixed bottom-5 right-5 z-50 md:right-5">
-        <div className="flex items-center gap-2 rounded-xl border border-white/15 bg-black/45 px-4 py-2 shadow-lg">
+        <div className="flex items-center gap-2 rounded-xl border border-white/20 bg-white/15 px-4 py-2 shadow-lg backdrop-blur-md">
           <div className="h-4 min-w-4 animate-pulse rounded-full bg-red-500/75" />
           <div className="w-[15rem] leading-tight md:w-[24rem]">
-            <p className="font-body text-left text-xs font-medium text-white/80 md:text-md">
+            <p className="font-body text-left text-xs font-medium text-indigo-100 md:text-md">
               Game results are saved automatically and submitted to teachers.
             </p>
           </div>
@@ -518,19 +518,19 @@ function HomeContent() {
 
       <footer className="relative z-10 mt-10 w-full px-4 pb-28 sm:mt-12 sm:pb-24">
         <div className="mx-auto max-w-4xl">
-          <div className="overflow-hidden rounded-[1.75rem] border border-white/30 bg-white/60 shadow-[0_10px_30px_rgba(0,0,0,0.10)]">
+          <div className="aura-panel overflow-hidden rounded-[1.75rem]">
             <div className="h-1 w-full bg-gradient-to-r from-yellow-300 via-pink-300 to-sky-300" />
 
             <div className="flex flex-col items-center gap-2 px-5 py-4 text-center sm:px-7 sm:py-5">
-              <p className="font-body text-[0.78rem] font-extrabold uppercase tracking-[0.22em] text-slate-700">
+              <p className="aura-soft font-body text-[0.78rem] font-extrabold uppercase tracking-[0.22em]">
                 K1 Weekly Wonders
               </p>
 
-              <p className="font-body text-sm text-slate-800 sm:text-base">
+              <p className="aura-text font-body text-sm sm:text-base">
                 © {new Date().getFullYear()} · Created by Towhid Hossain and Siti Soleha
               </p>
 
-              <p className="font-body text-xs font-medium text-slate-700/80 sm:text-sm">
+              <p className="aura-muted font-body text-xs font-medium sm:text-sm">
                 A collaborative numeracy project for joyful early learning.
               </p>
             </div>
@@ -642,9 +642,9 @@ const GameCard = React.memo(function GameCard({
         )}
 
         {!open && (
-          <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-white/35">
+          <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-white/20 backdrop-blur-sm">
             <span className="animate-bob text-6xl drop-shadow sm:text-7xl">🔒</span>
-            <span className="rounded-full bg-white/90 px-4 py-1 text-xs font-extrabold text-slate-600 shadow sm:text-sm">
+            <span className="rounded-full bg-white/20 px-4 py-1 text-xs font-extrabold text-white shadow ring-1 ring-white/25 backdrop-blur-md sm:text-sm">
               Coming soon ✨
             </span>
           </div>

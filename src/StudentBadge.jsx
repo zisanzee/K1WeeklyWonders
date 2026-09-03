@@ -343,7 +343,7 @@ export function PrintAllBadgesButton({ className }) {
         onClick={handlePrintAll}
         disabled={printingAll}
         title="Download a PDF with a badge for every student in this class"
-        className="flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-indigo-200 bg-white px-4 py-3 text-sm font-black text-indigo-700 shadow-sm transition hover:border-indigo-300 hover:bg-indigo-50 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60"
+        className="aura-btn aura-btn-violet flex w-full items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-black disabled:cursor-not-allowed disabled:opacity-60"
       >
         {printingAll ? (
           <>
@@ -353,7 +353,7 @@ export function PrintAllBadgesButton({ className }) {
         ) : (
           <>
             🖨️ Print all badges
-            <span className="hidden font-bold text-slate-400 sm:inline">— one PDF for the whole class</span>
+            <span className="hidden font-bold text-slate-300 sm:inline">— one PDF for the whole class</span>
           </>
         )}
       </button>
@@ -366,20 +366,20 @@ export function PrintAllBadgesButton({ className }) {
           exit={{ opacity: 0 }}
           className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/70 px-6 backdrop-blur-sm"
         >
-          <div className="flex w-full max-w-sm flex-col items-center gap-4 rounded-[2rem] bg-white p-8 text-center shadow-[0_24px_70px_rgba(0,0,0,0.4)]">
-            <div className="h-11 w-11 animate-spin rounded-full border-4 border-indigo-500 border-t-transparent" />
+          <div className="flex w-full max-w-sm flex-col items-center gap-4 rounded-[2rem] aura-card p-8 text-center shadow-[0_24px_70px_rgba(0,0,0,0.5)]">
+            <div className="h-11 w-11 animate-spin rounded-full border-4 border-white/70 border-t-transparent" />
             <div>
-              <p className="text-lg font-black text-slate-800">Printing badges…</p>
-              <p className="mt-1 text-sm font-semibold text-slate-500">{printProgress}</p>
+              <p className="text-lg font-black aura-text">Printing badges…</p>
+              <p className="mt-1 text-sm font-semibold aura-muted">{printProgress}</p>
             </div>
-            <div className="h-2.5 w-full overflow-hidden rounded-full bg-slate-100">
+            <div className="h-2.5 w-full overflow-hidden rounded-full bg-white/10">
               <div
                 className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-violet-500 transition-all duration-200"
                 style={{ width: `${printPercent}%` }}
               />
             </div>
-            <p className="text-xs font-bold text-slate-400">{printPercent}%</p>
-            <p className="text-[11px] font-medium text-slate-400">
+            <p className="text-xs font-bold aura-muted">{printPercent}%</p>
+            <p className="text-[11px] font-medium aura-muted">
               Please keep this window open — the download starts automatically.
             </p>
           </div>
@@ -447,7 +447,7 @@ export default function StudentBadge({ student, classInfo, onClose }) {
           exit={{ opacity: 0, scale: 0.9, y: 20 }}
           transition={{ type: 'spring', stiffness: 400, damping: 30 }}
           onClick={(e) => e.stopPropagation()}
-          className="flex w-full max-w-lg flex-col items-center gap-4 rounded-[2rem] bg-white p-4 shadow-[0_24px_70px_rgba(0,0,0,0.3)] sm:p-6"
+          className="flex w-full max-w-lg flex-col items-center gap-4 rounded-[2rem] aura-card p-4 shadow-[0_24px_70px_rgba(0,0,0,0.5)] sm:p-6"
         >
           {/* The badge itself — always laid out at print size, scaled down as a
               whole on small screens so it looks identical on every device. */}
@@ -477,18 +477,18 @@ export default function StudentBadge({ student, classInfo, onClose }) {
           </div>
 
           {/* Link box with copy button */}
-          <div className="w-full rounded-2xl border border-slate-200 bg-slate-50 p-2 pl-4">
+          <div className="w-full rounded-2xl border border-white/20 bg-white/15 p-2 pl-4">
             <div className="flex items-center gap-2">
               <div className="min-w-0 flex-1">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-indigo-100">
                   Login link
                 </p>
-                <p className="truncate font-mono text-xs text-slate-600">{loginUrl}</p>
+                <p className="truncate font-mono text-xs text-slate-200">{loginUrl}</p>
               </div>
               <button
                 type="button"
                 onClick={handleCopy}
-                className="flex shrink-0 items-center gap-1.5 rounded-xl bg-sky-600 px-3.5 py-2 text-xs font-bold text-white transition hover:bg-sky-700 active:scale-95"
+                className="aura-btn aura-btn-mint flex shrink-0 items-center gap-1.5 rounded-xl px-3.5 py-2 text-xs font-bold"
               >
                 {copied ? '✓ Copied' : 'Copy'}
               </button>
@@ -501,7 +501,7 @@ export default function StudentBadge({ student, classInfo, onClose }) {
               type="button"
               onClick={handleDownload}
               disabled={downloading}
-              className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 px-4 py-3 text-sm font-black text-white shadow-sm transition hover:from-indigo-700 hover:to-violet-700 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50"
+              className="aura-btn aura-btn-violet flex flex-1 items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-black disabled:cursor-not-allowed disabled:opacity-50"
             >
               {downloading ? (
                 <>
@@ -515,7 +515,7 @@ export default function StudentBadge({ student, classInfo, onClose }) {
             <button
               type="button"
               onClick={onClose}
-              className="rounded-xl bg-slate-100 px-4 py-3 text-sm font-bold text-slate-600 transition hover:bg-slate-200 active:scale-[0.99]"
+              className="aura-ghost rounded-xl px-4 py-3 text-sm font-bold"
             >
               Close
             </button>

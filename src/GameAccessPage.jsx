@@ -32,22 +32,22 @@ function GameAccessPageContent() {
 
   if (!isTeacher) {
     return (
-      <div className="relative flex min-h-[100dvh] w-full flex-col items-center justify-center gap-4 overflow-hidden bg-gradient-to-b from-[#48BFEE] via-[#8FE0FA] to-[#FFE9A8] px-4 text-center">
+      <div className="aura-page flex min-h-[100dvh] w-full flex-col items-center justify-center gap-4 px-4 text-center">
         <link
           rel="stylesheet"
           href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;700&family=Nunito:wght@600;800&display=swap"
         />
-        <span className="text-7xl">🔒</span>
-        <h1 style={{ fontFamily: "'Fredoka', sans-serif" }} className="text-2xl font-bold text-slate-800 sm:text-3xl">
+        <span className="text-7xl drop-shadow-[0_2px_8px_rgba(76,29,149,0.18)]">🔒</span>
+        <h1 style={{ fontFamily: "'Fredoka', sans-serif" }} className="aura-text text-2xl font-bold sm:text-3xl">
           Teachers only
         </h1>
-        <p style={{ fontFamily: "'Nunito', sans-serif" }} className="max-w-xs text-sm font-semibold text-slate-600 sm:text-base">
+        <p style={{ fontFamily: "'Nunito', sans-serif" }} className="aura-soft max-w-xs text-sm font-semibold sm:text-base">
           This page is for teacher accounts only.
         </p>
         <Link
           to="/"
           style={{ fontFamily: "'Fredoka', sans-serif" }}
-          className="mt-2 rounded-full bg-white px-6 py-3 text-base font-bold text-slate-700 shadow-[0_6px_0_rgba(0,0,0,0.15)] transition-transform hover:-translate-y-0.5 active:translate-y-1 active:shadow-none"
+          className="aura-btn aura-btn-violet mt-2 px-6 py-3 text-base font-black"
         >
           🏠 Back home
         </Link>

@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { fetchStats, fetchSummary, fetchAllPlays, deletePlayerGame } from './logPlaySession';
+import { fetchStats, fetchSummary, fetchPlaysPage, deletePlayerGame } from './logPlaySession';
 import { usePlayerStore } from './playerStore';
 
 const GAME_LABELS = {
@@ -24,12 +24,6 @@ function gameLabel(key) {
   return num ? `🎮 Game ${num}` : key;
 }
 
-// Pulls just the number out of a game key (game2 -> 2) for the filter pills
-// and for sorting the "Game" column naturally (game2 < game10).
-function gameSortValue(key) {
-  const match = key.match(/\d+/);
-  return match ? Number(match[0]) : key;
-}
 // Splits a "🧺 Count & Win"-style label into its emoji and name, so the
 // dropdown can show the emoji on its own (trigger button) and both together
 // (menu rows). Every entry in GAME_LABELS follows "emoji name", and the
@@ -52,32 +46,6 @@ function formatStars(stars, totalRounds) {
 // for them, so the panel shows time-taken in those spots instead.
 function isBonusGame(gameKey) {
   return /^bonusGame/i.test(gameKey || '');
-}
-
-// Average of each player's best streak for a game — computed from the
-// already-loaded summary rows, no extra fetch needed.
-function avgStreakForGame(summaryRows, gameKey) {
-  const rows = summaryRows.filter((r) => r.game === gameKey);
-  if (rows.length === 0) return null;
-  return rows.reduce((sum, r) => sum + (r.bestStreak || 0), 0) / rows.length;
-}
-
-// Average completion time for a bonus game. elapsedSeconds only exists on
-// raw play documents (the server's /api/stats and /api/summary aggregates
-// don't include it), so this needs `allPlays` — which may still be loading,
-// hence the undefined/null distinction: undefined = "still loading",
-// null = "loaded, but nothing to average".
-function avgTimeForGame(allPlaysRows, gameKey) {
-  if (allPlaysRows === null) return undefined;
-  const rows = allPlaysRows.filter((r) => r.game === gameKey && typeof r.elapsedSeconds === 'number');
-  if (rows.length === 0) return null;
-  return rows.reduce((sum, r) => sum + r.elapsedSeconds, 0) / rows.length;
-}
-
-function formatAvgTime(value) {
-  if (value === undefined) return '…';
-  if (value === null) return '—';
-  return `${value.toFixed(1)}s`;
 }
 
 const DEVICE_ICONS = { mobile: '📱', tablet: '💻', desktop: '🖥️', unknown: '❔' };
@@ -118,6 +86,172 @@ const SLOW_THRESHOLD_MS = 3000;
 // How long an armed delete button stays "Confirm?" before resetting.
 const CONFIRM_TIMEOUT_MS = 4000;
 
+// Rows requested per page for the streaming lists.
+const PAGE_SIZE = 50;
+
+// ---------------------------------------------------------------------------
+// usePaginatedList — drives one server-paginated, infinite-scrolling list.
+// The server owns filtering (game + name search), sorting, and paging, so the
+// client just asks for a page and appends rows as a sentinel scrolls into
+// view. Re-fetches from page 1 whenever `params` (filter/search/sort) changes.
+// ---------------------------------------------------------------------------
+function usePaginatedList({ fetcher, params, active = true, refetchToken = 0 }) {
+  const [rows, setRows] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
+  const [status, setStatus] = useState(active ? 'loading' : 'idle'); // idle|loading|error|ready
+  const [appending, setAppending] = useState(false);
+  const [loadMoreError, setLoadMoreError] = useState(false);
+  const pageRef = useRef(1);
+  const busyRef = useRef(false);
+  const sentinelRef = useRef(null);
+
+  // loadPage closes over the current fetcher + params so it always queries
+  // with the latest filter/search/sort. It's recreated when those change,
+  // which also re-arms the scroll observer below.
+  const loadPage = useCallback(async ({ page, replace }) => {
+    if (busyRef.current) return;
+    busyRef.current = true;
+    if (replace) {
+      // Wipe the previous rows immediately so a filter/search/sort change
+      // never flashes stale data under the new criteria.
+      setStatus('loading');
+      setRows([]);
+      setAppending(false);
+      setLoadMoreError(false);
+    } else {
+      setAppending(true);
+      setLoadMoreError(false);
+    }
+    try {
+      const data = await fetcher({ ...params, page, limit: PAGE_SIZE });
+      const nextRows = Array.isArray(data?.rows) ? data.rows : [];
+      pageRef.current = page;
+      setTotal(data?.total ?? 0);
+      setHasMore(Boolean(data?.hasMore));
+      setRows((prev) => (replace ? nextRows : [...prev, ...nextRows]));
+      setStatus('ready');
+    } catch (err) {
+      console.error(err);
+      if (replace) {
+        setStatus('error');
+        setRows([]);
+      } else {
+        setLoadMoreError(true);
+      }
+    } finally {
+      busyRef.current = false;
+      if (!replace) setAppending(false);
+    }
+  }, [fetcher, params]);
+
+  // Load the first page whenever the list becomes active, its params change,
+  // or the parent asks for a forced refresh (refetchToken bump).
+  useEffect(() => {
+    if (!active) return undefined;
+    loadPage({ page: 1, replace: true });
+  }, [active, params, refetchToken, loadPage]);
+
+  // Infinite scroll: when a page of rows is loaded and more remain, watch the
+  // sentinel element and pull the next page as it scrolls into view. A large
+  // positive rootMargin pre-fetches just before the teacher reaches the end.
+  useEffect(() => {
+    if (!active || status !== 'ready' || !hasMore) return undefined;
+    const el = sentinelRef.current;
+    if (!el || typeof IntersectionObserver === 'undefined') return undefined;
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting) && !busyRef.current) {
+          loadPage({ page: pageRef.current + 1, replace: false });
+        }
+      },
+      { rootMargin: '600px 0px' }
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [active, status, hasMore, loadPage]);
+
+  const loadMore = useCallback(() => {
+    if (!busyRef.current) loadPage({ page: pageRef.current + 1, replace: false });
+  }, [loadPage]);
+
+  const retry = useCallback(() => {
+    loadPage({ page: 1, replace: true });
+  }, [loadPage]);
+
+  return { rows, total, hasMore, status, appending, loadMoreError, sentinelRef, loadMore, retry };
+}
+
+// Small spinner + scroll-trigger used at the bottom of each streaming list.
+// The invisible sentinel is what the IntersectionObserver watches; the visible
+// bits are just feedback while an extra page is being fetched.
+function ListFooter({ list }) {
+  // Pull the fields out into locals so the shared `list` object (which also
+  // carries the scroll sentinel ref) isn't read during render.
+  const { status, loadMoreError, hasMore, appending, sentinelRef, loadMore } = list;
+  if (status !== 'ready') return null;
+  if (loadMoreError) {
+    return (
+      <div className="flex justify-center py-4">
+        <button
+          onClick={loadMore}
+          className="rounded-full bg-violet-500/25 px-5 py-2.5 text-sm font-bold text-violet-100 active:scale-95 hover:bg-violet-500/40"
+        >
+          Couldn't load more — tap to retry
+        </button>
+      </div>
+    );
+  }
+  if (!hasMore && !appending) {
+    // Nothing left to fetch (and nothing failed) — no footer at all.
+    return null;
+  }
+  return (
+    <div className="flex flex-col items-center gap-2 py-4">
+      {/* Sentinel only exists while more rows might follow; the observer
+          effect re-attaches to it whenever hasMore flips. */}
+      {hasMore && <div ref={sentinelRef} aria-hidden className="h-px w-full" />}
+      {appending && (
+        <span className="flex items-center gap-1.5 text-xs font-semibold aura-muted">
+          <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-pink-400/40 border-t-pink-400" />
+          Loading more…
+        </span>
+      )}
+    </div>
+  );
+}
+
+// Shared "loading / error / empty" states for a single streaming list region.
+function ListState({ list, kind }) {
+  if (list.status === 'loading' || (list.status === 'ready' && list.rows.length === 0 && list.total === 0)) {
+    if (list.status === 'loading') {
+      return (
+        <div className="flex flex-col items-center justify-center gap-2 py-10 aura-muted sm:py-16">
+          <span className="animate-bounce text-4xl">⏳</span>
+          <p className="font-bold">Loading {kind === 'all' ? 'every play' : 'stats'}…</p>
+        </div>
+      );
+    }
+    return null; // ready + empty handled by the caller's EmptyState below.
+  }
+  if (list.status === 'error') {
+    return (
+      <div className="flex flex-col items-center justify-center gap-3 py-10 text-center aura-muted sm:py-16">
+        <span className="text-4xl">😕</span>
+        <p className="font-bold aura-soft">Couldn't load {kind === 'all' ? 'every play' : 'the stats'}.</p>
+        <p className="max-w-xs text-xs">Check your connection and try again.</p>
+        <button
+          onClick={list.retry}
+          className="rounded-full bg-violet-500/25 px-5 py-2.5 text-sm font-bold text-violet-100 active:scale-95 hover:bg-violet-500/40"
+        >
+          Try again
+        </button>
+      </div>
+    );
+  }
+  return null;
+}
+
 export default function StatsPanel({ onClose, embedded = false }) {
   // Access to this panel is already decided at the name/code prompt (Home
   // only renders the Stats button for teachers) — this just reads who's in.
@@ -125,25 +259,19 @@ export default function StatsPanel({ onClose, embedded = false }) {
   const teacherCode = usePlayerStore((s) => s.teacherCode);
   const resetPlayer = usePlayerStore((s) => s.resetPlayer);
 
-  const [status, setStatus] = useState('loading'); // loading | error | ready
+  const [statsStatus, setStatsStatus] = useState('loading'); // loading | error | ready
   const [slow, setSlow] = useState(false);
   const [stats, setStats] = useState(null);
-  const [summary, setSummary] = useState([]);
 
   const [filter, setFilter] = useState('all');
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [sortKey, setSortKey] = useState('lastPlayedAt');
   const [sortDir, setSortDir] = useState('desc');
 
   // "Show all plays" reveals every individual session instead of the
-  // one-row-per-player+game summary. Also doubles as the only source of
-  // elapsedSeconds (see avgTimeForGame above), so it's fetched in the
-  // background as soon as any bonus game shows up in stats.perGame — not
-  // just lazily on toggle anymore — but still cached the same way.
+  // one-row-per-player+game summary.
   const [showAll, setShowAll] = useState(false);
-  const [allPlays, setAllPlays] = useState(null);
-  const [allStatus, setAllStatus] = useState('idle'); // idle | loading | error | ready
-  const [allSlow, setAllSlow] = useState(false);
   const [sortKeyAll, setSortKeyAll] = useState('completedAt');
   const [sortDirAll, setSortDirAll] = useState('desc');
 
@@ -151,73 +279,93 @@ export default function StatsPanel({ onClose, embedded = false }) {
   const [deletingKey, setDeletingKey] = useState(null);
   const [deleteError, setDeleteError] = useState(null);
 
+  // Bumped on manual refresh / after a delete so both lists re-fetch page 1
+  // even when their other params (filter/sort/search) didn't change.
+  const [version, setVersion] = useState(0);
+
   const slowTimerRef = useRef(null);
-  const allSlowTimerRef = useRef(null);
   const confirmTimerRef = useRef(null);
 
-  const loadAllPlays = async () => {
-    setAllStatus('loading');
-    setAllSlow(false);
-    allSlowTimerRef.current = setTimeout(() => setAllSlow(true), SLOW_THRESHOLD_MS);
-
-    try {
-      const data = await fetchAllPlays(teacherCode);
-      setAllPlays(data);
-      setAllStatus('ready');
-    } catch (err) {
-      console.error(err);
-      setAllStatus('error');
-    } finally {
-      clearTimeout(allSlowTimerRef.current);
-      setAllSlow(false);
-    }
-  };
-
-  const load = async () => {
-    setStatus('loading');
+  const loadStats = useCallback(async () => {
+    setStatsStatus('loading');
     setSlow(false);
     slowTimerRef.current = setTimeout(() => setSlow(true), SLOW_THRESHOLD_MS);
-
     try {
-      const [statsData, summaryData] = await Promise.all([
-        fetchStats(teacherCode),
-        fetchSummary({ teacherCode }),
-      ]);
-      setStats(statsData);
-      setSummary(summaryData);
-      setStatus('ready');
-
-      // The per-game cards need elapsedSeconds for any bonus game, and that
-      // only lives on raw play documents — so quietly pull those in too,
-      // rather than waiting for the teacher to tap "Show all plays".
-      if (statsData.perGame.some((g) => isBonusGame(g._id))) {
-        loadAllPlays();
-      }
+      const data = await fetchStats(teacherCode);
+      setStats(data);
+      setStatsStatus('ready');
     } catch (err) {
       console.error(err);
-      setStatus('error');
+      setStatsStatus('error');
     } finally {
       clearTimeout(slowTimerRef.current);
       setSlow(false);
     }
-  };
+  }, [teacherCode]);
+
+  // Search is debounced so typing doesn't fire a server query per keystroke —
+  // only the settled term (or an empty one) triggers a re-fetch.
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(t);
+  }, [search]);
 
   useEffect(() => {
     if (!teacherName) return undefined;
-    load();
+    loadStats();
     return () => {
       clearTimeout(slowTimerRef.current);
-      clearTimeout(allSlowTimerRef.current);
       clearTimeout(confirmTimerRef.current);
     };
-  }, [teacherName, teacherCode]);
+  }, [teacherName, teacherCode, loadStats]);
+
+  // Params for the two server-backed lists. Both share the game filter + name
+  // search, but keep independent sort state (summary vs raw sessions). A
+  // manual refresh is handled separately via the version/refetchToken, which
+  // is deliberately NOT part of these objects so it never hits the API.
+  const summaryParams = useMemo(
+    () => ({
+      teacherCode,
+      game: filter === 'all' ? undefined : filter,
+      q: debouncedSearch || undefined,
+      sortKey,
+      sortDir,
+    }),
+    [teacherCode, filter, debouncedSearch, sortKey, sortDir]
+  );
+
+  const allPlaysParams = useMemo(
+    () => ({
+      teacherCode,
+      game: filter === 'all' ? undefined : filter,
+      q: debouncedSearch || undefined,
+      sortKey: sortKeyAll,
+      sortDir: sortDirAll,
+    }),
+    [teacherCode, filter, debouncedSearch, sortKeyAll, sortDirAll]
+  );
+
+  const summaryList = usePaginatedList({
+    fetcher: fetchSummary,
+    params: summaryParams,
+    active: Boolean(teacherCode),
+    refetchToken: version,
+  });
+
+  const allPlaysList = usePaginatedList({
+    fetcher: fetchPlaysPage,
+    params: allPlaysParams,
+    active: Boolean(teacherCode) && showAll,
+    refetchToken: version,
+  });
+
+  const refresh = useCallback(() => {
+    setVersion((v) => v + 1);
+    loadStats();
+  }, [loadStats]);
 
   const handleToggleShowAll = () => {
-    setShowAll((prev) => {
-      const next = !prev;
-      if (next && allPlays === null) loadAllPlays();
-      return next;
-    });
+    setShowAll((prev) => !prev);
   };
 
   // Lock background scroll while the modal is open, and let Escape close it —
@@ -278,8 +426,8 @@ export default function StatsPanel({ onClose, embedded = false }) {
     setDeletingKey(key);
     try {
       await deletePlayerGame(row.game, row.playerName, teacherCode);
-      setAllPlays(null);
-      await load();
+      // Deleting shrinks the dataset, so rebuild from the first page.
+      refresh();
     } catch (err) {
       console.error(err);
       setDeleteError(`Couldn't delete ${row.playerName}'s ${gameLabel(row.game)} record — try again.`);
@@ -289,8 +437,8 @@ export default function StatsPanel({ onClose, embedded = false }) {
   };
 
   // Options for the game-filter dropdown: "All games" plus one entry per
-  // game that's actually shown up in the data, in the order the server
-  // returns them.
+  // game that's actually shown up in the data, in server order. Counts are
+  // per-game play totals from the (small) stats payload.
   const filterOptions = useMemo(() => {
     const opts = [{ key: 'all', emoji: '🎯', name: 'All games' }];
     (stats?.perGame || []).forEach((g) => {
@@ -307,66 +455,10 @@ export default function StatsPanel({ onClose, embedded = false }) {
     return counts;
   }, [stats]);
 
-  const filteredSummary = useMemo(() => {
-    let rows = filter === 'all' ? summary : summary.filter((row) => row.game === filter);
-    const q = search.trim().toLowerCase();
-    if (q) rows = rows.filter((row) => row.playerName.toLowerCase().includes(q));
-    return rows;
-  }, [summary, filter, search]);
-
-  const sortedSummary = useMemo(() => {
-    const dir = sortDir === 'asc' ? 1 : -1;
-    return [...filteredSummary].sort((a, b) => {
-      if (sortKey === 'lastPlayedAt') {
-        return (new Date(a.lastPlayedAt).getTime() - new Date(b.lastPlayedAt).getTime()) * dir;
-      }
-      if (sortKey === 'game') {
-        const av = gameSortValue(a.game);
-        const bv = gameSortValue(b.game);
-        if (typeof av === 'number' && typeof bv === 'number') return (av - bv) * dir;
-        return String(av).localeCompare(String(bv)) * dir;
-      }
-      const av = a[sortKey];
-      const bv = b[sortKey];
-      if (typeof av === 'string') return av.localeCompare(bv) * dir;
-      return ((av ?? 0) - (bv ?? 0)) * dir;
-    });
-  }, [filteredSummary, sortKey, sortDir]);
-
-  const filteredAllPlays = useMemo(() => {
-    if (!allPlays) return [];
-    let rows = filter === 'all' ? allPlays : allPlays.filter((row) => row.game === filter);
-    const q = search.trim().toLowerCase();
-    if (q) rows = rows.filter((row) => row.playerName.toLowerCase().includes(q));
-    return rows;
-  }, [allPlays, filter, search]);
-
-  const sortedAllPlays = useMemo(() => {
-    const dir = sortDirAll === 'asc' ? 1 : -1;
-    return [...filteredAllPlays].sort((a, b) => {
-      if (sortKeyAll === 'completedAt') {
-        return (new Date(a.completedAt).getTime() - new Date(b.completedAt).getTime()) * dir;
-      }
-      if (sortKeyAll === 'game') {
-        const av = gameSortValue(a.game);
-        const bv = gameSortValue(b.game);
-        if (typeof av === 'number' && typeof bv === 'number') return (av - bv) * dir;
-        return String(av).localeCompare(String(bv)) * dir;
-      }
-      if (sortKeyAll === 'deviceKind') {
-        const av = a.device?.kind || 'zzz';
-        const bv = b.device?.kind || 'zzz';
-        return av.localeCompare(bv) * dir;
-      }
-      const av = a[sortKeyAll];
-      const bv = b[sortKeyAll];
-      if (typeof av === 'string') return av.localeCompare(bv) * dir;
-      return ((av ?? 0) - (bv ?? 0)) * dir;
-    });
-  }, [filteredAllPlays, sortKeyAll, sortDirAll]);
-
-  const activeGameStats = filter === 'all' ? null : stats?.perGame.find((g) => g._id === filter);
-  const activeGamePlayers = filter === 'all' ? null : summary.filter((row) => row.game === filter).length;
+  // Per-game header cards come from the aggregated stats payload (full-class
+  // math), not from the paginated lists — correct regardless of which page of
+  // rows is currently loaded.
+  const activeGameStats = filter === 'all' ? null : (stats?.perGame || []).find((g) => g._id === filter) || null;
   const activeIsBonus = filter !== 'all' && isBonusGame(filter);
   const columnCount = filter === 'all' ? 5 : 4;
   // The all-plays table swaps the Actions column for Stars *and* adds a
@@ -377,6 +469,8 @@ export default function StatsPanel({ onClose, embedded = false }) {
   // and each cell decides for itself.
   const streakOrTimeHeader = filter === 'all' ? 'Streak / Time' : activeIsBonus ? 'Time' : 'Streak';
 
+  const noRowsForList = (list) => list.status === 'ready' && list.total === 0;
+
   const inner = (
     <>
       <style>{`
@@ -386,30 +480,30 @@ export default function StatsPanel({ onClose, embedded = false }) {
         }
         .animate-wake-progress { animation: wake-progress 1.4s ease-in-out infinite; }
       `}</style>
-        <div className="flex items-center justify-between border-b border-slate-100 bg-gradient-to-r from-pink-50 via-white to-purple-50 px-4 py-3 sm:px-6 sm:py-4">
+        <div className="flex items-center justify-between border-b border-white/10 bg-gradient-to-r from-pink-500/15 via-white/5 to-purple-500/15 px-4 py-3 sm:px-6 sm:py-4">
           <h2 className="flex items-center gap-2.5">
             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-pink-500 to-purple-500 text-lg shadow-md sm:h-11 sm:w-11 sm:text-xl">
               📊
             </span>
-            <span style={{ fontFamily: "'Fredoka', sans-serif" }} className="text-lg font-bold text-slate-800 sm:text-2xl">
+            <span style={{ fontFamily: "'Fredoka', sans-serif" }} className="text-lg font-bold aura-heading sm:text-2xl">
               Who's been playing?
             </span>
           </h2>
           <div className="flex items-center gap-2">
             <button
-              onClick={load}
-              disabled={status === 'loading'}
+              onClick={refresh}
+              disabled={statsStatus === 'loading'}
               aria-label="Refresh stats"
               title="Refresh"
-              className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-lg text-slate-500 transition-colors active:scale-90 active:bg-slate-200 disabled:opacity-50 sm:h-11 sm:w-11 sm:hover:bg-slate-200"
+              className="aura-icon-btn h-9 w-9 text-lg active:scale-90 disabled:opacity-50 sm:h-11 sm:w-11"
             >
-              <span className={status === 'loading' ? 'inline-block animate-spin' : ''}>🔄</span>
+              <span className={statsStatus === 'loading' ? 'inline-block animate-spin' : ''}>🔄</span>
             </button>
             {!embedded && (
               <button
                 onClick={onClose}
                 aria-label="Close"
-                className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-lg font-bold text-slate-500 transition-colors active:scale-90 active:bg-slate-200 sm:h-11 sm:w-11 sm:hover:bg-slate-200"
+                className="aura-icon-btn h-9 w-9 text-lg font-bold active:scale-90 sm:h-11 sm:w-11"
               >
                 ✕
               </button>
@@ -417,49 +511,49 @@ export default function StatsPanel({ onClose, embedded = false }) {
           </div>
         </div>
 
-        {status === 'ready' && stats && (
+        {statsStatus === 'ready' && stats && (
           <div
-            className="flex items-center justify-between gap-3 border-b border-slate-100 px-4 py-2.5 sm:px-6"
+            className="flex items-center justify-between gap-3 border-b border-white/10 px-4 py-2.5 sm:px-6"
             style={{ fontFamily: "'Nunito', sans-serif" }}
           >
-            <p className="text-sm font-semibold text-slate-500">
-              Welcome back, <span className="font-bold text-slate-700">{teacherName}</span>! 👋
+            <p className="text-sm font-semibold aura-muted">
+              Welcome back, <span className="font-bold aura-text">{teacherName}</span>! 👋
             </p>
             <button
               onClick={handleSwitchTeacher}
-              className="shrink-0 text-xs font-bold text-slate-400 underline decoration-slate-300 underline-offset-2 active:text-slate-600"
+              className="shrink-0 text-xs font-bold aura-muted underline decoration-white/40 underline-offset-2 hover:text-indigo-200"
             >
               Not you?
             </button>
           </div>
         )}
 
-        {status === 'ready' && stats && (
-          <div className="border-b border-slate-100 px-4 py-3 sm:px-6">
+        {statsStatus === 'ready' && stats && (
+          <div className="border-b border-white/10 px-4 py-3 sm:px-6">
             <div className="flex justify-center">
               <GameFilterDropdown options={filterOptions} value={filter} onChange={setFilter} counts={filterCounts} />
             </div>
           </div>
         )}
 
-        {status === 'ready' && stats && (
-          <div className="border-b border-slate-100 px-4 py-2.5 sm:px-6 sm:py-3">
+        {statsStatus === 'ready' && stats && (
+          <div className="border-b border-white/10 px-4 py-2.5 sm:px-6 sm:py-3">
             <div className="flex flex-col items-center gap-2.5 sm:flex-row sm:justify-center">
               <div className="relative w-full max-w-xs">
-                <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-300">🔍</span>
+                <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 aura-muted">🔍</span>
                 <input
                   type="text"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder="Search a player…"
                   style={{ fontFamily: "'Nunito', sans-serif" }}
-                  className="w-full rounded-full border border-slate-200 bg-slate-50 py-2.5 pl-9 pr-9 text-sm font-semibold text-slate-700 outline-none transition-colors focus:border-pink-300 focus:bg-white"
+                  className="aura-input py-2.5 pl-9 pr-9 text-sm font-semibold"
                 />
                 {search && (
                   <button
                     onClick={() => setSearch('')}
                     aria-label="Clear search"
-                    className="absolute right-1.5 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full text-slate-300 transition-colors active:bg-slate-200 active:text-slate-500"
+                    className="absolute right-1.5 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full text-white/60 transition-colors hover:bg-white/10 hover:text-indigo-200 active:bg-white/10"
                   >
                     ✕
                   </button>
@@ -473,54 +567,54 @@ export default function StatsPanel({ onClose, embedded = false }) {
                 className={`flex h-10 w-full shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-full px-4 text-sm font-bold transition-all active:scale-95 sm:h-11 sm:w-auto ${
                   showAll
                     ? 'bg-gradient-to-r from-pink-500 to-purple-500 text-white shadow-md'
-                    : 'bg-slate-100 text-slate-600 active:bg-slate-200 sm:hover:bg-slate-200'
+                    : 'bg-white/10 text-white active:bg-white/20 sm:hover:bg-white/20'
                 }`}
               >
                 {showAll ? '📋 Show summary' : '🧾 Show all plays'}
               </button>
             </div>
-            <p className="mt-2 text-center text-[11px] font-semibold text-slate-400 sm:text-xs">
+            <p className="mt-2 text-center text-[11px] font-semibold aura-muted sm:text-xs">
               {showAll
-                ? 'Every individual play, most recent first.'
-                : 'One row per player — tap "Show all plays" to see every play.'}
+                ? 'Every individual play — keeps loading as you scroll.'
+                : 'One row per player — rows load in as you scroll.'}
             </p>
           </div>
         )}
 
         <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5" style={{ fontFamily: "'Nunito', sans-serif" }}>
-          {status === 'loading' && !slow && (
-            <div className="flex flex-col items-center justify-center gap-2 py-10 text-slate-400 sm:py-16">
+          {statsStatus === 'loading' && !slow && (
+            <div className="flex flex-col items-center justify-center gap-2 py-10 aura-muted sm:py-16">
               <span className="animate-bounce text-4xl">⏳</span>
               <p className="font-bold">Loading stats…</p>
             </div>
           )}
 
-          {status === 'loading' && slow && (
-            <div className="flex flex-col items-center justify-center gap-3 py-10 text-center text-slate-400 sm:py-16">
+          {statsStatus === 'loading' && slow && (
+            <div className="flex flex-col items-center justify-center gap-3 py-10 text-center aura-muted sm:py-16">
               <span className="animate-pulse text-4xl">☕</span>
-              <p className="font-bold text-slate-500">Waking things up…</p>
+              <p className="font-bold aura-soft">Waking things up…</p>
               <p className="max-w-xs text-xs">This can take a few extra seconds after a quiet spell. Hang tight!</p>
-              <div className="mt-1 h-1.5 w-40 overflow-hidden rounded-full bg-slate-100">
+              <div className="mt-1 h-1.5 w-40 overflow-hidden rounded-full bg-white/10">
                 <span className="animate-wake-progress block h-full w-1/3 rounded-full bg-gradient-to-r from-sky-300 to-pink-300" />
               </div>
             </div>
           )}
 
-          {status === 'error' && (
-            <div className="flex flex-col items-center justify-center gap-3 py-10 text-center text-slate-400 sm:py-16">
+          {statsStatus === 'error' && (
+            <div className="flex flex-col items-center justify-center gap-3 py-10 text-center aura-muted sm:py-16">
               <span className="text-4xl">😕</span>
-              <p className="font-bold text-slate-500">Couldn't load the stats.</p>
+              <p className="font-bold aura-soft">Couldn't load the stats.</p>
               <p className="max-w-xs text-xs">Check your connection and try again.</p>
               <button
-                onClick={load}
-                className="rounded-full bg-slate-100 px-5 py-2.5 text-sm font-bold text-slate-600 active:scale-95 active:bg-slate-200 sm:hover:bg-slate-200"
+                onClick={refresh}
+                className="rounded-full bg-violet-500/25 px-5 py-2.5 text-sm font-bold text-violet-100 active:scale-95 hover:bg-violet-500/40"
               >
                 Try again
               </button>
             </div>
           )}
 
-          {status === 'ready' && stats && (
+          {statsStatus === 'ready' && stats && (
             <AnimatePresence mode="wait">
               <motion.div
                 key={`${filter}-${showAll}`}
@@ -544,14 +638,14 @@ export default function StatsPanel({ onClose, embedded = false }) {
                   ) : activeGameStats ? (
                     <>
                       <StatCard label={gameLabel(filter)} value={activeGameStats.plays} sub="total plays" />
-                      <StatCard label="Players" value={activeGamePlayers} />
-                      <StatCard label="Avg score" value={activeGameStats.avgStars.toFixed(1)} sub="★ per play" />
+                      <StatCard label="Players" value={activeGameStats.players} />
+                      <StatCard label="Avg score" value={activeGameStats.avgStars?.toFixed(1)} sub="★ per play" />
                       {activeIsBonus ? (
-                        <StatCard label="Avg time" value={formatAvgTime(avgTimeForGame(allPlays, filter))} sub="⏱️ per play" />
+                        <StatCard label="Avg time" value={formatSeconds(activeGameStats.avgElapsedSeconds)} sub="⏱️ per play" />
                       ) : (
                         <StatCard
                           label="Avg streak"
-                          value={(avgStreakForGame(summary, filter) ?? 0).toFixed(1)}
+                          value={(activeGameStats.avgBestStreak ?? 0).toFixed(1)}
                           sub="🔥 per player"
                         />
                       )}
@@ -562,212 +656,182 @@ export default function StatsPanel({ onClose, embedded = false }) {
                 </div>
 
                 {deleteError && (
-                  <p className="mt-4 rounded-xl bg-rose-50 px-3 py-2 text-center text-xs font-bold text-rose-500">
+                  <p className="mt-4 rounded-xl bg-rose-500/20 px-3 py-2 text-center text-xs font-bold text-rose-100">
                     {deleteError}
                   </p>
                 )}
 
                 {!showAll && (
                   <>
-                    {/* Phones: stacked cards avoid the sideways-scrolling table below. */}
-                    <div className="mt-6 space-y-2.5 sm:hidden">
-                      {sortedSummary.length === 0 ? (
+                    <ListState list={summaryList} kind="summary" />
+                    {noRowsForList(summaryList) && (
+                      <div className="mt-6">
                         <EmptyState search={search} filter={filter} />
-                      ) : (
-                        sortedSummary.map((row) => {
-                          const key = `${row.playerName}::${row.game}`;
-                          const isConfirming = confirmDeleteKey === key;
-                          const isDeleting = deletingKey === key;
-                          return (
-                            <div key={key} className="rounded-2xl border border-slate-100 bg-white p-3.5 shadow-sm">
-                              <div className="flex items-start justify-between gap-2">
-                                <div>
-                                  <PlayerName name={row.playerName} timesPlayed={row.timesPlayed} />
-                                  {filter === 'all' && (
-                                    <p className="mt-0.5 text-xs font-semibold text-slate-500">{gameLabel(row.game)}</p>
-                                  )}
-                                </div>
-                                <button
-                                  onClick={() => handleDeleteClick(row)}
-                                  disabled={isDeleting}
-                                  title={isConfirming ? 'Tap again to confirm' : `Delete ${row.playerName}'s ${gameLabel(row.game)} record`}
-                                  className={`min-w-11 shrink-0 rounded-full px-3 py-2 text-xs font-bold transition-all active:scale-90 disabled:opacity-50 ${
-                                    isConfirming
-                                      ? 'bg-rose-500 text-white shadow-sm'
-                                      : 'bg-slate-50 text-slate-300 active:bg-rose-50 active:text-rose-500'
-                                  }`}
-                                >
-                                  {isDeleting ? '…' : isConfirming ? 'Confirm?' : '🗑️'}
-                                </button>
-                              </div>
-                              <div className="mt-2.5 flex items-center justify-between text-xs font-semibold text-slate-500">
-                                <span>🔥 {row.bestStreak} best streak</span>
-                                <span>
-                                  {new Date(row.lastPlayedAt).toLocaleString(undefined, {
-                                    dateStyle: 'medium',
-                                    timeStyle: 'short',
-                                  })}
-                                </span>
-                              </div>
-                            </div>
-                          );
-                        })
-                      )}
-                    </div>
-
-                    {/* Tablet/desktop: sortable table. */}
-                    <div className="mt-6 hidden overflow-x-auto rounded-2xl border border-slate-100 sm:block">
-                      <table className="w-full min-w-[480px] text-sm">
-                        <thead className="bg-slate-50 text-xs font-bold uppercase tracking-wide text-slate-500">
-                          <tr>
-                            <SortHeader label="Player" sortKey="playerName" current={sortKey} dir={sortDir} onSort={handleSort} align="left" />
-                            {filter === 'all' && (
-                              <SortHeader label="Game" sortKey="game" current={sortKey} dir={sortDir} onSort={handleSort} align="center" />
-                            )}
-                            <SortHeader label="Best streak" sortKey="bestStreak" current={sortKey} dir={sortDir} onSort={handleSort} align="center" />
-                            <SortHeader label="Last played" sortKey="lastPlayedAt" current={sortKey} dir={sortDir} onSort={handleSort} align="center" />
-                            <th className="px-3 py-1">
-                              <span className="sr-only">Actions</span>
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {sortedSummary.length === 0 ? (
-                            <tr>
-                              <td colSpan={columnCount} className="px-4 py-8 text-center font-bold text-slate-400">
-                                {search.trim()
-                                  ? `No players found matching "${search.trim()}".`
-                                  : filter === 'all'
-                                  ? 'No plays logged yet — go play a game! 🎮'
-                                  : `No plays logged for ${gameLabel(filter)} yet.`}
-                              </td>
-                            </tr>
-                          ) : (
-                            sortedSummary.map((row) => {
-                              const key = `${row.playerName}::${row.game}`;
-                              const isConfirming = confirmDeleteKey === key;
-                              const isDeleting = deletingKey === key;
-                              return (
-                                <tr key={key} className="border-t border-slate-100 transition-colors sm:hover:bg-slate-50">
-                                  <td className="px-4 py-3.5 text-left font-bold text-slate-700">
+                      </div>
+                    )}
+                    {summaryList.status === 'ready' && summaryList.rows.length > 0 && (
+                      <>
+                        {/* Phones: stacked cards avoid the sideways-scrolling table below. */}
+                        <div className="mt-6 space-y-2.5 sm:hidden">
+                          {summaryList.rows.map((row) => {
+                            const key = `${row.playerName}::${row.game}`;
+                            const isConfirming = confirmDeleteKey === key;
+                            const isDeleting = deletingKey === key;
+                            return (
+                              <div key={key} className="aura-card rounded-2xl p-3.5">
+                                <div className="flex items-start justify-between gap-2">
+                                  <div>
                                     <PlayerName name={row.playerName} timesPlayed={row.timesPlayed} />
-                                  </td>
-                                  {filter === 'all' && (
-                                    <td className="px-4 py-3.5 text-center text-slate-600">{gameLabel(row.game)}</td>
-                                  )}
-                                  <td className="px-4 py-3.5 text-center text-slate-600">🔥{row.bestStreak}</td>
-                                  <td className="px-4 py-3.5 text-center text-slate-500">
+                                    {filter === 'all' && (
+                                      <p className="mt-0.5 text-xs font-semibold aura-muted">{gameLabel(row.game)}</p>
+                                    )}
+                                  </div>
+                                  <button
+                                    onClick={() => handleDeleteClick(row)}
+                                    disabled={isDeleting}
+                                    title={isConfirming ? 'Tap again to confirm' : `Delete ${row.playerName}'s ${gameLabel(row.game)} record`}
+                                    className={`min-w-11 shrink-0 rounded-full px-3 py-2 text-xs font-bold transition-all active:scale-90 disabled:opacity-50 ${
+                                      isConfirming
+                                        ? 'bg-rose-500 text-white shadow-sm'
+                                        : 'bg-transparent text-rose-200 active:bg-rose-500/20 active:text-rose-100 sm:hover:bg-rose-500/20 sm:hover:text-rose-100'
+                                    }`}
+                                  >
+                                    {isDeleting ? '…' : isConfirming ? 'Confirm?' : '🗑️'}
+                                  </button>
+                                </div>
+                                <div className="mt-2.5 flex items-center justify-between text-xs font-semibold aura-muted">
+                                  <span>🔥 {row.bestStreak} best streak</span>
+                                  <span>
                                     {new Date(row.lastPlayedAt).toLocaleString(undefined, {
                                       dateStyle: 'medium',
                                       timeStyle: 'short',
                                     })}
-                                  </td>
-                                  <td className="px-2 py-2 text-right">
-                                    <button
-                                      onClick={() => handleDeleteClick(row)}
-                                      disabled={isDeleting}
-                                      title={isConfirming ? 'Tap again to confirm' : `Delete ${row.playerName}'s ${gameLabel(row.game)} record`}
-                                      className={`min-w-11 rounded-full px-3 py-2.5 text-xs font-bold transition-all active:scale-90 disabled:opacity-50 ${
-                                        isConfirming
-                                          ? 'bg-rose-500 text-white shadow-sm'
-                                          : 'bg-transparent text-slate-300 active:bg-rose-50 active:text-rose-500 sm:hover:bg-rose-50 sm:hover:text-rose-500'
-                                      }`}
-                                    >
-                                      {isDeleting ? '…' : isConfirming ? 'Confirm?' : '🗑️'}
-                                    </button>
+                                  </span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        {/* Tablet/desktop: sortable table. */}
+                        <div className="aura-card mt-6 hidden overflow-x-auto rounded-2xl sm:block">
+                          <table className="w-full min-w-[480px] text-sm">
+                            <thead className="aura-table-head text-xs font-bold uppercase tracking-wide">
+                              <tr>
+                                <SortHeader label="Player" sortKey="playerName" current={sortKey} dir={sortDir} onSort={handleSort} align="left" />
+                                {filter === 'all' && (
+                                  <SortHeader label="Game" sortKey="game" current={sortKey} dir={sortDir} onSort={handleSort} align="center" />
+                                )}
+                                <SortHeader label="Best streak" sortKey="bestStreak" current={sortKey} dir={sortDir} onSort={handleSort} align="center" />
+                                <SortHeader label="Last played" sortKey="lastPlayedAt" current={sortKey} dir={sortDir} onSort={handleSort} align="center" />
+                                <th className="px-3 py-1">
+                                  <span className="sr-only">Actions</span>
+                                </th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {summaryList.rows.length === 0 ? (
+                                <tr>
+                                  <td colSpan={columnCount} className="px-4 py-8 text-center font-bold aura-muted">
+                                    <EmptyStateInline search={search} filter={filter} />
                                   </td>
                                 </tr>
-                              );
-                            })
-                          )}
-                        </tbody>
-                      </table>
-                    </div>
+                              ) : (
+                                summaryList.rows.map((row) => {
+                                  const key = `${row.playerName}::${row.game}`;
+                                  const isConfirming = confirmDeleteKey === key;
+                                  const isDeleting = deletingKey === key;
+                                  return (
+                                    <tr key={key} className="aura-table-row transition-colors">
+                                      <td className="px-4 py-3.5 text-left font-bold aura-text">
+                                        <PlayerName name={row.playerName} timesPlayed={row.timesPlayed} />
+                                      </td>
+                                      {filter === 'all' && (
+                                        <td className="px-4 py-3.5 text-center aura-soft">{gameLabel(row.game)}</td>
+                                      )}
+                                      <td className="px-4 py-3.5 text-center aura-soft">🔥{row.bestStreak}</td>
+                                      <td className="px-4 py-3.5 text-center aura-muted">
+                                        {new Date(row.lastPlayedAt).toLocaleString(undefined, {
+                                          dateStyle: 'medium',
+                                          timeStyle: 'short',
+                                        })}
+                                      </td>
+                                      <td className="px-2 py-2 text-right">
+                                        <button
+                                          onClick={() => handleDeleteClick(row)}
+                                          disabled={isDeleting}
+                                          title={isConfirming ? 'Tap again to confirm' : `Delete ${row.playerName}'s ${gameLabel(row.game)} record`}
+                                          className={`min-w-11 rounded-full px-3 py-2.5 text-xs font-bold transition-all active:scale-90 disabled:opacity-50 ${
+                                            isConfirming
+                                              ? 'bg-rose-500 text-white shadow-sm'
+                                              : 'bg-transparent text-rose-200 active:bg-rose-500/20 active:text-rose-100 sm:hover:bg-rose-500/20 sm:hover:text-rose-100'
+                                          }`}
+                                        >
+                                          {isDeleting ? '…' : isConfirming ? 'Confirm?' : '🗑️'}
+                                        </button>
+                                      </td>
+                                    </tr>
+                                  );
+                                })
+                              )}
+                            </tbody>
+                          </table>
+                        </div>
+
+                        <ListFooter list={summaryList} />
+                      </>
+                    )}
                   </>
                 )}
 
                 {showAll && (
                   <div className="mt-6">
-                    {allStatus === 'loading' && !allSlow && (
-                      <div className="flex flex-col items-center justify-center gap-2 py-10 text-slate-400 sm:py-16">
-                        <span className="animate-bounce text-4xl">⏳</span>
-                        <p className="font-bold">Loading every play…</p>
-                      </div>
-                    )}
-
-                    {allStatus === 'loading' && allSlow && (
-                      <div className="flex flex-col items-center justify-center gap-3 py-10 text-center text-slate-400 sm:py-16">
-                        <span className="animate-pulse text-4xl">☕</span>
-                        <p className="font-bold text-slate-500">Waking things up…</p>
-                        <p className="max-w-xs text-xs">This can take a few extra seconds after a quiet spell. Hang tight!</p>
-                        <div className="mt-1 h-1.5 w-40 overflow-hidden rounded-full bg-slate-100">
-                          <span className="animate-wake-progress block h-full w-1/3 rounded-full bg-gradient-to-r from-sky-300 to-pink-300" />
-                        </div>
-                      </div>
-                    )}
-
-                    {allStatus === 'error' && (
-                      <div className="flex flex-col items-center justify-center gap-3 py-10 text-center text-slate-400 sm:py-16">
-                        <span className="text-4xl">😕</span>
-                        <p className="font-bold text-slate-500">Couldn't load every play.</p>
-                        <p className="max-w-xs text-xs">Check your connection and try again.</p>
-                        <button
-                          onClick={loadAllPlays}
-                          className="rounded-full bg-slate-100 px-5 py-2.5 text-sm font-bold text-slate-600 active:scale-95 active:bg-slate-200 sm:hover:bg-slate-200"
-                        >
-                          Try again
-                        </button>
-                      </div>
-                    )}
-
-                    {allStatus === 'ready' && (
+                    <ListState list={allPlaysList} kind="all" />
+                    {noRowsForList(allPlaysList) && <EmptyState search={search} filter={filter} />}
+                    {allPlaysList.status === 'ready' && allPlaysList.rows.length > 0 && (
                       <>
                         {/* Phones: stacked cards, one per play. */}
                         <div className="space-y-2.5 sm:hidden">
-                          {sortedAllPlays.length === 0 ? (
-                            <EmptyState search={search} filter={filter} />
-                          ) : (
-                            sortedAllPlays.map((row, i) => {
-                              const device = formatDevice(row.device);
-                              const bonus = isBonusGame(row.game);
-                              return (
-                                <div
-                                  key={`${row.playerName}::${row.game}::${row.completedAt}::${i}`}
-                                  className="rounded-2xl border border-slate-100 bg-white p-3.5 shadow-sm"
-                                >
-                                  <p className="font-bold text-slate-700">{row.playerName}</p>
-                                  {filter === 'all' && (
-                                    <p className="mt-0.5 text-xs font-semibold text-slate-500">{gameLabel(row.game)}</p>
+                          {allPlaysList.rows.map((row, i) => {
+                            const device = formatDevice(row.device);
+                            const bonus = isBonusGame(row.game);
+                            return (
+                              <div
+                                key={`${row.playerName}::${row.game}::${row.completedAt}::${i}`}
+                                className="aura-card rounded-2xl p-3.5"
+                              >
+                                <p className="font-bold aura-text">{row.playerName}</p>
+                                {filter === 'all' && (
+                                  <p className="mt-0.5 text-xs font-semibold aura-muted">{gameLabel(row.game)}</p>
+                                )}
+                                <div className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-semibold aura-muted">
+                                  {bonus ? (
+                                    <span>⏱️ {row.elapsedSeconds != null ? `${row.elapsedSeconds}s` : '—'}</span>
+                                  ) : (
+                                    <>
+                                      <span>{formatStars(row.stars, row.totalRounds)}</span>
+                                      <span>🔥 {row.peakStreak}</span>
+                                    </>
                                   )}
-                                  <div className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-semibold text-slate-500">
-                                    {bonus ? (
-                                      <span>⏱️ {row.elapsedSeconds != null ? `${row.elapsedSeconds}s` : '—'}</span>
-                                    ) : (
-                                      <>
-                                        <span>{formatStars(row.stars, row.totalRounds)}</span>
-                                        <span>🔥 {row.peakStreak}</span>
-                                      </>
-                                    )}
-                                    <span>
-                                      {new Date(row.completedAt).toLocaleString(undefined, {
-                                        dateStyle: 'medium',
-                                        timeStyle: 'short',
-                                      })}
-                                    </span>
-                                    <span title={device.title}>
-                                      {device.icon} {device.text}
-                                    </span>
-                                  </div>
+                                  <span>
+                                    {new Date(row.completedAt).toLocaleString(undefined, {
+                                      dateStyle: 'medium',
+                                      timeStyle: 'short',
+                                    })}
+                                  </span>
+                                  <span title={device.title}>
+                                    {device.icon} {device.text}
+                                  </span>
                                 </div>
-                              );
-                            })
-                          )}
+                              </div>
+                            );
+                          })}
                         </div>
 
                         {/* Tablet/desktop: sortable table. */}
-                        <div className="hidden overflow-x-auto rounded-2xl border border-slate-100 sm:block">
+                        <div className="aura-card hidden overflow-x-auto rounded-2xl sm:block">
                           <table className="w-full min-w-[480px] text-sm">
-                            <thead className="bg-slate-50 text-xs font-bold uppercase tracking-wide text-slate-500">
+                            <thead className="aura-table-head text-xs font-bold uppercase tracking-wide">
                               <tr>
                                 <SortHeader label="Player" sortKey="playerName" current={sortKeyAll} dir={sortDirAll} onSort={handleSortAll} align="left" />
                                 {filter === 'all' && (
@@ -780,40 +844,36 @@ export default function StatsPanel({ onClose, embedded = false }) {
                               </tr>
                             </thead>
                             <tbody>
-                              {sortedAllPlays.length === 0 ? (
+                              {allPlaysList.rows.length === 0 ? (
                                 <tr>
-                                  <td colSpan={columnCountAll} className="px-4 py-8 text-center font-bold text-slate-400">
-                                    {search.trim()
-                                      ? `No players found matching "${search.trim()}".`
-                                      : filter === 'all'
-                                      ? 'No plays logged yet — go play a game! 🎮'
-                                      : `No plays logged for ${gameLabel(filter)} yet.`}
+                                  <td colSpan={columnCountAll} className="px-4 py-8 text-center font-bold aura-muted">
+                                    <EmptyStateInline search={search} filter={filter} />
                                   </td>
                                 </tr>
                               ) : (
-                                sortedAllPlays.map((row, i) => {
+                                allPlaysList.rows.map((row, i) => {
                                   const device = formatDevice(row.device);
                                   const bonus = isBonusGame(row.game);
                                   return (
                                     <tr
                                       key={`${row.playerName}::${row.game}::${row.completedAt}::${i}`}
-                                      className="border-t border-slate-100 transition-colors sm:hover:bg-slate-50"
+                                      className="aura-table-row transition-colors"
                                     >
-                                      <td className="px-4 py-3.5 text-left font-bold text-slate-700">{row.playerName}</td>
+                                      <td className="px-4 py-3.5 text-left font-bold aura-text">{row.playerName}</td>
                                       {filter === 'all' && (
-                                        <td className="px-4 py-3.5 text-center text-slate-600">{gameLabel(row.game)}</td>
+                                        <td className="px-4 py-3.5 text-center aura-soft">{gameLabel(row.game)}</td>
                                       )}
-                                      <td className="px-4 py-3.5 text-center text-slate-600">{formatStars(row.stars, row.totalRounds)}</td>
-                                      <td className="px-4 py-3.5 text-center text-slate-600">
+                                      <td className="px-4 py-3.5 text-center aura-soft">{formatStars(row.stars, row.totalRounds)}</td>
+                                      <td className="px-4 py-3.5 text-center aura-soft">
                                         {bonus ? `⏱️ ${row.elapsedSeconds != null ? `${row.elapsedSeconds}s` : '—'}` : `🔥${row.peakStreak}`}
                                       </td>
-                                      <td className="px-4 py-3.5 text-center text-slate-500">
+                                      <td className="px-4 py-3.5 text-center aura-muted">
                                         {new Date(row.completedAt).toLocaleString(undefined, {
                                           dateStyle: 'medium',
                                           timeStyle: 'short',
                                         })}
                                       </td>
-                                      <td className="px-4 py-3.5 text-center text-slate-600" title={device.title}>
+                                      <td className="px-4 py-3.5 text-center aura-soft" title={device.title}>
                                         {device.icon} {device.text}
                                       </td>
                                     </tr>
@@ -823,6 +883,8 @@ export default function StatsPanel({ onClose, embedded = false }) {
                             </tbody>
                           </table>
                         </div>
+
+                        <ListFooter list={allPlaysList} />
                       </>
                     )}
                   </div>
@@ -836,7 +898,7 @@ export default function StatsPanel({ onClose, embedded = false }) {
 
   if (embedded) {
     return (
-      <div className="overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-md">
+      <div className="aura-card overflow-hidden rounded-3xl">
         {inner}
       </div>
     );
@@ -848,7 +910,7 @@ export default function StatsPanel({ onClose, embedded = false }) {
         initial={{ scale: 0.9, opacity: 0, y: 20 }}
         animate={{ scale: 1, opacity: 1, y: 0 }}
         transition={{ type: 'spring', stiffness: 260, damping: 24 }}
-        className="relative flex h-[90dvh] w-full max-w-4xl flex-col overflow-hidden rounded-[2rem] bg-white shadow-2xl sm:h-[85vh]"
+        className="relative flex h-[90dvh] w-full max-w-4xl flex-col overflow-hidden rounded-[2rem] aura-card shadow-2xl sm:h-[85vh]"
         onClick={(e) => e.stopPropagation()}
       >
         {inner}
@@ -866,7 +928,7 @@ function PlayerName({ name, timesPlayed }) {
       {timesPlayed > 1 && (
         <span
           title={`Played ${timesPlayed} times`}
-          className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-pink-100 px-1.5 text-[10px] font-extrabold text-pink-600"
+          className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-pink-500/25 px-1.5 text-[10px] font-extrabold text-pink-100"
         >
           ×{timesPlayed}
         </span>
@@ -876,9 +938,22 @@ function PlayerName({ name, timesPlayed }) {
 }
 
 function EmptyState({ search, filter }) {
-  if (search.trim()) return <p className="py-8 text-center font-bold text-slate-400">No players found matching "{search.trim()}".</p>;
-  if (filter === 'all') return <p className="py-8 text-center font-bold text-slate-400">No plays logged yet — go play a game! 🎮</p>;
-  return <p className="py-8 text-center font-bold text-slate-400">No plays logged for {gameLabel(filter)} yet.</p>;
+  return (
+    <div className="py-8 text-center font-bold aura-muted">
+      <EmptyStateInline search={search} filter={filter} />
+    </div>
+  );
+}
+
+function EmptyStateInline({ search, filter }) {
+  if (search.trim()) return <>No players found matching "{search.trim()}".</>;
+  if (filter === 'all') return <>No plays logged yet — go play a game! 🎮</>;
+  return <>No plays logged for {gameLabel(filter)} yet.</>;
+}
+
+function formatSeconds(value) {
+  if (value == null || Number.isNaN(Number(value))) return '—';
+  return `${Number(value).toFixed(1)}s`;
 }
 
 // Stylized "which game?" filter — a single dropdown button showing the
@@ -921,14 +996,18 @@ function GameFilterDropdown({ options, value, onChange, counts }) {
         aria-expanded={open}
         style={{ fontFamily: "'Fredoka', sans-serif" }}
         className={`flex w-full items-center gap-2.5 rounded-2xl border-2 px-4 py-2.5 text-left shadow-sm transition-all active:scale-[0.98] ${
-          open ? 'border-pink-300' : value === 'all' ? 'border-slate-200 bg-white' : 'border-pink-200'
-        } ${value !== 'all' ? 'bg-gradient-to-r from-pink-50 to-purple-50' : 'bg-white'}`}
+          open
+            ? 'border-pink-400 bg-white/15'
+            : value === 'all'
+            ? 'border-white/25 bg-white/10'
+            : 'border-pink-400/60 bg-gradient-to-r from-pink-500/15 to-purple-500/15'
+        }`}
       >
-        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-50 text-lg leading-none">
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-pink-500/25 text-lg leading-none">
           {selected.emoji}
         </span>
-        <span className="min-w-0 flex-1 truncate text-sm font-bold text-slate-700 sm:text-base">{selected.name}</span>
-        <motion.span animate={{ rotate: open ? 180 : 0 }} transition={{ duration: 0.15 }} className="shrink-0 text-slate-400">
+        <span className="min-w-0 flex-1 truncate text-sm font-bold aura-text sm:text-base">{selected.name}</span>
+        <motion.span animate={{ rotate: open ? 180 : 0 }} transition={{ duration: 0.15 }} className="shrink-0 aura-muted">
           ▾
         </motion.span>
       </button>
@@ -941,7 +1020,7 @@ function GameFilterDropdown({ options, value, onChange, counts }) {
             exit={{ opacity: 0, y: -6, scale: 0.97 }}
             transition={{ duration: 0.15 }}
             role="listbox"
-            className="absolute left-0 right-0 top-full z-20 mt-2 max-h-72 overflow-y-auto rounded-2xl border border-slate-100 bg-white p-1.5 shadow-xl"
+            className="absolute left-0 right-0 top-full z-20 mt-2 max-h-72 overflow-y-auto rounded-2xl aura-card p-1.5 shadow-2xl backdrop-blur-xl"
           >
             {options.map((opt) => {
               const active = opt.key === value;
@@ -958,7 +1037,7 @@ function GameFilterDropdown({ options, value, onChange, counts }) {
                   className={`flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left transition-colors active:scale-[0.98] ${
                     active
                       ? 'bg-gradient-to-r from-pink-500 to-purple-500 text-white'
-                      : 'text-slate-600 active:bg-slate-100 sm:hover:bg-slate-50'
+                      : 'aura-soft hover:bg-white/10 active:bg-white/10'
                   }`}
                 >
                   <span className="w-6 shrink-0 text-center text-lg leading-none">{opt.emoji}</span>
@@ -968,7 +1047,7 @@ function GameFilterDropdown({ options, value, onChange, counts }) {
                   {typeof counts?.[opt.key] === 'number' && (
                     <span
                       className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-extrabold ${
-                        active ? 'bg-white/25 text-white' : 'bg-slate-100 text-slate-400'
+                        active ? 'bg-white/25 text-white' : 'bg-white/10 aura-muted'
                       }`}
                     >
                       {counts[opt.key]}
@@ -992,8 +1071,8 @@ function SortHeader({ label, sortKey: key, current, dir, onSort, align = 'left' 
       <button
         type="button"
         onClick={() => onSort(key)}
-        className={`flex w-full items-center gap-1 whitespace-nowrap px-4 py-3 font-bold uppercase tracking-wide transition-colors active:bg-slate-100 ${justify} ${
-          active ? 'text-slate-800' : 'text-slate-500 sm:hover:text-slate-700'
+        className={`flex w-full items-center gap-1 whitespace-nowrap px-4 py-3 font-bold uppercase tracking-wide transition-colors active:bg-white/10 ${justify} ${
+          active ? 'aura-text' : 'aura-muted hover:text-indigo-200'
         }`}
       >
         {label}
@@ -1007,15 +1086,15 @@ function SortHeader({ label, sortKey: key, current, dir, onSort, align = 'left' 
 
 function StatCard({ label, value, sub }) {
   return (
-    <div className="rounded-2xl border border-slate-100 bg-slate-50 px-3 py-3.5 text-center transition-colors active:bg-slate-100">
+    <div className="aura-card rounded-2xl px-3 py-3.5 text-center transition-colors">
       <p
         className="bg-gradient-to-r from-pink-500 to-purple-500 bg-clip-text text-2xl font-bold text-transparent"
         style={{ fontFamily: "'Fredoka', sans-serif" }}
       >
         {value ?? 0}
       </p>
-      <p className="mt-0.5 text-xs font-bold text-slate-500">{label}</p>
-      {sub && <p className="text-[10px] font-semibold text-slate-400">{sub}</p>}
+      <p className="mt-0.5 text-xs font-bold aura-soft">{label}</p>
+      {sub && <p className="text-[10px] font-semibold aura-muted">{sub}</p>}
     </div>
   );
 }

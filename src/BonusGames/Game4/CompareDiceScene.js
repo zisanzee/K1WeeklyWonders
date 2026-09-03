@@ -26,7 +26,7 @@ const PROMPT_WORD_STYLE = {
   bigger: { label: 'Bigger', color: '#ff5c35', size: 50 },
   smaller: { label: 'smaller', color: '#3aa6ff', size: 30 },
 };
-const PROMPT_FILLER_STYLE = { color: '#0f3d5c', size: 40 };
+const PROMPT_FILLER_STYLE = { color: '#c7d2fe', size: 40 };
 const PROMPT_FONT_WEIGHT = '900';
 const PROMPT_FONT_FAMILY = 'Fredoka, sans-serif';
 const PROMPT_STROKE_COLOR = '#ffffff';
@@ -182,7 +182,7 @@ export default class CompareDiceScene extends BaseScene {
     this.add.text(width / 2, 146, `${level.subtitle}`, {
       ...HEADLINE_STYLE,
       fontSize: '54px',
-      color: '#0f3d5c',
+      color: '#f8fafc',
     }).setOrigin(0.5).setDepth(20);
 
     this.roundPill = this.createPillButton(width - 16, 16, `Round ${this.roundIndex + 1}/${this.rounds.length}`, {
@@ -877,6 +877,7 @@ export default class CompareDiceScene extends BaseScene {
       const hasNext = this.levelIndex + 1 < LEVELS.length;
       this.createPillButton(width / 2, btnY, hasNext ? 'Next Level ➡️' : 'Back to Levels 🏠', {
         fontSize: '22px', paddingX: 26, paddingY: 14, depth: 42,
+        bgColor: 0x8b5cf6, textColor: '#ffffff', borderColor: 0x5b21b6,
       }).on('pointerup', () => {
         if (hasNext) this.scene.start('CompareDiceScene', { levelIndex: this.levelIndex + 1 });
         else this.scene.start('LevelSelectScene');
@@ -884,6 +885,7 @@ export default class CompareDiceScene extends BaseScene {
     } else {
       this.createPillButton(width / 2, btnY, 'Try Again 🔄', {
         fontSize: '22px', paddingX: 26, paddingY: 14, depth: 42,
+        bgColor: 0x8b5cf6, textColor: '#ffffff', borderColor: 0x5b21b6,
       }).on('pointerup', () => {
         this.scene.start('CompareDiceScene', { levelIndex: this.levelIndex });
       });

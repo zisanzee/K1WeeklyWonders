@@ -23,7 +23,8 @@ export default class StartScene extends BaseScene {
 
     // Gentle entrance: the art fades in as the camera clears the navy that
     // BasePreloadScene's create() leaves behind.
-    this.cameras.main.fadeIn(400, 15, 61, 92);
+    // Aurora night indigo (was navy) — backdrop revealed during transitions.
+    this.cameras.main.fadeIn(400, 30, 27, 90);
     art.setAlpha(0);
     this.tweens.add({
       targets: art,
@@ -37,12 +38,12 @@ export default class StartScene extends BaseScene {
     // press-bounce + drop-shadow feedback kids already know.
     const playBtn = this.createPillButton(width / 2, height - 76, '▶  Play', {
       fontSize: '32px',
-      bgColor: 0xffd93d,
-      textColor: '#173b59',
+      bgColor: 0x9333ea,
+      textColor: '#ffffff',
       paddingX: 44,
       paddingY: 16,
       depth: 20,
-      borderColor: 0xffb300,
+      borderColor: 0x5b21b6,
     });
 
     // A soft "come play" bob on the button so it reads as the interactive
@@ -68,7 +69,7 @@ export default class StartScene extends BaseScene {
     // the same navy.
     playBtn.on('pointerup', () => {
       this.input.enabled = false; // ignore further taps mid-transition
-      this.cameras.main.fadeOut(400, 15, 61, 92);
+      this.cameras.main.fadeOut(400, 30, 27, 90);
       this.tweens.add({
         targets: art,
         scale: cover * 1.12,

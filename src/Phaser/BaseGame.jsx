@@ -49,7 +49,7 @@ export default function BaseGame({
   onPhaserReady,
   aspect = DEFAULT_ASPECT,
   baseResolution = DEFAULT_BASE_RESOLUTION,
-  backgroundColor = '#8fe0fa',
+  backgroundColor = '#1e1b5a',
   physics,
   // Wait for webfonts (Fredoka/Nunito etc.) to finish loading before the
   // first Phaser frame, so in-game text doesn't briefly render in a
@@ -165,7 +165,10 @@ export default function BaseGame({
             outward), cheap to render (one blurred gradient div, no
             animation), and gives the canvas a soft "lit from behind" look
             even on a phone where there's no frame to speak of. */}
-        <div className="pointer-events-none absolute -inset-[3px] rounded-[2.5rem] bg-gradient-to-br from-white/30 via-transparent to-sky-200/25 blur-md sm:-inset-2 sm:from-white/50 sm:via-yellow-100/40 sm:to-sky-200/50 sm:blur-xl" />
+        {/* Aurora edge glow — indigo/violet/magenta tints so the dark canvas
+            reads as part of the shared night-sky theme instead of a bright
+            sky halo. */}
+        <div className="pointer-events-none absolute -inset-[3px] rounded-[2.5rem] bg-gradient-to-br from-violet-400/40 via-fuchsia-300/20 to-indigo-500/40 blur-md sm:-inset-2 sm:from-violet-400/60 sm:via-fuchsia-400/30 sm:to-fuchsia-600/50 sm:blur-xl" />
         {/* Outline + shadow on mobile — outline sits outside the box so it
             costs zero layout pixels, and box-shadow never affects layout.
             Together they give just enough definition that the canvas reads

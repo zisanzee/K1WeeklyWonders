@@ -33,19 +33,23 @@ export function makeBackgroundTexture(scene, width, height, theme, key) {
   ctx.fillStyle = sky;
   ctx.fillRect(0, 0, width, height);
 
-  // Sun glow tucked in a back corner, well clear of the play area — kept
-  // consistent across every level/theme.
+  // Aurora glow tucked in a back corner, well clear of the play area —
+  // kept consistent across every level/theme. Tinted fuchsia/violet so it
+  // reads as a night-sky bloom over the dark backgrounds rather than a
+  // bright day sun.
   const sunX = width * 0.86;
   const sunY = height * 0.07;
   const sunGlow = ctx.createRadialGradient(sunX, sunY, 4, sunX, sunY, 80);
-  sunGlow.addColorStop(0, 'rgba(255,217,61,0.9)');
-  sunGlow.addColorStop(1, 'rgba(255,217,61,0)');
+  sunGlow.addColorStop(0, 'rgba(232,121,249,0.85)');
+  sunGlow.addColorStop(1, 'rgba(192,132,252,0)');
   ctx.fillStyle = sunGlow;
   ctx.beginPath();
   ctx.arc(sunX, sunY, 80, 0, Math.PI * 2);
   ctx.fill();
 
-  ctx.fillStyle = 'rgba(255,255,255,0.8)';
+  // Soft translucent violet-white clouds so puffs stay visible against the
+  // now-dark skies.
+  ctx.fillStyle = 'rgba(199,210,254,0.55)';
   const clouds = [
     [width * 0.16, height * 0.12, 22],
     [width * 0.16 + 20, height * 0.12 + 5, 16],
@@ -85,7 +89,7 @@ export function makeCloudTexture(scene) {
   canvas.height = h;
   const ctx = canvas.getContext('2d');
 
-  ctx.fillStyle = 'rgba(255,255,255,0.92)';
+  ctx.fillStyle = 'rgba(199,210,254,0.7)';
   [
     [30, 30, 20],
     [55, 22, 17],
