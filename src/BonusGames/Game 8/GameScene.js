@@ -900,7 +900,10 @@ export default class GameScene extends BaseScene {
     this.levelStartGroup = group;
 
     if (level === 1) {
-      this.buildLevelStartPage(group, 'level1playimg', 1000, () => this.setupRound(0));
+      // Level 1 art is exactly 2:3 like the canvas, so a plain cover-fit
+      // leaves zero bleed margin and any raw edge shows as a visible seam —
+      // zoom in slightly so it fills the canvas perfectly.
+      this.buildLevelStartPage(group, 'level1playimg', 1000, () => this.setupRound(0), 1.04);
       playVoice(this, 'vo-1', () => playVoice(this, 'vo-10'));
     } else {
       this.buildLevelStartPage(group, 'level2playimg', 1000, () => this.setupRound(ROUNDS_PER_HALF));
@@ -910,11 +913,12 @@ export default class GameScene extends BaseScene {
 
   // Start pages are now full-page artwork — the assets carry the title and
   // instructions, so the page only needs the cover-fit background plus the
-  // single play button.
-  buildLevelStartPage(group, imageKey, playY, onPlay) {
+  // single play button. A zoom > 1 bleeds the art past the edges so the
+  // canvas is always fully covered.
+  buildLevelStartPage(group, imageKey, playY, onPlay, zoom = 1) {
     const { width, height } = this.scale;
     const bg = this.add.image(width / 2, height / 2, imageKey);
-    const cover = Math.max(width / bg.width, height / bg.height);
+    const cover = Math.max(width / bg.width, height / bg.height) * zoom;
     bg.setScale(cover);
     group.add(bg);
 
