@@ -35,6 +35,7 @@ import { useStudentStore, addStudent, updateStudent, deleteStudent } from './stu
 import { fetchClassInfo } from './classInfo';
 import StudentBadge, { PrintAllBadgesButton } from './StudentBadge';
 import StatsPanel from './StatsPanel';
+import MissionHeroes from './MissionHeroes';
 
 const CLASS_TYPE_LABELS = {
   k1: { label: 'K1 Games', icon: '🎮', description: 'Manage K1 (Kindergarten 1) game arrangement — reorder, lock/unlock, and feature games.' },
@@ -1338,6 +1339,9 @@ export default function GameAccessPanel({ onClose, initialTab }) {
   const fetchStudents = useStudentStore((state) => state.fetchStudents);
 
   const [activeTab, setActiveTab] = useState(null);
+  // Within the Stats tab, switch between the regular "Who's been playing?"
+  // panel and the weekly-mission-heroes view (both are teacher-only).
+  const [statsView, setStatsView] = useState('stats');
   const [globalSaving, setGlobalSaving] = useState(false);
   const [globalError, setGlobalError] = useState(null);
 
@@ -1426,6 +1430,9 @@ export default function GameAccessPanel({ onClose, initialTab }) {
     if (tab === activeTab) return;
     setGlobalError(null);
     setActiveTab(tab);
+    // Leaving the stats tab should land back on the regular stats view the
+    // next time it's opened, not leave the mission-heroes screen cached.
+    if (tab !== 'stats') setStatsView('stats');
   };
 
   const isGameTab = (tab) => tab === 'k1-games' || tab === 'k2-games' || tab === 'games';
@@ -1511,7 +1518,41 @@ export default function GameAccessPanel({ onClose, initialTab }) {
           )}
         </AnimatePresence>
 
-        {activeTab === 'stats' && <StatsPanel embedded />}
+        {activeTab === 'stats' && (
+          <div>
+            {/* Stats / Mission-heroes sub-toggle for this tab */}
+            <div className="mb-4 flex items-center justify-center gap-2">
+              <button
+                type="button"
+                onClick={() => setStatsView('stats')}
+                className={`flex h-10 items-center gap-1.5 rounded-full px-4 text-sm font-black transition-all active:scale-95 sm:h-11 sm:px-5 ${
+                  statsView === 'stats'
+                    ? 'bg-gradient-to-r from-pink-500 to-purple-500 text-white shadow-md'
+                    : 'bg-white/10 text-white hover:bg-white/20'
+                }`}
+              >
+                📊 Stats
+              </button>
+              <button
+                type="button"
+                onClick={() => setStatsView('mission')}
+                className={`flex h-10 items-center gap-1.5 rounded-full px-4 text-sm font-black transition-all active:scale-95 sm:h-11 sm:px-5 ${
+                  statsView === 'mission'
+                    ? 'bg-gradient-to-r from-amber-400 to-orange-500 text-white shadow-md'
+                    : 'bg-white/10 text-white hover:bg-white/20'
+                }`}
+              >
+                🏆 Mission heroes
+              </button>
+            </div>
+
+            {statsView === 'mission' ? (
+              <MissionHeroes teacherCode={teacherCode} />
+            ) : (
+              <StatsPanel embedded />
+            )}
+          </div>
+        )}
 
         {activeTab === 'students' && (
           <StudentsTab

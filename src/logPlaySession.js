@@ -223,6 +223,50 @@ export async function fetchLeaderboard(classId) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Weekly mission + player home strip
+// ---------------------------------------------------------------------------
+// Drives the student's "trophies / days learning / play-4-games mission" UI
+// and the teacher's mission-completers view. Both use the same Friday→Friday
+// `since` (getWeekStart) so they stay in sync with the weekly champions.
+
+// A single player's plays since the last Friday (GET /api/player/weekly).
+// Returns null on failure so the home widgets can hide gracefully. Trophies,
+// distinct games and distinct learning days are derived from `plays` by the
+// caller so every badge reads from one source of truth.
+export async function fetchPlayerWeekly(classId, playerName) {
+  try {
+    const res = await fetchWithTimeout(
+      withQuery('/api/player/weekly', {
+        classId,
+        playerName,
+        since: getWeekStart().toISOString(),
+      })
+    );
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
+// Teacher-only: everyone in the class who has played 4+ different games this
+// week (GET /api/weekly-mission). Returns { target, completers } or null.
+export async function fetchWeeklyMission(teacherCode) {
+  try {
+    const res = await fetchWithTimeout(
+      withQuery('/api/weekly-mission', {
+        teacherCode,
+        since: getWeekStart().toISOString(),
+      })
+    );
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
 export async function deletePlayerGame(game, playerName, teacherCode) {
   const res = await fetch(`${API_BASE}/api/plays`, {
     method: 'DELETE',

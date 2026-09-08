@@ -9,6 +9,7 @@ import NextGameTimer from "./NextGameTimer";
 import { usePlayerStore } from "./playerStore";
 import { useGameAccessStore, isGameUnlockedNow } from "./gameAccess";
 import { fetchSummary, fetchLeaderboard } from "./logPlaySession";
+import WeeklyGoals from "./WeeklyGoals";
 
 // ---------------------------------------------------------------------------
 // Shared utility
@@ -1008,6 +1009,107 @@ const GameCard = motion.create(function GameCard({
 });
 
 // ===========================================================================
+// SurpriseCard — plays a random unlocked game each time it's tapped
+// ===========================================================================
+function SurpriseCard({ games, onOpen, reduceMotion }) {
+  const [rolling, setRolling] = useState(false);
+
+  const launch = () => {
+    if (rolling || games.length === 0) return;
+    setRolling(true);
+    // A brief dice-roll gives a "picked just for you" beat before we jump —
+    // one short timeout (no interval), so it's cheap and always clears.
+    window.setTimeout(() => {
+      const pick = games[Math.floor(Math.random() * games.length)];
+      setRolling(false);
+      onOpen(pick.to);
+    }, 520);
+  };
+
+  const gradient =
+    "linear-gradient(145deg,#fde68a 0%,#fbbf24 34%,#f472b6 68%,#a78bfa 100%)";
+
+  return (
+    <motion.div
+      initial={reduceMotion ? false : { opacity: 0, y: 40, scale: 0.92, rotate: -2 }}
+      animate={{ opacity: 1, y: 0, scale: 1, rotate: 0 }}
+      whileHover={{ y: -8, scale: 1.02 }}
+      className="relative"
+      style={{ fontFamily: FONT }}
+    >
+      <div
+        className="hidden sm:block absolute -inset-3 rounded-[2rem] opacity-45 blur-2xl -z-10"
+        style={{ background: gradient }}
+      />
+      <motion.button
+        type="button"
+        onClick={launch}
+        whileTap={{ scale: 0.96 }}
+        aria-label="Play a surprise random game"
+        className="group relative flex h-full w-full flex-col overflow-hidden rounded-[1.5rem] sm:rounded-[2rem] p-4 sm:p-6 md:p-7 shadow-lg sm:shadow-2xl ring-[3px] sm:ring-4 ring-white/70 cursor-pointer"
+        style={{ background: gradient }}
+      >
+        {/* Shine + sparkles */}
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/35 via-white/10 to-black/10" />
+        <div
+          className="hidden sm:block pointer-events-none absolute inset-0 opacity-18"
+          style={{
+            backgroundImage:
+              "radial-gradient(circle at 20% 30%, rgba(255,255,255,0.9) 0 2px, transparent 2.5px)",
+            backgroundSize: "110px 110px",
+          }}
+        />
+        <Sparkle delay={0} className="absolute top-3 left-3 h-3.5 w-3.5 sm:h-4 sm:w-4 z-10" />
+        <Sparkle delay={0.8} className="absolute bottom-20 right-3 sm:bottom-24 sm:right-4 h-3 w-3 sm:h-3.5 sm:w-3.5 z-10" />
+
+        {/* Icon stage — dice rolls while a game is being picked */}
+        <div className="relative z-10 mb-3 sm:mb-4 flex h-16 sm:h-24 items-center justify-center">
+          <motion.span
+            animate={
+              rolling
+                ? { rotate: [0, 360], scale: [1, 1.25, 1] }
+                : { rotate: [-6, 6, -6] }
+            }
+            transition={{
+              duration: rolling ? 0.5 : 3,
+              repeat: rolling ? 0 : Infinity,
+              ease: "easeInOut",
+            }}
+            className="text-6xl sm:text-7xl md:text-8xl drop-shadow-[0_6px_10px_rgba(0,0,0,0.2)]"
+          >
+            🎲
+          </motion.span>
+        </div>
+
+        <h3
+          className="relative z-10 text-center text-base sm:text-lg md:text-xl font-black text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.25)]"
+          style={{ fontFamily: FONT, fontWeight: 800 }}
+        >
+          Surprise me!
+        </h3>
+        <p className="relative z-10 mt-1 sm:mt-1.5 text-center text-[11px] sm:text-sm font-semibold text-white/95">
+          {rolling ? "Picking a game…" : "Tap to play a random game"}
+        </p>
+
+        <div className="relative z-10 mt-4 sm:mt-5 flex justify-center">
+          <span
+            className="inline-flex items-center gap-1.5 sm:gap-2 rounded-full px-4 py-2 sm:px-7 sm:py-3 text-xs sm:text-base font-black text-white shadow-md ring-2 sm:ring-4 ring-white/60"
+            style={{
+              fontFamily: FONT,
+              background: "linear-gradient(145deg, rgba(255,255,255,0.25) 0%, rgba(0,0,0,0.22) 100%)",
+            }}
+          >
+            <Icon name="dice" size="0.8em" />
+            Play
+            <Icon name="arrowRight" size="0.9em" />
+          </span>
+        </div>
+      </motion.button>
+    </motion.div>
+  );
+}
+
+// ===========================================================================
 // Divider — polished gradient underline replacing the squiggle
 // ===========================================================================
 
@@ -1309,6 +1411,16 @@ function BetaHomeContent() {
     return { featuredGames: featured, regularGames: regular };
   }, [orderedGames, isTeacher]);
 
+  // Every game the current viewer could actually open — used by the surprise
+  // card so it only ever offers unlocked games (or all games for a teacher).
+  const openGames = useMemo(
+    () =>
+      [...featuredGames, ...regularGames].filter(
+        (g) => isTeacher || g.unlocked
+      ),
+    [featuredGames, regularGames, isTeacher]
+  );
+
   const roleLabel = isTeacher ? (isAdmin ? "Admin" : "Teacher") : null;
   const roleIcon = isAdmin ? "shield" : "key";
 
@@ -1472,6 +1584,13 @@ function BetaHomeContent() {
       </div>
 
       {/* ================================================================
+          STUDENT WEEKLY GOALS (trophies, streak, weekly mission) — students only
+          ================================================================ */}
+      {!isTeacher && playerName && (
+        <WeeklyGoals classId={classId} playerName={playerName} />
+      )}
+
+      {/* ================================================================
           TIMER + LEADERBOARD CARD
           ================================================================ */}
       <div className="relative z-10 px-3 pt-6 sm:px-6 sm:pt-8 md:pt-9">
@@ -1598,6 +1717,13 @@ function BetaHomeContent() {
           />
 
           <div className="mx-auto grid w-full max-w-6xl grid-cols-1 gap-4 sm:gap-6 md:gap-7 sm:grid-cols-2 lg:grid-cols-3 xl:gap-8">
+            {openGames.length > 0 && (
+              <SurpriseCard
+                games={openGames}
+                onOpen={openGame}
+                reduceMotion={reduceMotion}
+              />
+            )}
             {regularGames.map((game, i) => (
               <GameCard
                 key={game.key}
