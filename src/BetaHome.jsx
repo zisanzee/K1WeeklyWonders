@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useCallback } from "react";
+import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion, useReducedMotion, AnimatePresence } from "motion/react";
 import { Helmet } from "react-helmet-async";
@@ -1194,12 +1194,43 @@ function SectionHeader({ icon, eyebrow, title, accent, icon2, reduceMotion }) {
 // PlayerName — big bold name (enlarged)
 // ===========================================================================
 
-function PlayerName({ playerName, roleLabel, roleIcon }) {
+function PlayerName({ playerName, roleLabel, roleIcon, action }) {
   const greeting = useTimeGreeting();
+  const nameRef = useRef(null);
+  const [truncated, setTruncated] = useState(false);
+
+  // The name is gradient-clipped text (background-clip:text + a transparent
+  // fill), which makes the browser's built-in text-overflow ellipsis invisible.
+  // So we measure overflow ourselves and draw a real "…" at the cut point.
+  useEffect(() => {
+    const el = nameRef.current;
+    if (!el) return undefined;
+    const update = () => setTruncated(el.scrollWidth > el.clientWidth + 1);
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    window.addEventListener("resize", update);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", update);
+    };
+  }, [playerName]);
+
+  const nameStyle = {
+    fontFamily: FONT,
+    fontWeight: 900,
+    background: "linear-gradient(135deg, #a7f3d0 0%, #67e8f9 25%, #f9a8d4 50%, #c4b5fd 75%, #fde68a 100%)",
+    WebkitBackgroundClip: "text",
+    WebkitTextFillColor: "transparent",
+    backgroundClip: "text",
+    filter: "drop-shadow(0 1px 4px rgba(167,139,250,0.45))",
+  };
+
   return (
-    <div className="flex min-w-0 flex-col items-start">
+    <div className="flex min-w-0 flex-col text-left">
+      {/* Greeting — its own top section */}
       <span
-        className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] sm:text-xs font-black uppercase tracking-[0.14em] sm:tracking-[0.18em] shadow-sm sm:shadow-md ring-1 sm:ring-2 ring-white/70"
+        className="mb-1.5 self-start text-left inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] sm:text-xs font-black uppercase tracking-[0.14em] sm:tracking-[0.18em] shadow-sm sm:shadow-md ring-1 sm:ring-2 ring-white/70"
         style={{
           background: "linear-gradient(135deg, rgba(34,211,238,0.3) 0%, rgba(244,114,182,0.3) 100%)",
           color: "#a5f3fc",
@@ -1213,20 +1244,30 @@ function PlayerName({ playerName, roleLabel, roleIcon }) {
           </span>
         )}
       </span>
-      <span
-        className="mt-1 sm:mt-2 block max-w-full break-words text-xl sm:text-3xl md:text-4xl lg:text-5xl leading-[1.08] font-black"
-        style={{
-          fontFamily: FONT,
-          fontWeight: 900,
-          background: "linear-gradient(135deg, #a7f3d0 0%, #67e8f9 25%, #f9a8d4 50%, #c4b5fd 75%, #fde68a 100%)",
-          WebkitBackgroundClip: "text",
-          WebkitTextFillColor: "transparent",
-          backgroundClip: "text",
-          filter: "drop-shadow(0 1px 4px rgba(167,139,250,0.45))",
-        }}
-      >
-        {playerName}
-      </span>
+
+      {/* Name + Switch on one row — name left, Switch pushed to the opposite
+          end; if the name overflows we draw a real "…" at the cut point. */}
+      <div className="flex w-full min-w-0 items-center justify-between gap-3 text-left">
+        <div className="relative min-w-0 flex-1">
+          <span
+            ref={nameRef}
+            className="block truncate text-left text-xl sm:text-3xl md:text-4xl leading-none font-black"
+            style={nameStyle}
+          >
+            {playerName}
+          </span>
+          {truncated && (
+            <span
+              aria-hidden="true"
+              className="pointer-events-none absolute bottom-0 right-0 text-left text-xl sm:text-3xl md:text-4xl leading-none font-black"
+              style={nameStyle}
+            >
+              …
+            </span>
+          )}
+        </div>
+        {action && <span className="shrink-0">{action}</span>}
+      </div>
     </div>
   );
 }
@@ -1537,7 +1578,7 @@ function BetaHomeContent() {
             <Icon name="puzzle" size="1em" />
           </div>
 
-          <div className="relative flex flex-col items-center gap-4 sm:flex-row sm:items-center sm:gap-6 md:gap-8">
+          <div className="relative flex flex-row items-center gap-3 sm:gap-6 md:gap-8">
             {/* Logo */}
             <motion.div
               initial={reduceMotion ? false : { opacity: 0, x: -14, rotate: -3 }}
@@ -1559,31 +1600,26 @@ function BetaHomeContent() {
                 alt="EZ Wonders"
                 animate={{ y: reduceMotion ? 0 : [0, -3, 0] }}
                 transition={{ duration: 3.5, repeat: Infinity, ease: "easeInOut" }}
-                className="relative h-auto w-24 sm:w-44 md:w-52 lg:w-64 drop-shadow-xl sm:drop-shadow-2xl"
+                className="relative h-auto w-20 sm:w-40 md:w-48 lg:w-60 drop-shadow-xl sm:drop-shadow-2xl"
                 loading="eager"
                 decoding="async"
                 fetchPriority="high"
               />
             </motion.div>
 
-            {/* Name */}
+            {/* Identity: greeting on its own line; name + Switch share the row below */}
             <motion.div
               initial={reduceMotion ? false : { opacity: 0, x: 14 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: 0.08, type: "spring", stiffness: 240, damping: 22 }}
-              className="min-w-0 w-full text-center sm:w-auto sm:flex-1 sm:text-left"
+              className="flex-1 min-w-0"
             >
-              <PlayerName playerName={playerName} roleLabel={roleLabel} roleIcon={roleIcon} />
-            </motion.div>
-
-            {/* Switch player — far right */}
-            <motion.div
-              initial={reduceMotion ? false : { opacity: 0, x: 14 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.14, type: "spring", stiffness: 240, damping: 22 }}
-              className="shrink-0 self-center"
-            >
-              <SwitchPlayerButton onReset={resetPlayer} />
+              <PlayerName
+                playerName={playerName}
+                roleLabel={roleLabel}
+                roleIcon={roleIcon}
+                action={<SwitchPlayerButton onReset={resetPlayer} />}
+              />
             </motion.div>
           </div>
         </motion.div>
