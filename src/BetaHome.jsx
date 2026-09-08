@@ -519,7 +519,7 @@ function WobbleEmoji({ emoji, size = "text-5xl sm:text-6xl", isOpen = true }) {
     <span className={cn("inline-block", isOpen && "animate-[bh-card-bob_4s_ease-in-out_infinite]")}>
       <motion.span
         className={cn(size, "drop-shadow-[0_4px_6px_rgba(0,0,0,0.16)] sm:drop-shadow-[0_8px_12px_rgba(0,0,0,0.18)]")}
-        whileHover={isOpen ? { scale: 1.15, rotate: [0, -6, 6, 0] } : {}}
+        whileHover={isOpen ? { scale: 1.08 } : {}}
         whileTap={isOpen ? { scale: 0.92 } : {}}
       >
         {emoji}
@@ -832,7 +832,7 @@ const GameCard = motion.create(function GameCard({
       initial={reduceMotion ? false : { opacity: 0, y: 40, scale: 0.92, rotate: -2 }}
       animate={{ opacity: 1, y: 0, scale: 1, rotate: 0 }}
       transition={{ delay: 0.04 + index * 0.07, type: "spring", stiffness: 280, damping: 22 }}
-      whileHover={isOpen ? { y: -10, rotate: [0, -0.8, 0.8, 0] } : {}}
+      whileHover={isOpen ? {} : {}}
       className="relative"
       style={{ fontFamily: FONT }}
     >
@@ -855,7 +855,7 @@ const GameCard = motion.create(function GameCard({
           e.preventDefault();
           onOpen?.(game.to);
         }}
-        whileHover={isOpen ? { y: -2 } : {}}
+        whileHover={isOpen ? { y: -8, transition: { duration: 0.18, ease: "easeOut" } } : {}}
         whileTap={isOpen ? { y: 0, scale: 0.97 } : {}}
         className={cn(
           "group relative flex flex-col overflow-hidden rounded-[1.5rem] sm:rounded-[2rem] p-4 sm:p-6 md:p-7 shadow-lg sm:shadow-2xl ring-[3px] sm:ring-4 ring-white/70 transition-all duration-200",
@@ -1214,7 +1214,7 @@ function PlayerName({ playerName, roleLabel, roleIcon }) {
         )}
       </span>
       <span
-        className="mt-1 sm:mt-2 block max-w-full break-words text-2xl sm:text-4xl md:text-5xl lg:text-6xl leading-[1.05] font-black"
+        className="mt-1 sm:mt-2 block max-w-full break-words text-xl sm:text-3xl md:text-4xl lg:text-5xl leading-[1.08] font-black"
         style={{
           fontFamily: FONT,
           fontWeight: 900,
@@ -1320,6 +1320,9 @@ function BetaHomeContent() {
 
   const [progressByGame, setProgressByGame] = useState({});
   const [loadingTo, setLoadingTo] = useState(null);
+  // Shows a full-screen loader immediately when the (lazy, cold) teacher
+  // panel is first opened so the few-second jump never feels like a hang.
+  const [controlsLoading, setControlsLoading] = useState(false);
 
   const gameAccessLoaded = useGameAccessStore((s) => s.loaded);
   const gameAccessLoadedClassId = useGameAccessStore((s) => s.loadedClassId);
@@ -1479,7 +1482,10 @@ function BetaHomeContent() {
           <div className="mx-auto flex w-full max-w-4xl flex-wrap items-center justify-between gap-2 px-3 py-3 sm:px-6">
             <motion.button
               type="button"
-              onClick={() => navigate("/game-access")}
+              onClick={() => {
+                setControlsLoading(true);
+                requestAnimationFrame(() => navigate("/game-access"));
+              }}
               whileHover={{ y: -2, scale: 1.03 }}
               whileTap={{ y: 0, scale: 0.98 }}
               className="flex items-center gap-1.5 sm:gap-2 rounded-full px-3.5 py-1.5 sm:px-5 sm:py-2.5 text-xs sm:text-base font-black text-white shadow-md sm:shadow-xl ring-2 sm:ring-4 ring-white/70"
@@ -1531,7 +1537,7 @@ function BetaHomeContent() {
             <Icon name="puzzle" size="1em" />
           </div>
 
-          <div className="relative flex flex-row items-center gap-3 sm:gap-6 md:gap-8">
+          <div className="relative flex flex-col items-center gap-4 sm:flex-row sm:items-center sm:gap-6 md:gap-8">
             {/* Logo */}
             <motion.div
               initial={reduceMotion ? false : { opacity: 0, x: -14, rotate: -3 }}
@@ -1553,7 +1559,7 @@ function BetaHomeContent() {
                 alt="EZ Wonders"
                 animate={{ y: reduceMotion ? 0 : [0, -3, 0] }}
                 transition={{ duration: 3.5, repeat: Infinity, ease: "easeInOut" }}
-                className="relative h-auto w-20 sm:w-40 md:w-48 lg:w-56 drop-shadow-xl sm:drop-shadow-2xl"
+                className="relative h-auto w-24 sm:w-44 md:w-52 lg:w-64 drop-shadow-xl sm:drop-shadow-2xl"
                 loading="eager"
                 decoding="async"
                 fetchPriority="high"
@@ -1565,7 +1571,7 @@ function BetaHomeContent() {
               initial={reduceMotion ? false : { opacity: 0, x: 14 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: 0.08, type: "spring", stiffness: 240, damping: 22 }}
-              className="flex-1 min-w-0"
+              className="min-w-0 w-full text-center sm:w-auto sm:flex-1 sm:text-left"
             >
               <PlayerName playerName={playerName} roleLabel={roleLabel} roleIcon={roleIcon} />
             </motion.div>
@@ -1862,6 +1868,50 @@ function BetaHomeContent() {
                   </p>
                   <p className="text-xs font-semibold" style={{ color: TEXT_SOFT }}>
                     The fun is on its way!
+                  </p>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {controlsLoading && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[999] flex items-center justify-center bg-slate-900/80"
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 10 }}
+              transition={{ type: "spring", stiffness: 320, damping: 24 }}
+              className="relative overflow-hidden rounded-3xl border-4 border-white/25 px-8 py-7 shadow-2xl"
+              style={{
+                fontFamily: FONT,
+                background: PANEL_BACKGROUND,
+                backdropFilter: "blur(16px)",
+                WebkitBackdropFilter: "blur(16px)",
+              }}
+            >
+              <Sparkle delay={0} className="absolute top-3 left-3 h-4 w-4" />
+              <Sparkle delay={0.4} className="absolute top-4 right-5 h-4 w-4" />
+              <div className="flex items-center gap-4">
+                <div className="relative">
+                  <span className="h-9 w-9 animate-spin rounded-full border-[4px] border-emerald-400 border-t-transparent border-l-sky-400 border-b-violet-400" />
+                  <span className="absolute inset-0 flex items-center justify-center text-lg text-emerald-300">
+                    <Icon name="shield" size="1em" />
+                  </span>
+                </div>
+                <div className="flex flex-col">
+                  <p className="text-base sm:text-lg font-black" style={{ fontFamily: FONT, background: "linear-gradient(135deg, #86efac 0%, #a5f3fc 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}>
+                    Loading teacher controls…
+                  </p>
+                  <p className="text-xs font-semibold" style={{ color: TEXT_SOFT }}>
+                    Setting everything up for you!
                   </p>
                 </div>
               </div>

@@ -35,12 +35,29 @@ function GameLoading() {
     <div className="relative flex h-[100dvh] w-full flex-col items-center justify-center overflow-hidden bg-gradient-to-b from-[#3FB6EA] via-[#8FE0FA] to-[#FFE9A8]">
       <style>{`
         @keyframes loader-pulse {
-          0%, 100% { opacity: 0.35; transform: scale(0.92); }
-          50% { opacity: 1; transform: scale(1); }
+          0%, 100% { opacity: 0.35; transform: scale(0.92) translateY(0); }
+          50% { opacity: 1; transform: scale(1) translateY(-6px); }
         }
-        .loader-pulse { animation: loader-pulse 1.4s ease-in-out infinite; }
+        .loader-pulse { animation: loader-pulse 1.3s ease-in-out infinite; }
       `}</style>
-      <span className="loader-pulse text-4xl drop-shadow-[0_2px_0_rgba(0,0,0,0.10)]">🎈</span>
+
+      <span className="relative flex h-24 w-24 items-center justify-center">
+        <span className="absolute inset-0 animate-spin rounded-full border-4 border-white/70 border-t-transparent" />
+        <span className="loader-pulse text-5xl drop-shadow-[0_3px_0_rgba(0,0,0,0.12)]">🎈</span>
+      </span>
+
+      <p
+        className="mt-5 text-xl font-black text-white drop-shadow-sm sm:text-2xl"
+        style={{ fontFamily: "'Fredoka', sans-serif" }}
+      >
+        Loading…
+      </p>
+      <p
+        className="mt-1 text-sm font-bold text-white/85 sm:text-base"
+        style={{ fontFamily: "'Nunito', sans-serif" }}
+      >
+        Setting everything up for you!
+      </p>
     </div>
   );
 }

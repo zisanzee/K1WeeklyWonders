@@ -1470,7 +1470,7 @@ export default function GameAccessPanel({ onClose, initialTab }) {
               <p className="text-[11px] font-black uppercase tracking-[0.14em] text-white/70">
                 {isAdmin ? 'Admin controls' : 'Teacher controls'}
               </p>
-              <h1 className="truncate text-xl font-black tracking-tight text-white sm:text-2xl lg:text-3xl">
+              <h1 className="break-words text-base font-black leading-tight tracking-tight text-white sm:text-2xl lg:text-3xl">
                 {isAdmin ? 'Class management' : 'Class controls'}
               </h1>
             </div>
