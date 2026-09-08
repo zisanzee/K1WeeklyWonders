@@ -1333,6 +1333,8 @@ export default function GameAccessPanel({ onClose, initialTab }) {
   const classId = usePlayerStore((state) => state.classId);
   const isAdmin = usePlayerStore((state) => state.isAdmin);
   const userClassType = usePlayerStore((state) => state.classType);
+  const teacherName = usePlayerStore((state) => state.playerName);
+  const resetPlayer = usePlayerStore((state) => state.resetPlayer);
 
   const students = useStudentStore((state) => state.students);
   const studentsLoaded = useStudentStore((state) => state.loaded);
@@ -1450,41 +1452,44 @@ export default function GameAccessPanel({ onClose, initialTab }) {
   return (
     <div className="aura-page min-h-[100dvh] w-full">
       <header className="sticky top-0 z-30 border-b border-white/15 bg-gradient-to-br from-[#315ed8]/95 via-[#5a3fc4]/95 to-[#972aa8]/95 px-4 pb-0 pt-[max(1rem,env(safe-area-inset-top))] shadow-[0_14px_40px_-28px_rgba(0,0,0,0.4)] backdrop-blur-xl sm:px-6 sm:pt-6 lg:px-10">
-        <div className="mx-auto flex max-w-5xl items-start justify-between gap-3 pb-4">
-          <div className="flex min-w-0 items-center gap-3">
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={globalSaving}
-              aria-label="Back home"
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-white/25 bg-white/15 text-xl text-white shadow-sm transition hover:bg-white/25 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              ←
-            </button>
+        {/* Single compact row — back · title (flex-1) · Beta Homepage on the right.
+            On phones the Beta button is just an icon so it never squeezes the
+            title; on sm+ it expands to the labelled pill. */}
+        <div className="mx-auto flex w-full max-w-5xl items-center gap-2.5 pb-2 sm:gap-3 sm:pb-3">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={globalSaving}
+            aria-label="Back home"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/25 bg-white/15 text-lg text-white shadow-sm transition hover:bg-white/25 disabled:cursor-not-allowed disabled:opacity-50 sm:h-11 sm:w-11 sm:text-xl"
+          >
+            ←
+          </button>
 
-            <span className="hidden h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white/15 text-2xl shadow-sm ring-1 ring-white/25 sm:flex sm:h-12 sm:w-12">
-              🏫
-            </span>
+          <span className="hidden h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white/15 text-2xl shadow-sm ring-1 ring-white/25 sm:flex sm:h-12 sm:w-12">
+            🏫
+          </span>
 
-            <div className="min-w-0">
-              <p className="text-[11px] font-black uppercase tracking-[0.14em] text-white/70">
-                {isAdmin ? 'Admin controls' : 'Teacher controls'}
-              </p>
-              <h1 className="break-words text-base font-black leading-tight tracking-tight text-white sm:text-2xl lg:text-3xl">
-                {isAdmin ? 'Class management' : 'Class controls'}
-              </h1>
-            </div>
+          <div className="min-w-0 flex-1">
+            <p className="hidden text-[10px] font-black uppercase tracking-[0.14em] text-white/70 sm:block sm:text-xs">
+              {isAdmin ? 'Admin controls' : 'Teacher controls'}
+            </p>
+            <h1 className="break-words text-base font-black leading-tight tracking-tight text-white sm:text-2xl lg:text-3xl">
+              {isAdmin ? 'Class management' : 'Class controls'}
+            </h1>
           </div>
 
           <Link
             to="/beta-ezwonders"
-            className="flex h-11 shrink-0 items-center gap-1.5 rounded-xl border border-white/25 bg-white/15 px-4 text-sm font-black text-white shadow-sm transition hover:bg-white/25"
+            title="Beta Homepage"
+            className="flex h-10 shrink-0 items-center justify-center gap-1.5 rounded-xl border border-white/25 bg-white/15 px-2.5 text-base text-white shadow-sm transition hover:bg-white/25 sm:h-11 sm:w-auto sm:px-4 sm:text-sm"
           >
-            ✨ Beta Homepage
+            <span aria-hidden="true">✨</span>
+            <span className="hidden sm:inline">Beta Homepage</span>
           </Link>
         </div>
 
-        <p className="mx-auto max-w-5xl pb-4 text-xs font-semibold leading-relaxed text-white/85 sm:text-sm">
+        <p className="mx-auto hidden max-w-5xl pb-4 text-xs font-semibold leading-relaxed text-white/85 sm:block sm:text-sm">
           {activeTabConfig.description}
         </p>
 
@@ -1566,11 +1571,36 @@ export default function GameAccessPanel({ onClose, initialTab }) {
         )}
 
         {activeTab === 'settings' && (
-          <ClassInfoTab
-            status={classInfoStatus}
-            classInfo={classInfo}
-            error={classInfoError}
-          />
+          <div>
+            {/* Signed-in teacher + switch — now lives on the class/settings tab
+                instead of the stats panel */}
+            <div className="mb-4 flex items-center justify-between gap-3 rounded-2xl aura-card px-4 py-3 sm:px-5">
+              <div className="min-w-0">
+                <p className="text-[10px] font-black uppercase tracking-wide aura-muted">
+                  Signed in as
+                </p>
+                <p className="truncate text-base font-black aura-text sm:text-lg">
+                  {teacherName}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  resetPlayer();
+                  onClose?.();
+                }}
+                className="aura-ghost shrink-0 rounded-full px-4 py-2 text-xs font-black"
+              >
+                Not you?
+              </button>
+            </div>
+
+            <ClassInfoTab
+              status={classInfoStatus}
+              classInfo={classInfo}
+              error={classInfoError}
+            />
+          </div>
         )}
 
         {activeTab === 'k1-games' && (

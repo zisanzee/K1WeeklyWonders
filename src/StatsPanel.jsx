@@ -512,23 +512,6 @@ export default function StatsPanel({ onClose, embedded = false }) {
         </div>
 
         {statsStatus === 'ready' && stats && (
-          <div
-            className="flex items-center justify-between gap-3 border-b border-white/10 px-4 py-2.5 sm:px-6"
-            style={{ fontFamily: "'Nunito', sans-serif" }}
-          >
-            <p className="text-sm font-semibold aura-muted">
-              Welcome back, <span className="font-bold aura-text">{teacherName}</span>! 👋
-            </p>
-            <button
-              onClick={handleSwitchTeacher}
-              className="shrink-0 text-xs font-bold aura-muted underline decoration-white/40 underline-offset-2 hover:text-indigo-200"
-            >
-              Not you?
-            </button>
-          </div>
-        )}
-
-        {statsStatus === 'ready' && stats && (
           <div className="border-b border-white/10 px-4 py-3 sm:px-6">
             <div className="flex justify-center">
               <GameFilterDropdown options={filterOptions} value={filter} onChange={setFilter} counts={filterCounts} />
