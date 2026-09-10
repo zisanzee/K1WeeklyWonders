@@ -15,24 +15,24 @@ export default function Home() {
   return (
     <>
       <Helmet>
-        <title>K1 Weekly Wonders | Interactive Kindergarten Numeracy Games</title>
+        <title>EZ Wonders | Interactive Kindergarten Numeracy Games</title>
         <meta
           name="description"
-          content="K1 Weekly Wonders offers free interactive numeracy games for Kindergarten 1 students. Practice counting, number recognition, part-whole relationships, sequencing, and more."
+          content="EZ Wonders offers free interactive numeracy games for Kindergarten 1 students. Practice counting, number recognition, part-whole relationships, sequencing, and more."
         />
       </Helmet>
 
       <section className="hidden">
         <h1>Weekly Numeracy Games for Kindergarten 1</h1>
         <p>
-          K1 Weekly Wonders provides interactive maths games that help
+          EZ Wonders provides interactive maths games that help
           Kindergarten children practise counting, number recognition,
           addition, subtraction and other early numeracy skills through
           engaging activities.
         </p>
       </section>
 
-      <NameGate gameLabel="K1 Weekly Wonders">
+      <NameGate gameLabel="EZ Wonders">
         <HomeContent />
       </NameGate>
     </>
@@ -523,7 +523,7 @@ function HomeContent() {
 
             <div className="flex flex-col items-center gap-2 px-5 py-4 text-center sm:px-7 sm:py-5">
               <p className="aura-soft font-body text-[0.78rem] font-extrabold uppercase tracking-[0.22em]">
-                K1 Weekly Wonders
+                EZ Wonders
               </p>
 
               <p className="aura-text font-body text-sm sm:text-base">

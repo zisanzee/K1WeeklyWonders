@@ -1536,17 +1536,6 @@ function BetaHomeContent() {
               Teacher controls
             </motion.button>
 
-            <motion.button
-              type="button"
-              onClick={() => navigate("/")}
-              whileHover={{ y: -2, scale: 1.03 }}
-              whileTap={{ y: 0, scale: 0.98 }}
-              className="flex items-center gap-1.5 sm:gap-2 rounded-full px-3.5 py-1.5 sm:px-5 sm:py-2.5 text-xs sm:text-base font-black text-white shadow-md sm:shadow-xl ring-2 sm:ring-4 ring-white/70"
-              style={{ background: "linear-gradient(135deg, #9b51e0 0%, #6d28d9 50%, #2563eb 100%)", fontWeight: 800 }}
-            >
-              <Icon name="gamepad" size="1em" />
-              Classic Home
-            </motion.button>
           </div>
         </div>
       )}

@@ -1,21 +1,36 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
-    <loc>https://k1weekly.netlify.app/</loc>
+    <loc>https://ezwonders.com/</loc>
   </url>
   <url>
-    <loc>https://k1weekly.netlify.app/game1</loc>
+    <loc>https://ezwonders.com/game1</loc>
   </url>
   <url>
-    <loc>https://k1weekly.netlify.app/game2</loc>
+    <loc>https://ezwonders.com/game2</loc>
   </url>
   <url>
-    <loc>https://k1weekly.netlify.app/game3</loc>
+    <loc>https://ezwonders.com/game3</loc>
   </url>
   <url>
-    <loc>https://k1weekly.netlify.app/game4</loc>
+    <loc>https://ezwonders.com/game4</loc>
   </url>
   <url>
-    <loc>https://k1weekly.netlify.app/game5</loc>
+    <loc>https://ezwonders.com/game5</loc>
+  </url>
+  <url>
+    <loc>https://ezwonders.com/game6</loc>
+  </url>
+  <url>
+    <loc>https://ezwonders.com/game7</loc>
+  </url>
+  <url>
+    <loc>https://ezwonders.com/game8</loc>
+  </url>
+  <url>
+    <loc>https://ezwonders.com/game9</loc>
+  </url>
+  <url>
+    <loc>https://ezwonders.com/bonus-game1</loc>
   </url>
 </urlset>

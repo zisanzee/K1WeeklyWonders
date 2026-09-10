@@ -285,7 +285,7 @@ function Game2Inner() {
         href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap"
       />
         <Helmet>
-          <title>Compare Quantity | K1 Weekly Wonders</title>
+          <title>Compare Quantity | EZ Wonders</title>
       
           <meta
             name="description"

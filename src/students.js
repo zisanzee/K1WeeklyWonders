@@ -163,25 +163,108 @@ export async function deleteStudent({ studentId, teacherCode }) {
   useStudentStore.getState().removeStudentLocal(studentId);
 }
 
-// GET — validate a student code and return the student + class info for login.
-// Used by the /p/:code auto-login route. Returns null if invalid or timed out.
+// Validate a student code and return { student, classInfo } for login. Uses the
+// v2 code-lookup so merged codes resolve to the primary identity. Returns null
+// if the code isn't a (valid) student code or the request times out.
 export async function lookupStudentByCode(code) {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 10_000);
 
   try {
-    const response = await fetch(
-      `${API_BASE}/api/student-login/${encodeURIComponent(code)}`,
-      { signal: controller.signal }
-    );
+    const response = await fetch(`${API_BASE}/api/code-lookup`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code }),
+      signal: controller.signal,
+    });
 
     clearTimeout(timeoutId);
 
     if (!response.ok) return null;
 
-    return response.json();
+    const data = await response.json();
+    if (data.kind !== 'studentCode') return null;
+
+    return {
+      student: {
+        studentId: data.studentId,
+        name: data.studentName,
+        code: (code || '').toString().trim().toUpperCase(),
+      },
+      classInfo: {
+        classId: data.classId,
+        className: data.className,
+        classAlias: data.classAlias,
+        classCode: data.classCode,
+      },
+    };
   } catch {
     clearTimeout(timeoutId);
     return null;
   }
 }
+
+// ---------------------------------------------------------------------------
+// Class-scoped roster + player-identity merge (teacher own class, admin any)
+// ---------------------------------------------------------------------------
+
+async function jsonRequest(path, { method = 'GET', body } = {}) {
+  const response = await fetch(`${API_BASE}${path}`, {
+    method,
+    headers: body ? { 'Content-Type': 'application/json' } : undefined,
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || 'Request failed');
+  return data;
+}
+
+// The merge UI's source list: roster students ∪ distinct play-session names.
+export async function fetchClassIdentities(classId, teacherCode) {
+  return jsonRequest(
+    `/api/classes/${encodeURIComponent(classId)}/identities?teacherCode=${encodeURIComponent(teacherCode)}`
+  );
+}
+
+// Merge 2+ identities into a primary. Accepts either names or roster ids.
+export async function mergeIdentities(classId, payload, teacherCode) {
+  return jsonRequest(`/api/classes/${encodeURIComponent(classId)}/students/merge`, {
+    method: 'POST',
+    body: { ...payload, teacherCode },
+  });
+}
+
+// Unmerge a single identity. `memberName` identifies record-less "light" names;
+// a roster student can instead pass its studentId via `studentId`.
+export async function unmergeIdentity(classId, { memberName, studentId }, teacherCode) {
+  const target = studentId || 'name';
+  return jsonRequest(
+    `/api/classes/${encodeURIComponent(classId)}/students/${encodeURIComponent(target)}/unmerge`,
+    { method: 'POST', body: { memberName, teacherCode } }
+  );
+}
+
+// Class-scoped student CRUD used by the redesigned panel.
+export async function addStudentToClass(classId, { nickname, fullName, group, code }, teacherCode) {
+  return jsonRequest(`/api/classes/${encodeURIComponent(classId)}/students`, {
+    method: 'POST',
+    body: { nickname, fullName, group, code, teacherCode },
+  });
+}
+
+export async function updateStudentInClass(classId, studentId, patch, teacherCode) {
+  return jsonRequest(
+    `/api/classes/${encodeURIComponent(classId)}/students/${encodeURIComponent(studentId)}`,
+    { method: 'PUT', body: { ...patch, teacherCode } }
+  );
+}
+
+export async function deleteStudentInClass(classId, studentId, teacherCode) {
+  return jsonRequest(
+    `/api/classes/${encodeURIComponent(classId)}/students/${encodeURIComponent(studentId)}`,
+    { method: 'DELETE', body: { teacherCode } }
+  );
+}
+
+// Generator is exported so the panel can prefill a fresh 6-char code.
+export { generateStudentCode };

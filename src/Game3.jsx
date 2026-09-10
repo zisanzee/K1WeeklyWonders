@@ -546,7 +546,7 @@ function Game3Inner() {
         href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap"
       />
       <Helmet>
-        <title>Around the Number | K1 Weekly Wonders</title>
+        <title>Around the Number | EZ Wonders</title>
 
         <meta
           name="description"

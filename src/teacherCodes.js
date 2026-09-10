@@ -1,7 +1,7 @@
-// Local fallback for teacher-code authentication. NameGate.jsx tries the
-// server first (POST /api/teacher-login); this lookup is only used when the
-// server is unreachable. Keep in sync with the DB — the server is the
-// single source of truth for roles and class assignments.
+// DEPRECATED. NameGate no longer falls back to this file — the login flow uses
+// server endpoints (/api/code-lookup, /api/teacher-login) exclusively, since a
+// client-side mirror drifts from the DB and locks out new/edited teachers. Kept
+// only so any stray importer still resolves; do not add codes here.
 export const TEACHER_CODES = {
   '12/10/22': {
     name: 'Siti Soleha',

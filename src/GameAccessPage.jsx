@@ -13,7 +13,7 @@ export default function GameAccessPage() {
   return (
     <>
       <Helmet>
-        <title>Game Access | K1 Weekly Wonders</title>
+        <title>Game Access | EZ Wonders</title>
         <meta name="robots" content="noindex" />
       </Helmet>
 

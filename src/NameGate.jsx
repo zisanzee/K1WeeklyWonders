@@ -1,95 +1,206 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { usePlayerStore } from './playerStore';
-import { lookupTeacher } from './teacherCodes';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
 
 const inputClass =
   'aura-input w-full rounded-2xl px-4 py-3.5 text-base font-bold disabled:cursor-not-allowed disabled:opacity-60';
 
-// Everyone who comes in through the name prompt lands in the original K1
-// class — there's no class picker anymore. Teachers still get their own
-// class via their teacher code (see handleCodeSubmit below).
-const DEFAULT_CLASS = { id: 'k12026-pny', name: 'Kindergarten 1' };
+const spring = { type: 'spring', stiffness: 260, damping: 24 };
 
+// Reads a code from the URL (?code / ?studentCode / ?classCode / ?teacherCode)
+// so links like ezwonders.com/?code=ABC123 auto-run the classify flow.
+function codeFromUrl() {
+  if (typeof window === 'undefined') return '';
+  const params = new URLSearchParams(window.location.search);
+  return (
+    params.get('code') ||
+    params.get('studentCode') ||
+    params.get('classCode') ||
+    params.get('teacherCode') ||
+    ''
+  );
+}
+
+// Code-first login. Step 1 asks for any code; the server classifies it and the
+// gate then either signs the user straight in (student/teacher/admin code) or
+// advances to step 2 (name for a public class, student code for a private one).
 export default function NameGate({ gameLabel, children }) {
+  const identityKind = usePlayerStore((state) => state.identityKind);
   const playerName = usePlayerStore((state) => state.playerName);
-  const setPlayer = usePlayerStore((state) => state.setPlayer);
+  const isTeacher = usePlayerStore((state) => state.isTeacher);
+  const isAdmin = usePlayerStore((state) => state.isAdmin);
   const setTeacher = usePlayerStore((state) => state.setTeacher);
+  const setStudentPlayer = usePlayerStore((state) => state.setStudentPlayer);
+  const setStudentLight = usePlayerStore((state) => state.setStudentLight);
 
-  const [mode, setMode] = useState('player');
-  const [draft, setDraft] = useState(playerName || '');
-  const [codeDraft, setCodeDraft] = useState('');
-  const [codeError, setCodeError] = useState(null);
-  const [isSubmittingCode, setIsSubmittingCode] = useState(false);
+  const [step, setStep] = useState('code'); // 'code' | 'name' | 'studentcode'
+  const [code, setCode] = useState('');
+  const [nameDraft, setNameDraft] = useState('');
+  const [studentCodeDraft, setStudentCodeDraft] = useState('');
+  const [classCtx, setClassCtx] = useState(null);
+  const [error, setError] = useState(null);
+  const [busy, setBusy] = useState(false);
 
-  // Once a name is stored, never prompt again — no class check needed
-  // since everyone shares the same default class now.
-  const hasValidPlayer = playerName && playerName.trim().toLowerCase() !== 'guest';
+  // Treat any previously-saved session as signed in, including sessions stored
+  // before `identityKind` existed (they only carry playerName / teacher flags).
+  // Without this fallback, returning devices would be forced to log in again
+  // after the rebrand.
+  const signedIn =
+    Boolean(identityKind) ||
+    isTeacher ||
+    isAdmin ||
+    Boolean(playerName && playerName.trim().toLowerCase() !== 'guest');
 
-  if (hasValidPlayer) return children;
-
-  const handleNameSubmit = (event) => {
-    event.preventDefault();
-    const name = draft.trim();
-
-    if (!name || name.toLowerCase() === 'guest') return;
-    setPlayer(name, DEFAULT_CLASS);
+  // Applies a code-lookup result: signs in directly, or moves to step 2.
+  const applyLookup = (data, rawCode) => {
+    if (data.kind === 'adminCode') {
+      setTeacher({ name: data.name, role: 'admin', classId: null }, rawCode);
+      return;
+    }
+    if (data.kind === 'teacherCode') {
+      setTeacher(
+        {
+          name: data.name,
+          classId: data.classId,
+          className: data.className,
+          classAlias: data.classAlias,
+          classCode: data.classCode,
+          role: data.role || 'teacher',
+        },
+        rawCode
+      );
+      return;
+    }
+    if (data.kind === 'studentCode') {
+      setStudentPlayer(
+        { studentId: data.studentId, name: data.studentName, code: rawCode.toUpperCase() },
+        {
+          classId: data.classId,
+          className: data.className,
+          classAlias: data.classAlias,
+          classCode: data.classCode,
+        }
+      );
+      return;
+    }
+    if (data.kind === 'classCode') {
+      setClassCtx(data);
+      setStep(data.isPublic ? 'name' : 'studentcode');
+      return;
+    }
+    throw new Error(
+      "That code wasn't recognized. Try again or ask your teacher."
+    );
   };
 
-  const handleCodeSubmit = async (event) => {
+  const classify = async (rawCode) => {
+    const response = await fetch(`${API_BASE}/api/code-lookup`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code: rawCode }),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(
+        data.error || "That code wasn't recognized. Try again or ask your teacher."
+      );
+    }
+    return data;
+  };
+
+  // Auto-run the flow once when a code is present in the URL.
+  useEffect(() => {
+    const urlCode = codeFromUrl();
+    if (!urlCode) return undefined;
+    setCode(urlCode);
+    let cancelled = false;
+    (async () => {
+      setBusy(true);
+      setError(null);
+      try {
+        const data = await classify(urlCode);
+        if (!cancelled) applyLookup(data, urlCode);
+      } catch (err) {
+        if (!cancelled) setError(err.message);
+      } finally {
+        if (!cancelled) setBusy(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  if (signedIn) return children;
+
+  const submitCode = async (event) => {
     event.preventDefault();
-    const code = codeDraft.trim();
-    if (!code || isSubmittingCode) return;
-
-    setCodeError(null);
-    setIsSubmittingCode(true);
-
-    // Abort if the server doesn't respond within 10 s — prevents the login
-    // spinner from hanging forever during a Render cold-start or network
-    // partition. Falls back to the local teacherCodes.js lookup.
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10_000);
-
+    const raw = code.trim();
+    if (!raw || busy) return;
+    setBusy(true);
+    setError(null);
     try {
-      const response = await fetch(`${API_BASE}/api/teacher-login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code }),
-        signal: controller.signal,
-      });
-
-      clearTimeout(timeoutId);
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        // Server responded but rejected the code — try local fallback.
-        const local = lookupTeacher(code);
-        if (!local) {
-          setCodeError(data.error || "That code doesn't match. Please check it and try again.");
-          return;
-        }
-        setTeacher(local, code);
-        return;
-      }
-
-      setTeacher(data, code);
+      applyLookup(await classify(raw), raw);
     } catch (err) {
-      clearTimeout(timeoutId);
-
-      // Network error or timeout — server not available, use local fallback.
-      const local = lookupTeacher(code);
-      if (!local) {
-        setCodeError('Could not connect to the server. Please try again.');
-        return;
-      }
-      setTeacher(local, code);
+      setError(err.message);
     } finally {
-      setIsSubmittingCode(false);
+      setBusy(false);
     }
   };
+
+  const submitName = async (event) => {
+    event.preventDefault();
+    const name = nameDraft.trim();
+    if (!name || busy || !classCtx) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const response = await fetch(`${API_BASE}/api/student-login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, classCode: classCtx.classCode }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || 'Could not sign in');
+      if (data.student?.studentId) setStudentPlayer(data.student, data.classInfo);
+      else setStudentLight(data.student?.name || name, data.classInfo);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const submitStudentCode = async (event) => {
+    event.preventDefault();
+    const sc = studentCodeDraft.trim();
+    if (!sc || busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const response = await fetch(`${API_BASE}/api/student-login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ studentCode: sc }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || 'Could not sign in');
+      setStudentPlayer(data.student, data.classInfo);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const header = {
+    code: { emoji: '🔑', eyebrow: 'EZ Wonders', title: 'Welcome!', blurb: 'Enter your code to get started.' },
+    name: { emoji: '🙋', eyebrow: 'Public class', title: "What's your name?", blurb: classCtx?.className ? `Joining ${classCtx.className}.` : 'Tell us who you are.' },
+    studentcode: { emoji: '🎫', eyebrow: 'Private class', title: 'Enter your student code', blurb: classCtx?.className ? `Enter your student code for ${classCtx.className}.` : 'Your class needs an individual code.' },
+  }[step];
 
   return (
     <main className="aura-page relative flex min-h-[100dvh] items-center justify-center overflow-hidden px-4 py-6 sm:px-6">
@@ -100,161 +211,149 @@ export default function NameGate({ gameLabel, children }) {
       <div className="pointer-events-none absolute bottom-[9%] left-[10%] text-3xl opacity-55">&#127800;</div>
 
       <AnimatePresence mode="wait">
-        {mode === 'player' ? (
-          <motion.form
-            key="player"
-            initial={{ opacity: 0, y: 20, scale: 0.97 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -12, scale: 0.97 }}
-            transition={{ type: 'spring', stiffness: 260, damping: 24 }}
-            onSubmit={handleNameSubmit}
-            className="aura-panel relative z-10 w-full max-w-md overflow-hidden rounded-[2rem]"
-          >
-            <div className="bg-gradient-to-r from-sky-500 via-cyan-500 to-teal-400 px-6 pb-6 pt-7 text-center text-white sm:px-8">
-              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-white/45 bg-white/20 text-3xl shadow-lg">
-                &#127922;
-              </div>
-              <p className="mt-4 text-[11px] font-black uppercase tracking-[0.2em] text-white/80">
-                K1 Weekly Wonders
-              </p>
-              <h1 className="mt-1 text-3xl font-black tracking-tight sm:text-[2rem]">
-                Ready to play?
-              </h1>
-              <p className="mx-auto mt-2 max-w-xs text-sm font-semibold leading-relaxed text-white/90">
-                Tell us who you are to see today's games.
-              </p>
+        <motion.form
+          key={step}
+          initial={{ opacity: 0, y: 20, scale: 0.97 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: -12, scale: 0.97 }}
+          transition={spring}
+          onSubmit={
+            step === 'code'
+              ? submitCode
+              : step === 'name'
+                ? submitName
+                : submitStudentCode
+          }
+          className="aura-panel relative z-10 w-full max-w-md overflow-hidden rounded-[2rem]"
+        >
+          <div className="bg-gradient-to-r from-sky-500 via-cyan-500 to-teal-400 px-6 pb-6 pt-7 text-center text-white sm:px-8">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-white/45 bg-white/20 text-3xl shadow-lg">
+              {header.emoji}
             </div>
+            <p className="mt-4 text-[11px] font-black uppercase tracking-[0.2em] text-white/80">
+              {header.eyebrow}
+            </p>
+            <h1 className="mt-1 text-3xl font-black tracking-tight sm:text-[2rem]">
+              {header.title}
+            </h1>
+            <p className="mx-auto mt-2 max-w-xs text-sm font-semibold leading-relaxed text-white/90">
+              {gameLabel ? `Get ready for ${gameLabel}` : header.blurb}
+            </p>
+          </div>
 
-            <div className="space-y-5 px-5 py-6 sm:px-8 sm:py-7">
-              <div className="flex items-center gap-3 rounded-2xl bg-violet-500/25 px-3 py-2.5 text-sm font-bold text-violet-100">
-                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-violet-500 text-xs text-white">1</span>
-                <span>{gameLabel ? `Get ready for ${gameLabel}` : 'Tell us your name'}</span>
-              </div>
-
+          <div className="space-y-5 px-5 py-6 sm:px-8 sm:py-7">
+            {step === 'code' && (
               <div>
-                <label htmlFor="player-name" className="aura-soft mb-2 block text-sm font-extrabold">
+                <label htmlFor="entry-code" className="aura-soft mb-2 block text-sm font-extrabold">
+                  Enter your code
+                </label>
+                <input
+                  id="entry-code"
+                  autoFocus
+                  autoComplete="off"
+                  type="text"
+                  value={code}
+                  onChange={(event) => {
+                    setCode(event.target.value);
+                    setError(null);
+                  }}
+                  placeholder="Class code, student code, or teacher code"
+                  className={inputClass}
+                />
+              </div>
+            )}
+
+            {step === 'name' && (
+              <div>
+                <label htmlFor="entry-name" className="aura-soft mb-2 block text-sm font-extrabold">
                   Your name
                 </label>
                 <input
-                  id="player-name"
+                  id="entry-name"
                   autoFocus
                   autoComplete="name"
                   type="text"
-                  value={draft}
+                  value={nameDraft}
                   maxLength={40}
-                  onChange={(event) => setDraft(event.target.value)}
+                  onChange={(event) => {
+                    setNameDraft(event.target.value);
+                    setError(null);
+                  }}
                   placeholder="Type your name"
                   className={inputClass}
                 />
               </div>
+            )}
 
-              <button
-                type="submit"
-                disabled={!draft.trim()}
-                className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-pink-500 to-rose-500 px-5 py-4 text-lg font-black text-white shadow-[0_6px_0_rgba(190,24,93,0.28)] transition hover:-translate-y-0.5 hover:shadow-[0_8px_0_rgba(190,24,93,0.24)] active:translate-y-1 active:shadow-none disabled:cursor-not-allowed disabled:translate-y-0 disabled:opacity-50"
-              >
-                Let's play <span aria-hidden="true">&rarr;</span>
-              </button>
-
-              <div className="flex items-center gap-3 pt-1">
-                <span className="h-px flex-1 bg-white/20" />
-                <span className="aura-muted text-[11px] font-bold uppercase tracking-wide">or</span>
-                <span className="h-px flex-1 bg-white/20" />
-              </div>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setCodeError(null);
-                  setMode('teacher');
-                }}
-                className="aura-soft mx-auto flex items-center gap-2 text-sm font-extrabold transition hover:text-white"
-              >
-                <span aria-hidden="true">&#128273;</span> I have a teacher code
-              </button>
-            </div>
-          </motion.form>
-        ) : (
-          <motion.form
-            key="teacher"
-            initial={{ opacity: 0, y: 20, scale: 0.97 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -12, scale: 0.97 }}
-            transition={{ type: 'spring', stiffness: 260, damping: 24 }}
-            onSubmit={handleCodeSubmit}
-            className="aura-panel relative z-10 w-full max-w-md overflow-hidden rounded-[2rem]"
-          >
-            <div className="bg-gradient-to-r from-violet-600 via-indigo-600 to-sky-600 px-6 pb-6 pt-7 text-center text-white sm:px-8">
-              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-white/45 bg-white/20 text-3xl shadow-lg">
-                &#128273;
-              </div>
-              <p className="mt-4 text-[11px] font-black uppercase tracking-[0.2em] text-white/80">
-                Teacher access
-              </p>
-              <h1 className="mt-1 text-3xl font-black tracking-tight sm:text-[2rem]">
-                Welcome back
-              </h1>
-              <p className="mx-auto mt-2 max-w-xs text-sm font-semibold leading-relaxed text-white/90">
-                Use your code to manage game access and view class progress.
-              </p>
-            </div>
-
-            <div className="space-y-5 px-5 py-6 sm:px-8 sm:py-7">
+            {step === 'studentcode' && (
               <div>
-                <label htmlFor="teacher-code" className="aura-soft mb-2 block text-sm font-extrabold">
-                  Teacher code
+                <label htmlFor="entry-student-code" className="aura-soft mb-2 block text-sm font-extrabold">
+                  Student code
                 </label>
                 <input
-                  id="teacher-code"
+                  id="entry-student-code"
                   autoFocus
                   autoComplete="off"
-                  type="password"
-                  value={codeDraft}
+                  type="text"
+                  value={studentCodeDraft}
                   onChange={(event) => {
-                    setCodeDraft(event.target.value);
-                    setCodeError(null);
+                    setStudentCodeDraft(event.target.value);
+                    setError(null);
                   }}
-                  placeholder="Enter your code"
+                  placeholder="Your 6-character code"
                   className={inputClass}
                 />
-                {codeError && (
-                  <p className="mt-2 rounded-xl bg-rose-500/20 px-3 py-2 text-sm font-bold text-rose-100" role="alert">
-                    {codeError}
-                  </p>
-                )}
               </div>
+            )}
 
-              <button
-                type="submit"
-                disabled={!codeDraft.trim() || isSubmittingCode}
-                className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-violet-600 to-indigo-600 px-5 py-4 text-lg font-black text-white shadow-[0_6px_0_rgba(67,56,202,0.28)] transition hover:-translate-y-0.5 hover:shadow-[0_8px_0_rgba(67,56,202,0.24)] active:translate-y-1 active:shadow-none disabled:cursor-not-allowed disabled:translate-y-0 disabled:opacity-50"
+            {error && (
+              <p
+                className="rounded-xl bg-rose-500/20 px-3 py-2 text-sm font-bold text-rose-100"
+                role="alert"
               >
-                {isSubmittingCode ? (
-                  <>
-                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/70 border-t-transparent" />
-                    Verifying…
-                  </>
-                ) : (
-                  <>
-                    Open teacher controls <span aria-hidden="true">&rarr;</span>
-                  </>
-                )}
-              </button>
+                {error}
+              </p>
+            )}
 
+            <button
+              type="submit"
+              disabled={
+                busy ||
+                (step === 'code' && !code.trim()) ||
+                (step === 'name' && !nameDraft.trim()) ||
+                (step === 'studentcode' && !studentCodeDraft.trim())
+              }
+              className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-pink-500 to-rose-500 px-5 py-4 text-lg font-black text-white shadow-[0_6px_0_rgba(190,24,93,0.28)] transition hover:-translate-y-0.5 hover:shadow-[0_8px_0_rgba(190,24,93,0.24)] active:translate-y-1 active:shadow-none disabled:cursor-not-allowed disabled:translate-y-0 disabled:opacity-50"
+            >
+              {busy ? (
+                <>
+                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/70 border-t-transparent" />
+                  Checking…
+                </>
+              ) : (
+                <>
+                  {step === 'code' ? 'Next' : "Let's play"}{' '}
+                  <span aria-hidden="true">&rarr;</span>
+                </>
+              )}
+            </button>
+
+            {step !== 'code' && (
               <button
                 type="button"
                 onClick={() => {
-                  setCodeError(null);
-                  setMode('player');
+                  setStep('code');
+                  setError(null);
+                  setClassCtx(null);
                 }}
-                disabled={isSubmittingCode}
+                disabled={busy}
                 className="aura-soft mx-auto block text-sm font-extrabold transition hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
               >
-                &larr; Back to player sign in
+                &larr; Use a different code
               </button>
-            </div>
-          </motion.form>
-        )}
+            )}
+          </div>
+        </motion.form>
       </AnimatePresence>
     </main>
   );

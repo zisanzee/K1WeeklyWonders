@@ -21,503 +21,252 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { usePlayerStore } from './playerStore';
 import {
-  setGameOrderForType,
-  setGameShinyForType,
-  setGameUnlockedForType,
-  addGameToType,
-  removeGameFromType,
-  fetchGameAccessForType,
-  mergeRows,
+  addGameForClass,
+  fetchGameAccessForClass,
   GAME_CATALOG,
-  useGameAccessStore,
+  mergeRows,
+  removeGameForClass,
+  setGameOrderForClass,
+  setGameShinyForClass,
+  setGameUnlockedForClass,
 } from './gameAccess';
-import { useStudentStore, addStudent, updateStudent, deleteStudent } from './students';
-import { fetchClassInfo } from './classInfo';
+import {
+  checkCodeAvailable,
+  createClass,
+  fetchClassInfo,
+  fetchClasses,
+  setClassCode,
+  setClassPublic,
+  updateClass,
+} from './classInfo';
+import {
+  addStudentToClass,
+  deleteStudentInClass,
+  fetchClassIdentities,
+  generateStudentCode,
+  mergeIdentities,
+  unmergeIdentity,
+  updateStudentInClass,
+} from './students';
+import { useSystemConfigStore } from './systemConfig';
 import StudentBadge, { PrintAllBadgesButton } from './StudentBadge';
 import StatsPanel from './StatsPanel';
 import MissionHeroes from './MissionHeroes';
 
-const CLASS_TYPE_LABELS = {
-  k1: { label: 'K1 Games', icon: '🎮', description: 'Manage K1 (Kindergarten 1) game arrangement — reorder, lock/unlock, and feature games.' },
-  k2: { label: 'K2 Games', icon: '🎯', description: 'Manage K2 (Kindergarten 2) game arrangement — reorder, lock/unlock, and feature games.' },
-};
+// ---------------------------------------------------------------------------
+// Role-split navigation
+// ---------------------------------------------------------------------------
+// A teacher manages exactly their own class; the admin manages every class plus
+// global settings. The tab sets differ by role so neither sees controls they
+// can't actually use.
+const TEACHER_TABS = [
+  {
+    key: 'games',
+    label: 'Games',
+    icon: '🎮',
+    description: 'Reorder, add or remove games, and choose what is locked or featured for your class.',
+  },
+  {
+    key: 'students',
+    label: 'Students',
+    icon: '🧑‍🎓',
+    description: 'Manage your class roster, student codes, badges, and merged identities.',
+  },
+  {
+    key: 'stats',
+    label: 'Stats',
+    icon: '📊',
+    description: 'See who has been playing and how they are doing.',
+  },
+  {
+    key: 'settings',
+    label: 'Settings',
+    icon: '⚙️',
+    description: 'Class privacy, your class code, and your signed-in session.',
+  },
+];
 
-function AdminTabBar({ activeTab, onChange, disabled, adminClassType }) {
-  const tabs = [
-    { key: 'k1-games', label: 'K1 Games', icon: '🎮', description: CLASS_TYPE_LABELS.k1.description },
-    { key: 'k2-games', label: 'K2 Games', icon: '🎯', description: CLASS_TYPE_LABELS.k2.description },
-    { key: 'stats', label: 'Stats', icon: '📊', description: 'See who has been playing and how they are doing.' },
-    { key: 'students', label: 'Students', icon: '🧑‍🎓', description: 'Manage the students enrolled in this class.' },
-    { key: 'settings', label: 'Settings', icon: '⚙️', description: 'Configure settings for this class.' },
-  ];
+const ADMIN_TABS = [
+  {
+    key: 'classes',
+    label: 'Classes',
+    icon: '🏫',
+    description: 'Create classes, edit their details and teachers, and manage each class\'s games.',
+  },
+  {
+    key: 'stats',
+    label: 'Stats',
+    icon: '📊',
+    description: 'Every class at a glance, with a per-class drill-down.',
+  },
+  {
+    key: 'settings',
+    label: 'Settings',
+    icon: '⚙️',
+    description: 'Admin identity and the global maintenance mode.',
+  },
+];
 
+function TabBar({ tabs, activeTab, onChange, disabled }) {
   return (
     <div className="mx-auto max-w-5xl overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-      <div role="tablist" aria-label="Admin panel sections" className="flex min-w-max gap-1 border-b border-white/25 sm:min-w-0 sm:gap-2">
-        {tabs.map((tab) => {
-          const isActive = tab.key === activeTab;
-          return (
-            <button
-              key={tab.key}
-              type="button"
-              role="tab"
-              aria-selected={isActive}
-              onClick={() => onChange(tab.key)}
-              disabled={disabled}
-              className={`relative flex shrink-0 items-center gap-1.5 whitespace-nowrap px-3 py-2.5 text-xs font-black transition disabled:cursor-not-allowed disabled:opacity-50 sm:flex-1 sm:justify-center sm:px-4 sm:text-sm ${
-                isActive ? 'text-white' : 'text-slate-300/70 hover:text-white'
-              }`}
-            >
-              <span className="text-sm sm:text-base">{tab.icon}</span>
-              {tab.label}
-              {isActive && (
-                <motion.span
-                  layoutId="access-tab-indicator"
-                  transition={{ type: 'spring', stiffness: 500, damping: 40 }}
-                  className="absolute inset-x-2 -bottom-px h-[3px] rounded-full bg-white sm:inset-x-4"
-                />
-              )}
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-function TeacherTabBar({ activeTab, onChange, disabled }) {
-  const tabs = [
-    { key: 'games', label: 'Games', icon: '🎮', description: 'View your class\'s current game arrangement.' },
-    { key: 'stats', label: 'Stats', icon: '📊', description: 'See who has been playing and how they are doing.' },
-    { key: 'students', label: 'Students', icon: '🧑‍🎓', description: 'Manage the students enrolled in this class.' },
-    { key: 'settings', label: 'Settings', icon: '⚙️', description: 'Configure settings for this class.' },
-  ];
-
-  return (
-    <div className="mx-auto max-w-5xl overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-      <div role="tablist" aria-label="Teacher panel sections" className="flex min-w-max gap-1 border-b border-white/25 sm:min-w-0 sm:gap-2">
-        {tabs.map((tab) => {
-          const isActive = tab.key === activeTab;
-          return (
-            <button
-              key={tab.key}
-              type="button"
-              role="tab"
-              aria-selected={isActive}
-              onClick={() => onChange(tab.key)}
-              disabled={disabled}
-              className={`relative flex shrink-0 items-center gap-1.5 whitespace-nowrap px-3 py-2.5 text-xs font-black transition disabled:cursor-not-allowed disabled:opacity-50 sm:flex-1 sm:justify-center sm:px-4 sm:text-sm ${
-                isActive ? 'text-white' : 'text-slate-300/70 hover:text-white'
-              }`}
-            >
-              <span className="text-sm sm:text-base">{tab.icon}</span>
-              {tab.label}
-              {isActive && (
-                <motion.span
-                  layoutId="access-tab-indicator"
-                  transition={{ type: 'spring', stiffness: 500, damping: 40 }}
-                  className="absolute inset-x-2 -bottom-px h-[3px] rounded-full bg-white sm:inset-x-4"
-                />
-              )}
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-function AddStudentForm({ onAdd, isSaving, error }) {
-  const [nickname, setNickname] = useState('');
-  const [group, setGroup] = useState('');
-
-  const handleSubmit = (event) => {
-    event.preventDefault();
-    const trimmedNickname = nickname.trim();
-    if (!trimmedNickname) return;
-    onAdd({ fullName: trimmedNickname, nickname: trimmedNickname, group: group.trim() }, () => {
-      setNickname('');
-      setGroup('');
-    });
-  };
-
-  return (
-    <form
-      onSubmit={handleSubmit}
-      className="mb-4 flex flex-col gap-2 rounded-2xl aura-card p-3 sm:flex-row sm:items-end sm:gap-3 sm:p-4"
-    >
-      <div className="flex-1">
-        <label htmlFor="student-nickname" className="mb-1 block text-[11px] font-black aura-soft">
-          Nickname
-        </label>
-        <input
-          id="student-nickname"
-          type="text"
-          value={nickname}
-          maxLength={40}
-          onChange={(event) => setNickname(event.target.value)}
-          placeholder="e.g. Aisyah"
-          disabled={isSaving}
-          className="aura-input px-3 py-2.5 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-60"
-        />
-      </div>
-
-      <div className="flex-1">
-        <label htmlFor="student-group" className="mb-1 block text-[11px] font-black aura-soft">
-          Group (optional)
-        </label>
-        <input
-          id="student-group"
-          type="text"
-          value={group}
-          maxLength={40}
-          onChange={(event) => setGroup(event.target.value)}
-          placeholder="e.g. Red group"
-          disabled={isSaving}
-          className="aura-input px-3 py-2.5 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-60"
-        />
-      </div>
-
-      <button
-        type="submit"
-        disabled={isSaving || !nickname.trim()}
-        className="aura-btn aura-btn-violet min-h-[2.75rem] shrink-0 gap-2 px-4 text-sm disabled:cursor-not-allowed disabled:opacity-50"
+      <div
+        role="tablist"
+        aria-label="Panel sections"
+        className="flex min-w-max gap-1 border-b border-white/25 sm:min-w-0 sm:gap-2"
       >
-        {isSaving ? (
-          <>
-            <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/70 border-t-transparent" />
-            Adding…
-          </>
-        ) : (
-          '+ Add new student'
-        )}
-      </button>
-
-      {error && (
-        <p className="w-full rounded-xl bg-rose-500/20 px-3 py-2 text-xs font-bold text-rose-100 sm:basis-full" role="alert">
-          ⚠️ {error}
-        </p>
-      )}
-    </form>
-  );
-}
-
-// Inline-editable student row. Nickname and group can be edited in-place;
-// the code is read-only. Each row has a badge button to open the QR modal.
-function StudentRow({ student, teacherCode }) {
-  const teacherName = usePlayerStore((state) => state.playerName);
-  const className = usePlayerStore((state) => state.className);
-  const [editing, setEditing] = useState(false);
-  const [nickname, setNickname] = useState(student.nickname || '');
-  const [group, setGroup] = useState(student.group || '');
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState(null);
-  const [showBadge, setShowBadge] = useState(false);
-
-  const handleSave = async () => {
-    const trimmedNickname = nickname.trim();
-    if (!trimmedNickname) return;
-    setSaving(true);
-    setError(null);
-    try {
-      await updateStudent({
-        studentId: student.studentId,
-        nickname: trimmedNickname,
-        group: group.trim(),
-        teacherCode,
-      });
-      setEditing(false);
-    } catch (err) {
-      setError(err.message || 'Could not save changes.');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleCancel = () => {
-    setNickname(student.nickname || '');
-    setGroup(student.group || '');
-    setEditing(false);
-    setError(null);
-  };
-
-  const handleDelete = async () => {
-    if (!window.confirm(`Remove ${student.nickname || 'this student'} from the roster?`)) return;
-    setError(null);
-    try {
-      await deleteStudent({ studentId: student.studentId, teacherCode });
-    } catch (err) {
-      setError(err.message || 'Could not delete student.');
-    }
-  };
-
-  return (
-    <>
-      <li className="rounded-2xl aura-card p-3 transition sm:p-4">
-        {error && (
-          <p className="mb-2.5 rounded-xl bg-rose-500/20 px-3 py-2 text-xs font-bold text-rose-100" role="alert">
-            ⚠️ {error}
-          </p>
-        )}
-
-        {/* Inline edit keeps the full width so the inputs never get cramped on
-            narrow screens; the code/actions row is hidden while editing. */}
-        {editing ? (
-          <div className="flex flex-col gap-2">
-            <input
-              type="text"
-              value={nickname}
-              maxLength={40}
-              onChange={(e) => setNickname(e.target.value)}
-              placeholder="Nickname"
-              disabled={saving}
-              className="aura-input px-3 py-2 text-sm font-bold disabled:opacity-60"
-            />
-            <input
-              type="text"
-              value={group}
-              maxLength={40}
-              onChange={(e) => setGroup(e.target.value)}
-              placeholder="Group (optional)"
-              disabled={saving}
-              className="aura-input px-3 py-2 text-sm font-bold disabled:opacity-60"
-            />
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={handleSave}
-                disabled={saving || !nickname.trim()}
-                className="aura-btn aura-btn-violet flex-1 px-3 py-2 text-xs disabled:opacity-50 sm:flex-none sm:px-5"
-              >
-                {saving ? 'Saving…' : 'Save'}
-              </button>
-              <button
-                type="button"
-                onClick={handleCancel}
-                disabled={saving}
-                className="aura-ghost flex-1 px-3 py-2 text-xs disabled:opacity-50 sm:flex-none sm:px-5"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        ) : (
-          <div className="flex items-center gap-3">
-            {/* Name, group and code — truncate so nothing overflows on mobile */}
-            <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                <p className="truncate text-sm font-black aura-text sm:text-base">
-                  {student.nickname || student.fullName || 'Student'}
-                </p>
-                {student.group && (
-                  <span className="rounded-full bg-indigo-500/30 px-2 py-0.5 text-[10px] font-black text-indigo-100">
-                    {student.group}
-                  </span>
-                )}
-              </div>
-              <p className="mt-1 font-mono text-[11px] font-bold tracking-wider aura-muted">
-                Code: {student.code || student.studentId?.slice(0, 8)}
-              </p>
-            </div>
-
-            {/* Row actions — fixed tap targets so they stay usable on touch screens */}
-            <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
-              <button
-                type="button"
-                onClick={() => setShowBadge(true)}
-                title="Generate badge with QR code"
-                aria-label={`Generate badge for ${student.nickname || student.fullName}`}
-                className="aura-btn-gold aura-btn h-9 w-9 active:scale-95"
-              >
-                <svg viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor" aria-hidden="true">
-                  <path d="M3 11h8V3H3v8zm2-6h4v4H5V5zM13 3v8h8V3h-8zm6 6h-4V5h4v4zM3 21h8v-8H3v8zm2-6h4v4H5v-4zM18 13h-2v2h2v-2zM13 13h2v2h-2v-2zM18 18h2v2h-2v-2zM13 18h2v2h-2v-2z" />
-                </svg>
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setNickname(student.nickname || '');
-                  setGroup(student.group || '');
-                  setEditing(true);
-                  setError(null);
-                }}
-                title="Edit student"
-                aria-label={`Edit ${student.nickname || student.fullName}`}
-                className="aura-icon-btn h-9 w-9 active:scale-95"
-              >
-                <svg viewBox="0 0 24 24" className="h-[18px] w-[18px]" fill="currentColor" aria-hidden="true">
-                  <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34a.9959.9959 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z" />
-                </svg>
-              </button>
-              <button
-                type="button"
-                onClick={handleDelete}
-                title="Delete student"
-                aria-label={`Delete ${student.nickname || student.fullName}`}
-                className="aura-icon-btn aura-ghost-danger h-9 w-9 active:scale-95"
-              >
-                <svg viewBox="0 0 24 24" className="h-[18px] w-[18px]" fill="currentColor" aria-hidden="true">
-                  <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" />
-                </svg>
-              </button>
-            </div>
-          </div>
-        )}
-      </li>
-
-      {showBadge && (
-        <StudentBadge
-          student={student}
-          classInfo={{ className: className || 'K1 Weekly Wonders', teacherName }}
-          onClose={() => setShowBadge(false)}
-        />
-      )}
-    </>
-  );
-}
-
-function StudentsTab({ isReady, students, onAdd, isSaving, error, teacherCode }) {
-  const loading = useStudentStore((state) => state.loading);
-  const fetchStudents = useStudentStore((state) => state.fetchStudents);
-
-  return (
-    <div>
-      <AddStudentForm onAdd={onAdd} isSaving={isSaving} error={error} />
-
-      {!isReady && (
-        <div className="mb-3 flex items-center gap-2 rounded-2xl border border-white/15 bg-white/10 px-3 py-2.5 text-xs font-bold aura-soft">
-          <span className="h-3 w-3 animate-spin rounded-full border-2 border-white/70 border-t-transparent" />
-          Loading students…
-        </div>
-      )}
-
-      {isReady && students.length === 0 && (
-        <div className="rounded-2xl border border-dashed border-white/25 bg-white/10 px-5 py-10 text-center">
-          <span className="text-4xl">🧑‍🎓</span>
-          <p className="mt-3 text-base font-black aura-text">No students yet</p>
-          <p className="mt-1 text-sm font-semibold aura-soft">
-            Add your first student using the form above.
-          </p>
-        </div>
-      )}
-
-      {isReady && students.length > 0 && (
-        <div className="mb-3 flex items-center justify-between gap-3">
-          <p className="text-sm font-black aura-soft">
-            {students.length} student{students.length === 1 ? '' : 's'}
-          </p>
-          <button
-            type="button"
-            onClick={() => fetchStudents(teacherCode)}
-            disabled={loading}
-            title="Refresh the student list"
-            className="aura-ghost gap-1.5 px-3 py-2 text-xs disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            <svg viewBox="0 0 24 24" className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} fill="currentColor" aria-hidden="true">
-              <path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z" />
-            </svg>
-            Refresh
-          </button>
-        </div>
-      )}
-
-      {isReady && students.length > 0 && (
-        <div className="mb-3">
-          <PrintAllBadgesButton />
-        </div>
-      )}
-
-      {isReady && students.length > 0 && (
-        <ul className="flex flex-col gap-2">
-          {students.map((student) => (
-            <StudentRow
-              key={student.studentId}
-              student={student}
-              teacherCode={teacherCode}
-            />
-          ))}
-        </ul>
-      )}
+        {tabs.map((tab) => {
+          const isActive = tab.key === activeTab;
+          return (
+            <button
+              key={tab.key}
+              type="button"
+              role="tab"
+              aria-selected={isActive}
+              onClick={() => onChange(tab.key)}
+              disabled={disabled}
+              className={`relative flex shrink-0 items-center gap-1.5 whitespace-nowrap px-3 py-2.5 text-xs font-black transition disabled:cursor-not-allowed disabled:opacity-50 sm:flex-1 sm:justify-center sm:px-4 sm:text-sm ${
+                isActive ? 'text-white' : 'text-slate-300/70 hover:text-white'
+              }`}
+            >
+              <span className="text-sm sm:text-base">{tab.icon}</span>
+              {tab.label}
+              {isActive && (
+                <motion.span
+                  layoutId="access-tab-indicator"
+                  transition={{ type: 'spring', stiffness: 500, damping: 40 }}
+                  className="absolute inset-x-2 -bottom-px h-[3px] rounded-full bg-white sm:inset-x-4"
+                />
+              )}
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }
 
-function ClassImage({ image, className }) {
-  if (image) {
-    return (
-      <img
-        src={image}
-        alt={className || 'Class photo'}
-        className="h-20 w-20 shrink-0 rounded-2xl object-cover shadow-sm sm:h-24 sm:w-24"
-      />
-    );
+// ---------------------------------------------------------------------------
+// Live code availability (backed by POST /api/codes/check). The backend still
+// hard-rejects duplicates on save, so this is only a UI affordance.
+// ---------------------------------------------------------------------------
+function codeReasonLabel(reason) {
+  switch (reason) {
+    case 'duplicate-teacher':
+      return 'Taken by a teacher code';
+    case 'duplicate-class':
+      return 'Taken by a class code';
+    case 'duplicate-student':
+      return 'Taken by a student code';
+    case 'conflicts-with-admin':
+      return 'Reserved (admin code)';
+    default:
+      return 'Already taken';
   }
+}
 
+function useCodeCheck(code, exclude) {
+  // exclude is a fresh object each render; stringify so the effect only re-runs
+  // when the *values* change.
+  const excludeKey = JSON.stringify(exclude || null);
+  const [state, setState] = useState({ status: 'idle' });
+
+  useEffect(() => {
+    const trimmed = (code || '').trim();
+    if (!trimmed) {
+      setState({ status: 'idle' });
+      return undefined;
+    }
+    let cancelled = false;
+    setState({ status: 'checking' });
+    const timer = setTimeout(async () => {
+      try {
+        const parsed = JSON.parse(excludeKey);
+        const res = await checkCodeAvailable(trimmed, parsed || undefined);
+        if (cancelled) return;
+        setState(
+          res.available
+            ? { status: 'available' }
+            : { status: 'taken', reason: res.reason }
+        );
+      } catch {
+        if (!cancelled) setState({ status: 'idle' });
+      }
+    }, 400);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [code, excludeKey]);
+
+  return state;
+}
+
+function CodeCheckBadge({ state }) {
+  if (!state || state.status === 'idle') return null;
+  if (state.status === 'checking') {
+    return <span className="text-[11px] font-bold aura-muted">Checking…</span>;
+  }
+  if (state.status === 'available') {
+    return <span className="text-[11px] font-black text-emerald-200">✓ Available</span>;
+  }
   return (
-    <span className="flex h-20 w-20 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500/35 to-violet-500/35 text-3xl shadow-sm sm:h-24 sm:w-24">
-      🏫
+    <span className="text-[11px] font-black text-amber-200">
+      ✕ {codeReasonLabel(state.reason)}
     </span>
   );
 }
 
-function ClassInfoTab({ status, classInfo, error }) {
-  if (status === 'loading') {
-    return (
-      <div className="flex items-center gap-2 rounded-2xl border border-white/15 bg-white/10 px-3 py-2.5 text-xs font-bold aura-soft">
-        <span className="h-3 w-3 animate-spin rounded-full border-2 border-white/70 border-t-transparent" />
-        Loading class information…
-      </div>
-    );
-  }
-
-  if (status === 'error' || !classInfo) {
-    return (
-      <p className="rounded-2xl border border-rose-500/30 bg-rose-500/20 px-3 py-3 text-sm font-bold text-rose-100">
-        ⚠️ {error || 'Could not load class information.'}
-      </p>
-    );
-  }
-
+// Reusable labelled field with an availability badge under the input.
+function CodeField({ id, label, value, onChange, placeholder, check, disabled, hint }) {
   return (
-    <div className="rounded-2xl aura-card p-4 sm:p-5">
-      <div className="flex items-center gap-4">
-        <ClassImage image={classInfo.image} className={classInfo.className} />
-        <div className="min-w-0">
-          <p className="truncate text-lg font-black aura-text">{classInfo.className}</p>
-          <p className="mt-0.5 font-mono text-xs font-bold aura-muted">{classInfo.classId}</p>
-        </div>
-      </div>
-
-      <div className="mt-5">
-        <p className="mb-2 text-[11px] font-black uppercase tracking-wide aura-muted">
-          Teachers
-        </p>
-        {classInfo.teachers.length === 0 ? (
-          <p className="text-sm font-semibold aura-muted">No teachers assigned to this class yet.</p>
-        ) : (
-          <ul className="flex flex-wrap gap-2">
-            {classInfo.teachers.map((name) => (
-              <li
-                key={name}
-                className="rounded-full bg-indigo-500/30 px-3 py-1.5 text-xs font-black text-indigo-100"
-              >
-                {name}
-              </li>
-            ))}
-          </ul>
-        )}
+    <div>
+      <label htmlFor={id} className="mb-1 block text-[11px] font-black aura-soft">
+        {label}
+      </label>
+      <input
+        id={id}
+        type="text"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        disabled={disabled}
+        autoComplete="off"
+        className="aura-input px-3 py-2.5 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-60"
+      />
+      <div className="mt-1 flex min-h-[1rem] items-center justify-between gap-2">
+        {hint ? <span className="text-[11px] font-semibold aura-muted">{hint}</span> : <span />}
+        <CodeCheckBadge state={check} />
       </div>
     </div>
   );
 }
 
+// Converts an ISO timestamp into the `YYYY-MM-DDTHH:mm` shape a datetime-local
+// input expects (and back to nothing when absent/invalid).
+function toLocalInput(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(
+    d.getHours()
+  )}:${pad(d.getMinutes())}`;
+}
+
+const textInputCls =
+  'aura-input px-3 py-2.5 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-60';
+
+// ---------------------------------------------------------------------------
+// Games editor — class-scoped (teacher's own class, or any class for an admin).
+// Reads/writes go through the classId mutators in gameAccess.js.
+// ---------------------------------------------------------------------------
 function copyGames(games) {
   return games.map((game) => ({ ...game }));
 }
 
 function addSlotLabels(games) {
   let nextGameNumber = 0;
-
   return games.map((game) => ({
     ...game,
     slotLabel: game.isBonus ? 'BONUS' : String(++nextGameNumber),
@@ -596,10 +345,7 @@ function SortableGameSlot({
     transform,
     transition,
     isDragging,
-  } = useSortable({
-    id: game.key,
-    disabled,
-  });
+  } = useSortable({ id: game.key, disabled });
 
   const cardTransform = isDragging
     ? transform
@@ -665,16 +411,11 @@ function SortableGameSlot({
           willChange: 'transform',
         }}
         className={`relative min-h-[72px] overflow-hidden rounded-xl border transition-shadow duration-150 sm:min-h-[78px] ${
-          game.unlocked
-            ? 'border-indigo-400/40 aura-card'
-            : 'border-white/20 bg-white/10'
+          game.unlocked ? 'border-indigo-400/40 aura-card' : 'border-white/20 bg-white/10'
         }`}
       >
         {game.unlocked && (
-          <span
-            className="absolute inset-y-0 left-0 w-1"
-            style={{ backgroundColor: game.hue }}
-          />
+          <span className="absolute inset-y-0 left-0 w-1" style={{ backgroundColor: game.hue }} />
         )}
 
         <div className="flex min-w-0 items-center gap-2 px-2 py-2.5 pl-10 sm:gap-3 sm:px-3 sm:py-3 sm:pl-11">
@@ -697,15 +438,12 @@ function SortableGameSlot({
                 Bonus game
               </p>
             )}
-
             <p className="text-[13px] font-extrabold leading-tight aura-text sm:text-base">
               {game.label}
             </p>
-
             <p className="mt-1 whitespace-pre-line text-[10px] font-semibold leading-snug aura-soft sm:text-xs">
               {game.subtitle}
             </p>
-
             {game.shiny && (
               <span className="mt-1 inline-flex rounded-full bg-amber-500/25 px-1.5 py-0.5 text-[8px] font-black text-amber-100 sm:text-[9px]">
                 ✨ Featured
@@ -729,11 +467,7 @@ function SortableGameSlot({
               ✨
             </button>
 
-            <AccessToggle
-              game={game}
-              disabled={disabled}
-              onToggle={onToggleAccess}
-            />
+            <AccessToggle game={game} disabled={disabled} onToggle={onToggleAccess} />
           </div>
         </div>
       </div>
@@ -743,7 +477,6 @@ function SortableGameSlot({
 
 function DragPreview({ game }) {
   if (!game) return null;
-
   return (
     <motion.div
       initial={{ opacity: 0.5, scale: 0.96 }}
@@ -752,24 +485,21 @@ function DragPreview({ game }) {
       className="flex w-[min(380px,calc(100vw-1.5rem))] items-center gap-3 rounded-2xl border border-white/25 aura-card px-3 py-3 shadow-[0_20px_50px_rgba(11,8,40,0.55)]"
     >
       <GameIcon game={game} />
-
       <div className="min-w-0">
         <p className="text-[10px] font-black uppercase tracking-[0.1em] text-indigo-200">
           Moving game
         </p>
-        <p className="truncate text-sm font-extrabold aura-text">
-          {game.label}
-        </p>
+        <p className="truncate text-sm font-extrabold aura-text">{game.label}</p>
       </div>
     </motion.div>
   );
 }
 
-// Admin-only: full edit controls for a specific class type (k1 or k2).
-// All reads and writes are keyed by classType directly — the server handles
-// classType-scoped GameAccess with admin-only gating.
-function GameAccessTypeEditor({
-  classType,
+// Full game editor for a single classId. Works for a teacher (own class) and an
+// admin (any class) because the backend authorises both; the component is keyed
+// by classId so switching classes remounts it with fresh fetch guards.
+function GameAccessEditor({
+  classId,
   teacherCode,
   isSaving,
   onGlobalError,
@@ -792,24 +522,18 @@ function GameAccessTypeEditor({
   const fetchAttemptedRef = useRef(false);
 
   const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: { distance: 8 },
-    }),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    })
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
-  // Fetch games by classType via the admin-only endpoint.
   useEffect(() => {
     if (fetchAttemptedRef.current) return;
     fetchAttemptedRef.current = true;
     setLoading(true);
 
-    fetchGameAccessForType(classType, teacherCode)
+    fetchGameAccessForClass(classId, teacherCode)
       .then((rows) => {
-        const merged = mergeRows(rows);
-        setGames(merged);
+        setGames(mergeRows(rows));
         setLoaded(true);
         setLoading(false);
       })
@@ -817,9 +541,8 @@ function GameAccessTypeEditor({
         setLocalError(err.message);
         setLoading(false);
       });
-  }, [classType, teacherCode]);
+  }, [classId, teacherCode]);
 
-  // Initialize draft once games are loaded
   useEffect(() => {
     if (!loaded || initializedRef.current) return;
     const snapshot = copyGames(games);
@@ -828,18 +551,12 @@ function GameAccessTypeEditor({
     initializedRef.current = true;
   }, [loaded, games]);
 
-  useEffect(() => {
-    return () => {
-      if (moveTimerRef.current) clearTimeout(moveTimerRef.current);
-    };
+  useEffect(() => () => {
+    if (moveTimerRef.current) clearTimeout(moveTimerRef.current);
   }, []);
 
   const visibleGames = initializedRef.current ? draftGames : games;
-
-  const slottedGames = useMemo(
-    () => addSlotLabels(visibleGames),
-    [visibleGames]
-  );
+  const slottedGames = useMemo(() => addSlotLabels(visibleGames), [visibleGames]);
 
   const activeGame = useMemo(
     () => slottedGames.find((game) => game.key === activeKey),
@@ -847,14 +564,11 @@ function GameAccessTypeEditor({
   );
 
   const unlockedCount = visibleGames.filter((game) => game.unlocked).length;
-  const allUnlocked =
-    visibleGames.length > 0 && unlockedCount === visibleGames.length;
-
+  const allUnlocked = visibleGames.length > 0 && unlockedCount === visibleGames.length;
   const isReady = loaded && initializedRef.current;
 
   const hasChanges = useMemo(() => {
     if (!isReady || originalGames.length !== draftGames.length) return false;
-
     return draftGames.some((game, index) => {
       const original = originalGames[index];
       return (
@@ -867,50 +581,31 @@ function GameAccessTypeEditor({
 
   const changeCount = useMemo(() => {
     if (!isReady) return 0;
-
-    const originalByKey = new Map(
-      originalGames.map((game) => [game.key, game])
-    );
-
+    const originalByKey = new Map(originalGames.map((game) => [game.key, game]));
     const settingChanges = draftGames.filter((game) => {
       const original = originalByKey.get(game.key);
-      return (
-        original &&
-        (original.unlocked !== game.unlocked ||
-          original.shiny !== game.shiny)
-      );
+      return original && (original.unlocked !== game.unlocked || original.shiny !== game.shiny);
     }).length;
-
     const orderChanged = draftGames.some(
       (game, index) => originalGames[index]?.key !== game.key
     );
-
     return settingChanges + (orderChanged ? 1 : 0);
   }, [draftGames, isReady, originalGames]);
 
   const handleToggleAccess = (gameKey, unlocked) => {
     setDraftGames((current) =>
-      current.map((game) =>
-        game.key === gameKey ? { ...game, unlocked } : game
-      )
+      current.map((game) => (game.key === gameKey ? { ...game, unlocked } : game))
     );
   };
 
   const handleToggleShiny = (gameKey, shiny) => {
     setDraftGames((current) =>
-      current.map((game) =>
-        game.key === gameKey ? { ...game, shiny } : game
-      )
+      current.map((game) => (game.key === gameKey ? { ...game, shiny } : game))
     );
   };
 
   const handleBulk = (unlocked) => {
-    setDraftGames((current) =>
-      current.map((game) => ({
-        ...game,
-        unlocked,
-      }))
-    );
+    setDraftGames((current) => current.map((game) => ({ ...game, unlocked })));
   };
 
   const handleReset = () => {
@@ -923,50 +618,37 @@ function GameAccessTypeEditor({
   const handleDragEnd = ({ active, over }) => {
     setActiveKey(null);
     setOverKey(null);
-
     if (!over || active.id === over.id || !isReady) return;
 
     const oldIndex = draftGames.findIndex((game) => game.key === active.id);
     const newIndex = draftGames.findIndex((game) => game.key === over.id);
     const nextGames = arrayMove(draftGames, oldIndex, newIndex);
-    const movedGame = addSlotLabels(nextGames).find(
-      (game) => game.key === active.id
-    );
+    const movedGame = addSlotLabels(nextGames).find((game) => game.key === active.id);
 
     setDraftGames(nextGames);
-    setLastMove({
-      gameKey: active.id,
-      slotLabel: movedGame?.slotLabel || '',
-    });
+    setLastMove({ gameKey: active.id, slotLabel: movedGame?.slotLabel || '' });
 
     if (moveTimerRef.current) clearTimeout(moveTimerRef.current);
-
-    moveTimerRef.current = setTimeout(() => {
-      setLastMove(null);
-    }, 1800);
+    moveTimerRef.current = setTimeout(() => setLastMove(null), 1800);
   };
 
   const handleConfirm = async () => {
     if (!hasChanges || localSaving || isSaving) return;
-
     setLocalError(null);
     onGlobalError(null);
     setLocalSaving(true);
     onGlobalSavingChange(true);
 
     try {
-      const originalByKey = new Map(
-        originalGames.map((game) => [game.key, game])
-      );
-
+      const originalByKey = new Map(originalGames.map((game) => [game.key, game]));
       const orderChanged = draftGames.some(
         (game, index) => originalGames[index]?.key !== game.key
       );
 
       if (orderChanged) {
-        await setGameOrderForType(
+        await setGameOrderForClass(
           draftGames.map((game) => game.key),
-          classType,
+          classId,
           teacherCode
         );
       }
@@ -975,7 +657,6 @@ function GameAccessTypeEditor({
         const original = originalByKey.get(game.key);
         return original && original.unlocked !== game.unlocked;
       });
-
       const shinyChanges = draftGames.filter((game) => {
         const original = originalByKey.get(game.key);
         return original && original.shiny !== game.shiny;
@@ -983,10 +664,10 @@ function GameAccessTypeEditor({
 
       await Promise.all([
         ...accessChanges.map((game) =>
-          setGameUnlockedForType(game.key, game.unlocked, classType, teacherCode)
+          setGameUnlockedForClass(game.key, game.unlocked, classId, teacherCode)
         ),
         ...shinyChanges.map((game) =>
-          setGameShinyForType(game.key, game.shiny, classType, teacherCode)
+          setGameShinyForClass(game.key, game.shiny, classId, teacherCode)
         ),
       ]);
 
@@ -1008,25 +689,22 @@ function GameAccessTypeEditor({
 
     try {
       if (isAdded) {
-        await removeGameFromType(game.key, classType, teacherCode);
+        await removeGameForClass(game.key, classId, teacherCode);
       } else {
-        await addGameToType(game.key, classType, teacherCode);
+        await addGameForClass(game.key, classId, teacherCode);
       }
-      // Refresh games after shop change
-      const rows = await fetchGameAccessForType(classType, teacherCode);
+      const rows = await fetchGameAccessForClass(classId, teacherCode);
       const nextGames = mergeRows(rows);
       setGames(nextGames);
       const snapshot = copyGames(nextGames);
       setDraftGames(snapshot);
       setOriginalGames(copyGames(snapshot));
     } catch (err) {
-      setLocalError(err.message || 'Could not update this class type. Please try again.');
+      setLocalError(err.message || 'Could not update this class. Please try again.');
     } finally {
       setShopSavingKey(null);
     }
   };
-
-  const displayError = localError;
 
   return (
     <>
@@ -1037,10 +715,7 @@ function GameAccessTypeEditor({
           </p>
           <p className="mt-0.5 text-lg font-black aura-text sm:text-xl">
             {unlockedCount}
-            <span className="text-sm font-bold aura-muted">
-              {' '}
-              / {visibleGames.length} open
-            </span>
+            <span className="text-sm font-bold aura-muted"> / {visibleGames.length} open</span>
           </p>
         </div>
 
@@ -1055,14 +730,14 @@ function GameAccessTypeEditor({
       </div>
 
       <AnimatePresence mode="wait">
-        {displayError && (
+        {localError && (
           <motion.p
             initial={{ opacity: 0, y: -6 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -6 }}
             className="mb-3 rounded-2xl border border-rose-500/30 bg-rose-500/20 px-3 py-3 text-sm font-bold text-rose-100"
           >
-            ⚠️ {displayError}
+            ⚠️ {localError}
           </motion.p>
         )}
       </AnimatePresence>
@@ -1072,7 +747,7 @@ function GameAccessTypeEditor({
           {loading ? (
             <>
               <span className="h-3 w-3 animate-spin rounded-full border-2 border-white/70 border-t-transparent" />
-              Loading {CLASS_TYPE_LABELS[classType]?.label || classType} games…
+              Loading games…
             </>
           ) : (
             'Preparing games…'
@@ -1084,10 +759,10 @@ function GameAccessTypeEditor({
         Drag a slot to reorder, or hover over one to preview the new placement.
       </p>
 
-      {/* Shop section */}
       <div className="mb-6 rounded-2xl border border-white/20 bg-white/10 px-4 py-3">
         <p className="mb-3 text-sm font-semibold text-white">
-          Game shop — <strong>+</strong> adds this game to {CLASS_TYPE_LABELS[classType]?.label || classType}, <strong>Remove</strong> takes it out.
+          Game shop — <strong>+</strong> adds this game to the class, <strong>Remove</strong> takes
+          it out.
         </p>
         <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           {GAME_CATALOG.map((game) => {
@@ -1095,17 +770,26 @@ function GameAccessTypeEditor({
             const isSavingThis = shopSavingKey === game.key;
             return (
               <li key={game.key} className="flex items-center gap-3 rounded-2xl aura-card p-3 sm:p-4">
-                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-xl" style={{ background: game.tint }}>{game.emoji}</span>
+                <span
+                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-xl"
+                  style={{ background: game.tint }}
+                >
+                  {game.emoji}
+                </span>
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-black aura-text">{game.label}</p>
-                  <p className="mt-0.5 whitespace-pre-line text-[11px] font-semibold leading-snug aura-muted">{game.subtitle}</p>
+                  <p className="mt-0.5 whitespace-pre-line text-[11px] font-semibold leading-snug aura-muted">
+                    {game.subtitle}
+                  </p>
                 </div>
                 <button
                   type="button"
                   onClick={() => handleShopToggle(game)}
                   disabled={Boolean(shopSavingKey) || !isReady || localSaving || isSaving}
                   className={`min-h-10 shrink-0 rounded-xl px-3 text-xs font-black transition disabled:cursor-not-allowed disabled:opacity-55 ${
-                    isAdded ? 'bg-rose-500/25 text-rose-100 hover:bg-rose-500/40' : 'bg-indigo-600 text-white hover:bg-indigo-500'
+                    isAdded
+                      ? 'bg-rose-500/25 text-rose-100 hover:bg-rose-500/40'
+                      : 'bg-indigo-600 text-white hover:bg-indigo-500'
                   }`}
                 >
                   {isSavingThis ? 'Saving…' : isAdded ? 'Remove' : '+ Add'}
@@ -1119,20 +803,14 @@ function GameAccessTypeEditor({
       <DndContext
         sensors={sensors}
         collisionDetection={closestCenter}
-        measuring={{
-          droppable: {
-            strategy: MeasuringStrategy.WhileDragging,
-          },
-        }}
+        measuring={{ droppable: { strategy: MeasuringStrategy.WhileDragging } }}
         onDragStart={({ active }) => {
           setActiveKey(active.id);
           setOverKey(null);
         }}
         onDragOver={({ over }) => {
           const nextOverKey = over?.id || null;
-          setOverKey((current) =>
-            current === nextOverKey ? current : nextOverKey
-          );
+          setOverKey((current) => (current === nextOverKey ? current : nextOverKey));
         }}
         onDragCancel={() => {
           setActiveKey(null);
@@ -1149,9 +827,7 @@ function GameAccessTypeEditor({
               <SortableGameSlot
                 key={game.key}
                 game={game}
-                isHoveredSlot={
-                  overKey === game.key && activeKey !== game.key
-                }
+                isHoveredSlot={overKey === game.key && activeKey !== game.key}
                 isJustMoved={lastMove?.gameKey === game.key}
                 disabled={!isReady || localSaving || isSaving}
                 onToggleAccess={handleToggleAccess}
@@ -1162,13 +838,9 @@ function GameAccessTypeEditor({
 
           {isReady && slottedGames.length === 0 && (
             <div className="rounded-2xl border border-dashed border-white/25 bg-white/10 px-5 py-8 text-center">
-              <span className="text-4xl">&#127918;</span>
-              <p className="mt-3 text-base font-black aura-text">
-                {CLASS_TYPE_LABELS[classType]?.label || classType} has no games yet
-              </p>
-              <p className="mt-1 text-sm font-semibold aura-soft">
-                Add games from the shop above.
-              </p>
+              <span className="text-4xl">🎮</span>
+              <p className="mt-3 text-base font-black aura-text">No games yet</p>
+              <p className="mt-1 text-sm font-semibold aura-soft">Add games from the shop above.</p>
             </div>
           )}
         </SortableContext>
@@ -1178,7 +850,6 @@ function GameAccessTypeEditor({
         </DragOverlay>
       </DndContext>
 
-      {/* Footer */}
       <div className="mt-6 border-t border-white/20 pt-4">
         <div className="flex items-center gap-2">
           <button
@@ -1196,7 +867,7 @@ function GameAccessTypeEditor({
             disabled={!hasChanges || localSaving || isSaving}
             className="aura-btn aura-btn-violet min-h-11 flex-1 gap-2 px-4 text-sm disabled:cursor-not-allowed disabled:opacity-45 sm:flex-none sm:min-w-[12rem]"
           >
-            {(localSaving || isSaving) ? (
+            {localSaving || isSaving ? (
               <>
                 <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/70 border-t-transparent" />
                 Saving…
@@ -1205,9 +876,7 @@ function GameAccessTypeEditor({
               <>
                 Confirm changes
                 {changeCount > 0 && (
-                  <span className="rounded-full bg-white/20 px-2 py-0.5 text-xs">
-                    {changeCount}
-                  </span>
+                  <span className="rounded-full bg-white/20 px-2 py-0.5 text-xs">{changeCount}</span>
                 )}
               </>
             )}
@@ -1224,237 +893,1661 @@ function GameAccessTypeEditor({
   );
 }
 
-// Non-admin teacher: read-only game list for their own class type.
-// Uses the main gameAccess store — the server resolves classId→classType
-// automatically, so every class of the same type sees identical data.
-function ReadOnlyGameList({ classId }) {
-  const games = useGameAccessStore((s) => s.games);
-  const loaded = useGameAccessStore((s) => s.loaded);
-  const loadedClassId = useGameAccessStore((s) => s.loadedClassId);
-  const error = useGameAccessStore((s) => s.error);
-  const loading = useGameAccessStore((s) => s.loading);
-  const fetchGameAccess = useGameAccessStore((s) => s.fetchGameAccess);
+// ---------------------------------------------------------------------------
+// Students tab — roster CRUD (classId-scoped) plus the name-identity merge UI.
+// The identity list is roster students ∪ distinct play-session names, so a
+// teacher can merge "light" public-class kids who never had a code.
+// ---------------------------------------------------------------------------
+function AddStudentForm({ classId, teacherCode, onAdded }) {
+  const [nickname, setNickname] = useState('');
+  const [group, setGroup] = useState('');
+  const [code, setCode] = useState(() => generateStudentCode());
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
 
-  useEffect(() => {
-    if (!classId) return;
-    if (loaded && loadedClassId === classId) return;
-    fetchGameAccess(classId);
-  }, [classId, loaded, loadedClassId, fetchGameAccess]);
+  const check = useCodeCheck(code, undefined);
 
-  const isReady = loaded && loadedClassId === classId;
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    const trimmed = nickname.trim();
+    if (!trimmed || saving) return;
+    setSaving(true);
+    setError(null);
+    try {
+      await addStudentToClass(
+        classId,
+        {
+          nickname: trimmed,
+          fullName: trimmed,
+          group: group.trim(),
+          code: code.trim().toUpperCase(),
+        },
+        teacherCode
+      );
+      setNickname('');
+      setGroup('');
+      setCode(generateStudentCode());
+      onAdded?.();
+    } catch (err) {
+      setError(err.message || 'Could not add this student.');
+    } finally {
+      setSaving(false);
+    }
+  };
 
-  if (!isReady) {
-    if (error) {
-      return (
-        <p className="rounded-2xl border border-rose-500/30 bg-rose-500/20 px-3 py-3 text-sm font-bold text-rose-100">
+  return (
+    <form onSubmit={handleSubmit} className="mb-4 rounded-2xl aura-card p-3 sm:p-4">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:gap-3">
+        <div className="flex-1">
+          <label htmlFor="add-student-name" className="mb-1 block text-[11px] font-black aura-soft">
+            Name
+          </label>
+          <input
+            id="add-student-name"
+            type="text"
+            value={nickname}
+            maxLength={40}
+            onChange={(e) => setNickname(e.target.value)}
+            placeholder="e.g. Aisyah"
+            disabled={saving}
+            className={textInputCls}
+          />
+        </div>
+
+        <div className="flex-1">
+          <label htmlFor="add-student-group" className="mb-1 block text-[11px] font-black aura-soft">
+            Group (optional)
+          </label>
+          <input
+            id="add-student-group"
+            type="text"
+            value={group}
+            maxLength={40}
+            onChange={(e) => setGroup(e.target.value)}
+            placeholder="e.g. Red group"
+            disabled={saving}
+            className={textInputCls}
+          />
+        </div>
+
+        <div className="flex-1">
+          <CodeField
+            id="add-student-code"
+            label="Student code"
+            value={code}
+            onChange={setCode}
+            placeholder="6-character code"
+            check={check}
+            disabled={saving}
+          />
+        </div>
+      </div>
+
+      <div className="mt-2 flex items-center justify-between gap-3">
+        <button
+          type="button"
+          onClick={() => setCode(generateStudentCode())}
+          disabled={saving}
+          className="aura-ghost rounded-xl px-3 py-2 text-xs disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          ↻ New code
+        </button>
+        <button
+          type="submit"
+          disabled={saving || !nickname.trim() || check.status === 'taken'}
+          className="aura-btn aura-btn-violet min-h-[2.75rem] shrink-0 gap-2 px-4 text-sm disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {saving ? (
+            <>
+              <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/70 border-t-transparent" />
+              Adding…
+            </>
+          ) : (
+            '+ Add student'
+          )}
+        </button>
+      </div>
+
+      {error && (
+        <p className="mt-2 rounded-xl bg-rose-500/20 px-3 py-2 text-xs font-bold text-rose-100" role="alert">
           ⚠️ {error}
         </p>
+      )}
+    </form>
+  );
+}
+
+// One roster/identity row. Rostered students are fully editable; "light" names
+// (no Student record) are selectable for merging but not editable/deletable.
+function IdentityRow({
+  identity,
+  classId,
+  teacherCode,
+  selectable,
+  selected,
+  onToggleSelected,
+  onChanged,
+  onBadge,
+}) {
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState(identity.name || '');
+  const [code, setCode] = useState(identity.code || '');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+  const check = useCodeCheck(editing ? code : '', { studentId: identity.studentId });
+
+  const handleSave = async () => {
+    const trimmed = name.trim();
+    if (!trimmed || saving) return;
+    setSaving(true);
+    setError(null);
+    try {
+      await updateStudentInClass(
+        classId,
+        identity.studentId,
+        { nickname: trimmed, code: code.trim().toUpperCase() },
+        teacherCode
       );
+      setEditing(false);
+      onChanged?.();
+    } catch (err) {
+      setError(err.message || 'Could not save changes.');
+    } finally {
+      setSaving(false);
     }
+  };
 
-    return (
-      <div className="flex items-center gap-2 rounded-2xl border border-white/15 bg-white/10 px-3 py-2.5 text-xs font-bold aura-soft">
-        <span className="h-3 w-3 animate-spin rounded-full border-2 border-white/70 border-t-transparent" />
-        Loading games…
-      </div>
-    );
-  }
+  const handleDelete = async () => {
+    if (!window.confirm(`Remove ${identity.name} from the roster?`)) return;
+    setError(null);
+    try {
+      await deleteStudentInClass(classId, identity.studentId, teacherCode);
+      onChanged?.();
+    } catch (err) {
+      setError(err.message || 'Could not delete student.');
+    }
+  };
 
-  if (games.length === 0) {
-    return (
-      <div className="rounded-2xl border border-dashed border-white/25 bg-white/10 px-5 py-10 text-center">
-        <span className="text-4xl">🎮</span>
-        <p className="mt-3 text-base font-black aura-text">No games configured yet</p>
-        <p className="mt-1 text-sm font-semibold aura-soft">
-          Ask an admin to add games for this class type.
+  return (
+    <li className="rounded-2xl aura-card p-3 transition sm:p-4">
+      {error && (
+        <p className="mb-2.5 rounded-xl bg-rose-500/20 px-3 py-2 text-xs font-bold text-rose-100" role="alert">
+          ⚠️ {error}
         </p>
+      )}
+
+      {editing ? (
+        <div className="flex flex-col gap-2">
+          <input
+            type="text"
+            value={name}
+            maxLength={40}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Name"
+            disabled={saving}
+            className={textInputCls}
+          />
+          <CodeField
+            id={`code-${identity.studentId}`}
+            label="Code"
+            value={code}
+            onChange={setCode}
+            placeholder="6-character code"
+            check={check}
+            disabled={saving}
+          />
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={saving || !name.trim() || check.status === 'taken'}
+              className="aura-btn aura-btn-violet flex-1 px-3 py-2 text-xs disabled:opacity-50 sm:flex-none sm:px-5"
+            >
+              {saving ? 'Saving…' : 'Save'}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setEditing(false);
+                setName(identity.name || '');
+                setCode(identity.code || '');
+                setError(null);
+              }}
+              disabled={saving}
+              className="aura-ghost flex-1 px-3 py-2 text-xs disabled:opacity-50 sm:flex-none sm:px-5"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="flex items-center gap-3">
+          {selectable && (
+            <input
+              type="checkbox"
+              checked={selected}
+              onChange={() => onToggleSelected(identity.name)}
+              aria-label={`Select ${identity.name} for merging`}
+              className="h-5 w-5 shrink-0 accent-violet-500"
+            />
+          )}
+
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-black aura-text sm:text-base">{identity.name}</p>
+            <p className="mt-1 font-mono text-[11px] font-bold tracking-wider aura-muted">
+              {identity.rostered
+                ? `Code: ${identity.code || '—'}`
+                : 'No code — joined with a name'}
+            </p>
+          </div>
+
+          {identity.rostered && (
+            <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+              <button
+                type="button"
+                onClick={() => onBadge(identity)}
+                title="Generate badge with QR code"
+                aria-label={`Generate badge for ${identity.name}`}
+                className="aura-btn-gold aura-btn h-9 w-9 active:scale-95"
+              >
+                <svg viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor" aria-hidden="true">
+                  <path d="M3 11h8V3H3v8zm2-6h4v4H5V5zM13 3v8h8V3h-8zm6 6h-4V5h4v4zM3 21h8v-8H3v8zm2-6h4v4H5v-4zM18 13h-2v2h2v-2zM13 13h2v2h-2v-2zM18 18h2v2h-2v-2zM13 18h2v2h-2v-2z" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setName(identity.name || '');
+                  setCode(identity.code || '');
+                  setError(null);
+                  setEditing(true);
+                }}
+                title="Edit student"
+                aria-label={`Edit ${identity.name}`}
+                className="aura-icon-btn h-9 w-9 active:scale-95"
+              >
+                <svg viewBox="0 0 24 24" className="h-[18px] w-[18px]" fill="currentColor" aria-hidden="true">
+                  <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34a.9959.9959 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                onClick={handleDelete}
+                title="Delete student"
+                aria-label={`Delete ${identity.name}`}
+                className="aura-icon-btn aura-ghost-danger h-9 w-9 active:scale-95"
+              >
+                <svg viewBox="0 0 24 24" className="h-[18px] w-[18px]" fill="currentColor" aria-hidden="true">
+                  <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" />
+                </svg>
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </li>
+  );
+}
+
+function StudentsTab({ classId, teacherCode, className }) {
+  const [identities, setIdentities] = useState([]);
+  const [merges, setMerges] = useState([]);
+  const [status, setStatus] = useState('loading');
+  const [error, setError] = useState(null);
+  const [selected, setSelected] = useState(() => new Set());
+  const [showMerged, setShowMerged] = useState(false);
+  const [mergeOpen, setMergeOpen] = useState(false);
+  const [primaryName, setPrimaryName] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [badgeIdentity, setBadgeIdentity] = useState(null);
+
+  const load = useCallback(async () => {
+    if (!classId || !teacherCode) return;
+    setError(null);
+    try {
+      const data = await fetchClassIdentities(classId, teacherCode);
+      setIdentities(Array.isArray(data.identities) ? data.identities : []);
+      setMerges(Array.isArray(data.merges) ? data.merges : []);
+      setStatus('ready');
+    } catch (err) {
+      setError(err.message || 'Could not load students.');
+      setStatus('error');
+    }
+  }, [classId, teacherCode]);
+
+  useEffect(() => {
+    setStatus('loading');
+    setSelected(new Set());
+    load();
+  }, [load]);
+
+  const mergedMembers = useMemo(
+    () =>
+      merges.flatMap((m) =>
+        (m.members || []).map((name) => ({ name, primaryName: m.primaryName }))
+      ),
+    [merges]
+  );
+
+  const rosterForBadges = useMemo(
+    () =>
+      identities
+        .filter((i) => i.rostered)
+        .map((i) => ({
+          studentId: i.studentId,
+          code: i.code,
+          nickname: i.name,
+          fullName: i.name,
+        })),
+    [identities]
+  );
+
+  const toggleSelected = (name) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
+    });
+  };
+
+  const selectedNames = [...selected];
+
+  const openMerge = () => {
+    if (selectedNames.length < 2) return;
+    setPrimaryName(selectedNames[0]);
+    setMergeOpen(true);
+  };
+
+  const confirmMerge = async () => {
+    const memberNames = selectedNames.filter((n) => n !== primaryName);
+    if (!primaryName || memberNames.length < 1 || busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await mergeIdentities(classId, { primaryName, memberNames }, teacherCode);
+      setMergeOpen(false);
+      setSelected(new Set());
+      await load();
+    } catch (err) {
+      setError(err.message || 'Could not merge these students.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleUnmerge = async (memberName) => {
+    if (!window.confirm(`Unmerge "${memberName}" back into its own identity?`)) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await unmergeIdentity(classId, { memberName }, teacherCode);
+      await load();
+    } catch (err) {
+      setError(err.message || 'Could not unmerge this identity.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div>
+      <AddStudentForm classId={classId} teacherCode={teacherCode} onAdded={load} />
+
+      {error && (
+        <p className="mb-3 rounded-2xl border border-rose-500/30 bg-rose-500/20 px-3 py-3 text-sm font-bold text-rose-100">
+          ⚠️ {error}
+        </p>
+      )}
+
+      {status === 'loading' && (
+        <div className="mb-3 flex items-center gap-2 rounded-2xl border border-white/15 bg-white/10 px-3 py-2.5 text-xs font-bold aura-soft">
+          <span className="h-3 w-3 animate-spin rounded-full border-2 border-white/70 border-t-transparent" />
+          Loading students…
+        </div>
+      )}
+
+      {status === 'ready' && identities.length === 0 && (
+        <div className="rounded-2xl border border-dashed border-white/25 bg-white/10 px-5 py-10 text-center">
+          <span className="text-4xl">🧑‍🎓</span>
+          <p className="mt-3 text-base font-black aura-text">No students yet</p>
+          <p className="mt-1 text-sm font-semibold aura-soft">
+            Add your first student using the form above.
+          </p>
+        </div>
+      )}
+
+      {status === 'ready' && identities.length > 0 && (
+        <>
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+            <p className="text-sm font-black aura-soft">
+              {identities.length} student{identities.length === 1 ? '' : 's'}
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={load}
+                className="aura-ghost gap-1.5 px-3 py-2 text-xs"
+              >
+                ↻ Refresh
+              </button>
+              <button
+                type="button"
+                onClick={openMerge}
+                disabled={selectedNames.length < 2 || busy}
+                className="aura-btn aura-btn-violet min-h-10 px-3 text-xs disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Merge selected ({selectedNames.length})
+              </button>
+            </div>
+          </div>
+
+          <div className="mb-3">
+            <PrintAllBadgesButton students={rosterForBadges} classInfo={{ className }} />
+          </div>
+
+          <ul className="flex flex-col gap-2">
+            {identities.map((identity) => (
+              <IdentityRow
+                key={identity.studentId || `name:${identity.name}`}
+                identity={identity}
+                classId={classId}
+                teacherCode={teacherCode}
+                selectable
+                selected={selected.has(identity.name)}
+                onToggleSelected={toggleSelected}
+                onChanged={load}
+                onBadge={setBadgeIdentity}
+              />
+            ))}
+          </ul>
+        </>
+      )}
+
+      {status === 'ready' && mergedMembers.length > 0 && (
+        <div className="mt-6">
+          <button
+            type="button"
+            onClick={() => setShowMerged((v) => !v)}
+            className="aura-ghost w-full justify-between px-4 py-2.5 text-xs"
+          >
+            <span>
+              {mergedMembers.length} merged identit{mergedMembers.length === 1 ? 'y' : 'ies'} hidden
+            </span>
+            <span>{showMerged ? 'Hide' : 'Show'}</span>
+          </button>
+
+          {showMerged && (
+            <ul className="mt-3 flex flex-col gap-2">
+              {mergedMembers.map((m) => (
+                <li
+                  key={`${m.primaryName}::${m.name}`}
+                  className="flex items-center gap-3 rounded-2xl border border-white/15 bg-white/5 p-3 sm:p-4"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-black aura-text">{m.name}</p>
+                    <p className="mt-1 text-[11px] font-bold text-amber-200">
+                      Merged into {m.primaryName}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleUnmerge(m.name)}
+                    disabled={busy}
+                    className="aura-ghost shrink-0 rounded-xl px-3 py-2 text-xs disabled:opacity-50"
+                  >
+                    Unmerge
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+
+      {badgeIdentity && (
+        <StudentBadge
+          student={{
+            studentId: badgeIdentity.studentId,
+            code: badgeIdentity.code,
+            nickname: badgeIdentity.name,
+            fullName: badgeIdentity.name,
+          }}
+          classInfo={{ className: className || 'EZ Wonders' }}
+          onClose={() => setBadgeIdentity(null)}
+        />
+      )}
+
+      <AnimatePresence>
+        {mergeOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 py-6 backdrop-blur-sm"
+            onClick={() => !busy && setMergeOpen(false)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.92, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.92, y: 20 }}
+              transition={{ type: 'spring', stiffness: 300, damping: 26 }}
+              onClick={(e) => e.stopPropagation()}
+              className="flex w-full max-w-md flex-col gap-4 rounded-[2rem] aura-card p-5 sm:p-6"
+            >
+              <div>
+                <h3 className="text-lg font-black aura-text">Merge identities</h3>
+                <p className="mt-1 text-sm font-semibold aura-soft">
+                  Pick the name that should be kept. The others become "merged into" it, and all
+                  past plays and stats combine.
+                </p>
+              </div>
+
+              <div className="flex flex-col gap-2">
+                {selectedNames.map((name) => (
+                  <label
+                    key={name}
+                    className={`flex cursor-pointer items-center gap-3 rounded-2xl border px-3 py-2.5 ${
+                      primaryName === name
+                        ? 'border-violet-400 bg-violet-500/20'
+                        : 'border-white/15 bg-white/5'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="merge-primary"
+                      checked={primaryName === name}
+                      onChange={() => setPrimaryName(name)}
+                      className="h-4 w-4 accent-violet-500"
+                    />
+                    <span className="text-sm font-black aura-text">{name}</span>
+                    {primaryName === name && (
+                      <span className="ml-auto rounded-full bg-violet-500/30 px-2 py-0.5 text-[10px] font-black text-violet-100">
+                        Keep
+                      </span>
+                    )}
+                  </label>
+                ))}
+              </div>
+
+              <p className="rounded-xl bg-white/10 px-3 py-2 text-[11px] font-semibold aura-soft">
+                After merge, all play time and stats will be combined into{' '}
+                <strong className="aura-text">{primaryName}</strong>.
+              </p>
+
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={confirmMerge}
+                  disabled={busy || !primaryName}
+                  className="aura-btn aura-btn-violet flex-1 min-h-11 text-sm disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {busy ? 'Merging…' : 'Merge'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMergeOpen(false)}
+                  disabled={busy}
+                  className="aura-ghost min-h-11 px-4 text-sm disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Teacher settings — read-only class info, public/private toggle, and an
+// editable class code (allowed by Q5, validated against the global namespace).
+// ---------------------------------------------------------------------------
+function TeacherSettings({ classId, teacherCode, teacherName, onClose, resetPlayer }) {
+  const [info, setInfo] = useState(null);
+  const [status, setStatus] = useState('loading');
+  const [error, setError] = useState(null);
+  const [savingPublic, setSavingPublic] = useState(false);
+  const [codeDraft, setCodeDraft] = useState('');
+  const [savingCode, setSavingCode] = useState(false);
+  const [codeError, setCodeError] = useState(null);
+  const [codeSaved, setCodeSaved] = useState(false);
+
+  const load = useCallback(async () => {
+    if (!classId) return;
+    setStatus('loading');
+    setError(null);
+    try {
+      const data = await fetchClassInfo(classId, teacherCode);
+      setInfo(data);
+      setCodeDraft(data.classCode || '');
+      setStatus('ready');
+    } catch (err) {
+      setError(err.message || 'Could not load class information.');
+      setStatus('error');
+    }
+  }, [classId, teacherCode]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const codeChanged =
+    info && (codeDraft.trim().toUpperCase() !== (info.classCode || '').toUpperCase());
+  const codeCheck = useCodeCheck(codeChanged ? codeDraft : '', { classId });
+
+  const togglePublic = async (value) => {
+    if (!info || savingPublic || info.isPublic === value) return;
+    setSavingPublic(true);
+    setError(null);
+    try {
+      const updated = await setClassPublic(classId, value, teacherCode);
+      setInfo((cur) => ({ ...cur, isPublic: updated?.isPublic ?? value }));
+    } catch (err) {
+      setError(err.message || 'Could not update class privacy.');
+    } finally {
+      setSavingPublic(false);
+    }
+  };
+
+  const saveCode = async () => {
+    const next = codeDraft.trim().toUpperCase();
+    if (!next || !codeChanged || savingCode) return;
+    setSavingCode(true);
+    setCodeError(null);
+    setCodeSaved(false);
+    try {
+      const updated = await setClassCode(classId, next, teacherCode);
+      setInfo((cur) => ({ ...cur, classCode: updated?.classCode || next }));
+      setCodeDraft(updated?.classCode || next);
+      setCodeSaved(true);
+    } catch (err) {
+      setCodeError(err.message || 'Could not update the class code.');
+    } finally {
+      setSavingCode(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex items-center justify-between gap-3 rounded-2xl aura-card px-4 py-3 sm:px-5">
+        <div className="min-w-0">
+          <p className="text-[10px] font-black uppercase tracking-wide aura-muted">Signed in as</p>
+          <p className="truncate text-base font-black aura-text sm:text-lg">{teacherName}</p>
+        </div>
+        <button
+          type="button"
+          onClick={() => {
+            resetPlayer();
+            onClose?.();
+          }}
+          className="aura-ghost shrink-0 rounded-full px-4 py-2 text-xs font-black"
+        >
+          Not you?
+        </button>
       </div>
+
+      {status === 'loading' && (
+        <div className="flex items-center gap-2 rounded-2xl border border-white/15 bg-white/10 px-3 py-2.5 text-xs font-bold aura-soft">
+          <span className="h-3 w-3 animate-spin rounded-full border-2 border-white/70 border-t-transparent" />
+          Loading class information…
+        </div>
+      )}
+
+      {status === 'error' && (
+        <p className="rounded-2xl border border-rose-500/30 bg-rose-500/20 px-3 py-3 text-sm font-bold text-rose-100">
+          ⚠️ {error || 'Could not load class information.'}
+        </p>
+      )}
+
+      {status === 'ready' && info && (
+        <>
+          <div className="rounded-2xl aura-card p-4 sm:p-5">
+            <p className="text-[10px] font-black uppercase tracking-wide aura-muted">Class</p>
+            <p className="mt-1 text-lg font-black aura-text">{info.className}</p>
+            <dl className="mt-3 grid grid-cols-1 gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
+              <div className="flex justify-between gap-4">
+                <dt className="font-bold aura-muted">Alias</dt>
+                <dd className="font-black aura-text">{info.classAlias || '—'}</dd>
+              </div>
+              <div className="flex justify-between gap-4">
+                <dt className="font-bold aura-muted">Year</dt>
+                <dd className="font-black aura-text">{info.classYear || '—'}</dd>
+              </div>
+              <div className="flex justify-between gap-4">
+                <dt className="font-bold aura-muted">Class ID</dt>
+                <dd className="font-mono text-xs font-bold aura-soft">{info.classId}</dd>
+              </div>
+              <div className="flex justify-between gap-4">
+                <dt className="font-bold aura-muted">Class code</dt>
+                <dd className="font-mono text-xs font-black aura-text">{info.classCode || '—'}</dd>
+              </div>
+            </dl>
+          </div>
+
+          <div className="rounded-2xl aura-card p-4 sm:p-5">
+            <p className="text-sm font-black aura-text">Class privacy</p>
+            <p className="mt-1 text-xs font-semibold aura-soft">
+              Public lets anyone join with the class code and their name. Private requires each
+              student to have their own code.
+            </p>
+            <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <button
+                type="button"
+                onClick={() => togglePublic(false)}
+                disabled={savingPublic || !info.isPublic}
+                className={`rounded-2xl border px-4 py-3 text-left transition disabled:opacity-60 ${
+                  !info.isPublic
+                    ? 'border-rose-400 bg-rose-500/20'
+                    : 'border-white/15 bg-white/5 hover:bg-white/10'
+                }`}
+              >
+                <p className="text-sm font-black aura-text">🔒 Private</p>
+                <p className="mt-0.5 text-[11px] font-semibold aura-soft">
+                  Students need an individual code.
+                </p>
+              </button>
+              <button
+                type="button"
+                onClick={() => togglePublic(true)}
+                disabled={savingPublic || info.isPublic}
+                className={`rounded-2xl border px-4 py-3 text-left transition disabled:opacity-60 ${
+                  info.isPublic
+                    ? 'border-emerald-400 bg-emerald-500/20'
+                    : 'border-white/15 bg-white/5 hover:bg-white/10'
+                }`}
+              >
+                <p className="text-sm font-black aura-text">🌐 Public</p>
+                <p className="mt-0.5 text-[11px] font-semibold aura-soft">
+                  Join with the class code + name.
+                </p>
+              </button>
+            </div>
+            {savingPublic && (
+              <p className="mt-2 text-[11px] font-bold aura-muted">Saving privacy…</p>
+            )}
+          </div>
+
+          <div className="rounded-2xl aura-card p-4 sm:p-5">
+            <p className="text-sm font-black aura-text">Class code</p>
+            <p className="mt-1 text-xs font-semibold aura-soft">
+              You can rename your own class code. Changing it breaks any printed badges or shared
+              links that contain the old code.
+            </p>
+            <div className="mt-3">
+              <CodeField
+                id="class-code"
+                label="Class code"
+                value={codeDraft}
+                onChange={(v) => {
+                  setCodeDraft(v);
+                  setCodeSaved(false);
+                  setCodeError(null);
+                }}
+                placeholder="e.g. C4KD2M"
+                check={codeChanged ? codeCheck : { status: 'idle' }}
+                disabled={savingCode}
+              />
+            </div>
+            <div className="mt-1 flex items-center gap-3">
+              <button
+                type="button"
+                onClick={saveCode}
+                disabled={!codeChanged || savingCode || codeCheck.status === 'taken'}
+                className="aura-btn aura-btn-violet min-h-10 px-4 text-xs disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {savingCode ? 'Saving…' : 'Save class code'}
+              </button>
+              {codeSaved && <span className="text-[11px] font-black text-emerald-200">✓ Saved</span>}
+            </div>
+            {codeError && (
+              <p className="mt-2 rounded-xl bg-rose-500/20 px-3 py-2 text-xs font-bold text-rose-100">
+                ⚠️ {codeError}
+              </p>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Admin — class list + create form + detail editor (with a games sub-panel).
+// ---------------------------------------------------------------------------
+function TeacherRowsEditor({ teachers, setTeachers, disabled, originalCodes }) {
+  const update = (index, patch) =>
+    setTeachers((rows) => rows.map((row, i) => (i === index ? { ...row, ...patch } : row)));
+  const add = () => setTeachers((rows) => [...rows, { name: '', teacherCode: '' }]);
+  const remove = (index) => setTeachers((rows) => rows.filter((_, i) => i !== index));
+
+  return (
+    <div className="flex flex-col gap-3">
+      {teachers.length === 0 && (
+        <p className="text-xs font-semibold aura-muted">No teachers yet.</p>
+      )}
+      {teachers.map((teacher, index) => (
+        <TeacherRow
+          key={index}
+          teacher={teacher}
+          index={index}
+          disabled={disabled}
+          onChange={update}
+          onRemove={remove}
+          originalCode={originalCodes?.[index]}
+        />
+      ))}
+      <button
+        type="button"
+        onClick={add}
+        disabled={disabled}
+        className="aura-ghost self-start rounded-xl px-3 py-2 text-xs disabled:opacity-50"
+      >
+        + Add teacher
+      </button>
+    </div>
+  );
+}
+
+// A single teacher row. Split out so each row can own its own availability hook
+// (hooks can't be called inside a loop). Availability is only checked when the
+// code actually differs from what was loaded, otherwise an unchanged code would
+// falsely report as "taken".
+function TeacherRow({ teacher, index, disabled, onChange, onRemove, originalCode }) {
+  const changed = (teacher.teacherCode || '').trim() !== (originalCode || '').trim();
+  const check = useCodeCheck(changed ? teacher.teacherCode : '', undefined);
+  return (
+    <div className="rounded-2xl border border-white/15 bg-white/5 p-3">
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <div className="flex-1">
+          <input
+            type="text"
+            value={teacher.name}
+            onChange={(e) => onChange(index, { name: e.target.value })}
+            placeholder="Teacher name"
+            disabled={disabled}
+            className={textInputCls}
+          />
+        </div>
+        <div className="flex-1">
+          <input
+            type="text"
+            value={teacher.teacherCode}
+            onChange={(e) => onChange(index, { teacherCode: e.target.value })}
+            placeholder="Teacher code"
+            disabled={disabled}
+            autoComplete="off"
+            className={textInputCls}
+          />
+          <div className="mt-1 min-h-[1rem]">
+            <CodeCheckBadge state={check} />
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => onRemove(index)}
+          disabled={disabled}
+          className="aura-ghost aura-ghost-danger h-11 shrink-0 rounded-xl px-3 text-xs disabled:opacity-50"
+        >
+          Remove
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function NewClassForm({ teacherCode, onCreated, onCancel }) {
+  const [className, setClassName] = useState('');
+  const [classYear, setClassYear] = useState('');
+  const [classAlias, setClassAlias] = useState('');
+  const [classCode, setClassCode] = useState('');
+  // Q3: new classes default to Private; the admin can flip to Public here.
+  const [isPublic, setIsPublic] = useState(false);
+  const [teachers, setTeachers] = useState([{ name: '', teacherCode: '' }]);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+
+  const codeCheck = useCodeCheck(classCode, undefined);
+
+  const submit = async (event) => {
+    event.preventDefault();
+    if (saving) return;
+    setSaving(true);
+    setError(null);
+    try {
+      await createClass(
+        {
+          className: className.trim(),
+          classYear: classYear.trim(),
+          classAlias: classAlias.trim(),
+          classCode: classCode.trim(),
+          isPublic,
+          teachers: teachers
+            .map((t) => ({ name: t.name.trim(), teacherCode: t.teacherCode.trim() }))
+            .filter((t) => t.name && t.teacherCode),
+        },
+        teacherCode
+      );
+      onCreated?.();
+    } catch (err) {
+      setError(err.message || 'Could not create this class.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <form onSubmit={submit} className="mb-4 rounded-2xl aura-card p-4 sm:p-5">
+      <h3 className="text-base font-black aura-text">New class</h3>
+
+      <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div>
+          <label className="mb-1 block text-[11px] font-black aura-soft">Class name</label>
+          <input
+            type="text"
+            value={className}
+            onChange={(e) => setClassName(e.target.value)}
+            placeholder="e.g. Kindergarten 1"
+            disabled={saving}
+            className={textInputCls}
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-[11px] font-black aura-soft">Year (optional)</label>
+          <input
+            type="text"
+            value={classYear}
+            onChange={(e) => setClassYear(e.target.value)}
+            placeholder="e.g. 2026"
+            disabled={saving}
+            className={textInputCls}
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-[11px] font-black aura-soft">Alias (optional)</label>
+          <input
+            type="text"
+            value={classAlias}
+            onChange={(e) => setClassAlias(e.target.value)}
+            placeholder="Short display name"
+            disabled={saving}
+            className={textInputCls}
+          />
+        </div>
+        <CodeField
+          id="new-class-code"
+          label="Class code"
+          value={classCode}
+          onChange={setClassCode}
+          placeholder="e.g. C4KD2M"
+          check={codeCheck}
+          disabled={saving}
+        />
+      </div>
+
+      <div className="mt-3 flex items-center gap-3">
+        <span className="text-xs font-black aura-soft">Privacy</span>
+        <div className="flex overflow-hidden rounded-full border border-white/20">
+          <button
+            type="button"
+            onClick={() => setIsPublic(false)}
+            disabled={saving}
+            className={`px-3 py-1.5 text-xs font-black transition ${
+              !isPublic ? 'bg-rose-500/40 text-white' : 'text-slate-200 hover:bg-white/10'
+            }`}
+          >
+            Private
+          </button>
+          <button
+            type="button"
+            onClick={() => setIsPublic(true)}
+            disabled={saving}
+            className={`px-3 py-1.5 text-xs font-black transition ${
+              isPublic ? 'bg-emerald-500/40 text-white' : 'text-slate-200 hover:bg-white/10'
+            }`}
+          >
+            Public
+          </button>
+        </div>
+      </div>
+
+      <div className="mt-4">
+        <p className="mb-2 text-xs font-black aura-soft">Teachers</p>
+        <TeacherRowsEditor teachers={teachers} setTeachers={setTeachers} disabled={saving} />
+      </div>
+
+      {error && (
+        <p className="mt-3 rounded-xl bg-rose-500/20 px-3 py-2 text-xs font-bold text-rose-100">
+          ⚠️ {error}
+        </p>
+      )}
+
+      <div className="mt-4 flex gap-2">
+        <button
+          type="submit"
+          disabled={saving || !className.trim() || !classCode.trim()}
+          className="aura-btn aura-btn-violet min-h-11 px-4 text-sm disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {saving ? 'Creating…' : 'Create class'}
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
+          disabled={saving}
+          className="aura-ghost min-h-11 px-4 text-sm disabled:opacity-50"
+        >
+          Cancel
+        </button>
+      </div>
+    </form>
+  );
+}
+
+function AdminClassDetail({ classId, teacherCode, onBack, onSaved }) {
+  const [info, setInfo] = useState(null);
+  const [status, setStatus] = useState('loading');
+  const [error, setError] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({
+    className: '',
+    classYear: '',
+    classAlias: '',
+    classCode: '',
+    isPublic: false,
+    active: true,
+  });
+  const [teachers, setTeachers] = useState([]);
+  const [showGames, setShowGames] = useState(false);
+  const [globalSaving, setGlobalSaving] = useState(false);
+  const [globalError, setGlobalError] = useState(null);
+
+  const load = useCallback(async () => {
+    setStatus('loading');
+    setError(null);
+    try {
+      const data = await fetchClassInfo(classId, teacherCode);
+      setInfo(data);
+      setForm({
+        className: data.className || '',
+        classYear: data.classYear || '',
+        classAlias: data.classAlias || '',
+        classCode: data.classCode || '',
+        isPublic: Boolean(data.isPublic),
+        active: data.active !== false,
+      });
+      setTeachers(
+        (data.teacherList || []).map((t) => ({ name: t.name, teacherCode: t.code }))
+      );
+      setStatus('ready');
+    } catch (err) {
+      setError(err.message || 'Could not load this class.');
+      setStatus('error');
+    }
+  }, [classId, teacherCode]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const codeChanged = info && form.classCode.trim() !== (info.classCode || '');
+  const codeCheck = useCodeCheck(codeChanged ? form.classCode : '', { classId });
+
+  const save = async () => {
+    if (saving) return;
+    setSaving(true);
+    setError(null);
+    try {
+      await updateClass(
+        classId,
+        {
+          className: form.className.trim(),
+          classYear: form.classYear.trim(),
+          classAlias: form.classAlias.trim(),
+          classCode: form.classCode.trim(),
+          isPublic: form.isPublic,
+          active: form.active,
+          teachers: teachers
+            .map((t) => ({ name: t.name.trim(), teacherCode: t.teacherCode.trim() }))
+            .filter((t) => t.name && t.teacherCode),
+        },
+        teacherCode
+      );
+      await load();
+      onSaved?.();
+    } catch (err) {
+      setError(err.message || 'Could not save changes.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={onBack}
+        className="aura-ghost mb-4 rounded-xl px-3 py-2 text-xs font-black"
+      >
+        ← All classes
+      </button>
+
+      {status === 'loading' && (
+        <div className="flex items-center gap-2 rounded-2xl border border-white/15 bg-white/10 px-3 py-2.5 text-xs font-bold aura-soft">
+          <span className="h-3 w-3 animate-spin rounded-full border-2 border-white/70 border-t-transparent" />
+          Loading class…
+        </div>
+      )}
+
+      {status === 'error' && (
+        <p className="rounded-2xl border border-rose-500/30 bg-rose-500/20 px-3 py-3 text-sm font-bold text-rose-100">
+          ⚠️ {error || 'Could not load this class.'}
+        </p>
+      )}
+
+      {status === 'ready' && info && (
+        <div className="flex flex-col gap-4">
+          <div className="rounded-2xl aura-card p-4 sm:p-5">
+            <p className="font-mono text-[11px] font-bold aura-muted">{info.classId}</p>
+            <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div>
+                <label className="mb-1 block text-[11px] font-black aura-soft">Class name</label>
+                <input
+                  type="text"
+                  value={form.className}
+                  onChange={(e) => setForm((f) => ({ ...f, className: e.target.value }))}
+                  disabled={saving}
+                  className={textInputCls}
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-[11px] font-black aura-soft">Year</label>
+                <input
+                  type="text"
+                  value={form.classYear}
+                  onChange={(e) => setForm((f) => ({ ...f, classYear: e.target.value }))}
+                  disabled={saving}
+                  className={textInputCls}
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-[11px] font-black aura-soft">Alias</label>
+                <input
+                  type="text"
+                  value={form.classAlias}
+                  onChange={(e) => setForm((f) => ({ ...f, classAlias: e.target.value }))}
+                  disabled={saving}
+                  className={textInputCls}
+                />
+              </div>
+              <CodeField
+                id="detail-class-code"
+                label="Class code"
+                value={form.classCode}
+                onChange={(v) => setForm((f) => ({ ...f, classCode: v }))}
+                check={codeChanged ? codeCheck : { status: 'idle' }}
+                disabled={saving}
+                hint="Changing this breaks printed badges / links."
+              />
+            </div>
+
+            <div className="mt-3 flex flex-wrap items-center gap-4">
+              <label className="flex items-center gap-2 text-xs font-black aura-soft">
+                <input
+                  type="checkbox"
+                  checked={form.isPublic}
+                  onChange={(e) => setForm((f) => ({ ...f, isPublic: e.target.checked }))}
+                  disabled={saving}
+                  className="h-4 w-4 accent-emerald-500"
+                />
+                Public class
+              </label>
+              <label className="flex items-center gap-2 text-xs font-black aura-soft">
+                <input
+                  type="checkbox"
+                  checked={form.active}
+                  onChange={(e) => setForm((f) => ({ ...f, active: e.target.checked }))}
+                  disabled={saving}
+                  className="h-4 w-4 accent-indigo-500"
+                />
+                Active
+              </label>
+            </div>
+          </div>
+
+          <div className="rounded-2xl aura-card p-4 sm:p-5">
+            <p className="mb-3 text-sm font-black aura-text">Teachers</p>
+            <TeacherRowsEditor
+              teachers={teachers}
+              setTeachers={setTeachers}
+              disabled={saving}
+              originalCodes={(info.teacherList || []).map((t) => t.code)}
+            />
+          </div>
+
+          {error && (
+            <p className="rounded-xl bg-rose-500/20 px-3 py-2 text-xs font-bold text-rose-100">
+              ⚠️ {error}
+            </p>
+          )}
+
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={save}
+              disabled={saving || !form.className.trim() || !form.classCode.trim()}
+              className="aura-btn aura-btn-violet min-h-11 px-4 text-sm disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {saving ? 'Saving…' : 'Save changes'}
+            </button>
+          </div>
+
+          <div className="rounded-2xl aura-card p-4 sm:p-5">
+            <button
+              type="button"
+              onClick={() => setShowGames((v) => !v)}
+              className="aura-ghost w-full justify-between px-4 py-2.5 text-sm"
+            >
+              <span>🎮 Games for this class</span>
+              <span>{showGames ? 'Hide' : 'Manage'}</span>
+            </button>
+            {showGames && (
+              <div className="mt-4">
+                {globalError && (
+                  <p className="mb-3 rounded-xl bg-rose-500/20 px-3 py-2 text-xs font-bold text-rose-100">
+                    ⚠️ {globalError}
+                  </p>
+                )}
+                <GameAccessEditor
+                  key={`games-${classId}`}
+                  classId={classId}
+                  teacherCode={teacherCode}
+                  isSaving={globalSaving}
+                  onGlobalError={setGlobalError}
+                  onGlobalSavingChange={setGlobalSaving}
+                />
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AdminClasses({ teacherCode }) {
+  const [classes, setClasses] = useState([]);
+  const [status, setStatus] = useState('loading');
+  const [error, setError] = useState(null);
+  const [creating, setCreating] = useState(false);
+  const [selectedId, setSelectedId] = useState(null);
+
+  const load = useCallback(async () => {
+    setStatus('loading');
+    setError(null);
+    try {
+      const rows = await fetchClasses(teacherCode);
+      setClasses(Array.isArray(rows) ? rows : []);
+      setStatus('ready');
+    } catch (err) {
+      setError(err.message || 'Could not load classes.');
+      setStatus('error');
+    }
+  }, [teacherCode]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  if (selectedId) {
+    return (
+      <AdminClassDetail
+        classId={selectedId}
+        teacherCode={teacherCode}
+        onBack={() => {
+          setSelectedId(null);
+          load();
+        }}
+        onSaved={load}
+      />
     );
   }
 
   return (
     <div>
-      <p className="mb-4 text-sm font-bold aura-soft">
-        Current game arrangement for your class (read-only).
-      </p>
-      <ul className="flex flex-col gap-2.5">
-        {games.map((game, index) => (
-          <li
-            key={game.gameKey || index}
-            className="flex items-center gap-3 rounded-2xl aura-card p-3 sm:p-4"
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <p className="text-sm font-black aura-soft">
+          {status === 'ready' ? `${classes.length} class${classes.length === 1 ? '' : 'es'}` : ''}
+        </p>
+        <div className="flex items-center gap-2">
+          <button type="button" onClick={load} className="aura-ghost px-3 py-2 text-xs">
+            ↻ Refresh
+          </button>
+          <button
+            type="button"
+            onClick={() => setCreating((v) => !v)}
+            className="aura-btn aura-btn-violet min-h-10 px-3 text-xs"
           >
-            <span
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-base shadow-sm sm:h-12 sm:w-12 sm:text-lg"
-              style={{
-                background: game.unlocked
-                  ? `linear-gradient(135deg, ${game.hue || '#38BDF8'}, ${(game.hue || '#38BDF8')}B8)`
-                  : '#CBD5E1',
-                filter: game.unlocked ? 'none' : 'grayscale(1)',
-                opacity: game.unlocked ? 1 : 0.65,
-              }}
-            >
-              {game.emoji || '🎮'}
-            </span>
+            {creating ? 'Close' : '+ New class'}
+          </button>
+        </div>
+      </div>
 
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-extrabold leading-tight aura-text sm:text-base">
-                {game.label || game.gameKey}
-              </p>
-              <p className="mt-1 whitespace-pre-line text-[10px] font-semibold leading-snug aura-soft sm:text-xs">
-                {game.subtitle || ''}
-              </p>
-            </div>
+      {creating && (
+        <NewClassForm
+          teacherCode={teacherCode}
+          onCreated={() => {
+            setCreating(false);
+            load();
+          }}
+          onCancel={() => setCreating(false)}
+        />
+      )}
 
-            <div className="flex shrink-0 flex-col items-end gap-1">
-              <span
-                className={`rounded-full px-2.5 py-1 text-[10px] font-black ${
-                  game.unlocked
-                    ? 'bg-emerald-500/25 text-emerald-100'
-                    : 'bg-white/10 text-slate-200'
-                }`}
+      {status === 'loading' && (
+        <div className="flex items-center gap-2 rounded-2xl border border-white/15 bg-white/10 px-3 py-2.5 text-xs font-bold aura-soft">
+          <span className="h-3 w-3 animate-spin rounded-full border-2 border-white/70 border-t-transparent" />
+          Loading classes…
+        </div>
+      )}
+
+      {status === 'error' && (
+        <p className="rounded-2xl border border-rose-500/30 bg-rose-500/20 px-3 py-3 text-sm font-bold text-rose-100">
+          ⚠️ {error}
+        </p>
+      )}
+
+      {status === 'ready' && classes.length === 0 && (
+        <div className="rounded-2xl border border-dashed border-white/25 bg-white/10 px-5 py-10 text-center">
+          <span className="text-4xl">🏫</span>
+          <p className="mt-3 text-base font-black aura-text">No classes yet</p>
+          <p className="mt-1 text-sm font-semibold aura-soft">Create your first class above.</p>
+        </div>
+      )}
+
+      {status === 'ready' && classes.length > 0 && (
+        <ul className="flex flex-col gap-2.5">
+          {classes.map((c) => (
+            <li key={c.classId}>
+              <button
+                type="button"
+                onClick={() => setSelectedId(c.classId)}
+                className="aura-card flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left transition hover:bg-white/10 active:scale-[0.99]"
               >
-                {game.unlocked ? '🔓 Unlocked' : '🔒 Locked'}
-              </span>
-              {game.shiny && (
-                <span className="rounded-full bg-amber-500/25 px-2.5 py-1 text-[10px] font-black text-amber-100">
-                  ✨ Featured
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500/40 to-violet-500/40 text-lg">
+                  🏫
                 </span>
-              )}
-            </div>
-          </li>
-        ))}
-      </ul>
+                <span className="min-w-0 flex-1">
+                  <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                    <span className="truncate text-sm font-black aura-text sm:text-base">
+                      {c.className}
+                    </span>
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-[10px] font-black ${
+                        c.isPublic
+                          ? 'bg-emerald-500/25 text-emerald-100'
+                          : 'bg-white/10 text-slate-200'
+                      }`}
+                    >
+                      {c.isPublic ? '🌐 Public' : '🔒 Private'}
+                    </span>
+                    {!c.active && (
+                      <span className="rounded-full bg-rose-500/25 px-2 py-0.5 text-[10px] font-black text-rose-100">
+                        Inactive
+                      </span>
+                    )}
+                  </span>
+                  <span className="mt-1 block font-mono text-[11px] font-bold aura-muted">
+                    {c.classCode || c.classId}
+                    {c.classAlias && c.classAlias !== c.className ? ` · ${c.classAlias}` : ''}
+                  </span>
+                </span>
+                <span className="flex shrink-0 flex-col items-end gap-0.5">
+                  <span className="rounded-full bg-indigo-500/25 px-2.5 py-1 text-[11px] font-black text-indigo-100">
+                    {c.teacherCount ?? 0} teachers
+                  </span>
+                  <span className="rounded-full bg-violet-500/25 px-2.5 py-1 text-[11px] font-black text-violet-100">
+                    {c.studentCount ?? 0} students
+                  </span>
+                </span>
+                <span className="shrink-0 text-lg aura-muted">›</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
 
+// ---------------------------------------------------------------------------
+// Admin settings — identity + the global maintenance control.
+// ---------------------------------------------------------------------------
+function AdminSettings({ teacherName, onClose, resetPlayer }) {
+  const teacherCode = usePlayerStore((s) => s.teacherCode);
+  const maintenanceMode = useSystemConfigStore((s) => s.maintenanceMode);
+  const maintenanceMessage = useSystemConfigStore((s) => s.maintenanceMessage);
+  const maintenanceEndsAt = useSystemConfigStore((s) => s.maintenanceEndsAt);
+  const fetchConfig = useSystemConfigStore((s) => s.fetchConfig);
+  const patchConfig = useSystemConfigStore((s) => s.patchConfig);
+
+  const [messageDraft, setMessageDraft] = useState(maintenanceMessage || '');
+  const [endsAtDraft, setEndsAtDraft] = useState(() => toLocalInput(maintenanceEndsAt));
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    fetchConfig();
+  }, [fetchConfig]);
+
+  useEffect(() => {
+    setMessageDraft(maintenanceMessage || '');
+  }, [maintenanceMessage]);
+
+  useEffect(() => {
+    setEndsAtDraft(toLocalInput(maintenanceEndsAt));
+  }, [maintenanceEndsAt]);
+
+  const toggleMaintenance = async () => {
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await patchConfig({ maintenanceMode: !maintenanceMode }, teacherCode);
+    } catch (err) {
+      setError(err.message || 'Could not update maintenance mode.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const saveDetails = async () => {
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    setSaved(false);
+    try {
+      await patchConfig(
+        {
+          maintenanceMessage: messageDraft,
+          maintenanceEndsAt: endsAtDraft ? new Date(endsAtDraft).toISOString() : null,
+        },
+        teacherCode
+      );
+      setSaved(true);
+    } catch (err) {
+      setError(err.message || 'Could not save maintenance details.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex items-center justify-between gap-3 rounded-2xl aura-card px-4 py-3 sm:px-5">
+        <div className="min-w-0">
+          <p className="text-[10px] font-black uppercase tracking-wide aura-muted">Signed in as</p>
+          <p className="truncate text-base font-black aura-text sm:text-lg">{teacherName}</p>
+          <p className="mt-0.5 text-[11px] font-bold text-amber-200">Administrator</p>
+        </div>
+        <button
+          type="button"
+          onClick={() => {
+            resetPlayer();
+            onClose?.();
+          }}
+          className="aura-ghost shrink-0 rounded-full px-4 py-2 text-xs font-black"
+        >
+          Sign out
+        </button>
+      </div>
+
+      <div
+        className={`rounded-2xl border p-4 sm:p-5 ${
+          maintenanceMode ? 'border-amber-400/60 bg-amber-500/15' : 'aura-card'
+        }`}
+      >
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <p className="text-sm font-black aura-text">
+              Maintenance mode: {maintenanceMode ? 'ON' : 'OFF'}
+            </p>
+            <p className="mt-1 text-xs font-semibold aura-soft">
+              When ON, students see a maintenance screen on every page. Teachers and admins keep
+              working normally.
+            </p>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={maintenanceMode}
+            onClick={toggleMaintenance}
+            disabled={busy}
+            className={`relative h-8 w-[3.5rem] shrink-0 rounded-full border-2 transition-colors disabled:opacity-50 sm:h-10 sm:w-[4.25rem] ${
+              maintenanceMode ? 'border-amber-500 bg-amber-500' : 'border-white/40 bg-white/15'
+            }`}
+          >
+            <motion.span
+              animate={{ x: maintenanceMode ? (window.innerWidth >= 640 ? 40 : 32) : 0 }}
+              transition={{ type: 'spring', stiffness: 600, damping: 34 }}
+              className="absolute left-[3px] top-[3px] flex h-[22px] w-[22px] items-center justify-center rounded-full bg-white text-[10px] font-black text-slate-700 shadow-sm sm:h-7 sm:w-7 sm:text-xs"
+            >
+              {maintenanceMode ? '✓' : '—'}
+            </motion.span>
+          </button>
+        </div>
+
+        {maintenanceMode && (
+          <p className="mt-3 rounded-xl bg-amber-400/20 px-3 py-2 text-[11px] font-black text-amber-100">
+            ⚠ Students currently see a maintenance screen.
+          </p>
+        )}
+      </div>
+
+      <div className="rounded-2xl aura-card p-4 sm:p-5">
+        <p className="text-sm font-black aura-text">Maintenance message & schedule</p>
+        <p className="mt-1 text-xs font-semibold aura-soft">
+          Optional. Leave the message empty to use the default text, and the end time empty for no
+          countdown.
+        </p>
+
+        <div className="mt-3 flex flex-col gap-3">
+          <div>
+            <label htmlFor="maint-message" className="mb-1 block text-[11px] font-black aura-soft">
+              Custom message (optional)
+            </label>
+            <textarea
+              id="maint-message"
+              value={messageDraft}
+              onChange={(e) => {
+                setMessageDraft(e.target.value);
+                setSaved(false);
+              }}
+              rows={2}
+              maxLength={300}
+              placeholder="EZ Wonders is under maintenance currently. Come back later."
+              disabled={busy}
+              className="aura-input px-3 py-2.5 text-sm font-bold disabled:opacity-60"
+            />
+          </div>
+
+          <div>
+            <label htmlFor="maint-ends" className="mb-1 block text-[11px] font-black aura-soft">
+              Countdown ends at (optional)
+            </label>
+            <input
+              id="maint-ends"
+              type="datetime-local"
+              value={endsAtDraft}
+              onChange={(e) => {
+                setEndsAtDraft(e.target.value);
+                setSaved(false);
+              }}
+              disabled={busy}
+              className="aura-input px-3 py-2.5 text-sm font-bold disabled:opacity-60"
+            />
+          </div>
+
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={saveDetails}
+              disabled={busy}
+              className="aura-btn aura-btn-violet min-h-10 px-4 text-xs disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {busy ? 'Saving…' : 'Save'}
+            </button>
+            {saved && <span className="text-[11px] font-black text-emerald-200">✓ Saved</span>}
+          </div>
+        </div>
+      </div>
+
+      {error && (
+        <p className="rounded-xl bg-rose-500/20 px-3 py-2 text-xs font-bold text-rose-100">
+          ⚠️ {error}
+        </p>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Panel shell
+// ---------------------------------------------------------------------------
 export default function GameAccessPanel({ onClose, initialTab }) {
   const teacherCode = usePlayerStore((state) => state.teacherCode);
   const classId = usePlayerStore((state) => state.classId);
+  const className = usePlayerStore((state) => state.className);
   const isAdmin = usePlayerStore((state) => state.isAdmin);
-  const userClassType = usePlayerStore((state) => state.classType);
   const teacherName = usePlayerStore((state) => state.playerName);
   const resetPlayer = usePlayerStore((state) => state.resetPlayer);
 
-  const students = useStudentStore((state) => state.students);
-  const studentsLoaded = useStudentStore((state) => state.loaded);
-  const fetchStudents = useStudentStore((state) => state.fetchStudents);
-
+  const tabs = isAdmin ? ADMIN_TABS : TEACHER_TABS;
   const [activeTab, setActiveTab] = useState(null);
-  // Within the Stats tab, switch between the regular "Who's been playing?"
-  // panel and the weekly-mission-heroes view (both are teacher-only).
-  const [statsView, setStatsView] = useState('stats');
-  const [globalSaving, setGlobalSaving] = useState(false);
   const [globalError, setGlobalError] = useState(null);
+  const [globalSaving, setGlobalSaving] = useState(false);
+  const [statsView, setStatsView] = useState('stats');
 
-  const [isAddingStudent, setIsAddingStudent] = useState(false);
-  const [studentError, setStudentError] = useState(null);
-
-  const [classInfo, setClassInfo] = useState(null);
-  const [classInfoStatus, setClassInfoStatus] = useState('idle');
-  const [classInfoError, setClassInfoError] = useState(null);
-
-  // Determine initial tab based on role, classType, and any ?tab= override
-  // passed in from the route (e.g. Home's "View Stats" deep-link).
+  // First tab: role default, unless a ?tab= deep-link asked for stats.
   useEffect(() => {
     if (activeTab) return;
-    if (initialTab === 'stats') {
-      setActiveTab('stats');
-    } else if (isAdmin) {
-      setActiveTab(userClassType === 'k2' ? 'k2-games' : 'k1-games');
-    } else {
-      setActiveTab('games');
-    }
-  }, [isAdmin, userClassType, activeTab, initialTab]);
-
-  // The roster is class-scoped. When the logged-in teacher's class changes
-  // (logout → login as a different teacher), drop the previous class's cached
-  // students so they never leak into the new session.
-  const prevClassIdRef = useRef(classId);
-  useEffect(() => {
-    if (prevClassIdRef.current !== classId) {
-      useStudentStore.getState().reset();
-      prevClassIdRef.current = classId;
-    }
-  }, [classId]);
-
-  // Fetch each tab's data when it's first opened, or when the cached roster
-  // belongs to a different class than the current one.
-  useEffect(() => {
-    if (activeTab !== 'students') return;
-    const store = useStudentStore.getState();
-    if (!store.loaded || store.loadedClassId !== classId) {
-      fetchStudents(teacherCode);
-    }
-  }, [activeTab, studentsLoaded, fetchStudents, teacherCode, classId]);
-
-  useEffect(() => {
-    if (activeTab !== 'settings' || !classId) return;
-    if (classInfo?.classId === classId) return;
-
-    let active = true;
-    setClassInfoStatus('loading');
-    setClassInfoError(null);
-
-    fetchClassInfo(classId)
-      .then((data) => {
-        if (!active) return;
-        setClassInfo(data);
-        setClassInfoStatus('ready');
-      })
-      .catch((err) => {
-        if (!active) return;
-        setClassInfoError(err.message || 'Could not load class information.');
-        setClassInfoStatus('error');
-      });
-
-    return () => {
-      active = false;
-    };
-  }, [activeTab, classId, classInfo]);
-
-  const handleAddStudent = async ({ fullName, nickname, group }, onSuccess) => {
-    if (isAddingStudent) return;
-    setStudentError(null);
-    setIsAddingStudent(true);
-
-    try {
-      await addStudent({ fullName, nickname, group, teacherCode });
-      onSuccess?.();
-    } catch (err) {
-      setStudentError(err.message || 'Could not add this student. Please try again.');
-    } finally {
-      setIsAddingStudent(false);
-    }
-  };
+    if (initialTab === 'stats') setActiveTab('stats');
+    else setActiveTab(isAdmin ? 'classes' : 'games');
+  }, [activeTab, initialTab, isAdmin]);
 
   const handleTabChange = (tab) => {
     if (tab === activeTab) return;
     setGlobalError(null);
     setActiveTab(tab);
-    // Leaving the stats tab should land back on the regular stats view the
-    // next time it's opened, not leave the mission-heroes screen cached.
-    if (tab !== 'stats') setStatsView('stats');
   };
 
-  const isGameTab = (tab) => tab === 'k1-games' || tab === 'k2-games' || tab === 'games';
-
-  const activeTabConfig = (() => {
-    if (activeTab === 'students') return { description: 'Manage the students enrolled in this class.' };
-    if (activeTab === 'settings') return { description: 'Configure settings for this class.' };
-    if (activeTab === 'stats') return { description: 'See who has been playing and how they are doing.' };
-    if (activeTab === 'k1-games') return { description: CLASS_TYPE_LABELS.k1.description };
-    if (activeTab === 'k2-games') return { description: CLASS_TYPE_LABELS.k2.description };
-    if (activeTab === 'games') return { description: "View your class's current game arrangement." };
-    return { description: '' };
-  })();
+  const activeConfig = tabs.find((t) => t.key === activeTab);
 
   return (
     <div className="aura-page min-h-[100dvh] w-full">
       <header className="sticky top-0 z-30 border-b border-white/15 bg-gradient-to-br from-[#315ed8]/95 via-[#5a3fc4]/95 to-[#972aa8]/95 px-4 pb-0 pt-[max(1rem,env(safe-area-inset-top))] shadow-[0_14px_40px_-28px_rgba(0,0,0,0.4)] backdrop-blur-xl sm:px-6 sm:pt-6 lg:px-10">
-        {/* Single compact row — back · title (flex-1) · Beta Homepage on the right.
-            On phones the Beta button is just an icon so it never squeezes the
-            title; on sm+ it expands to the labelled pill. */}
         <div className="mx-auto flex w-full max-w-5xl items-center gap-2.5 pb-2 sm:gap-3 sm:pb-3">
           <button
             type="button"
@@ -1480,33 +2573,25 @@ export default function GameAccessPanel({ onClose, initialTab }) {
           </div>
 
           <Link
-            to="/beta-ezwonders"
-            title="Beta Homepage"
+            to="/"
+            title="Home"
             className="flex h-10 shrink-0 items-center justify-center gap-1.5 rounded-xl border border-white/25 bg-white/15 px-2.5 text-base text-white shadow-sm transition hover:bg-white/25 sm:h-11 sm:w-auto sm:px-4 sm:text-sm"
           >
-            <span aria-hidden="true">✨</span>
-            <span className="hidden sm:inline">Beta Homepage</span>
+            <span aria-hidden="true">🏠</span>
+            <span className="hidden sm:inline">Home</span>
           </Link>
         </div>
 
         <p className="mx-auto hidden max-w-5xl pb-4 text-xs font-semibold leading-relaxed text-white/85 sm:block sm:text-sm">
-          {activeTabConfig.description}
+          {activeConfig?.description || ''}
         </p>
 
-        {isAdmin ? (
-          <AdminTabBar
-            activeTab={activeTab}
-            onChange={handleTabChange}
-            disabled={globalSaving}
-            adminClassType={userClassType}
-          />
-        ) : (
-          <TeacherTabBar
-            activeTab={activeTab}
-            onChange={handleTabChange}
-            disabled={globalSaving}
-          />
-        )}
+        <TabBar
+          tabs={tabs}
+          activeTab={activeTab}
+          onChange={handleTabChange}
+          disabled={globalSaving}
+        />
       </header>
 
       <main className="mx-auto w-full max-w-3xl px-4 py-6 pb-32 sm:px-6 sm:py-8 lg:max-w-4xl lg:px-8 lg:pb-8">
@@ -1523,35 +2608,53 @@ export default function GameAccessPanel({ onClose, initialTab }) {
           )}
         </AnimatePresence>
 
+        {activeTab === 'games' && !isAdmin && (
+          <GameAccessEditor
+            key={`games-${classId}`}
+            classId={classId}
+            teacherCode={teacherCode}
+            isSaving={globalSaving}
+            onGlobalError={setGlobalError}
+            onGlobalSavingChange={setGlobalSaving}
+          />
+        )}
+
+        {activeTab === 'students' && (
+          <StudentsTab classId={classId} teacherCode={teacherCode} className={className} />
+        )}
+
         {activeTab === 'stats' && (
           <div>
-            {/* Stats / Mission-heroes sub-toggle for this tab */}
-            <div className="mb-4 flex items-center justify-center gap-2">
-              <button
-                type="button"
-                onClick={() => setStatsView('stats')}
-                className={`flex h-10 items-center gap-1.5 rounded-full px-4 text-sm font-black transition-all active:scale-95 sm:h-11 sm:px-5 ${
-                  statsView === 'stats'
-                    ? 'bg-gradient-to-r from-pink-500 to-purple-500 text-white shadow-md'
-                    : 'bg-white/10 text-white hover:bg-white/20'
-                }`}
-              >
-                📊 Stats
-              </button>
-              <button
-                type="button"
-                onClick={() => setStatsView('mission')}
-                className={`flex h-10 items-center gap-1.5 rounded-full px-4 text-sm font-black transition-all active:scale-95 sm:h-11 sm:px-5 ${
-                  statsView === 'mission'
-                    ? 'bg-gradient-to-r from-amber-400 to-orange-500 text-white shadow-md'
-                    : 'bg-white/10 text-white hover:bg-white/20'
-                }`}
-              >
-                🏆 Mission heroes
-              </button>
-            </div>
+            {!isAdmin && (
+              <div className="mb-4 flex items-center justify-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setStatsView('stats')}
+                  className={`flex h-10 items-center gap-1.5 rounded-full px-4 text-sm font-black transition-all active:scale-95 sm:h-11 sm:px-5 ${
+                    statsView === 'stats'
+                      ? 'bg-gradient-to-r from-pink-500 to-purple-500 text-white shadow-md'
+                      : 'bg-white/10 text-white hover:bg-white/20'
+                  }`}
+                >
+                  📊 Stats
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStatsView('mission')}
+                  className={`flex h-10 items-center gap-1.5 rounded-full px-4 text-sm font-black transition-all active:scale-95 sm:h-11 sm:px-5 ${
+                    statsView === 'mission'
+                      ? 'bg-gradient-to-r from-amber-400 to-orange-500 text-white shadow-md'
+                      : 'bg-white/10 text-white hover:bg-white/20'
+                  }`}
+                >
+                  🏆 Mission heroes
+                </button>
+              </div>
+            )}
 
-            {statsView === 'mission' ? (
+            {isAdmin ? (
+              <StatsPanel embedded adminMode />
+            ) : statsView === 'mission' ? (
               <MissionHeroes teacherCode={teacherCode} />
             ) : (
               <StatsPanel embedded />
@@ -1559,74 +2662,22 @@ export default function GameAccessPanel({ onClose, initialTab }) {
           </div>
         )}
 
-        {activeTab === 'students' && (
-          <StudentsTab
-            isReady={studentsLoaded}
-            students={students}
-            onAdd={handleAddStudent}
-            isSaving={isAddingStudent}
-            error={studentError}
+        {activeTab === 'settings' && !isAdmin && (
+          <TeacherSettings
+            classId={classId}
             teacherCode={teacherCode}
+            teacherName={teacherName}
+            onClose={onClose}
+            resetPlayer={resetPlayer}
           />
         )}
 
-        {activeTab === 'settings' && (
-          <div>
-            {/* Signed-in teacher + switch — now lives on the class/settings tab
-                instead of the stats panel */}
-            <div className="mb-4 flex items-center justify-between gap-3 rounded-2xl aura-card px-4 py-3 sm:px-5">
-              <div className="min-w-0">
-                <p className="text-[10px] font-black uppercase tracking-wide aura-muted">
-                  Signed in as
-                </p>
-                <p className="truncate text-base font-black aura-text sm:text-lg">
-                  {teacherName}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  resetPlayer();
-                  onClose?.();
-                }}
-                className="aura-ghost shrink-0 rounded-full px-4 py-2 text-xs font-black"
-              >
-                Not you?
-              </button>
-            </div>
-
-            <ClassInfoTab
-              status={classInfoStatus}
-              classInfo={classInfo}
-              error={classInfoError}
-            />
-          </div>
+        {activeTab === 'settings' && isAdmin && (
+          <AdminSettings teacherName={teacherName} onClose={onClose} resetPlayer={resetPlayer} />
         )}
 
-        {activeTab === 'k1-games' && (
-          <GameAccessTypeEditor
-            key="k1-editor"
-            classType="k1"
-            teacherCode={teacherCode}
-            isSaving={globalSaving}
-            onGlobalError={setGlobalError}
-            onGlobalSavingChange={setGlobalSaving}
-          />
-        )}
-
-        {activeTab === 'k2-games' && (
-          <GameAccessTypeEditor
-            key="k2-editor"
-            classType="k2"
-            teacherCode={teacherCode}
-            isSaving={globalSaving}
-            onGlobalError={setGlobalError}
-            onGlobalSavingChange={setGlobalSaving}
-          />
-        )}
-
-        {activeTab === 'games' && !isAdmin && (
-          <ReadOnlyGameList classId={classId} />
+        {activeTab === 'classes' && isAdmin && (
+          <AdminClasses teacherCode={teacherCode} />
         )}
       </main>
     </div>

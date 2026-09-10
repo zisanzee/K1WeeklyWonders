@@ -474,7 +474,7 @@ function Game6Inner() {
         href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap"
       />
         <Helmet>
-          <title>Part-Part-Whole | K1 Weekly Wonders</title>
+          <title>Part-Part-Whole | EZ Wonders</title>
       
           <meta
             name="description"

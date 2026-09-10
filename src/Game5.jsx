@@ -310,7 +310,7 @@ function Game5Inner() {
         href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap"
       />
         <Helmet>
-          <title>Splits and Groups | K1 Weekly Wonders</title>
+          <title>Splits and Groups | EZ Wonders</title>
       
           <meta
             name="description"

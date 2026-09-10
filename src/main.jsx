@@ -1,12 +1,12 @@
 import { Suspense, lazy } from "react";
 import ReactDOM from "react-dom/client";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import "./index.css";
 
-import Home from "./Home";
 import { HelmetProvider } from "react-helmet-async";
 import { warmupSpeech } from "./Phaser/common/speech";
 import RotateHint from "./RotateHint";
+import MaintenanceGate from "./MaintenanceGate";
 
 // Prime the TTS engine immediately so every game's first utterance plays
 // with zero delay — by the time the player taps a game tile, the
@@ -66,24 +66,28 @@ ReactDOM.createRoot(document.getElementById("root")).render(
   <HelmetProvider>
     <BrowserRouter>
       <RotateHint />
-      <Suspense fallback={<GameLoading />}>
-        <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/beta-ezwonders" element={<BetaHome />} />
-          <Route path="/game1" element={<Game1 />} />
-          <Route path="/game2" element={<Game2 />} />
-          <Route path="/game3" element={<Game3 />} />
-          <Route path="/game4" element={<Game4 />} />
-          <Route path="/game5" element={<Game5 />} />
-          <Route path="/game7" element={<Game7 />} />
-          <Route path="/game8" element={<Game8 />} />
-          <Route path="/game9" element={<Game9 />} />
-          <Route path="/game6" element={<Game6 />} />
-          <Route path="/bonus-game1" element={<PhaserDemo />} />
-          <Route path="/game-access" element={<GameAccessPage />} />
-          <Route path="/p/:code" element={<StudentLogin />} />
-        </Routes>
-      </Suspense>
+      <MaintenanceGate>
+        <Suspense fallback={<GameLoading />}>
+          <Routes>
+            {/* BetaHome is now the real production home at the root path. */}
+            <Route path="/" element={<BetaHome />} />
+            {/* Keep the old URL working as an alias, but never as the primary. */}
+            <Route path="/beta-ezwonders" element={<Navigate to="/" replace />} />
+            <Route path="/game1" element={<Game1 />} />
+            <Route path="/game2" element={<Game2 />} />
+            <Route path="/game3" element={<Game3 />} />
+            <Route path="/game4" element={<Game4 />} />
+            <Route path="/game5" element={<Game5 />} />
+            <Route path="/game7" element={<Game7 />} />
+            <Route path="/game8" element={<Game8 />} />
+            <Route path="/game9" element={<Game9 />} />
+            <Route path="/game6" element={<Game6 />} />
+            <Route path="/bonus-game1" element={<PhaserDemo />} />
+            <Route path="/game-access" element={<GameAccessPage />} />
+            <Route path="/p/:code" element={<StudentLogin />} />
+          </Routes>
+        </Suspense>
+      </MaintenanceGate>
     </BrowserRouter>
   </HelmetProvider>
 );

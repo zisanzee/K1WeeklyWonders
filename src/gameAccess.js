@@ -215,9 +215,9 @@ export const useGameAccessStore = create((set, get) => ({
 
     set({ loading: true, loadingClassId: classId, error: null });
 
-    // The server resolves classId → classType internally and returns that
-    // type's game arrangement. The client just passes the player's classId
-    // as-is — no client-side CLASS_TYPE_CONFIG mapping needed anymore.
+    // The server returns this class's own game arrangement for the classId.
+    // The client passes the player's classId as-is — game config is per-class
+    // now, so there is no classType mapping anywhere in the read path.
     try {
       const response = await fetch(
         `${API_BASE}/api/game-access?classId=${encodeURIComponent(classId)}`,
@@ -461,17 +461,16 @@ export function isGameUnlockedNow(gameNumber, isTeacher) {
 }
 
 // ---------------------------------------------------------------------------
-// Admin-only, classType-scoped mutators
+// Class-scoped panel mutators (teacher OR admin)
 // ---------------------------------------------------------------------------
-// These mirror the classId-based functions above but are keyed by classType
-// instead, and all of them send classType in the request body. They're used
-// exclusively by the admin panel (GameAccessPanel) where an admin can edit
-// K1 and/or K2 game config regardless of their own homeroom class.
+// Keyed by classId. The backend lets an admin target any class and a teacher
+// only their own, so the same calls work for both roles.
 
-export async function fetchGameAccessForType(classType, teacherCode) {
-  const response = await fetch(
-    `${API_BASE}/api/game-access?classType=${encodeURIComponent(classType)}&teacherCode=${encodeURIComponent(teacherCode)}`
-  );
+export async function fetchGameAccessForClass(classId, teacherCode) {
+  const params = new URLSearchParams({ classId });
+  if (teacherCode) params.set('teacherCode', teacherCode);
+
+  const response = await fetch(`${API_BASE}/api/game-access?${params.toString()}`);
 
   if (!response.ok) {
     const body = await response.json().catch(() => ({}));
@@ -481,7 +480,7 @@ export async function fetchGameAccessForType(classType, teacherCode) {
   return response.json();
 }
 
-export async function setGameUnlockedForType(gameKey, unlocked, classType, teacherCode) {
+export async function setGameUnlockedForClass(gameKey, unlocked, classId, teacherCode) {
   const key = normalizeKey(gameKey);
 
   const response = await fetch(
@@ -489,7 +488,7 @@ export async function setGameUnlockedForType(gameKey, unlocked, classType, teach
     {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ unlocked, classType, teacherCode }),
+      body: JSON.stringify({ unlocked, classId, teacherCode }),
     }
   );
 
@@ -501,7 +500,7 @@ export async function setGameUnlockedForType(gameKey, unlocked, classType, teach
   return response.json();
 }
 
-export async function setGameShinyForType(gameKey, shiny, classType, teacherCode) {
+export async function setGameShinyForClass(gameKey, shiny, classId, teacherCode) {
   const key = normalizeKey(gameKey);
 
   const response = await fetch(
@@ -509,7 +508,7 @@ export async function setGameShinyForType(gameKey, shiny, classType, teacherCode
     {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ shiny, classType, teacherCode }),
+      body: JSON.stringify({ shiny, classId, teacherCode }),
     }
   );
 
@@ -521,11 +520,11 @@ export async function setGameShinyForType(gameKey, shiny, classType, teacherCode
   return response.json();
 }
 
-export async function setGameOrderForType(gameKeys, classType, teacherCode) {
+export async function setGameOrderForClass(gameKeys, classId, teacherCode) {
   const response = await fetch(`${API_BASE}/api/game-access/order`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ gameKeys, classType, teacherCode }),
+    body: JSON.stringify({ gameKeys, classId, teacherCode }),
   });
 
   if (!response.ok) {
@@ -536,39 +535,39 @@ export async function setGameOrderForType(gameKeys, classType, teacherCode) {
   return response.json();
 }
 
-export async function addGameToType(gameKey, classType, teacherCode) {
+export async function addGameForClass(gameKey, classId, teacherCode) {
   const key = normalizeKey(gameKey);
   const response = await fetch(
     `${API_BASE}/api/game-access/${encodeURIComponent(key)}`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ classType, teacherCode }),
+      body: JSON.stringify({ classId, teacherCode }),
     }
   );
 
   if (!response.ok) {
     const body = await response.json().catch(() => ({}));
-    throw new Error(body.error || 'Could not add game to this class type');
+    throw new Error(body.error || 'Could not add game to this class');
   }
 
   return response.json();
 }
 
-export async function removeGameFromType(gameKey, classType, teacherCode) {
+export async function removeGameForClass(gameKey, classId, teacherCode) {
   const key = normalizeKey(gameKey);
   const response = await fetch(
     `${API_BASE}/api/game-access/${encodeURIComponent(key)}`,
     {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ classType, teacherCode }),
+      body: JSON.stringify({ classId, teacherCode }),
     }
   );
 
   if (!response.ok) {
     const body = await response.json().catch(() => ({}));
-    throw new Error(body.error || 'Could not remove game from this class type');
+    throw new Error(body.error || 'Could not remove game from this class');
   }
 
   return response.json();

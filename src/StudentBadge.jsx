@@ -2,12 +2,12 @@ import { useEffect, useRef, useCallback, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { motion, AnimatePresence } from 'motion/react';
 import QRCode from 'react-qr-code';
-import { toCanvas, toPng, toJpeg } from 'html-to-image';
+import { toCanvas, toJpeg } from 'html-to-image';
 import { jsPDF } from 'jspdf';
 import { useStudentStore } from './students';
 import { usePlayerStore } from './playerStore';
 
-const SITE_URL = 'https://k1weekly.netlify.app';
+const SITE_URL = 'https://ezwonders.com';
 const LOGO_SRC = '/android-chrome-512x512.png';
 
 // Single-badge print target is 4.1in × 5.8in. The badge is captured at
@@ -69,7 +69,7 @@ function BadgeCard({ student, classInfo, qrSize = 160 }) {
         />
         <div className="min-w-0">
           <p className="truncate text-base font-black uppercase leading-tight tracking-[0.12em] text-white">
-            K1 Weekly Wonders
+            EZ Wonders
           </p>
           <p className="text-xs font-bold uppercase tracking-[0.22em] text-white/80">Game Pass</p>
         </div>
@@ -292,34 +292,39 @@ async function buildBadgesPdf(students, classInfo, filename, onProgress) {
 // Print-all control used on the students tab (not the badge modal). It fetches
 // the full roster, renders every badge into a multi-page PDF, and shows a
 // full-screen progress overlay while that runs.
-export function PrintAllBadgesButton({ className }) {
+export function PrintAllBadgesButton({ className, students: studentsProp, classInfo }) {
   const storeClassName = usePlayerStore((state) => state.className);
   const teacherName = usePlayerStore((state) => state.playerName);
   const [printingAll, setPrintingAll] = useState(false);
   const [printProgress, setPrintProgress] = useState('');
   const [printPercent, setPrintPercent] = useState(0);
 
-  const displayClassName = className || storeClassName || 'Class';
+  const displayClassName = classInfo?.className || className || storeClassName || 'Class';
+  const badgeTeacherName = classInfo?.teacherName || teacherName;
 
   const handlePrintAll = useCallback(async () => {
     if (printingAll) return;
-    // Fetch the roster and bail out on trivial cases BEFORE showing the
-    // loading overlay, so it never flashes for an empty class or a failed fetch.
-    const store = useStudentStore.getState();
-    if (!store.loaded) {
-      await store.fetchStudents();
+    // The panel passes the roster it already loaded (so this works for an
+    // admin viewing any class); the store fallback keeps older callers working.
+    let students = Array.isArray(studentsProp) ? studentsProp : null;
+    if (!students) {
+      const store = useStudentStore.getState();
+      if (!store.loaded) {
+        await store.fetchStudents();
+      }
+      students = useStudentStore.getState().students;
     }
-    const fresh = useStudentStore.getState();
-    const students = fresh.students;
-    if (!students.length) {
-      alert(fresh.error || 'No students in this class yet. Add students first.');
+    // Bail out on trivial cases BEFORE showing the loading overlay, so it never
+    // flashes for an empty class.
+    if (!students || !students.length) {
+      alert('No students in this class yet. Add students first.');
       return;
     }
     setPrintingAll(true);
     try {
       await buildBadgesPdf(
         students,
-        { className: displayClassName, teacherName },
+        { className: displayClassName, teacherName: badgeTeacherName },
         `badges-${sanitizeFileName(displayClassName)}.pdf`,
         (done, total) => {
           setPrintPercent(Math.round((done / total) * 100));
@@ -334,7 +339,7 @@ export function PrintAllBadgesButton({ className }) {
       setPrintProgress('');
       setPrintPercent(0);
     }
-  }, [printingAll, displayClassName]);
+  }, [printingAll, displayClassName, badgeTeacherName, studentsProp]);
 
   return (
     <>

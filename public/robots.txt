@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://k1weekly.netlify.app/sitemap.xml
+Sitemap: https://ezwonders.com/sitemap.xml

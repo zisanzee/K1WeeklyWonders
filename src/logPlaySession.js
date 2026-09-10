@@ -64,7 +64,11 @@ export async function logPlaySession({
   mistakes,
 }) {
   try {
-    const classId = usePlayerStore.getState().classId || LEGACY_CLASS_ID;
+    const state = usePlayerStore.getState();
+    const classId = state.classId || LEGACY_CLASS_ID;
+    // Rostered players carry a studentId so the server can attribute (and
+    // merge) the session even when the display name changes.
+    const studentId = state.studentId || undefined;
     const res = await fetch(`${API_BASE}/api/plays`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -72,6 +76,7 @@ export async function logPlaySession({
         game,
         playerName,
         classId,
+        studentId,
         stars,
         totalRounds,
         peakStreak,
@@ -105,6 +110,41 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = 15_000) {
     return res;
   } catch (err) {
     clearTimeout(timeoutId);
+    throw err;
+  }
+}
+
+// Admin-only: one summary row per class (total plays + post-merge unique
+// players) for the all-classes stats grid (GET /api/admin/stats/classes).
+export async function fetchAdminClassStats(teacherCode) {
+  try {
+    const res = await fetchWithTimeout(
+      withQuery('/api/admin/stats/classes', { teacherCode })
+    );
+    if (!res.ok) throw new Error(`Server responded ${res.status} ${res.statusText}`);
+    return await res.json();
+  } catch (err) {
+    console.error(`[stats] Could not reach ${API_BASE}/api/admin/stats/classes —`, err);
+    throw err;
+  }
+}
+
+// Admin-only: detailed stats for one class (same shape as the teacher
+// endpoint), used by the drill-down view.
+export async function fetchAdminClassDetail(classId, teacherCode) {
+  try {
+    const res = await fetchWithTimeout(
+      withQuery(`/api/admin/stats/classes/${encodeURIComponent(classId)}`, {
+        teacherCode,
+      })
+    );
+    if (!res.ok) throw new Error(`Server responded ${res.status} ${res.statusText}`);
+    return await res.json();
+  } catch (err) {
+    console.error(
+      `[stats] Could not reach ${API_BASE}/api/admin/stats/classes/${classId} —`,
+      err
+    );
     throw err;
   }
 }

@@ -1,6 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { fetchStats, fetchSummary, fetchPlaysPage, deletePlayerGame } from './logPlaySession';
+import {
+  fetchStats,
+  fetchSummary,
+  fetchPlaysPage,
+  deletePlayerGame,
+  fetchAdminClassStats,
+  fetchAdminClassDetail,
+} from './logPlaySession';
 import { usePlayerStore } from './playerStore';
 
 const GAME_LABELS = {
@@ -252,7 +259,7 @@ function ListState({ list, kind }) {
   return null;
 }
 
-export default function StatsPanel({ onClose, embedded = false }) {
+function TeacherStatsPanel({ onClose, embedded = false }) {
   // Access to this panel is already decided at the name/code prompt (Home
   // only renders the Stats button for teachers) — this just reads who's in.
   const teacherName = usePlayerStore((s) => s.playerName);
@@ -1080,4 +1087,316 @@ function StatCard({ label, value, sub }) {
       {sub && <p className="text-[10px] font-semibold aura-muted">{sub}</p>}
     </div>
   );
+}
+
+// ---------------------------------------------------------------------------
+// Admin mode — all-classes summary that drills into one class's detail.
+// Both endpoints dedupe merged identities server-side, so this view just
+// renders totals and never has to reason about merges itself.
+// ---------------------------------------------------------------------------
+function AdminStatsView({ onClose, embedded }) {
+  const teacherCode = usePlayerStore((s) => s.teacherCode);
+  const [status, setStatus] = useState('loading');
+  const [classes, setClasses] = useState([]);
+  const [selected, setSelected] = useState(null);
+  const [detailStatus, setDetailStatus] = useState('idle');
+  const [detail, setDetail] = useState(null);
+  const [detailError, setDetailError] = useState(null);
+
+  const loadClasses = useCallback(async () => {
+    setStatus('loading');
+    try {
+      const rows = await fetchAdminClassStats(teacherCode);
+      setClasses(Array.isArray(rows) ? rows : []);
+      setStatus('ready');
+    } catch (err) {
+      console.error(err);
+      setStatus('error');
+    }
+  }, [teacherCode]);
+
+  useEffect(() => {
+    loadClasses();
+  }, [loadClasses]);
+
+  const openClass = useCallback(
+    async (row) => {
+      setSelected(row);
+      setDetail(null);
+      setDetailError(null);
+      setDetailStatus('loading');
+      try {
+        const data = await fetchAdminClassDetail(row.classId, teacherCode);
+        setDetail(data);
+        setDetailStatus('ready');
+      } catch (err) {
+        console.error(err);
+        setDetailError(err.message || 'Could not load class stats.');
+        setDetailStatus('error');
+      }
+    },
+    [teacherCode]
+  );
+
+  const backToSummary = () => {
+    setSelected(null);
+    setDetail(null);
+    setDetailStatus('idle');
+    setDetailError(null);
+  };
+
+  // Modal variant: lock background scroll and let Escape step back a level.
+  // Embedded (the panel's tab) skips both.
+  useEffect(() => {
+    if (embedded) return undefined;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const handleKey = (e) => {
+      if (e.key === 'Escape') {
+        if (selected) backToSummary();
+        else onClose?.();
+      }
+    };
+    window.addEventListener('keydown', handleKey);
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      window.removeEventListener('keydown', handleKey);
+    };
+  }, [onClose, embedded, selected]);
+
+  const totalPlaysAll = classes.reduce((sum, c) => sum + (c.totalPlays || 0), 0);
+
+  const inner = (
+    <>
+      <div className="flex items-center justify-between border-b border-white/10 bg-gradient-to-r from-indigo-500/15 via-white/5 to-cyan-500/15 px-4 py-3 sm:px-6 sm:py-4">
+        <h2 className="flex min-w-0 items-center gap-2.5">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 to-cyan-500 text-lg shadow-md sm:h-11 sm:w-11 sm:text-xl">
+            📊
+          </span>
+          <span className="flex min-w-0 flex-col">
+            <span className="text-[10px] font-black uppercase tracking-wide aura-muted">
+              {selected ? 'Class detail' : 'All classes'}
+            </span>
+            <span
+              style={{ fontFamily: "'Fredoka', sans-serif" }}
+              className="truncate text-lg font-bold aura-heading sm:text-2xl"
+            >
+              {selected ? selected.className : "Who has been playing?"}
+            </span>
+          </span>
+        </h2>
+        <div className="flex shrink-0 items-center gap-2">
+          {selected ? (
+            <button
+              type="button"
+              onClick={backToSummary}
+              className="aura-ghost h-9 shrink-0 gap-1 px-3 text-xs font-black sm:h-11 sm:text-sm"
+            >
+              ← All classes
+            </button>
+          ) : (
+            <button
+              onClick={loadClasses}
+              disabled={status === 'loading'}
+              aria-label="Refresh stats"
+              title="Refresh"
+              className="aura-icon-btn h-9 w-9 text-lg active:scale-90 disabled:opacity-50 sm:h-11 sm:w-11"
+            >
+              <span className={status === 'loading' ? 'inline-block animate-spin' : ''}>🔄</span>
+            </button>
+          )}
+          {!embedded && (
+            <button
+              onClick={onClose}
+              aria-label="Close"
+              className="aura-icon-btn h-9 w-9 text-lg font-bold active:scale-90 sm:h-11 sm:w-11"
+            >
+              ✕
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div
+        className="flex-1 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5"
+        style={{ fontFamily: "'Nunito', sans-serif" }}
+      >
+        {!selected && (
+          <>
+            {status === 'loading' && <LoadingBlock label="Loading classes…" />}
+            {status === 'error' && (
+              <ErrorBlock label="Couldn't load class stats." onRetry={loadClasses} />
+            )}
+            {status === 'ready' && (
+              <>
+                <div className="mx-auto mb-4 grid max-w-md grid-cols-2 gap-3">
+                  <StatCard label="Classes" value={classes.length} />
+                  <StatCard label="Total plays" value={totalPlaysAll} />
+                </div>
+                {classes.length === 0 ? (
+                  <p className="py-10 text-center font-bold aura-muted">No classes yet.</p>
+                ) : (
+                  <ul className="flex flex-col gap-2.5">
+                    {classes.map((c) => (
+                      <li key={c.classId}>
+                        <button
+                          type="button"
+                          onClick={() => openClass(c)}
+                          className="aura-card flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left transition hover:bg-white/10 active:scale-[0.99]"
+                        >
+                          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500/40 to-cyan-500/40 text-lg">
+                            🏫
+                          </span>
+                          <span className="min-w-0 flex-1">
+                            <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                              <span className="truncate text-sm font-black aura-text sm:text-base">
+                                {c.className}
+                              </span>
+                              {c.classAlias && c.classAlias !== c.className && (
+                                <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-bold aura-soft">
+                                  {c.classAlias}
+                                </span>
+                              )}
+                              {!c.active && (
+                                <span className="rounded-full bg-rose-500/25 px-2 py-0.5 text-[10px] font-black text-rose-100">
+                                  Inactive
+                                </span>
+                              )}
+                            </span>
+                            <span className="mt-1 block font-mono text-[11px] font-bold aura-muted">
+                              {c.classCode || c.classId}
+                            </span>
+                          </span>
+                          <span className="flex shrink-0 flex-col items-end gap-0.5">
+                            <span className="rounded-full bg-indigo-500/25 px-2.5 py-1 text-[11px] font-black text-indigo-100">
+                              {c.totalPlays ?? 0} plays
+                            </span>
+                            <span className="rounded-full bg-cyan-500/25 px-2.5 py-1 text-[11px] font-black text-cyan-100">
+                              {c.totalPlayers ?? 0} players
+                            </span>
+                          </span>
+                          <span className="shrink-0 text-lg aura-muted">›</span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </>
+            )}
+          </>
+        )}
+
+        {selected && (
+          <>
+            {detailStatus === 'loading' && <LoadingBlock label="Loading class stats…" />}
+            {detailStatus === 'error' && (
+              <ErrorBlock
+                label={detailError || "Couldn't load class stats."}
+                onRetry={() => openClass(selected)}
+              />
+            )}
+            {detailStatus === 'ready' && detail && (
+              <>
+                <div className="mx-auto mb-5 grid max-w-sm grid-cols-2 gap-3">
+                  <StatCard label="Total plays" value={detail.totalPlays} />
+                  <StatCard label="Players" value={detail.uniquePlayers} />
+                </div>
+                {!detail.perGame || detail.perGame.length === 0 ? (
+                  <p className="py-8 text-center font-bold aura-muted">
+                    No plays logged for this class yet.
+                  </p>
+                ) : (
+                  <div className="aura-card overflow-x-auto rounded-2xl">
+                    <table className="w-full min-w-[420px] text-sm">
+                      <thead className="aura-table-head text-xs font-bold uppercase tracking-wide">
+                        <tr>
+                          <th className="px-4 py-3 text-left">Game</th>
+                          <th className="px-4 py-3 text-center">Plays</th>
+                          <th className="px-4 py-3 text-center">Players</th>
+                          <th className="px-4 py-3 text-center">Avg score</th>
+                          <th className="px-4 py-3 text-center">Streak / Time</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {detail.perGame.map((g) => (
+                          <tr key={g._id} className="aura-table-row">
+                            <td className="px-4 py-3.5 text-left font-bold aura-text">
+                              {gameLabel(g._id)}
+                            </td>
+                            <td className="px-4 py-3.5 text-center aura-soft">{g.plays ?? 0}</td>
+                            <td className="px-4 py-3.5 text-center aura-soft">{g.players ?? 0}</td>
+                            <td className="px-4 py-3.5 text-center aura-soft">
+                              {g.avgStars != null ? `${Number(g.avgStars).toFixed(1)} ★` : '—'}
+                            </td>
+                            <td className="px-4 py-3.5 text-center aura-soft">
+                              {isBonusGame(g._id)
+                                ? `⏱️ ${formatSeconds(g.avgElapsedSeconds)}`
+                                : `🔥 ${Number(g.avgBestStreak ?? g.bestStreak ?? 0).toFixed(1)}`}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </>
+            )}
+          </>
+        )}
+      </div>
+    </>
+  );
+
+  if (embedded) {
+    return <div className="aura-card overflow-hidden rounded-3xl">{inner}</div>;
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-3 sm:p-4" onClick={onClose}>
+      <motion.div
+        initial={{ scale: 0.9, opacity: 0, y: 20 }}
+        animate={{ scale: 1, opacity: 1, y: 0 }}
+        transition={{ type: 'spring', stiffness: 260, damping: 24 }}
+        className="relative flex h-[90dvh] w-full max-w-4xl flex-col overflow-hidden rounded-[2rem] aura-card shadow-2xl sm:h-[85vh]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {inner}
+      </motion.div>
+    </div>
+  );
+}
+
+// Small shared loading/error blocks for the admin stats view.
+function LoadingBlock({ label }) {
+  return (
+    <div className="flex flex-col items-center justify-center gap-2 py-10 aura-muted sm:py-16">
+      <span className="animate-bounce text-4xl">⏳</span>
+      <p className="font-bold">{label}</p>
+    </div>
+  );
+}
+
+function ErrorBlock({ label, onRetry }) {
+  return (
+    <div className="flex flex-col items-center justify-center gap-3 py-10 text-center aura-muted sm:py-16">
+      <span className="text-4xl">😕</span>
+      <p className="font-bold aura-soft">{label}</p>
+      <button
+        onClick={onRetry}
+        className="rounded-full bg-violet-500/25 px-5 py-2.5 text-sm font-bold text-violet-100 active:scale-95 hover:bg-violet-500/40"
+      >
+        Try again
+      </button>
+    </div>
+  );
+}
+
+// Public entry: picks the admin or teacher implementation. The branch lives in
+// a wrapper (not inside one component) so each mode keeps its own stable hook
+// order.
+export default function StatsPanel({ onClose, embedded = false, adminMode = false }) {
+  if (adminMode) {
+    return <AdminStatsView onClose={onClose} embedded={embedded} />;
+  }
+  return <TeacherStatsPanel onClose={onClose} embedded={embedded} />;
 }
