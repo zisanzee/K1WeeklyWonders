@@ -47,8 +47,12 @@ export default function MaintenanceGate({ children }) {
   const staff =
     isTeacher || isAdmin || identityKind === 'teacher' || identityKind === 'admin';
 
-  // Staff never see a countdown; students do when one is scheduled.
-  const countdown = staff ? null : useCountdown(maintenanceEndsAt);
+  // IMPORTANT: useCountdown must be called UNCONDITIONALLY. It used to be
+  // `staff ? null : useCountdown(...)`, which skipped the hook for staff — so
+  // signing a teacher/admin in or out changed the hook count mid-session and
+  // React crashed to a black screen until a manual refresh. Passing null simply
+  // disables the timer instead.
+  const countdown = useCountdown(staff ? null : maintenanceEndsAt);
 
   const showOverlay = maintenanceMode && !staff && !escapeHatch;
 

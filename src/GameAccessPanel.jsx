@@ -20,6 +20,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { usePlayerStore } from './playerStore';
+import { confirmDialog } from './confirmDialog';
 import {
   addGameForClass,
   fetchGameAccessForClass,
@@ -1060,13 +1061,15 @@ function IdentityRow({
 
   const handleDelete = async () => {
     if (deleting) return;
-    if (
-      !window.confirm(
-        `Remove ${identity.name} from the roster? Their play history for this class will be removed too.`
-      )
-    ) {
-      return;
-    }
+    const ok = await confirmDialog({
+      title: `Remove ${identity.name}?`,
+      message: 'Their play history for this class will be removed too.',
+      confirmLabel: 'Remove',
+      cancelLabel: 'Keep',
+      danger: true,
+      icon: '🗑️',
+    });
+    if (!ok) return;
     setDeleting(true);
     setError(null);
     try {
@@ -1294,7 +1297,13 @@ function StudentsTab({ classId, teacherCode, className }) {
   };
 
   const handleUnmerge = async (memberName) => {
-    if (!window.confirm(`Unmerge "${memberName}" back into its own identity?`)) return;
+    const ok = await confirmDialog({
+      title: `Unmerge "${memberName}"?`,
+      message: 'They will become their own identity again and their stats will split out.',
+      confirmLabel: 'Unmerge',
+      icon: '↩️',
+    });
+    if (!ok) return;
     setBusy(true);
     setError(null);
     try {
@@ -1596,8 +1605,16 @@ function TeacherSettings({ classId, teacherCode, teacherName, onClose, resetPlay
         </div>
         <button
           type="button"
-          onClick={() => {
-            if (window.confirm("Sign out and switch account?")) {
+          onClick={async () => {
+            const ok = await confirmDialog({
+              title: 'Sign out?',
+              message: 'You will need your code to sign back in.',
+              confirmLabel: 'Sign out',
+              cancelLabel: 'Stay',
+              danger: true,
+              icon: '👋',
+            });
+            if (ok) {
               resetPlayer();
               onClose?.();
             }
@@ -2413,8 +2430,16 @@ function AdminSettings({ teacherName, onClose, resetPlayer }) {
         </div>
         <button
           type="button"
-          onClick={() => {
-            if (window.confirm("Sign out of the admin account?")) {
+          onClick={async () => {
+            const ok = await confirmDialog({
+              title: 'Sign out of admin?',
+              message: 'You will need the admin code to sign back in.',
+              confirmLabel: 'Sign out',
+              cancelLabel: 'Stay',
+              danger: true,
+              icon: '👋',
+            });
+            if (ok) {
               resetPlayer();
               onClose?.();
             }

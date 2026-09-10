@@ -9,6 +9,7 @@ import NextGameTimer from "./NextGameTimer";
 import { usePlayerStore } from "./playerStore";
 import { GAME_CATALOG, useGameAccessStore, isGameUnlockedNow } from "./gameAccess";
 import { fetchSummary, fetchLeaderboard } from "./logPlaySession";
+import { confirmDialog } from "./confirmDialog";
 import WeeklyGoals from "./WeeklyGoals";
 
 // ---------------------------------------------------------------------------
@@ -1279,11 +1280,17 @@ function SwitchPlayerButton({ onReset }) {
   return (
     <motion.button
       type="button"
-      onClick={() => {
+      onClick={async () => {
         // Guard against an accidental tap mid-play — switching signs the user out.
-        if (window.confirm("Switch player? You'll be signed out and asked for a code again.")) {
-          onReset();
-        }
+        const ok = await confirmDialog({
+          title: "Switch player?",
+          message: "You'll be signed out and asked to enter a code again.",
+          confirmLabel: "Switch player",
+          cancelLabel: "Stay",
+          danger: true,
+          icon: "🔄",
+        });
+        if (ok) onReset();
       }}
       whileHover={{ scale: 1.04 }}
       whileTap={{ scale: 0.96 }}

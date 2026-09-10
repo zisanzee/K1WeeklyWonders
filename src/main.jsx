@@ -7,6 +7,7 @@ import { HelmetProvider } from "react-helmet-async";
 import { warmupSpeech } from "./Phaser/common/speech";
 import RotateHint from "./RotateHint";
 import MaintenanceGate from "./MaintenanceGate";
+import { ConfirmHost } from "./confirmDialog";
 import { usePlayerStore } from "./playerStore";
 
 // Prime the TTS engine immediately so every game's first utterance plays
@@ -89,6 +90,7 @@ ReactDOM.createRoot(document.getElementById("root")).render(
   <HelmetProvider>
     <BrowserRouter>
       <RotateHint />
+      <ConfirmHost />
       <AuthBootstrap>
         <MaintenanceGate>
           <Suspense fallback={<GameLoading />}>

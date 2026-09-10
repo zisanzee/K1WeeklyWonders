@@ -181,6 +181,10 @@ export const usePlayerStore = create(
       resetPlayer: () => get().signOut(),
     }),
     {
+      // ⚠️ DO NOT change `name` or `version` in normal updates. Changing EITHER
+      // one makes every device read a missing/older session and logs everyone
+      // out again. They are only ever bumped intentionally to force a global
+      // reset — which is exactly what happened once, at the overhaul below.
       name: 'ezwonders-player',
       version: 3,
       // Persist ONLY the credential. Everything else is re-fetched on load.
@@ -189,8 +193,9 @@ export const usePlayerStore = create(
         name: state.name,
         mode: state.mode,
       }),
-      // Any older stored session is discarded so everyone re-logs in once with
-      // the code-only store. Bump `version` to force another reset later.
+      // v1/v2 sessions (pre-code-only) are discarded a single time so everyone
+      // signs in once through the new flow. A session already at v3 is returned
+      // untouched, so ordinary deploys never log anyone out.
       migrate: (_persisted, version) => (version < 3 ? {} : _persisted),
     }
   )

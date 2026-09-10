@@ -9,6 +9,7 @@ import {
   fetchAdminClassDetail,
 } from './logPlaySession';
 import { usePlayerStore } from './playerStore';
+import { confirmDialog } from './confirmDialog';
 
 const GAME_LABELS = {
   game1: '🧺 Count & Win',
@@ -392,8 +393,16 @@ function TeacherStatsPanel({ onClose, embedded = false }) {
     };
   }, [onClose, embedded]);
 
-  const handleSwitchTeacher = () => {
-    if (window.confirm("Sign out and switch teacher account?")) {
+  const handleSwitchTeacher = async () => {
+    const ok = await confirmDialog({
+      title: 'Sign out?',
+      message: 'You will need your teacher code to sign back in.',
+      confirmLabel: 'Sign out',
+      cancelLabel: 'Stay',
+      danger: true,
+      icon: '👋',
+    });
+    if (ok) {
       resetPlayer();
       onClose?.();
     }
