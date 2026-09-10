@@ -1,1 +1,11 @@
+# --- Old Netlify domain → new custom domain -------------------------------
+# Keeps old links and any already-printed badge QR codes working by 301-ing
+# the old host to the new one. The `!` forces the redirect even for paths
+# that look like files. This only matches the OLD host, so the new domain is
+# never affected. Remove this block once the old domain is fully retired.
+https://k1weekly.netlify.app/*    https://ezwonders.com/:splat    301!
+
+# --- SPA fallback ----------------------------------------------------------
+# Every other path serves the app shell so client-side routes (e.g. /game1,
+# /p/:code, /game-access) work on a hard refresh or direct visit.
 /*    /index.html   200
