@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react';
+import { motion } from 'motion/react';
 import { usePlayerStore } from './playerStore';
 import { useSystemConfigStore, startSystemConfigPolling } from './systemConfig';
+
+const LOGO_SRC = '/android-chrome-512x512.png';
 
 // Counts down to an optional scheduled maintenance end time. Returns null when
 // there is no end time or it has already passed.
@@ -24,11 +27,24 @@ function useCountdown(endsAt) {
   return `${hours > 0 ? `${hours}h ` : ''}${minutes}m ${seconds}s`;
 }
 
+// Tiny branded splash shown while the very first maintenance-mode check is in
+// flight, so we never flash the app (or the login screen) on top of a
+// maintenance lockout.
+function BootSplash() {
+  return (
+    <div className="aura-page flex min-h-[100dvh] flex-col items-center justify-center gap-4 px-6">
+      <span className="inline-block h-10 w-10 animate-spin rounded-full border-[3px] border-white/70 border-t-transparent" />
+      <p className="text-sm font-black uppercase tracking-[0.2em] text-white/80">
+        EZ Wonders
+      </p>
+    </div>
+  );
+}
+
 // Sits above every route. When maintenance mode is ON:
 //  - teachers/admins see the app normally (plus a small amber ribbon),
-//  - students (and not-yet-identified visitors) see a full-screen overlay.
-// Not-yet-identified visitors also get an "I'm a teacher / admin" escape hatch
-// so staff can still reach the login form during maintenance.
+//  - EVERYONE else — including visitors who haven't logged in yet — sees the
+//    full-screen maintenance page, which also offers a teacher/admin sign-in.
 export default function MaintenanceGate({ children }) {
   const identityKind = usePlayerStore((state) => state.identityKind);
   const isTeacher = usePlayerStore((state) => state.isTeacher);
@@ -37,8 +53,9 @@ export default function MaintenanceGate({ children }) {
   const maintenanceMode = useSystemConfigStore((state) => state.maintenanceMode);
   const maintenanceMessage = useSystemConfigStore((state) => state.maintenanceMessage);
   const maintenanceEndsAt = useSystemConfigStore((state) => state.maintenanceEndsAt);
+  const configLoaded = useSystemConfigStore((state) => state.loaded);
 
-  const [escapeHatch, setEscapeHatch] = useState(false);
+  const [staffLoginOpen, setStaffLoginOpen] = useState(false);
 
   useEffect(() => {
     startSystemConfigPolling();
@@ -54,11 +71,14 @@ export default function MaintenanceGate({ children }) {
   // disables the timer instead.
   const countdown = useCountdown(staff ? null : maintenanceEndsAt);
 
-  const showOverlay = maintenanceMode && !staff && !escapeHatch;
+  // Hold the very first paint until we know whether maintenance is on, so
+  // logged-out visitors see the maintenance page (not a flash of the login).
+  if (!configLoaded) return <BootSplash />;
 
+  const showOverlay = maintenanceMode && !staff && !staffLoginOpen;
   const heading = maintenanceMessage?.trim()
     ? maintenanceMessage.trim()
-    : 'EZ Wonders is under maintenance 🔧';
+    : 'EZ Wonders is under maintenance';
 
   return (
     <>
@@ -70,33 +90,89 @@ export default function MaintenanceGate({ children }) {
       )}
 
       {showOverlay ? (
-        <main className="aura-page relative flex min-h-[100dvh] flex-col items-center justify-center overflow-hidden px-6 text-center">
-          <div className="pointer-events-none absolute -left-16 top-16 h-48 w-48 rounded-full bg-amber-400/30 blur-3xl" />
-          <div className="pointer-events-none absolute -right-12 bottom-6 h-52 w-52 rounded-full bg-violet-500/30 blur-3xl" />
+        <main className="aura-page relative flex min-h-[100dvh] items-center justify-center overflow-hidden px-5 py-8">
+          {/* Ambient background */}
+          <div className="pointer-events-none absolute -left-24 top-10 h-72 w-72 rounded-full bg-amber-400/25 blur-3xl" />
+          <div className="pointer-events-none absolute -right-20 bottom-0 h-80 w-80 rounded-full bg-violet-500/30 blur-3xl" />
+          <div className="pointer-events-none absolute left-1/2 top-1/3 h-64 w-64 -translate-x-1/2 rounded-full bg-sky-400/20 blur-3xl" />
+          <span className="pointer-events-none absolute left-[8%] top-[14%] text-3xl opacity-70 sm:text-4xl">
+            ⚙️
+          </span>
+          <span className="pointer-events-none absolute right-[10%] top-[22%] text-2xl opacity-70 sm:text-3xl">
+            ✨
+          </span>
+          <span className="pointer-events-none absolute bottom-[12%] left-[12%] text-3xl opacity-60 sm:text-4xl">
+            🔧
+          </span>
 
-          <div className="aura-panel relative z-10 w-full max-w-md rounded-[2rem] px-7 py-9">
-            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-amber-400/20 text-4xl">
-              🔧
+          <motion.section
+            initial={{ opacity: 0, y: 22, scale: 0.97 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            transition={{ type: 'spring', stiffness: 240, damping: 24 }}
+            className="aura-panel relative z-10 w-full max-w-md overflow-hidden rounded-[2rem] px-6 py-8 text-center sm:px-8 sm:py-10"
+          >
+            {/* Brand row */}
+            <div className="flex items-center justify-center gap-2">
+              <img
+                src={LOGO_SRC}
+                alt="EZ Wonders"
+                className="h-9 w-9 rounded-xl shadow-sm"
+              />
+              <span className="text-[11px] font-black uppercase tracking-[0.24em] text-white/80">
+                EZ Wonders
+              </span>
             </div>
-            <h1 className="mt-5 text-2xl font-black text-white sm:text-3xl">
+
+            {/* Pulsing tool badge */}
+            <motion.div
+              animate={{ y: [0, -5, 0], rotate: [-3, 3, -3] }}
+              transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
+              className="mx-auto mt-6 flex h-20 w-20 items-center justify-center rounded-[1.5rem] text-4xl shadow-lg ring-4 ring-white/30"
+              style={{
+                background:
+                  'linear-gradient(135deg, #fde68a 0%, #f59e0b 55%, #f97316 100%)',
+              }}
+            >
+              🔧
+            </motion.div>
+
+            <h1 className="mt-6 text-2xl font-black leading-tight text-white sm:text-3xl">
               {heading}
             </h1>
-            <p className="mt-3 text-base font-bold text-white/85">Come back later!</p>
+            <p className="mx-auto mt-3 max-w-xs text-base font-bold text-white/85">
+              We&rsquo;re making things even more wonderful. Come back later!
+            </p>
 
             {countdown && (
-              <p className="mt-4 inline-block rounded-full bg-white/15 px-4 py-2 text-sm font-black text-white">
-                Back in {countdown}
-              </p>
+              <motion.p
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="mx-auto mt-5 inline-flex items-center gap-2 rounded-full bg-white/15 px-4 py-2 text-sm font-black text-white"
+              >
+                <span aria-hidden="true">⏳</span> Back in {countdown}
+              </motion.p>
             )}
+
+            {/* Divider */}
+            <div className="my-7 flex items-center gap-3">
+              <span className="h-px flex-1 bg-white/20" />
+              <span className="text-[10px] font-black uppercase tracking-[0.2em] text-white/50">
+                Teachers & admins
+              </span>
+              <span className="h-px flex-1 bg-white/20" />
+            </div>
 
             <button
               type="button"
-              onClick={() => setEscapeHatch(true)}
-              className="aura-soft mt-8 block w-full text-sm font-extrabold transition hover:text-white"
+              onClick={() => setStaffLoginOpen(true)}
+              className="flex w-full items-center justify-center gap-2 rounded-2xl bg-white/95 px-5 py-3.5 text-sm font-black text-violet-700 shadow-[0_5px_0_rgba(0,0,0,0.18)] transition hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-none"
             >
-              I&rsquo;m a teacher / admin
+              <span aria-hidden="true">🔑</span> Sign in as teacher / admin
             </button>
-          </div>
+            <p className="mt-3 text-[11px] font-semibold text-white/60">
+              Students don&rsquo;t need to do anything — just check back soon.
+            </p>
+          </motion.section>
         </main>
       ) : (
         children
