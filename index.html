@@ -9,16 +9,21 @@
       content="4LYbvRgpXT6mgIF2ONHLGOf9twVoWbdfraGZpSBPOG0"
     />
 
-    <title>EZ Wonders | Interactive Kindergarten Numeracy Games</title>
+    <title>EZ Wonders | Free Kindergarten Numeracy & Maths Games</title>
     <meta
       name="description"
-      content="EZ Wonders offers free interactive numeracy games for Kindergarten students. Practice counting, number recognition, part-whole relationships, sequencing, and more through engaging educational activities."
+      content="EZ Wonders is a free, interactive numeracy platform for Kindergarten children — playful maths games for counting, number recognition, comparing quantities, number bonds and sequencing, plus class tools for teachers."
+    />
+    <meta
+      name="keywords"
+      content="EZ Wonders, kindergarten maths games, numeracy games for kids, counting games, number bonds, part-part-whole, early years maths, free educational games, reception maths"
     />
 
     <meta name="application-name" content="EZ Wonders" />
     <meta name="author" content="EZ Wonders" />
     <meta name="theme-color" content="#3fb6ea" />
-    <meta name="robots" content="index,follow" />
+    <meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1" />
+    <meta name="format-detection" content="telephone=no" />
 
     <link rel="canonical" href="https://ezwonders.com/" />
 
@@ -38,44 +43,157 @@
 
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="EZ Wonders" />
-    <meta property="og:title" content="EZ Wonders | Interactive Kindergarten Numeracy Games" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:title" content="EZ Wonders | Free Kindergarten Numeracy & Maths Games" />
     <meta
       property="og:description"
-      content="Free interactive numeracy games for Kindergarten students."
+      content="Free interactive numeracy games for Kindergarten children — counting, number recognition, comparing quantities, number bonds and sequencing, with class tools for teachers."
     />
     <meta property="og:url" content="https://ezwonders.com/" />
     <!-- Points at the 512px app icon that actually exists in public/, so the
          social preview never resolves to a missing image. -->
     <meta property="og:image" content="https://ezwonders.com/android-chrome-512x512.png" />
+    <meta property="og:image:width" content="512" />
+    <meta property="og:image:height" content="512" />
+    <meta property="og:image:alt" content="EZ Wonders — kindergarten numeracy games" />
 
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="EZ Wonders | Interactive Kindergarten Numeracy Games" />
+    <meta name="twitter:title" content="EZ Wonders | Free Kindergarten Numeracy & Maths Games" />
     <meta
       name="twitter:description"
-      content="Free interactive numeracy games for Kindergarten students."
+      content="Free interactive numeracy games for Kindergarten children, with class tools for teachers."
     />
     <meta name="twitter:image" content="https://ezwonders.com/android-chrome-512x512.png" />
+    <meta name="twitter:image:alt" content="EZ Wonders — kindergarten numeracy games" />
 
     <!--
-      Static structured data, in the raw HTML rather than injected by React/Helmet.
-      This guarantees Google sees an explicit site name no matter what — it
-      doesn't depend on JS executing or the name-gate state, unlike anything
-      rendered client-side.
+      Static structured data (raw HTML, not injected by React) so search engines
+      and AI crawlers always see an explicit site name and a real description,
+      regardless of whether they execute JavaScript or hit the login gate.
     -->
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
-        "@type": "WebSite",
-        "name": "EZ Wonders",
-        "alternateName": "EZ Wonders",
-        "url": "https://ezwonders.com/",
-        "description": "Free interactive numeracy games for Kindergarten students.",
-        "inLanguage": "en"
+        "@graph": [
+          {
+            "@type": "Organization",
+            "@id": "https://ezwonders.com/#organization",
+            "name": "EZ Wonders",
+            "url": "https://ezwonders.com/",
+            "logo": "https://ezwonders.com/android-chrome-512x512.png",
+            "description": "EZ Wonders builds free interactive numeracy games for Kindergarten children."
+          },
+          {
+            "@type": "WebSite",
+            "@id": "https://ezwonders.com/#website",
+            "name": "EZ Wonders",
+            "alternateName": "EZ Wonders",
+            "url": "https://ezwonders.com/",
+            "inLanguage": "en",
+            "publisher": { "@id": "https://ezwonders.com/#organization" }
+          },
+          {
+            "@type": "WebApplication",
+            "name": "EZ Wonders",
+            "url": "https://ezwonders.com/",
+            "applicationCategory": "EducationalApplication",
+            "operatingSystem": "Web, Android, iOS",
+            "browserRequirements": "Requires JavaScript",
+            "description": "Free interactive numeracy games for Kindergarten children, covering counting, number recognition, comparing quantities, number bonds (part-part-whole) and sequencing, with a class management panel for teachers.",
+            "inLanguage": "en",
+            "isAccessibleForFree": true,
+            "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+            "publisher": { "@id": "https://ezwonders.com/#organization" }
+          },
+          {
+            "@type": "FAQPage",
+            "mainEntity": [
+              {
+                "@type": "Question",
+                "name": "What is EZ Wonders?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "EZ Wonders is a free web platform of short, playful numeracy games for Kindergarten children, with a control panel that lets teachers manage games, student codes and progress."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Is EZ Wonders free?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Yes. EZ Wonders is completely free to play in the browser and works on phones, tablets and computers."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "What age is EZ Wonders for?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "It is designed for Kindergarten / Reception-aged children (roughly 4 to 6 years old) and focuses on early numeracy."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "How do students log in?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "A student joins their own class using either a class code plus their name (public classes) or an individual student code provided by their teacher (private classes)."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "What maths skills does EZ Wonders cover?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Counting and numeral recognition, comparing quantities (more, fewer, the same), subitising with dice and dominoes, number bonds and part-part-whole, and ascending/descending number order."
+                }
+              }
+            ]
+          }
+        ]
       }
     </script>
   </head>
   <body>
     <div id="root"></div>
+
+    <!--
+      Crawlable fallback content. The app is a JavaScript SPA behind a code
+      gate, so without JS there would be nothing for search engines or AI
+      crawlers to read. This gives them real, descriptive text.
+    -->
+    <noscript>
+      <main>
+        <h1>EZ Wonders — free kindergarten numeracy games</h1>
+        <p>
+          EZ Wonders is a free, interactive early-years maths platform for
+          Kindergarten children. Students join their class and play short,
+          playful games that build counting, number recognition, comparing
+          quantities, number bonds (part-part-whole) and sequencing. Teachers
+          get a class panel to manage games, student codes and class progress.
+        </p>
+        <h2>Games included</h2>
+        <ul>
+          <li>Count & Win! — numeral and number-word counting</li>
+          <li>Comparing Quantities — more, fewer and the same</li>
+          <li>Which Number? — before and after</li>
+          <li>Compare Die and Dominoes — subitising</li>
+          <li>Making & Splitting Groups — number bonds 1–5</li>
+          <li>Part-Part-Whole! — number bonds 1–10</li>
+          <li>Mama Bird's Eggs — number bonds 1–10</li>
+          <li>Pizza Order! — number bonds 1–10</li>
+          <li>Polly's Treasure Quest — number bonds 1–10</li>
+          <li>Number Pop! (bonus) — ascending and descending order</li>
+        </ul>
+        <p>
+          How to sign in: enter the class code your teacher gave you (and your
+          name), or your individual student code. Teachers and admins sign in
+          with their own code. Please enable JavaScript to play.
+        </p>
+        <p><a href="https://ezwonders.com/">Open EZ Wonders</a></p>
+      </main>
+    </noscript>
+
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

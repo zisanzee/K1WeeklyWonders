@@ -1542,6 +1542,20 @@ function BetaHomeContent() {
 
       <FloatingDecor />
 
+      {/* Visually-hidden, crawlable page summary. The visible app sits behind a
+          code gate, so this gives search engines (and AI crawlers) real page
+          text without changing anything a user sees. */}
+      <div className="sr-only">
+        <h1>EZ Wonders — free interactive numeracy games for Kindergarten</h1>
+        <p>
+          EZ Wonders is a free early-years maths platform for Kindergarten and
+          Reception children. Students join their class and play short, playful
+          games that build counting, number recognition, comparing quantities,
+          number bonds (part-part-whole) and sequencing. Teachers use a class
+          panel to arrange games, manage student codes and follow progress.
+        </p>
+      </div>
+
       {/* ================================================================
           TEACHER NAV BAR
           ================================================================ */}

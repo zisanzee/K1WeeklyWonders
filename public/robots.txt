@@ -1,4 +1,10 @@
+# EZ Wonders — free kindergarten numeracy games (https://ezwonders.com)
+# Everything is crawlable except per-student login links (they contain private
+# codes) and the teacher/admin panel.
+
 User-agent: *
 Allow: /
+Disallow: /p/
+Disallow: /game-access
 
 Sitemap: https://ezwonders.com/sitemap.xml
