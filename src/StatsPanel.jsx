@@ -393,8 +393,10 @@ function TeacherStatsPanel({ onClose, embedded = false }) {
   }, [onClose, embedded]);
 
   const handleSwitchTeacher = () => {
-    resetPlayer();
-    onClose?.();
+    if (window.confirm("Sign out and switch teacher account?")) {
+      resetPlayer();
+      onClose?.();
+    }
   };
 
   const handleSort = (key) => {

@@ -1,4 +1,4 @@
-import { Suspense, lazy } from "react";
+import { Suspense, lazy, useEffect, useState } from "react";
 import ReactDOM from "react-dom/client";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import "./index.css";
@@ -7,6 +7,7 @@ import { HelmetProvider } from "react-helmet-async";
 import { warmupSpeech } from "./Phaser/common/speech";
 import RotateHint from "./RotateHint";
 import MaintenanceGate from "./MaintenanceGate";
+import { usePlayerStore } from "./playerStore";
 
 // Prime the TTS engine immediately so every game's first utterance plays
 // with zero delay — by the time the player taps a game tile, the
@@ -62,13 +63,36 @@ function GameLoading() {
   );
 }
 
+// Resolves the stored code into a full identity BEFORE the app renders, so a
+// logged-in user never flashes the login screen and a login/logout takes effect
+// immediately (no manual refresh). Only the code is stored locally; the rest is
+// fetched here from the DB.
+function AuthBootstrap({ children }) {
+  const hydrate = usePlayerStore((s) => s.hydrate);
+  const [booted, setBooted] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    Promise.resolve(hydrate()).finally(() => {
+      if (!cancelled) setBooted(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [hydrate]);
+
+  if (!booted) return <GameLoading />;
+  return children;
+}
+
 ReactDOM.createRoot(document.getElementById("root")).render(
   <HelmetProvider>
     <BrowserRouter>
       <RotateHint />
-      <MaintenanceGate>
-        <Suspense fallback={<GameLoading />}>
-          <Routes>
+      <AuthBootstrap>
+        <MaintenanceGate>
+          <Suspense fallback={<GameLoading />}>
+            <Routes>
             {/* BetaHome is now the real production home at the root path. */}
             <Route path="/" element={<BetaHome />} />
             {/* Keep the old URL working as an alias, but never as the primary. */}
@@ -85,9 +109,10 @@ ReactDOM.createRoot(document.getElementById("root")).render(
             <Route path="/bonus-game1" element={<PhaserDemo />} />
             <Route path="/game-access" element={<GameAccessPage />} />
             <Route path="/p/:code" element={<StudentLogin />} />
-          </Routes>
-        </Suspense>
-      </MaintenanceGate>
+            </Routes>
+          </Suspense>
+        </MaintenanceGate>
+      </AuthBootstrap>
     </BrowserRouter>
   </HelmetProvider>
 );

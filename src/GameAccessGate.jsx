@@ -27,6 +27,11 @@ export default function GameAccessGate({ gameNumber, gameLabel, children }) {
     return () => clearTimeout(tooLongTimer);
   }, [classId, loaded, loadedClassId, fetchGameAccess]);
 
+  // Teachers/admins always pass straight through. This must come BEFORE the
+  // loading gate: the global admin has no classId, so game-access data never
+  // loads for them and they'd otherwise be stuck on the spinner forever.
+  if (isTeacher) return children;
+
   // While the class's game-access data is loading, show a spinner
   // instead of a blank screen so the user knows something is happening.
   if (!loaded || loadedClassId !== classId) {
@@ -75,7 +80,6 @@ export default function GameAccessGate({ gameNumber, gameLabel, children }) {
     );
   }
 
-  if (isTeacher) return children;
   if (unlocked) return children;
 
   return (

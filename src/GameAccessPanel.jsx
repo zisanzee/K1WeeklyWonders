@@ -1033,6 +1033,7 @@ function IdentityRow({
   const [name, setName] = useState(identity.name || '');
   const [code, setCode] = useState(identity.code || '');
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState(null);
   const check = useCodeCheck(editing ? code : '', { studentId: identity.studentId });
 
@@ -1058,13 +1059,24 @@ function IdentityRow({
   };
 
   const handleDelete = async () => {
-    if (!window.confirm(`Remove ${identity.name} from the roster?`)) return;
+    if (deleting) return;
+    if (
+      !window.confirm(
+        `Remove ${identity.name} from the roster? Their play history for this class will be removed too.`
+      )
+    ) {
+      return;
+    }
+    setDeleting(true);
     setError(null);
     try {
       await deleteStudentInClass(classId, identity.studentId, teacherCode);
+      // Leave `deleting` true — the parent reload drops this row from the list,
+      // so the spinner stays until the row actually disappears.
       onChanged?.();
     } catch (err) {
       setError(err.message || 'Could not delete student.');
+      setDeleting(false);
     }
   };
 
@@ -1173,13 +1185,18 @@ function IdentityRow({
               <button
                 type="button"
                 onClick={handleDelete}
+                disabled={deleting}
                 title="Delete student"
                 aria-label={`Delete ${identity.name}`}
-                className="aura-icon-btn aura-ghost-danger h-9 w-9 active:scale-95"
+                className="aura-icon-btn aura-ghost-danger h-9 w-9 active:scale-95 disabled:opacity-60"
               >
-                <svg viewBox="0 0 24 24" className="h-[18px] w-[18px]" fill="currentColor" aria-hidden="true">
-                  <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" />
-                </svg>
+                {deleting ? (
+                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                ) : (
+                  <svg viewBox="0 0 24 24" className="h-[18px] w-[18px]" fill="currentColor" aria-hidden="true">
+                    <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" />
+                  </svg>
+                )}
               </button>
             </div>
           )}
@@ -1580,8 +1597,10 @@ function TeacherSettings({ classId, teacherCode, teacherName, onClose, resetPlay
         <button
           type="button"
           onClick={() => {
-            resetPlayer();
-            onClose?.();
+            if (window.confirm("Sign out and switch account?")) {
+              resetPlayer();
+              onClose?.();
+            }
           }}
           className="aura-ghost shrink-0 rounded-full px-4 py-2 text-xs font-black"
         >
@@ -2395,8 +2414,10 @@ function AdminSettings({ teacherName, onClose, resetPlayer }) {
         <button
           type="button"
           onClick={() => {
-            resetPlayer();
-            onClose?.();
+            if (window.confirm("Sign out of the admin account?")) {
+              resetPlayer();
+              onClose?.();
+            }
           }}
           className="aura-ghost shrink-0 rounded-full px-4 py-2 text-xs font-black"
         >

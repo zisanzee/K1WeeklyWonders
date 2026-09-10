@@ -7,7 +7,7 @@ import { twMerge } from "tailwind-merge";
 import NameGate from "./NameGate";
 import NextGameTimer from "./NextGameTimer";
 import { usePlayerStore } from "./playerStore";
-import { useGameAccessStore, isGameUnlockedNow } from "./gameAccess";
+import { GAME_CATALOG, useGameAccessStore, isGameUnlockedNow } from "./gameAccess";
 import { fetchSummary, fetchLeaderboard } from "./logPlaySession";
 import WeeklyGoals from "./WeeklyGoals";
 
@@ -1279,7 +1279,12 @@ function SwitchPlayerButton({ onReset }) {
   return (
     <motion.button
       type="button"
-      onClick={onReset}
+      onClick={() => {
+        // Guard against an accidental tap mid-play — switching signs the user out.
+        if (window.confirm("Switch player? You'll be signed out and asked for a code again.")) {
+          onReset();
+        }
+      }}
       whileHover={{ scale: 1.04 }}
       whileTap={{ scale: 0.96 }}
       className="flex shrink-0 items-center gap-1 sm:gap-2 rounded-full px-3 py-1.5 sm:px-5 sm:py-2.5 text-[10px] sm:text-sm font-black text-white shadow-md sm:shadow-lg ring-2 sm:ring-4 ring-white/70"
@@ -1374,6 +1379,21 @@ function BetaHomeContent() {
   const unlocked = useGameAccessStore((s) => s.unlocked);
   const orderedGames = useGameAccessStore((s) => s.games);
 
+  // Admins aren't bound to a class, so they see the ENTIRE catalog (every game
+  // playable) and the app must not block on per-class game-access loading.
+  const adminCatalogGames = useMemo(
+    () =>
+      GAME_CATALOG.map((game, index) => ({
+        ...game,
+        unlocked: true,
+        shiny: false,
+        order: index,
+      })),
+    []
+  );
+  const sourceGames = isAdmin ? adminCatalogGames : orderedGames;
+  const accessReady = isAdmin || gameAccessReady;
+
   useEffect(() => {
     if (!classId) return;
     if (gameAccessReady) return;
@@ -1435,10 +1455,10 @@ function BetaHomeContent() {
   // their own spotlight section, which is sorted highest-number-first and so
   // intentionally does not follow the database order.
   const { featuredGames, regularGames } = useMemo(() => {
-    if (!orderedGames.length) return { featuredGames: [], regularGames: [] };
+    if (!sourceGames.length) return { featuredGames: [], regularGames: [] };
 
     let nextGameNumber = 0;
-    const numbered = orderedGames.map((game, index) => ({
+    const numbered = sourceGames.map((game, index) => ({
       ...game,
       displayNumber: game.isBonus ? "B" : String(++nextGameNumber),
       cardGradient: CARD_GRADIENTS[index % CARD_GRADIENTS.length],
@@ -1453,7 +1473,7 @@ function BetaHomeContent() {
     featured.sort((a, b) => sortValue(b) - sortValue(a));
 
     return { featuredGames: featured, regularGames: regular };
-  }, [orderedGames, isTeacher]);
+  }, [sourceGames, isTeacher]);
 
   // Every game the current viewer could actually open — used by the surprise
   // card so it only ever offers unlocked games (or all games for a teacher).
@@ -1533,7 +1553,7 @@ function BetaHomeContent() {
               style={{ background: "linear-gradient(135deg, #4ade80 0%, #16a34a 50%, #0891b2 100%)", fontWeight: 800 }}
             >
               <Icon name="shield" size="1em" />
-              Teacher controls
+              {isAdmin ? "Admin controls" : "Teacher controls"}
             </motion.button>
 
           </div>
@@ -1622,16 +1642,18 @@ function BetaHomeContent() {
       )}
 
       {/* ================================================================
-          TIMER + LEADERBOARD CARD
+          TIMER + LEADERBOARD CARD — hidden for admins (no class, no week)
           ================================================================ */}
-      <div className="relative z-10 px-3 pt-6 sm:px-6 sm:pt-8 md:pt-9">
-        <TimerLeaderboardCard classId={classId} playerName={playerName} />
-      </div>
+      {!isAdmin && (
+        <div className="relative z-10 px-3 pt-6 sm:px-6 sm:pt-8 md:pt-9">
+          <TimerLeaderboardCard classId={classId} playerName={playerName} />
+        </div>
+      )}
 
       {/* ================================================================
           LOADING / ERROR STATE
           ================================================================ */}
-      {!gameAccessReady && (
+      {!accessReady && (
         <motion.div
           initial={{ opacity: 0, y: 20, scale: 0.98 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -1693,7 +1715,7 @@ function BetaHomeContent() {
       {/* ================================================================
           FEATURED GAMES
           ================================================================ */}
-      {gameAccessReady && featuredGames.length > 0 && (
+      {accessReady && featuredGames.length > 0 && (
         <motion.section
           initial={reduceMotion ? false : { opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -1730,7 +1752,7 @@ function BetaHomeContent() {
       {/* ================================================================
           ALL GAMES — database order
           ================================================================ */}
-      {gameAccessReady && regularGames.length > 0 && (
+      {accessReady && regularGames.length > 0 && (
         <motion.section
           initial={reduceMotion ? false : { opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -1771,7 +1793,7 @@ function BetaHomeContent() {
       )}
 
       {/* Fully empty state */}
-      {gameAccessReady && orderedGames.length === 0 && (
+      {accessReady && sourceGames.length === 0 && (
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}

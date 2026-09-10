@@ -1,20 +1,37 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
-// Persisted in localStorage so the login prompt only ever shows once, the very
-// first time someone opens the site on this device. The key was intentionally
-// CHANGED to 'ezwonders-player' so the overhaul signs everyone out once: the
-// old 'k1weekly-player' session is ignored (and deleted below) rather than
-// migrated, forcing one clean login through the new code-first flow.
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
+
+async function postJson(path, body) {
+  const response = await fetch(`${API_BASE}${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) return null;
+  return response.json().catch(() => null);
+}
+
+// The persisted slice is intentionally tiny: ONLY the credential needed to
+// re-resolve the identity from the database on every load. Nothing else — no
+// names, class ids, or roles — is cached locally, so if a teacher later removes
+// a student (or changes a code), that device is signed out the next time it
+// validates its code. All identity data below is derived from the DB at runtime.
 //
-// `identityKind` is the single field the rest of the app branches on:
-//   'student-light'    → public class, name + class code only, no Student record
-//   'student-rostered' → a per-student code backed by a Student record
-//   'teacher'          → a teacher code
-//   'admin'            → the single global admin code
+// Persisted shapes:
+//   - mode 'code'  → `code` is a student / teacher / admin code
+//   - mode 'light' → `code` is a public class code and `name` is the child's name
 export const usePlayerStore = create(
   persist(
-    (set) => ({
+    (set, get) => ({
+      // ---- persisted (the whole of what we keep on the device) ----
+      code: null,
+      name: null,
+      mode: null,
+
+      // ---- runtime identity (never persisted) ----
+      status: 'idle', // 'idle' (no session) | 'loading' | 'ready'
       playerName: null,
       classId: null,
       className: null,
@@ -28,31 +45,8 @@ export const usePlayerStore = create(
       teacherCode: null,
       identityKind: null,
 
-      // Legacy player sign-in (name only, default class). Retained for any
-      // caller that still signs a child in without a class/student context.
-      setPlayer: (name, classroom) => {
-        const trimmed = (name || '').toString().trim().slice(0, 40);
-        set({
-          playerName: trimmed.length > 0 ? trimmed : 'Guest',
-          classId: classroom?.id || null,
-          className: classroom?.name || null,
-          classAlias: classroom?.alias || classroom?.name || null,
-          classCode: classroom?.classCode || null,
-          classType: classroom?.classType || null,
-          studentCode: null,
-          studentId: null,
-          isTeacher: false,
-          isAdmin: false,
-          teacherCode: null,
-          identityKind: 'student-light',
-        });
-      },
-
-      // Teacher / admin sign-in via POST /api/teacher-login (or code-lookup).
-      // The code is kept so authenticated requests can be re-sent without
-      // asking again; role === 'admin' drives the admin-only UI.
-      setTeacher: (teacher, code) => {
-        const isAdmin = teacher.role === 'admin';
+      // --- internal appliers (set the runtime identity from a server payload) ---
+      _applyTeacher: (teacher, code) =>
         set({
           playerName: teacher.name,
           classId: teacher.classId || null,
@@ -63,16 +57,17 @@ export const usePlayerStore = create(
           studentCode: null,
           studentId: null,
           isTeacher: true,
-          isAdmin,
+          isAdmin: teacher.role === 'admin',
           teacherCode: code,
-          identityKind: isAdmin ? 'admin' : 'teacher',
-        });
-      },
+          identityKind: teacher.role === 'admin' ? 'admin' : 'teacher',
+          code,
+          name: null,
+          mode: 'code',
+        }),
 
-      // Rostered student sign-in (per-student code, any class type).
-      setStudentPlayer: (student, classInfo) => {
+      _applyStudent: (student, classInfo, mode, name) =>
         set({
-          playerName: student?.name || student?.nickname || student?.fullName || 'Student',
+          playerName: student?.name || student?.nickname || student?.fullName || name || 'Student',
           classId: classInfo?.classId || null,
           className: classInfo?.className || null,
           classAlias: classInfo?.classAlias || classInfo?.className || null,
@@ -83,31 +78,91 @@ export const usePlayerStore = create(
           isTeacher: false,
           isAdmin: false,
           teacherCode: null,
-          identityKind: 'student-rostered',
-        });
+          identityKind: student?.studentId ? 'student-rostered' : 'student-light',
+          code: classInfo?.classCode || get().code,
+          name: mode === 'light' ? name : null,
+          mode,
+        }),
+
+      // Re-resolve the stored code into a full identity. If the code no longer
+      // resolves (student/teacher removed, class deleted or made private), the
+      // session is cleared and the user is signed out.
+      hydrate: async () => {
+        const { code, name, mode } = get();
+        if (!code) {
+          set({ status: 'idle' });
+          return;
+        }
+
+        set({ status: 'loading' });
+        try {
+          if (mode === 'light') {
+            const data = await postJson('/api/student-login', {
+              name,
+              classCode: code,
+            });
+            if (data) {
+              get()._applyStudent(data.student, data.classInfo, 'light', name);
+            } else {
+              get().signOut();
+            }
+          } else {
+            const data = await postJson('/api/code-lookup', { code });
+            if (!data) {
+              get().signOut();
+            } else if (data.kind === 'teacherCode' || data.kind === 'adminCode') {
+              get()._applyTeacher(data, code);
+            } else if (data.kind === 'studentCode') {
+              get()._applyStudent(
+                { studentId: data.studentId, name: data.studentName, code },
+                {
+                  classId: data.classId,
+                  className: data.className,
+                  classAlias: data.classAlias,
+                  classCode: data.classCode,
+                },
+                'code'
+              );
+            } else {
+              // A bare class code can't stand alone as a session.
+              get().signOut();
+            }
+          }
+        } catch {
+          get().signOut();
+        }
+
+        // signOut() clears `code`; otherwise the session is valid.
+        set({ status: get().code ? 'ready' : 'idle' });
       },
 
-      // Public-class "light" sign-in (name + class code, no Student record).
-      setStudentLight: (name, classInfo) => {
-        const trimmed = (name || '').toString().trim().slice(0, 40);
-        set({
-          playerName: trimmed.length > 0 ? trimmed : 'Guest',
-          classId: classInfo?.classId || null,
-          className: classInfo?.className || null,
-          classAlias: classInfo?.classAlias || classInfo?.className || null,
-          classCode: classInfo?.classCode || null,
-          classType: classInfo?.classType || null,
-          studentCode: null,
-          studentId: null,
-          isTeacher: false,
-          isAdmin: false,
-          teacherCode: null,
-          identityKind: 'student-light',
-        });
+      // Sign in with a student / teacher / admin code. Returns the resolved
+      // identityKind, or null when the code doesn't resolve.
+      signInWithCode: async (rawCode) => {
+        const trimmed = (rawCode || '').toString().trim();
+        if (!trimmed) return null;
+        set({ code: trimmed, name: null, mode: 'code' });
+        await get().hydrate();
+        return get().identityKind;
       },
 
-      resetPlayer: () =>
+      // Sign in as a public-class "light" student (name + class code).
+      signInLight: async (name, classCode) => {
+        const trimmedCode = (classCode || '').toString().trim();
+        const trimmedName = (name || '').toString().trim().slice(0, 40);
+        if (!trimmedCode || !trimmedName) return false;
+        set({ code: trimmedCode, name: trimmedName, mode: 'light' });
+        await get().hydrate();
+        return Boolean(get().identityKind);
+      },
+
+      // Full sign-out: clears both the persisted credential and the identity.
+      signOut: () =>
         set({
+          code: null,
+          name: null,
+          mode: null,
+          status: 'idle',
           playerName: null,
           classId: null,
           className: null,
@@ -121,34 +176,40 @@ export const usePlayerStore = create(
           teacherCode: null,
           identityKind: null,
         }),
+
+      // Back-compat alias: several components call resetPlayer() to log out.
+      resetPlayer: () => get().signOut(),
     }),
     {
       name: 'ezwonders-player',
-      version: 2,
-      // Any stored session from an older version is discarded (returns a clean
-      // slate) instead of migrated. To force another global sign-out in future,
-      // just bump `version` below.
-      migrate: (persisted, version) => (version < 2 ? {} : persisted),
+      version: 3,
+      // Persist ONLY the credential. Everything else is re-fetched on load.
+      partialize: (state) => ({
+        code: state.code,
+        name: state.name,
+        mode: state.mode,
+      }),
+      // Any older stored session is discarded so everyone re-logs in once with
+      // the code-only store. Bump `version` to force another reset later.
+      migrate: (_persisted, version) => (version < 3 ? {} : _persisted),
     }
   )
 );
 
-// Remove the pre-rebrand session key so it can't linger (or be restored by an
-// older cached bundle) on returning devices. Wrapped because localStorage can
-// throw in private mode or when storage is disabled.
+// True for the two student identity kinds. Kept for callers that reason about
+// whether the current identity is a child (e.g. maintenance gating).
+export function isStudentIdentity(state) {
+  return (
+    state?.identityKind === 'student-light' ||
+    state?.identityKind === 'student-rostered'
+  );
+}
+
+// Remove the pre-rebrand session key so it can't linger on returning devices.
 try {
   if (typeof localStorage !== 'undefined') {
     localStorage.removeItem('k1weekly-player');
   }
 } catch {
-  /* ignore */
-}
-
-// True for the two student identity kinds — used by the maintenance gate to
-// decide whether a not-yet-logged-in visitor should be treated as a student.
-export function isStudentIdentity(state) {
-  return (
-    state.identityKind === 'student-light' ||
-    state.identityKind === 'student-rostered'
-  );
+  /* ignore private-mode / disabled storage */
 }

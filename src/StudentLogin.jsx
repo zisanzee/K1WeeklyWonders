@@ -1,17 +1,15 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { usePlayerStore } from './playerStore';
-import { lookupStudentByCode } from './students';
 
 // Auto-login route: /p/:code
-// Extracts the code from the URL, validates it against the server, and
-// logs the student in automatically. Redirects to home on success, shows
-// an error on failure.
+// Extracts the code from the URL, validates it against the server, and logs the
+// student in. The store persists only the code and re-resolves the identity
+// from the DB, so a removed student no longer stays logged in.
 export default function StudentLogin() {
   const { code } = useParams();
   const navigate = useNavigate();
-  const setStudentPlayer = usePlayerStore((s) => s.setStudentPlayer);
-  const playerName = usePlayerStore((s) => s.playerName);
+  const signInWithCode = usePlayerStore((s) => s.signInWithCode);
 
   const [status, setStatus] = useState('checking'); // 'checking' | 'error'
   const [error, setError] = useState(null);
@@ -20,27 +18,22 @@ export default function StudentLogin() {
     if (!code) {
       setStatus('error');
       setError('No student code found in the link.');
-      return;
+      return undefined;
     }
 
     let cancelled = false;
 
     async function verify() {
       try {
-        const result = await lookupStudentByCode(code);
-
+        const kind = await signInWithCode(code);
         if (cancelled) return;
 
-        if (!result) {
+        if (!kind) {
           setStatus('error');
           setError('That code is not valid. Please check the link and try again.');
           return;
         }
 
-        // result = { student: { studentId, nickname, fullName, code, group, ... }, classInfo: { classId, className, classType } }
-        setStudentPlayer(result.student, result.classInfo);
-
-        // Navigate home — the NameGate will see playerName is set and let them through
         navigate('/', { replace: true });
       } catch {
         if (cancelled) return;
@@ -49,16 +42,12 @@ export default function StudentLogin() {
       }
     }
 
-    // If the player is already logged in with this student code, just go home
-    if (playerName && playerName !== 'Guest') {
-      navigate('/', { replace: true });
-      return;
-    }
-
     verify();
 
-    return () => { cancelled = true; };
-  }, [code, navigate, setStudentPlayer, playerName]);
+    return () => {
+      cancelled = true;
+    };
+  }, [code, navigate, signInWithCode]);
 
   if (status === 'error') {
     return (

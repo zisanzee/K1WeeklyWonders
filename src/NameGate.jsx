@@ -28,9 +28,8 @@ function codeFromUrl() {
 // advances to step 2 (name for a public class, student code for a private one).
 export default function NameGate({ gameLabel, children }) {
   const identityKind = usePlayerStore((state) => state.identityKind);
-  const setTeacher = usePlayerStore((state) => state.setTeacher);
-  const setStudentPlayer = usePlayerStore((state) => state.setStudentPlayer);
-  const setStudentLight = usePlayerStore((state) => state.setStudentLight);
+  const signInWithCode = usePlayerStore((state) => state.signInWithCode);
+  const signInLight = usePlayerStore((state) => state.signInLight);
 
   const [step, setStep] = useState('code'); // 'code' | 'name' | 'studentcode'
   const [code, setCode] = useState('');
@@ -45,46 +44,20 @@ export default function NameGate({ gameLabel, children }) {
   // (see playerStore), so this reliably forces one fresh login per device.
   const signedIn = Boolean(identityKind);
 
-  // Applies a code-lookup result: signs in directly, or moves to step 2.
-  const applyLookup = (data, rawCode) => {
-    if (data.kind === 'adminCode') {
-      setTeacher({ name: data.name, role: 'admin', classId: null }, rawCode);
-      return;
-    }
-    if (data.kind === 'teacherCode') {
-      setTeacher(
-        {
-          name: data.name,
-          classId: data.classId,
-          className: data.className,
-          classAlias: data.classAlias,
-          classCode: data.classCode,
-          role: data.role || 'teacher',
-        },
-        rawCode
-      );
-      return;
-    }
-    if (data.kind === 'studentCode') {
-      setStudentPlayer(
-        { studentId: data.studentId, name: data.studentName, code: rawCode.toUpperCase() },
-        {
-          classId: data.classId,
-          className: data.className,
-          classAlias: data.classAlias,
-          classCode: data.classCode,
-        }
-      );
-      return;
-    }
+  // Applies a code-lookup result: moves to step 2 for a class code, otherwise
+  // signs in directly (the store re-validates and stores only the code).
+  const applyLookup = async (data, rawCode) => {
     if (data.kind === 'classCode') {
       setClassCtx(data);
       setStep(data.isPublic ? 'name' : 'studentcode');
       return;
     }
-    throw new Error(
-      "That code wasn't recognized. Try again or ask your teacher."
-    );
+    const kind = await signInWithCode(rawCode);
+    if (!kind) {
+      throw new Error(
+        "That code wasn't recognized. Try again or ask your teacher."
+      );
+    }
   };
 
   const classify = async (rawCode) => {
@@ -113,7 +86,7 @@ export default function NameGate({ gameLabel, children }) {
       setError(null);
       try {
         const data = await classify(urlCode);
-        if (!cancelled) applyLookup(data, urlCode);
+        if (!cancelled) await applyLookup(data, urlCode);
       } catch (err) {
         if (!cancelled) setError(err.message);
       } finally {
@@ -135,7 +108,7 @@ export default function NameGate({ gameLabel, children }) {
     setBusy(true);
     setError(null);
     try {
-      applyLookup(await classify(raw), raw);
+      await applyLookup(await classify(raw), raw);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -150,15 +123,8 @@ export default function NameGate({ gameLabel, children }) {
     setBusy(true);
     setError(null);
     try {
-      const response = await fetch(`${API_BASE}/api/student-login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, classCode: classCtx.classCode }),
-      });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data.error || 'Could not sign in');
-      if (data.student?.studentId) setStudentPlayer(data.student, data.classInfo);
-      else setStudentLight(data.student?.name || name, data.classInfo);
+      const ok = await signInLight(name, classCtx.classCode);
+      if (!ok) throw new Error('Could not sign in. Please check your details.');
     } catch (err) {
       setError(err.message);
     } finally {
@@ -173,14 +139,8 @@ export default function NameGate({ gameLabel, children }) {
     setBusy(true);
     setError(null);
     try {
-      const response = await fetch(`${API_BASE}/api/student-login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ studentCode: sc }),
-      });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data.error || 'Could not sign in');
-      setStudentPlayer(data.student, data.classInfo);
+      const kind = await signInWithCode(sc);
+      if (!kind) throw new Error('That student code was not recognised.');
     } catch (err) {
       setError(err.message);
     } finally {
