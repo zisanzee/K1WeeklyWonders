@@ -10,6 +10,7 @@ import { usePlayerStore } from "./playerStore";
 import { GAME_CATALOG, useGameAccessStore, isGameUnlockedNow } from "./gameAccess";
 import { fetchSummary, fetchLeaderboard } from "./logPlaySession";
 import { confirmDialog } from "./confirmDialog";
+import BrandLoader from "./BrandLoader";
 import WeeklyGoals from "./WeeklyGoals";
 
 // ---------------------------------------------------------------------------
@@ -1717,21 +1718,7 @@ function BetaHomeContent() {
               </motion.button>
             </>
           ) : (
-            <>
-              <div className="relative">
-                <span className="h-11 w-11 sm:h-14 sm:w-14 animate-spin rounded-full border-4 sm:border-[5px] border-blue-400 border-t-transparent border-l-pink-400 border-b-cyan-400 border-r-emerald-400" />
-                <Sparkle delay={0.3} className="absolute -top-2 -right-2 h-3.5 w-3.5 sm:h-4 sm:w-4" />
-              </div>
-              <p
-                className="text-base sm:text-lg md:text-xl font-black"
-                style={{ fontFamily: FONT, background: "linear-gradient(135deg, #c4b5fd 0%, #f9a8d4 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}
-              >
-                Loading your games…
-              </p>
-              <p className="text-xs sm:text-sm font-semibold" style={{ color: TEXT_SOFT }}>
-                Getting all the fun ready for you!
-              </p>
-            </>
+            <BrandLoader inline />
           )}
         </motion.div>
       )}

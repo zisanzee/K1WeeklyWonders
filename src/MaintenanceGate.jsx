@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
 import { usePlayerStore } from './playerStore';
 import { useSystemConfigStore, startSystemConfigPolling } from './systemConfig';
+import BrandLoader from './BrandLoader';
 
 const LOGO_SRC = '/android-chrome-512x512.png';
 
@@ -30,20 +31,6 @@ function useCountdown(endsAt) {
   const minutes = Math.floor((total % 3600) / 60);
   const seconds = total % 60;
   return `${hours > 0 ? `${hours}h ` : ''}${minutes}m ${seconds}s`;
-}
-
-// Tiny branded splash shown while the very first maintenance-mode check is in
-// flight, so we never flash the app (or the login screen) on top of a
-// maintenance lockout.
-function BootSplash() {
-  return (
-    <div className="aura-page flex min-h-[100dvh] flex-col items-center justify-center gap-4 px-6">
-      <span className="inline-block h-10 w-10 animate-spin rounded-full border-[3px] border-white/70 border-t-transparent" />
-      <p className="text-sm font-black uppercase tracking-[0.2em] text-white/80">
-        EZ Wonders
-      </p>
-    </div>
-  );
 }
 
 // Sits above every route. When maintenance mode is ON:
@@ -76,7 +63,8 @@ export default function MaintenanceGate({ children }) {
   // React crashed to a black screen until a manual refresh.
   const countdown = useCountdown(staff ? null : maintenanceEndsAt);
 
-  if (!configLoaded) return <BootSplash />;
+  // Same loader as every other wait, so the boot sequence looks like one screen.
+  if (!configLoaded) return <BrandLoader />;
 
   const showBanner = staff && maintenanceMode;
   const showOverlay = maintenanceMode && !staff && !staffLoginOpen;

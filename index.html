@@ -4,6 +4,45 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
+    <!-- First-paint loader styles. Inline so the branded loading screen shows
+         instantly, before the JS bundle has been downloaded/parsed. Mirrors
+         src/BrandLoader.jsx so the hand-off from HTML → React is seamless. -->
+    <style>
+      #root .boot {
+        min-height: 100dvh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 1rem;
+        padding: 0 1.5rem;
+        background: linear-gradient(160deg, #1e1b5a 0%, #4338ca 35%, #7c3aed 65%, #be185d 100%);
+      }
+      #root .boot-spin {
+        width: 2.5rem;
+        height: 2.5rem;
+        border-radius: 9999px;
+        border: 3px solid rgba(255, 255, 255, 0.7);
+        border-top-color: transparent;
+        animation: bootspin 1s linear infinite;
+      }
+      #root .boot-name {
+        margin: 0;
+        color: rgba(255, 255, 255, 0.9);
+        font: 800 0.875rem/1.2 system-ui, -apple-system, "Segoe UI", sans-serif;
+        letter-spacing: 0.25em;
+        text-transform: uppercase;
+      }
+      @keyframes bootspin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        #root .boot-spin { animation-duration: 2s; }
+      }
+    </style>
+
     <meta
       name="google-site-verification"
       content="4LYbvRgpXT6mgIF2ONHLGOf9twVoWbdfraGZpSBPOG0"
@@ -155,7 +194,12 @@
     </script>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div class="boot">
+        <span class="boot-spin"></span>
+        <p class="boot-name">EZ Wonders</p>
+      </div>
+    </div>
 
     <!--
       Crawlable fallback content. The app is a JavaScript SPA behind a code

@@ -132,7 +132,12 @@ export default function BaseGame({
     };
 
     if (waitForFonts && document.fonts?.ready) {
-      document.fonts.ready.then(start);
+      // Never let a slow/blocked webfont hold up the first Phaser frame —
+      // whichever of {fonts ready, 500ms} wins starts the game.
+      Promise.race([
+        document.fonts.ready,
+        new Promise((resolve) => setTimeout(resolve, 500)),
+      ]).then(start);
     } else {
       start();
     }
