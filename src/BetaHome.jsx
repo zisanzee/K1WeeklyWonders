@@ -1560,7 +1560,10 @@ function BetaHomeContent() {
           TEACHER NAV BAR
           ================================================================ */}
       {isTeacher && (
-        <div className="fixed left-0 right-0 top-0 z-50" style={{ fontFamily: FONT }}>
+        <div
+          className="fixed left-0 right-0 z-50"
+          style={{ fontFamily: FONT, top: 'var(--maint-banner-h, 0px)' }}
+        >
           <div className="mx-auto flex w-full max-w-4xl flex-wrap items-center justify-between gap-2 px-3 py-3 sm:px-6">
             <motion.button
               type="button"

@@ -906,7 +906,7 @@ function Celebration({ onDone }) {
 
 function TopBar({ totalRounds, stars, muted, onToggleMute }) {
   return (
-    <div className="fixed left-0 right-0 top-0 z-50 flex items-center justify-between px-2 pt-2 [@media(min-width:640px)_and_(min-height:560px)]:px-4 [@media(min-width:640px)_and_(min-height:560px)]:pt-4">
+    <div className="fixed left-0 right-0 top-[var(--maint-banner-h,0px)] z-50 flex items-center justify-between px-2 pt-2 [@media(min-width:640px)_and_(min-height:560px)]:px-4 [@media(min-width:640px)_and_(min-height:560px)]:pt-4">
       <Link
         to="/"
         className="font-body flex items-center gap-1 rounded-full bg-white/90 px-4 py-2 text-sm font-extrabold text-slate-700 shadow-[0_4px_0_rgba(0,0,0,0.15)] transition-transform hover:-translate-y-0.5 active:translate-y-1 active:shadow-none [@media(min-width:640px)_and_(min-height:560px)]:text-base"

@@ -147,7 +147,21 @@ export default function BaseGame({
   }, []);
 
   return (
-    <div ref={wrapperRef} className="relative flex h-full w-full items-center justify-center">
+    <div
+      ref={wrapperRef}
+      className="relative flex h-full w-full items-center justify-center"
+      style={{
+        // Full-bleed backdrop that matches the game's own background colour.
+        // The canvas is a fixed aspect ratio, so on wide/short screens it's
+        // height-limited and centred — without this, the area either side would
+        // show an unrelated page gradient and the game would look "narrow". A
+        // soft radial highlight adds depth so it reads as one continuous scene
+        // rather than a flat panel.
+        backgroundColor,
+        backgroundImage:
+          'radial-gradient(120% 85% at 50% 18%, rgba(255,255,255,0.10), rgba(255,255,255,0) 62%)',
+      }}
+    >
       <div
         className="relative"
         style={{

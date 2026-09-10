@@ -2593,7 +2593,7 @@ export default function GameAccessPanel({ onClose, initialTab }) {
 
   return (
     <div className="aura-page min-h-[100dvh] w-full">
-      <header className="sticky top-0 z-30 border-b border-white/15 bg-gradient-to-br from-[#315ed8]/95 via-[#5a3fc4]/95 to-[#972aa8]/95 px-4 pb-0 pt-[max(1rem,env(safe-area-inset-top))] shadow-[0_14px_40px_-28px_rgba(0,0,0,0.4)] backdrop-blur-xl sm:px-6 sm:pt-6 lg:px-10">
+      <header className="sticky top-[var(--maint-banner-h,0px)] z-30 border-b border-white/15 bg-gradient-to-br from-[#315ed8]/95 via-[#5a3fc4]/95 to-[#972aa8]/95 px-4 pb-0 pt-[max(1rem,env(safe-area-inset-top))] shadow-[0_14px_40px_-28px_rgba(0,0,0,0.4)] backdrop-blur-xl sm:px-6 sm:pt-6 lg:px-10">
         <div className="mx-auto flex w-full max-w-5xl items-center gap-2.5 pb-2 sm:gap-3 sm:pb-3">
           <button
             type="button"

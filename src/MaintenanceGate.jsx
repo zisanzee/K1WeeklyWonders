@@ -5,6 +5,11 @@ import { useSystemConfigStore, startSystemConfigPolling } from './systemConfig';
 
 const LOGO_SRC = '/android-chrome-512x512.png';
 
+// Height of the staff maintenance ribbon. Exposed to descendants as the
+// `--maint-banner-h` CSS variable so fixed/sticky top bars can offset
+// themselves instead of being covered by it.
+const BANNER_HEIGHT = '2rem';
+
 // Counts down to an optional scheduled maintenance end time. Returns null when
 // there is no end time or it has already passed.
 function useCountdown(endsAt) {
@@ -42,7 +47,8 @@ function BootSplash() {
 }
 
 // Sits above every route. When maintenance mode is ON:
-//  - teachers/admins see the app normally (plus a small amber ribbon),
+//  - teachers/admins see the app normally (plus a small amber ribbon that
+//    occupies its own space rather than covering the UI),
 //  - EVERYONE else — including visitors who haven't logged in yet — sees the
 //    full-screen maintenance page, which also offers a teacher/admin sign-in.
 export default function MaintenanceGate({ children }) {
@@ -67,25 +73,35 @@ export default function MaintenanceGate({ children }) {
   // IMPORTANT: useCountdown must be called UNCONDITIONALLY. It used to be
   // `staff ? null : useCountdown(...)`, which skipped the hook for staff — so
   // signing a teacher/admin in or out changed the hook count mid-session and
-  // React crashed to a black screen until a manual refresh. Passing null simply
-  // disables the timer instead.
+  // React crashed to a black screen until a manual refresh.
   const countdown = useCountdown(staff ? null : maintenanceEndsAt);
 
-  // Hold the very first paint until we know whether maintenance is on, so
-  // logged-out visitors see the maintenance page (not a flash of the login).
   if (!configLoaded) return <BootSplash />;
 
+  const showBanner = staff && maintenanceMode;
   const showOverlay = maintenanceMode && !staff && !staffLoginOpen;
   const heading = maintenanceMessage?.trim()
     ? maintenanceMessage.trim()
     : 'EZ Wonders is under maintenance';
 
   return (
-    <>
-      {staff && maintenanceMode && (
-        <div className="sticky top-0 z-[60] w-full bg-amber-400 px-4 py-1.5 text-center text-[13px] font-bold text-amber-950">
-          ⚠ Maintenance mode is ON — students see a maintenance screen. Toggle
-          off in admin settings.
+    <div
+      style={{
+        // Descendants (sticky/fixed headers) offset by this so the ribbon never
+        // sits on top of buttons. Padding reserves the space for normal flow.
+        '--maint-banner-h': showBanner ? BANNER_HEIGHT : '0px',
+        paddingTop: showBanner ? BANNER_HEIGHT : undefined,
+      }}
+    >
+      {showBanner && (
+        <div className="fixed inset-x-0 top-0 z-[120] flex h-8 items-center justify-center gap-1.5 bg-amber-400 px-3 text-center text-[12px] font-bold text-amber-950 sm:text-[13px]">
+          <span aria-hidden="true">⚠</span>
+          <span className="truncate">
+            Maintenance mode is ON — students see a maintenance screen.
+          </span>
+          <span className="hidden shrink-0 opacity-80 sm:inline">
+            Toggle off in admin settings.
+          </span>
         </div>
       )}
 
@@ -177,6 +193,6 @@ export default function MaintenanceGate({ children }) {
       ) : (
         children
       )}
-    </>
+    </div>
   );
 }
