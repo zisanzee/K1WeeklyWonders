@@ -2,9 +2,10 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
 // Persisted in localStorage so the login prompt only ever shows once, the very
-// first time someone opens the site on this device. The storage key is kept as
-// 'k1weekly-player' on purpose so returning visitors keep their saved session
-// across the rebrand to EZ Wonders.
+// first time someone opens the site on this device. The key was intentionally
+// CHANGED to 'ezwonders-player' so the overhaul signs everyone out once: the
+// old 'k1weekly-player' session is ignored (and deleted below) rather than
+// migrated, forcing one clean login through the new code-first flow.
 //
 // `identityKind` is the single field the rest of the app branches on:
 //   'student-light'    → public class, name + class code only, no Student record
@@ -121,9 +122,27 @@ export const usePlayerStore = create(
           identityKind: null,
         }),
     }),
-    { name: 'k1weekly-player' }
+    {
+      name: 'ezwonders-player',
+      version: 2,
+      // Any stored session from an older version is discarded (returns a clean
+      // slate) instead of migrated. To force another global sign-out in future,
+      // just bump `version` below.
+      migrate: (persisted, version) => (version < 2 ? {} : persisted),
+    }
   )
 );
+
+// Remove the pre-rebrand session key so it can't linger (or be restored by an
+// older cached bundle) on returning devices. Wrapped because localStorage can
+// throw in private mode or when storage is disabled.
+try {
+  if (typeof localStorage !== 'undefined') {
+    localStorage.removeItem('k1weekly-player');
+  }
+} catch {
+  /* ignore */
+}
 
 // True for the two student identity kinds — used by the maintenance gate to
 // decide whether a not-yet-logged-in visitor should be treated as a student.

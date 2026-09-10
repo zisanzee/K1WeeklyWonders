@@ -28,9 +28,6 @@ function codeFromUrl() {
 // advances to step 2 (name for a public class, student code for a private one).
 export default function NameGate({ gameLabel, children }) {
   const identityKind = usePlayerStore((state) => state.identityKind);
-  const playerName = usePlayerStore((state) => state.playerName);
-  const isTeacher = usePlayerStore((state) => state.isTeacher);
-  const isAdmin = usePlayerStore((state) => state.isAdmin);
   const setTeacher = usePlayerStore((state) => state.setTeacher);
   const setStudentPlayer = usePlayerStore((state) => state.setStudentPlayer);
   const setStudentLight = usePlayerStore((state) => state.setStudentLight);
@@ -43,15 +40,10 @@ export default function NameGate({ gameLabel, children }) {
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
 
-  // Treat any previously-saved session as signed in, including sessions stored
-  // before `identityKind` existed (they only carry playerName / teacher flags).
-  // Without this fallback, returning devices would be forced to log in again
-  // after the rebrand.
-  const signedIn =
-    Boolean(identityKind) ||
-    isTeacher ||
-    isAdmin ||
-    Boolean(playerName && playerName.trim().toLowerCase() !== 'guest');
+  // A stored session only counts if it carries an identityKind, which every
+  // path in the new code-first flow sets. Old pre-overhaul sessions are wiped
+  // (see playerStore), so this reliably forces one fresh login per device.
+  const signedIn = Boolean(identityKind);
 
   // Applies a code-lookup result: signs in directly, or moves to step 2.
   const applyLookup = (data, rawCode) => {
