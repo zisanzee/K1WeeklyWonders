@@ -7,8 +7,23 @@ import { jsPDF } from 'jspdf';
 import { useStudentStore } from './students';
 import { usePlayerStore } from './playerStore';
 
+// Canonical fallback only — badges should point at whatever host the app is
+// actually served from (localhost, the Netlify URL, or ezwonders.com), so the
+// link is built from the live origin at render time.
 const SITE_URL = 'https://ezwonders.com';
 const LOGO_SRC = '/android-chrome-512x512.png';
+
+// Builds the student login link using the code-first entry point the app now
+// understands (?code=…), which auto-logs the student in. Using the runtime
+// origin means the QR/link works on every deployment target, not just the
+// production domain.
+function loginUrlFor(code) {
+  const origin =
+    typeof window !== 'undefined' && window.location?.origin
+      ? window.location.origin
+      : SITE_URL;
+  return `${origin}/?code=${encodeURIComponent(code)}`;
+}
 
 // Single-badge print target is 4.1in × 5.8in. The badge is captured at
 // 410×580 CSS px with pixelRatio 3 → 1230×1740 px, i.e. 300 DPI.
@@ -48,7 +63,7 @@ function sanitizeFileName(name) {
 // keeps the font-size-to-card ratio identical between the two outputs.
 function BadgeCard({ student, classInfo, qrSize = 160 }) {
   const code = student.code || student.studentId?.slice(0, 8) || '------';
-  const loginUrl = `${SITE_URL}/p/${code}`;
+  const loginUrl = loginUrlFor(code);
   const displayName = student.nickname || student.fullName || 'Student';
 
   return (
@@ -414,7 +429,7 @@ export default function StudentBadge({ student, classInfo, onClose }) {
   }, []);
 
   const code = student.code || student.studentId?.slice(0, 8) || '------';
-  const loginUrl = `${SITE_URL}/p/${code}`;
+  const loginUrl = loginUrlFor(code);
   const displayName = student.nickname || student.fullName || 'Student';
 
   const handleDownload = useCallback(async () => {

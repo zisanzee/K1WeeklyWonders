@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { AnimatePresence, motion } from 'motion/react';
 import { usePlayerStore } from './playerStore';
 
@@ -27,6 +28,7 @@ function codeFromUrl() {
 // gate then either signs the user straight in (student/teacher/admin code) or
 // advances to step 2 (name for a public class, student code for a private one).
 export default function NameGate({ gameLabel, children }) {
+  const location = useLocation();
   const identityKind = usePlayerStore((state) => state.identityKind);
   const signInWithCode = usePlayerStore((state) => state.signInWithCode);
   const signInLight = usePlayerStore((state) => state.signInLight);
@@ -96,8 +98,10 @@ export default function NameGate({ gameLabel, children }) {
     return () => {
       cancelled = true;
     };
+    // Re-run whenever the URL's query string changes so an in-app ?code= link
+    // (not just a fresh page load) signs the matching user in.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [location.search]);
 
   if (signedIn) return children;
 
