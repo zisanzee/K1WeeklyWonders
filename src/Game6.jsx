@@ -468,7 +468,7 @@ function Game6Inner() {
   }
 
   return (
-    <div className="relative h-[100dvh] w-full overflow-hidden bg-gradient-to-b from-[#3FB6EA] via-[#8FE0FA] to-[#F4D9A0]">
+    <div className="page-bleed-bg relative mx-auto h-[100dvh] w-full max-w-[1126px] overflow-hidden bg-gradient-to-b from-[#3FB6EA] via-[#8FE0FA] to-[#F4D9A0]">
       <link
         rel="stylesheet"
         href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap"

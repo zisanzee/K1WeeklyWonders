@@ -304,7 +304,7 @@ function Game5Inner() {
   const activeItem = round.items.find((it) => it.id === activeId);
 
   return (
-    <div className="relative h-[100dvh] w-full overflow-hidden bg-gradient-to-b from-[#0B1130] via-[#1B1F52] to-[#3A2A6B]">
+    <div className="page-bleed-bg relative mx-auto h-[100dvh] w-full max-w-[1126px] overflow-hidden bg-gradient-to-b from-[#0B1130] via-[#1B1F52] to-[#3A2A6B]">
       <link
         rel="stylesheet"
         href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap"

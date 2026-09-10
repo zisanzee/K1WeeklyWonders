@@ -540,7 +540,7 @@ function Game3Inner() {
   );
 
   return (
-    <div className="relative h-[100dvh] w-full overflow-hidden bg-gradient-to-b from-[#8FE9E4] via-[#2FA8C9] to-[#123A6B]">
+    <div className="page-bleed-bg relative mx-auto h-[100dvh] w-full max-w-[1126px] overflow-hidden bg-gradient-to-b from-[#8FE9E4] via-[#2FA8C9] to-[#123A6B]">
       <link
         rel="stylesheet"
         href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap"

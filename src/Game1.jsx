@@ -233,7 +233,7 @@ function Game1Inner() {
   const basketItems = useMemo(() => round.items.filter((it) => it.location === 'basket'), [round.items]);
 
   return (
-    <div className="relative h-[100dvh] w-full overflow-hidden bg-gradient-to-b from-sky-400 via-sky-300 to-lime-100">
+    <div className="page-bleed-bg relative mx-auto h-[100dvh] w-full max-w-[1126px] overflow-hidden bg-gradient-to-b from-sky-400 via-sky-300 to-lime-100">
       <link
         rel="stylesheet"
         href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap"

@@ -105,7 +105,7 @@ function PhaserDemoInner() {
         🏠 Home
       </Link>
 
-      <div className="relative z-10 flex w-full min-h-0 flex-1 flex-col items-center justify-center max-w-2xl gap-0.5 sm:gap-1 md:flex-row md:items-center md:gap-6">
+      <div className="relative z-10 flex w-full min-h-0 flex-1 flex-col items-center justify-center gap-0.5 sm:gap-1 md:flex-row md:items-center md:gap-6">
         {/* Number rail — a horizontal strip above the game on phones/tablets,
             a vertical strip along the left on wider screens. Same panel,
             just re-flowed via the grid + flex direction below. */}
