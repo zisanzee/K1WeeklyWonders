@@ -198,6 +198,16 @@ export default function FeedbackButton() {
         throw failure;
       }
 
+      // A 200 only means at least ONE inbox accepted the mail, so read the
+      // counts: a partially-delivered feedback would otherwise look perfectly
+      // successful from here while a recipient silently got nothing.
+      const result = await res.json().catch(() => ({}));
+      if (result.recipients && result.delivered < result.recipients) {
+        console.warn(
+          `[feedback] delivered to ${result.delivered}/${result.recipients} recipients — check the server logs for the rejected address.`
+        );
+      }
+
       setStatus('sent');
     } catch (err) {
       setStatus('error');
