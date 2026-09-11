@@ -10,13 +10,33 @@ import MaintenanceGate from "./MaintenanceGate";
 import BrandLoader from "./BrandLoader";
 import { ConfirmHost } from "./confirmDialog";
 import { usePlayerStore } from "./playerStore";
+import { startSystemConfigPolling } from "./systemConfig";
+
+// Fires at module scope, before React has rendered anything, so the maintenance
+// config request races the auth hydrate in parallel instead of queueing behind
+// it. These two round trips are independent, and running them in sequence used
+// to double the wait on every load — worst of all against a cold backend, where
+// the second request paid its own share of the wake-up.
+startSystemConfigPolling();
 
 // Prime the TTS engine so a game's first utterance plays with no delay — but
 // do it at idle time so it never blocks the first paint / loading screen.
+// The landing route's chunk is prefetched in the same window: `/` is the route
+// almost every visitor starts on, so having BetaHome already downloaded turns
+// the Suspense boundary into a no-op instead of a visible second wait.
 if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
-  window.requestIdleCallback(() => warmupSpeech(), { timeout: 2000 });
+  window.requestIdleCallback(
+    () => {
+      warmupSpeech();
+      import("./BetaHome").catch(() => {});
+    },
+    { timeout: 2000 }
+  );
 } else {
-  setTimeout(warmupSpeech, 300);
+  setTimeout(() => {
+    warmupSpeech();
+    import("./BetaHome").catch(() => {});
+  }, 300);
 }
 
 // Each game pulls in its own copy of framer-motion / dnd-kit / confetti and is

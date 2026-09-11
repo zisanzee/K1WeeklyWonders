@@ -178,6 +178,73 @@ export function mergeRows(rows) {
     );
 }
 
+// Last-known arrangement per classId, so a returning visitor sees their games
+// on the first frame instead of waiting on a round trip (which, against a
+// cold Render instance, was the single longest wait in the boot sequence).
+//
+// Only the SERVER's own row data is cached — never the rendered game objects —
+// so GAME_CATALOG stays the source of truth for names, icons and routes and a
+// catalog edit in a new deploy is reflected immediately rather than being
+// overridden by a stale cache.
+const ACCESS_CACHE_KEY = 'ezw.gameAccess.v1';
+const ACCESS_CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+
+function readAccessCache() {
+  if (typeof window === 'undefined') return {};
+  try {
+    const raw = window.localStorage.getItem(ACCESS_CACHE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') return {};
+    return parsed;
+  } catch {
+    return {};
+  }
+}
+
+function writeAccessCache(store) {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(ACCESS_CACHE_KEY, JSON.stringify(store));
+  } catch {
+    // Ignore quota / private-mode failures — the cache is only an optimisation.
+  }
+}
+
+// `let`, not `const` — cacheRowSet replaces the whole map when it prunes.
+let accessCache = readAccessCache();
+
+function cacheRowSet(classId, rows) {
+  const next = {
+    ...accessCache,
+    [classId]: { rows, savedAt: Date.now() },
+  };
+  // Drop anything that has aged out so the entry can't grow without bound as
+  // classes come and go.
+  const cutoff = Date.now() - ACCESS_CACHE_MAX_AGE_MS;
+  Object.keys(next).forEach((key) => {
+    if (!next[key] || next[key].savedAt < cutoff) delete next[key];
+  });
+  accessCache = next;
+  writeAccessCache(next);
+}
+
+function cachedRowsFor(classId) {
+  const entry = accessCache[classId];
+  if (!entry || !Array.isArray(entry.rows)) return null;
+  return entry.rows;
+}
+
+// Seeds one class's games from the cache. Returns the games array, or null when
+// there is nothing cached for that class.
+function seedFromCache(classId) {
+  const rows = cachedRowsFor(classId);
+  if (!rows || rows.length === 0) return null;
+  const games = mergeRows(rows);
+  if (games.length === 0) return null;
+  return games;
+}
+
 export const useGameAccessStore = create((set, get) => ({
   unlocked: {},
   games: [],
@@ -213,7 +280,26 @@ export const useGameAccessStore = create((set, get) => ({
     // instead of staring at a forever-spinner.
     const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
 
-    set({ loading: true, loadingClassId: classId, error: null });
+    // Seed from cache BEFORE the request goes out, so the grid is already on
+    // screen while the server is still being woken up. `loading` stays true:
+    // this is a background refresh, not a first load, and the UI must not
+    // claim the data is fresh until the response actually lands.
+    const seeded = seedFromCache(classId);
+    if (seeded) {
+      set({
+        games: seeded,
+        unlocked: Object.fromEntries(
+          seeded.map((game) => [game.key, game.unlocked])
+        ),
+        loaded: true,
+        loadedClassId: classId,
+        loading: true,
+        loadingClassId: classId,
+        error: null,
+      });
+    } else {
+      set({ loading: true, loadingClassId: classId, error: null });
+    }
 
     // The server returns this class's own game arrangement for the classId.
     // The client passes the player's classId as-is — game config is per-class
@@ -236,6 +322,11 @@ export const useGameAccessStore = create((set, get) => ({
 
       // Ignore an older response after the player has switched classes.
       if (requestId !== latestGameAccessRequest) return;
+
+      // Remember the server rows (not the merged games) so the next visit can
+      // paint instantly. GAME_CATALOG stays the source of truth for labels,
+      // icons and routes, so a catalog change in a new deploy shows up at once.
+      cacheRowSet(classId, Array.isArray(rows) ? rows : []);
 
       set({
         games,
@@ -262,11 +353,15 @@ export const useGameAccessStore = create((set, get) => ({
 
       console.error(isAbort ? 'Game access fetch timed out' : 'Game access fetch failed', error);
 
-      set({
+      // If we already painted from cache, a failed refresh must NOT wipe the
+      // games off the screen — the stale arrangement is far more useful than an
+      // error page, and the next successful load reconciles it. The error is
+      // still logged above so a background-refresh failure stays diagnosable.
+      set((state) => ({
         loading: false,
         loadingClassId: null,
-        error: message,
-      });
+        error: state.games.length > 0 ? null : message,
+      }));
     } finally {
       // Clean up the shared controller reference only if it still
       // belongs to this request (a newer request may have replaced it).

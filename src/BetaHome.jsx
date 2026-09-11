@@ -1505,10 +1505,9 @@ function BetaHomeContent() {
       }}
     >
       <style>{DECOR_KEYFRAMES}</style>
-      <link
-        rel="stylesheet"
-        href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700;800;900&display=swap"
-      />
+      {/* The Fredoka stylesheet deliberately lives in index.html, not here —
+          rendering it from a component delayed the request until this lazy
+          chunk had executed. See the comment in index.html. */}
 
       {/* Aurora backdrop locked to the VIEWPORT (`fixed`), not the page.
           The old version painted the gradient on this growing container with

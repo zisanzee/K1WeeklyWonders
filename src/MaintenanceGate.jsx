@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
 import { usePlayerStore } from './playerStore';
 import { useSystemConfigStore, startSystemConfigPolling } from './systemConfig';
-import BrandLoader from './BrandLoader';
 import { ICON_URL } from './brand';
 
 // Height of the staff maintenance ribbon. Exposed to descendants as the
@@ -45,10 +44,12 @@ export default function MaintenanceGate({ children }) {
   const maintenanceMode = useSystemConfigStore((state) => state.maintenanceMode);
   const maintenanceMessage = useSystemConfigStore((state) => state.maintenanceMessage);
   const maintenanceEndsAt = useSystemConfigStore((state) => state.maintenanceEndsAt);
-  const configLoaded = useSystemConfigStore((state) => state.loaded);
 
   const [staffLoginOpen, setStaffLoginOpen] = useState(false);
 
+  // The initial fetch already fired at module scope (see main.jsx) so it could
+  // race the auth hydrate. This call is just to own the polling interval; it is
+  // idempotent, so the duplicate initial fetch is skipped rather than wasteful.
   useEffect(() => {
     startSystemConfigPolling();
   }, []);
@@ -61,9 +62,6 @@ export default function MaintenanceGate({ children }) {
   // signing a teacher/admin in or out changed the hook count mid-session and
   // React crashed to a black screen until a manual refresh.
   const countdown = useCountdown(staff ? null : maintenanceEndsAt);
-
-  // Same loader as every other wait, so the boot sequence looks like one screen.
-  if (!configLoaded) return <BrandLoader />;
 
   const showBanner = staff && maintenanceMode;
   const showOverlay = maintenanceMode && !staff && !staffLoginOpen;

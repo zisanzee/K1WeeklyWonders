@@ -82,12 +82,19 @@
     <link rel="dns-prefetch" href="https://k1weekly-server.onrender.com" />
     <link rel="preconnect" href="https://k1weekly-server.onrender.com" crossorigin />
 
-    <!-- Fredoka (the brand font) is fetched from Google Fonts at runtime, and
-         the icon is the first-paint brand mark. Preconnecting/loading both
-         removes a round trip from the largest contentful paint. -->
+    <!-- Fredoka is the brand font, used for every heading in the app.
+         It MUST be requested here rather than from inside a React component:
+         when it lived in BetaHome's JSX the request could not start until that
+         lazy chunk had downloaded AND executed, so the font competed with the
+         page for a round trip and text visibly re-flowed on arrival. Declared
+         in the HTML shell it downloads in parallel with the JS bundle.
+         `display=swap` keeps first paint on the fallback face. -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link rel="preload" as="image" href="/favicon-96.png" />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700;800;900&display=swap"
+    />
 
     <!-- Favicon / app icon set, all generated from the brand icon.
          Google's search-result favicon crawler requires a square icon and
