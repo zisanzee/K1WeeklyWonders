@@ -14,6 +14,7 @@ import BrandLoader from "./BrandLoader";
 import WeeklyGoals from "./WeeklyGoals";
 import { LOGO_URL } from "./brand";
 import PublicLanding from "./PublicLanding";
+import FeedbackButton from "./FeedbackButton";
 
 // ---------------------------------------------------------------------------
 // Shared utility
@@ -1828,6 +1829,16 @@ function BetaHomeContent() {
             Your teacher will add games soon. Check back later for lots of fun!
           </p>
         </motion.div>
+      )}
+
+      {/* ================================================================
+          FEEDBACK — sits directly under the games (and under the empty
+          state, so there is always a way to reach us)
+          ================================================================ */}
+      {accessReady && (
+        <div className="relative z-10 flex justify-center px-3 pb-10 sm:px-6 sm:pb-12">
+          <FeedbackButton />
+        </div>
       )}
 
       {/* ================================================================

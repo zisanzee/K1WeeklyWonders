@@ -334,6 +334,38 @@
       </main>
     </noscript>
 
+    <!--
+      Netlify discovers forms by scanning the DEPLOYED HTML at build time. The
+      real feedback form is rendered by React (src/FeedbackButton.jsx), and
+      Netlify's scanner never sees anything React produces — so this inert
+      duplicate is what actually registers the "feedback" form and its field
+      names. It is `hidden`, has no submit button, sits outside #root so React
+      never touches it, and is the pattern Netlify's own SPA docs prescribe.
+
+      Field names here must stay in step with FeedbackButton.jsx.
+    -->
+    <form
+      name="feedback"
+      data-netlify="true"
+      netlify-honeypot="bot-field"
+      hidden
+    >
+      <input type="hidden" name="form-name" value="feedback" />
+      <input type="hidden" name="bot-field" />
+      <input type="hidden" name="name" />
+      <input type="hidden" name="class" />
+      <input type="hidden" name="classId" />
+      <input type="hidden" name="classType" />
+      <input type="hidden" name="role" />
+      <input type="hidden" name="submittedAt" />
+      <input type="hidden" name="submittedAtLocal" />
+      <input type="hidden" name="page" />
+      <input type="hidden" name="ip" />
+      <input type="hidden" name="device" />
+      <input type="hidden" name="userAgent" />
+      <textarea name="message"></textarea>
+    </form>
+
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
