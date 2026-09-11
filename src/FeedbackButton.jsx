@@ -3,27 +3,15 @@ import { AnimatePresence, motion } from 'motion/react';
 import { usePlayerStore } from './playerStore';
 import { ICON_URL } from './brand';
 
-// Netlify's form name. Every piece of this component keys off it: the hidden
-// `form-name` field below, the matching static declaration in index.html (which
-// is what lets Netlify *register* the form at deploy time), and the endpoint we
-// POST to.
-const FORM_NAME = 'feedback';
+// The API that emails the feedback. Same env var every other helper in the app
+// uses, so it follows whichever target the frontend is built for.
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
 
-// Netlify accepts AJAX submissions when the body is form-urlencoded and the
-// request goes to a path on the site (not to an /api route), which is why this
-// posts to '/' rather than somewhere else. The page is never left — the modal
-// shows a thank-you instead, so nobody loses their place in the app.
-function encodeForm(data) {
-  return Object.keys(data)
-    .map((key) => `${encodeURIComponent(key)}=${encodeURIComponent(data[key] ?? '')}`)
-    .join('&');
-}
-
-// Best-effort public IP. Netlify already logs the submitter's IP server-side,
-// but it was explicitly asked for in the payload, so we attach it when the
-// lookup succeeds. It must never delay or block a submission: school networks
-// and ad-blockers routinely drop this kind of request, hence the 4s cap and the
-// silent empty-string fallback.
+// Best-effort public IP. The backend already knows the real client address from
+// the request itself and treats that as authoritative, so this is a secondary
+// datapoint — attached when it works, never allowed to delay or block a
+// submission. School networks and ad-blockers routinely drop this kind of
+// request, hence the 4s cap and the silent empty-string fallback.
 async function lookupIp() {
   try {
     const controller = new AbortController();
@@ -162,44 +150,71 @@ export default function FeedbackButton() {
     setStatus('sending');
     setError('');
 
+    // Read the trap off the DOM rather than mirroring it in state: a bot fills
+    // the field by mutating the rendered form, so the DOM value is the only one
+    // capable of catching it.
+    const botField = (
+      new FormData(event.currentTarget).get('bot-field') || ''
+    ).toString();
+
     const now = new Date();
+    // The identity and device context is assembled here rather than rendered as
+    // hidden inputs — it all travels in the JSON body, so there is nothing for
+    // the sender to see or tamper with in the markup.
     const payload = {
-      'form-name': FORM_NAME,
-      // Honeypot travels empty on every real submission. A bot that scrapes
-      // this page and auto-fills the trap will post a value here instead, and
-      // Netlify discards the entry before it reaches the inbox.
-      'bot-field': '',
       message: text,
-      name: playerName || '(not signed in)',
-      class: className || classId || '(no class)',
+      name: playerName || '',
+      className: className || '',
       classId: classId || '',
       classType: classType || '',
       role,
       submittedAt: now.toISOString(),
-      submittedAtLocal: now.toLocaleString(),
       page: typeof window !== 'undefined' ? window.location.href : '',
-      ip: ip || 'unavailable',
+      ip: ip || '',
       device: deviceSummary(),
-      userAgent:
-        typeof navigator !== 'undefined' ? navigator.userAgent : '',
+      userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : '',
+      botField,
     };
 
     try {
-      const res = await fetch('/', {
+      const res = await fetch(`${API_BASE}/api/feedback`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: encodeForm(payload),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
       });
-      if (!res.ok) throw new Error(`Request failed (${res.status})`);
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        // A 4xx message is written for the sender (e.g. the rate-limit notice),
+        // so it is safe to show verbatim. A 5xx means something broke on our
+        // side, and the raw text would only confuse a child.
+        const failure = new Error(
+          res.status >= 400 && res.status < 500 && body.error
+            ? body.error
+            : "We couldn't send that just now. Please try again in a moment."
+        );
+        failure.status = res.status;
+        failure.serverError = body.error || '';
+        throw failure;
+      }
+
       setStatus('sent');
     } catch (err) {
       setStatus('error');
+      // No `status` means the request never completed (offline, DNS, CORS), so
+      // the connection message is the honest one.
       setError(
-        "We couldn't send that just now. Please check your connection and try again."
+        err.status
+          ? err.message
+          : "We couldn't send that just now. Please check your connection and try again."
       );
-      // Keep the message visible in the console for support — the on-screen
-      // copy stays friendly and non-technical for a child to read.
-      console.error('[feedback] submit failed:', err);
+      // Full context stays in the console for support; the on-screen copy stays
+      // friendly and non-technical for a child to read.
+      console.error(
+        '[feedback] submit failed:',
+        err.status || '',
+        err.serverError || err.message
+      );
     }
   };
 
@@ -292,47 +307,12 @@ export default function FeedbackButton() {
                   </button>
                 </div>
               ) : (
-                <form
-                  name={FORM_NAME}
-                  method="POST"
-                  data-netlify="true"
-                  netlify-honeypot="bot-field"
-                  onSubmit={submit}
-                  className="mt-5 space-y-4"
-                >
-                  {/* Required by Netlify for JS-rendered forms: React never puts
-                      this form in the served HTML, so the name has to travel in
-                      the body for Netlify to route the submission. */}
-                  <input type="hidden" name="form-name" value={FORM_NAME} />
-
-                  {/* Spam trap. `netlify-honeypot` names this input as the trap:
-                      it has to exist, stay empty, and never be filled by a
-                      person. A submission that arrives with it populated is
-                      dropped as spam. */}
+                <form onSubmit={submit} className="mt-5 space-y-4">
+                  {/* Spam trap. It has to exist, stay empty, and never be filled
+                      by a person — the value is read off the form on submit and
+                      the server silently drops any submission that arrives with
+                      it populated. */}
                   <input type="hidden" name="bot-field" />
-
-                  {/* Auto-captured context. Hidden inputs (not state) because the
-                      values must be serialised with the form, and the sender
-                      should never have to type what the app already knows. */}
-                  <input type="hidden" name="name" value={playerName || '(not signed in)'} />
-                  <input type="hidden" name="class" value={className || classId || '(no class)'} />
-                  <input type="hidden" name="classId" value={classId || ''} />
-                  <input type="hidden" name="classType" value={classType || ''} />
-                  <input type="hidden" name="role" value={role} />
-                  <input type="hidden" name="submittedAt" value={new Date().toISOString()} />
-                  <input type="hidden" name="submittedAtLocal" value={new Date().toLocaleString()} />
-                  <input
-                    type="hidden"
-                    name="page"
-                    value={typeof window !== 'undefined' ? window.location.href : ''}
-                  />
-                  <input type="hidden" name="ip" value={ip || 'unavailable'} />
-                  <input type="hidden" name="device" value={deviceSummary()} />
-                  <input
-                    type="hidden"
-                    name="userAgent"
-                    value={typeof navigator !== 'undefined' ? navigator.userAgent : ''}
-                  />
 
                   <div>
                     <label
