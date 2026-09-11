@@ -1,36 +1,16 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <!--
+    Only the root is listed, on purpose. Every route is served the same static
+    shell, whose <link rel="canonical"> points at https://ezwonders.com/. The
+    /gameN routes additionally sit behind the sign-in gate, so a crawler only
+    ever sees a login form there — listing them would just generate "Duplicate,
+    Google chose a different canonical" noise. Add a route here only once it has
+    its own content AND its own per-route canonical.
+  -->
   <url>
     <loc>https://ezwonders.com/</loc>
-  </url>
-  <url>
-    <loc>https://ezwonders.com/game1</loc>
-  </url>
-  <url>
-    <loc>https://ezwonders.com/game2</loc>
-  </url>
-  <url>
-    <loc>https://ezwonders.com/game3</loc>
-  </url>
-  <url>
-    <loc>https://ezwonders.com/game4</loc>
-  </url>
-  <url>
-    <loc>https://ezwonders.com/game5</loc>
-  </url>
-  <url>
-    <loc>https://ezwonders.com/game6</loc>
-  </url>
-  <url>
-    <loc>https://ezwonders.com/game7</loc>
-  </url>
-  <url>
-    <loc>https://ezwonders.com/game8</loc>
-  </url>
-  <url>
-    <loc>https://ezwonders.com/game9</loc>
-  </url>
-  <url>
-    <loc>https://ezwonders.com/bonus-game1</loc>
+    <changefreq>weekly</changefreq>
+    <priority>1.0</priority>
   </url>
 </urlset>

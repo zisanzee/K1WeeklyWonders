@@ -58,14 +58,14 @@
 
    <meta name="google-site-verification" content="pZnVXIUGdveKL-trd_h_SMHMYbCNoVxgvb70ozM1iYQ" />
 
-    <title>EZ Wonders | Free Kindergarten Numeracy & Maths Games</title>
+    <title>EZ Wonders | Interactive Numeracy Games for Kindergarten (K1 & K2)</title>
     <meta
       name="description"
-      content="EZ Wonders is a free, interactive numeracy platform for Kindergarten children — playful maths games for counting, number recognition, comparing quantities, number bonds and sequencing, plus class tools for teachers."
+      content="Free interactive numeracy games for Kindergarten children aged 4-6. Counting, comparing quantities, subitising, number bonds and number order — suits Singapore K1 and K2 classes, Reception, Pre-K and home learning."
     />
     <meta
       name="keywords"
-      content="EZ Wonders, kindergarten maths games, numeracy games for kids, counting games, number bonds, part-part-whole, early years maths, free educational games, reception maths"
+      content="interactive numeracy games for kindergarten, kindergarten maths games Singapore, K1 K2 numeracy games, preschool number games, number bonds games, counting games for 5 year olds, subitising games, part-part-whole games, free early years maths games, EZ Wonders"
     />
 
     <meta name="application-name" content="EZ Wonders" />
@@ -81,6 +81,13 @@
          session — the "Loading your class games…" spinner disappears faster. -->
     <link rel="dns-prefetch" href="https://k1weekly-server.onrender.com" />
     <link rel="preconnect" href="https://k1weekly-server.onrender.com" crossorigin />
+
+    <!-- Fredoka (the brand font) is fetched from Google Fonts at runtime, and
+         the icon is the first-paint brand mark. Preconnecting/loading both
+         removes a round trip from the largest contentful paint. -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="preload" as="image" href="/favicon-96.png" />
 
     <!-- Favicon / app icon set, all generated from the brand icon.
          Google's search-result favicon crawler requires a square icon and
@@ -98,11 +105,15 @@
 
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="EZ Wonders" />
-    <meta property="og:locale" content="en_US" />
-    <meta property="og:title" content="EZ Wonders | Free Kindergarten Numeracy & Maths Games" />
+    <meta property="og:locale" content="en_SG" />
+    <meta property="og:locale:alternate" content="en_US" />
+    <meta
+      property="og:title"
+      content="EZ Wonders | Interactive Numeracy Games for Kindergarten (K1 & K2)"
+    />
     <meta
       property="og:description"
-      content="Free interactive numeracy games for Kindergarten children — counting, number recognition, comparing quantities, number bonds and sequencing, with class tools for teachers."
+      content="Free interactive numeracy games for Kindergarten children aged 4-6 — counting, comparing quantities, subitising, number bonds and number order, with class tools for teachers."
     />
     <meta property="og:url" content="https://ezwonders.com/" />
     <!-- The 1200x630 wordmark card in public/ — the size social crawlers
@@ -114,7 +125,10 @@
     <meta property="og:image:alt" content="EZ Wonders — kindergarten numeracy games" />
 
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="EZ Wonders | Free Kindergarten Numeracy & Maths Games" />
+    <meta
+      name="twitter:title"
+      content="EZ Wonders | Interactive Numeracy Games for Kindergarten (K1 & K2)"
+    />
     <meta
       name="twitter:description"
       content="Free interactive numeracy games for Kindergarten children, with class tools for teachers."
@@ -157,10 +171,30 @@
             "operatingSystem": "Web, Android, iOS",
             "browserRequirements": "Requires JavaScript",
             "description": "Free interactive numeracy games for Kindergarten children, covering counting, number recognition, comparing quantities, number bonds (part-part-whole) and sequencing, with a class management panel for teachers.",
+            "educationalLevel": "Kindergarten / Early years",
+            "typicalAgeRange": "4-6",
+            "audience": { "@type": "EducationalAudience", "educationalRole": "student" },
             "inLanguage": "en",
             "isAccessibleForFree": true,
             "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
             "publisher": { "@id": "https://ezwonders.com/#organization" }
+          },
+          {
+            "@type": "ItemList",
+            "name": "EZ Wonders game library",
+            "description": "Ten short numeracy games covering counting, comparing quantities, subitising, number bonds and number order.",
+            "itemListElement": [
+              { "@type": "ListItem", "position": 1, "name": "Count & Win! - numeral and number-word counting" },
+              { "@type": "ListItem", "position": 2, "name": "Comparing Quantities - more, fewer and the same" },
+              { "@type": "ListItem", "position": 3, "name": "Which Number? - before and after" },
+              { "@type": "ListItem", "position": 4, "name": "Compare Die and Dominoes - subitising" },
+              { "@type": "ListItem", "position": 5, "name": "Making & Splitting Groups - number bonds 1-5" },
+              { "@type": "ListItem", "position": 6, "name": "Part-Part-Whole! - number bonds 1-10" },
+              { "@type": "ListItem", "position": 7, "name": "Mama Bird's Eggs - number bonds 1-10" },
+              { "@type": "ListItem", "position": 8, "name": "Pizza Order! - number bonds 1-10" },
+              { "@type": "ListItem", "position": 9, "name": "Polly's Treasure Quest - number bonds 1-10" },
+              { "@type": "ListItem", "position": 10, "name": "Number Pop! - ascending and descending order" }
+            ]
           },
           {
             "@type": "FAQPage",
@@ -171,6 +205,14 @@
                 "acceptedAnswer": {
                   "@type": "Answer",
                   "text": "EZ Wonders is a free web platform of short, playful numeracy games for Kindergarten children, with a control panel that lets teachers manage games, student codes and progress."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Is EZ Wonders suitable for Singapore kindergartens?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Yes. EZ Wonders fits Singapore kindergarten and preschool classes working at Kindergarten 1 (K1) and Kindergarten 2 (K2) level. Games are arranged into a K1 set and a K2 set, and a class only sees the games its teacher has unlocked for that level. The same activities suit Reception, Pre-K, nursery and prep classes elsewhere."
                 }
               },
               {
@@ -250,10 +292,43 @@
           <li>Polly's Treasure Quest — number bonds 1–10</li>
           <li>Number Pop! (bonus) — ascending and descending order</li>
         </ul>
+        <h2>Who it is for</h2>
         <p>
-          How to sign in: enter the class code your teacher gave you (and your
-          name), or your individual student code. Teachers and admins sign in
-          with their own code. Please enable JavaScript to play.
+          EZ Wonders suits Kindergarten 1 (K1) and Kindergarten 2 (K2) classes in
+          Singapore kindergartens and preschools, as well as Reception, Pre-K,
+          nursery and prep classes elsewhere. It is designed for children aged
+          roughly 4 to 6 and is free to use, with no advertising.
+        </p>
+        <h2>Frequently asked questions</h2>
+        <h3>Is EZ Wonders suitable for Singapore kindergartens?</h3>
+        <p>
+          Yes. EZ Wonders fits Singapore kindergarten and preschool classes
+          working at Kindergarten 1 (K1) and Kindergarten 2 (K2) level. Games are
+          arranged into a K1 set and a K2 set, and a class only sees the games its
+          teacher has unlocked for that level.
+        </p>
+        <h3>Is EZ Wonders free?</h3>
+        <p>
+          Yes. EZ Wonders is completely free to play in the browser and works on
+          phones, tablets and computers.
+        </p>
+        <h3>What age is EZ Wonders for?</h3>
+        <p>
+          It is designed for Kindergarten / Reception-aged children (roughly 4 to
+          6 years old) and focuses on early numeracy.
+        </p>
+        <h3>How do students log in?</h3>
+        <p>
+          A student joins their own class using either a class code plus their
+          name (public classes) or an individual student code provided by their
+          teacher (private classes). Teachers and admins sign in with their own
+          code. Please enable JavaScript to play.
+        </p>
+        <h3>What maths skills does EZ Wonders cover?</h3>
+        <p>
+          Counting and numeral recognition, comparing quantities (more, fewer,
+          the same), subitising with dice and dominoes, number bonds and
+          part-part-whole, and ascending/descending number order.
         </p>
         <p><a href="https://ezwonders.com/">Open EZ Wonders</a></p>
       </main>

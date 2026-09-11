@@ -13,6 +13,7 @@ import { confirmDialog } from "./confirmDialog";
 import BrandLoader from "./BrandLoader";
 import WeeklyGoals from "./WeeklyGoals";
 import { LOGO_URL } from "./brand";
+import PublicLanding from "./PublicLanding";
 
 // ---------------------------------------------------------------------------
 // Shared utility
@@ -1984,19 +1985,31 @@ function BetaHomeContent() {
 // ===========================================================================
 
 export default function BetaHome() {
+  // Read the gate's own signed-in signal so the public copy below the sign-in
+  // card can disappear as soon as a session exists, and never occupy the
+  // screen underneath the real home page.
+  const signedIn = usePlayerStore((state) => Boolean(state.identityKind));
+
   return (
     <>
       <Helmet>
-        <title>EZ Wonders | Interactive Learning Games for Kids</title>
+        <title>{"EZ Wonders | Interactive Numeracy Games for Kindergarten (K1 & K2)"}</title>
         <meta
           name="description"
-          content="EZ Wonders offers fun, interactive numeracy and learning games for young children. Practice counting, numbers, and more through playful activities."
+          content="Free interactive numeracy games for Kindergarten children aged 4-6. Counting, comparing quantities, subitising, number bonds and number order - suits Singapore K1 and K2 classes, Reception, Pre-K and home learning."
+        />
+        <meta
+          name="keywords"
+          content="interactive numeracy games for kindergarten, kindergarten maths games Singapore, K1 K2 numeracy games, preschool number games, number bonds games, counting games for 5 year olds, subitising games, part-part-whole games, free early years maths games"
         />
       </Helmet>
 
       <NameGate gameLabel="EZ Wonders">
         <BetaHomeContent />
       </NameGate>
+
+      {/* Public, crawlable copy — see PublicLanding.jsx for why it lives here. */}
+      {!signedIn && <PublicLanding />}
     </>
   );
 }

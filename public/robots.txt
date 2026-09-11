@@ -7,4 +7,33 @@ Allow: /
 Disallow: /p/
 Disallow: /game-access
 
+# AI answer engines are welcome. They are listed explicitly (rather than left to
+# the wildcard) because most of them never execute JavaScript — the descriptive
+# copy they can actually read is the static HTML in index.html plus the visible
+# content on the root route.
+User-agent: GPTBot
+Allow: /
+Disallow: /p/
+Disallow: /game-access
+
+User-agent: OAI-SearchBot
+Allow: /
+Disallow: /p/
+Disallow: /game-access
+
+User-agent: ClaudeBot
+Allow: /
+Disallow: /p/
+Disallow: /game-access
+
+User-agent: PerplexityBot
+Allow: /
+Disallow: /p/
+Disallow: /game-access
+
+User-agent: Google-Extended
+Allow: /
+Disallow: /p/
+Disallow: /game-access
+
 Sitemap: https://ezwonders.com/sitemap.xml
