@@ -15,6 +15,7 @@ import WeeklyGoals from "./WeeklyGoals";
 import { LOGO_URL } from "./brand";
 import PublicLanding from "./PublicLanding";
 import FeedbackButton from "./FeedbackButton";
+import ContactStrip from "./ContactStrip";
 
 // ---------------------------------------------------------------------------
 // Shared utility
@@ -1886,6 +1887,8 @@ function BetaHomeContent() {
           <p className="mt-1.5 sm:mt-2 text-xs sm:text-sm md:text-base font-semibold" style={{ color: TEXT_SOFT }}>
             A collaborative numeracy project for joyful early learning
           </p>
+
+          <ContactStrip heading="Reach out to us" className="mt-4 sm:mt-5" />
           <div className="mt-3 sm:mt-4 flex items-center justify-center gap-2 sm:gap-3 text-xl sm:text-2xl md:text-3xl">
             <motion.span animate={{ y: [0, -3, 0] }} transition={{ duration: 3.5, repeat: Infinity }} className="text-pink-300"><Icon name="palette" size="1em" /></motion.span>
             <motion.span animate={{ y: [0, -3, 0] }} transition={{ duration: 3.5, repeat: Infinity, delay: 0.2 }} className="text-violet-300"><Icon name="abacus" size="1em" /></motion.span>

@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'motion/react';
 import { create } from 'zustand';
 
@@ -47,14 +48,20 @@ export function ConfirmHost() {
     return () => window.removeEventListener('keydown', onKey);
   }, [state, close]);
 
-  return (
+  // Portaled to <body> on purpose: ConfirmHost sits as a sibling of the routed
+  // page, so without this the backdrop competes with page content in source
+  // order and on small phones a later fixed/sticky element (the home footer)
+  // could paint over it. A body-level portal with a very high z-index puts the
+  // dialog above everything, regardless of where the page put its stacking
+  // contexts.
+  return createPortal(
     <AnimatePresence>
       {state && (
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/60 px-4 py-6 backdrop-blur-sm"
+          className="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-900/60 px-4 py-6 backdrop-blur-sm"
           onClick={() => close(false)}
         >
           <motion.div
@@ -121,6 +128,7 @@ export function ConfirmHost() {
           </motion.div>
         </motion.div>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body
   );
 }

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { AnimatePresence, motion } from 'motion/react';
 import { usePlayerStore } from './playerStore';
+import ContactStrip from './ContactStrip';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
 
@@ -159,7 +160,7 @@ export default function NameGate({ gameLabel, children }) {
   }[step];
 
   return (
-    <main className="aura-page relative flex min-h-[100dvh] items-center justify-center overflow-hidden px-4 py-6 sm:px-6">
+    <main className="aura-page relative flex min-h-[100dvh] flex-col items-center justify-center gap-5 overflow-hidden px-4 py-6 sm:px-6">
       <div className="pointer-events-none absolute -left-16 top-16 h-48 w-48 rounded-full bg-violet-500/30 blur-3xl" />
       <div className="pointer-events-none absolute -right-12 bottom-6 h-52 w-52 rounded-full bg-fuchsia-500/30 blur-3xl" />
       <div className="pointer-events-none absolute left-[7%] top-[12%] text-4xl opacity-70 sm:text-5xl">&#9729;&#65039;</div>
@@ -311,6 +312,8 @@ export default function NameGate({ gameLabel, children }) {
           </div>
         </motion.form>
       </AnimatePresence>
+
+      <ContactStrip heading="Need help? Reach out" className="relative z-10 w-full max-w-md" />
     </main>
   );
 }
