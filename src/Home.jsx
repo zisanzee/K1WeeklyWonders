@@ -10,6 +10,7 @@ import {
 } from "./gameAccess";
 import { fetchSummary } from "./logPlaySession";
 import { Helmet } from "react-helmet-async";
+import { ICON_URL } from "./brand";
 
 export default function Home() {
   return (
@@ -522,6 +523,15 @@ function HomeContent() {
             <div className="h-1 w-full bg-gradient-to-r from-yellow-300 via-pink-300 to-sky-300" />
 
             <div className="flex flex-col items-center gap-2 px-5 py-4 text-center sm:px-7 sm:py-5">
+              <img
+                src={ICON_URL}
+                alt=""
+                width={40}
+                height={40}
+                className="h-10 w-10 rounded-xl shadow-md"
+                loading="lazy"
+                decoding="async"
+              />
               <p className="aura-soft font-body text-[0.78rem] font-extrabold uppercase tracking-[0.22em]">
                 EZ Wonders
               </p>

@@ -18,11 +18,24 @@
         padding: 0 1.5rem;
         background: linear-gradient(160deg, #1e1b5a 0%, #4338ca 35%, #7c3aed 65%, #be185d 100%);
       }
-      #root .boot-spin {
-        width: 2.5rem;
-        height: 2.5rem;
+      #root .boot-mark {
+        position: relative;
+        display: grid;
+        place-items: center;
+        width: 4rem;
+        height: 4rem;
+      }
+      #root .boot-mark img {
+        width: 2.75rem;
+        height: 2.75rem;
+        border-radius: 0.85rem;
+        box-shadow: 0 10px 22px rgba(0, 0, 0, 0.28);
+      }
+      #root .boot-mark-ring {
+        position: absolute;
+        inset: 0;
         border-radius: 9999px;
-        border: 3px solid rgba(255, 255, 255, 0.7);
+        border: 3px solid rgba(255, 255, 255, 0.6);
         border-top-color: transparent;
         animation: bootspin 1s linear infinite;
       }
@@ -39,7 +52,7 @@
         }
       }
       @media (prefers-reduced-motion: reduce) {
-        #root .boot-spin { animation-duration: 2s; }
+        #root .boot-mark-ring { animation-duration: 2s; }
       }
     </style>
 
@@ -69,11 +82,17 @@
     <link rel="dns-prefetch" href="https://k1weekly-server.onrender.com" />
     <link rel="preconnect" href="https://k1weekly-server.onrender.com" crossorigin />
 
-    <!-- Favicon set -->
+    <!-- Favicon / app icon set, all generated from the brand icon.
+         Google's search-result favicon crawler requires a square icon and
+         prefers sizes that are a multiple of 48px, so 48/96/192 are declared
+         explicitly. A real /favicon.ico is also kept at the site root because
+         that is the path the crawler probes when it finds no usable link tag. -->
     <link rel="icon" href="/favicon.ico" sizes="any" />
+    <link rel="icon" type="image/png" sizes="48x48" href="/favicon-48.png" />
+    <link rel="icon" type="image/png" sizes="96x96" href="/favicon-96.png" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/android-chrome-192x192.png" />
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
     <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png" />
-    <link rel="icon" type="image/png" sizes="96x96" href="/favicon-96.png" />
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/site.webmanifest" />
 
@@ -86,11 +105,12 @@
       content="Free interactive numeracy games for Kindergarten children — counting, number recognition, comparing quantities, number bonds and sequencing, with class tools for teachers."
     />
     <meta property="og:url" content="https://ezwonders.com/" />
-    <!-- Points at the 512px app icon that actually exists in public/, so the
-         social preview never resolves to a missing image. -->
-    <meta property="og:image" content="https://ezwonders.com/android-chrome-512x512.png" />
-    <meta property="og:image:width" content="512" />
-    <meta property="og:image:height" content="512" />
+    <!-- The 1200x630 wordmark card in public/ — the size social crawlers
+         actually render, rather than a square icon padded into a preview. -->
+    <meta property="og:image" content="https://ezwonders.com/og-image.png" />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
     <meta property="og:image:alt" content="EZ Wonders — kindergarten numeracy games" />
 
     <meta name="twitter:card" content="summary_large_image" />
@@ -99,7 +119,7 @@
       name="twitter:description"
       content="Free interactive numeracy games for Kindergarten children, with class tools for teachers."
     />
-    <meta name="twitter:image" content="https://ezwonders.com/android-chrome-512x512.png" />
+    <meta name="twitter:image" content="https://ezwonders.com/og-image.png" />
     <meta name="twitter:image:alt" content="EZ Wonders — kindergarten numeracy games" />
 
     <!--
@@ -116,7 +136,8 @@
             "@id": "https://ezwonders.com/#organization",
             "name": "EZ Wonders",
             "url": "https://ezwonders.com/",
-            "logo": "https://ezwonders.com/android-chrome-512x512.png",
+            "logo": "https://ezwonders.com/logo.png",
+            "image": "https://ezwonders.com/og-image.png",
             "description": "EZ Wonders builds free interactive numeracy games for Kindergarten children."
           },
           {
@@ -193,7 +214,10 @@
   <body>
     <div id="root">
       <div class="boot">
-        <span class="boot-spin"></span>
+        <span class="boot-mark">
+          <span class="boot-mark-ring" aria-hidden="true"></span>
+          <img src="/favicon-96.png" alt="" width="44" height="44" />
+        </span>
         <p class="boot-name">EZ Wonders</p>
       </div>
     </div>

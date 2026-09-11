@@ -12,6 +12,7 @@ import { fetchSummary, fetchLeaderboard } from "./logPlaySession";
 import { confirmDialog } from "./confirmDialog";
 import BrandLoader from "./BrandLoader";
 import WeeklyGoals from "./WeeklyGoals";
+import { LOGO_URL } from "./brand";
 
 // ---------------------------------------------------------------------------
 // Shared utility
@@ -23,9 +24,6 @@ function cn(...inputs) {
 // ---------------------------------------------------------------------------
 // Design tokens
 // ---------------------------------------------------------------------------
-const LOGO_URL =
-  "https://res.cloudinary.com/hijmipga/image/upload/v1786543371/ChatGPT_Image_Aug_12_2026_07_59_59_PM-Photoroom_hzlh8v.png";
-
 const FONT = "'Fredoka', system-ui, sans-serif";
 
 // "Aurora dusk" — one indigo scene melting through violet into magenta,

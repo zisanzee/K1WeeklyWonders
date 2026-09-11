@@ -3,8 +3,7 @@ import { motion } from 'motion/react';
 import { usePlayerStore } from './playerStore';
 import { useSystemConfigStore, startSystemConfigPolling } from './systemConfig';
 import BrandLoader from './BrandLoader';
-
-const LOGO_SRC = '/android-chrome-512x512.png';
+import { ICON_URL } from './brand';
 
 // Height of the staff maintenance ribbon. Exposed to descendants as the
 // `--maint-banner-h` CSS variable so fixed/sticky top bars can offset
@@ -118,7 +117,7 @@ export default function MaintenanceGate({ children }) {
             {/* Brand row */}
             <div className="flex items-center justify-center gap-2">
               <img
-                src={LOGO_SRC}
+                src={ICON_URL}
                 alt="EZ Wonders"
                 className="h-9 w-9 rounded-xl shadow-sm"
               />

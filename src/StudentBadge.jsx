@@ -6,12 +6,12 @@ import { toCanvas, toJpeg } from 'html-to-image';
 import { jsPDF } from 'jspdf';
 import { useStudentStore } from './students';
 import { usePlayerStore } from './playerStore';
+import { ICON_URL } from './brand';
 
 // Canonical fallback only — badges should point at whatever host the app is
 // actually served from (localhost, the Netlify URL, or ezwonders.com), so the
 // link is built from the live origin at render time.
 const SITE_URL = 'https://ezwonders.com';
-const LOGO_SRC = '/android-chrome-512x512.png';
 
 // Builds the student login link using the code-first entry point the app now
 // understands (?code=…), which auto-logs the student in. Using the runtime
@@ -77,7 +77,7 @@ function BadgeCard({ student, classInfo, qrSize = 160 }) {
       {/* Header: colorful brand band */}
       <div className="relative flex w-full items-center gap-3 bg-gradient-to-r from-indigo-600 via-violet-600 to-sky-500 px-5 py-5">
         <img
-          src={LOGO_SRC}
+          src={ICON_URL}
           alt=""
           draggable={false}
           className="h-12 w-12 shrink-0 rounded-2xl bg-white p-1 shadow-sm"
@@ -218,14 +218,14 @@ async function copyText(text) {
   }
 }
 
-// Warm the logo once so every badge capture inlines it from the cache.
+// Warm the icon once so every badge capture inlines it from the cache.
 let logoPreload = null;
 async function ensureLogoLoaded() {
   if (!logoPreload) {
     logoPreload = new Promise((resolve) => {
       const img = new Image();
       img.onload = img.onerror = () => resolve();
-      img.src = LOGO_SRC;
+      img.src = ICON_URL;
     });
   }
   return logoPreload;
