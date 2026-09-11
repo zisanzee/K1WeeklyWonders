@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { AnimatePresence, motion } from 'motion/react';
 import {
   closestCenter,
@@ -65,7 +64,13 @@ const TEACHER_TABS = [
     key: 'games',
     label: 'Games',
     icon: '🎮',
-    description: 'Reorder, add or remove games, and choose what is locked or featured for your class.',
+    description: 'Reorder games and choose what is locked or featured for your class.',
+  },
+  {
+    key: 'shop',
+    label: 'Shop',
+    icon: '🛒',
+    description: 'Browse the game catalogue and add or remove games for your class.',
   },
   {
     key: 'students',
@@ -95,6 +100,12 @@ const ADMIN_TABS = [
     description: 'Create classes, edit their details and teachers, and manage each class\'s games.',
   },
   {
+    key: 'shop',
+    label: 'Shop',
+    icon: '🛒',
+    description: 'Browse the game catalogue and add or remove games for your own class.',
+  },
+  {
     key: 'stats',
     label: 'Stats',
     icon: '📊',
@@ -114,7 +125,7 @@ function TabBar({ tabs, activeTab, onChange, disabled }) {
       <div
         role="tablist"
         aria-label="Panel sections"
-        className="flex min-w-max gap-1 border-b border-white/25 sm:min-w-0 sm:gap-2"
+        className="flex min-w-max items-stretch border-b border-white/20 sm:min-w-0"
       >
         {tabs.map((tab) => {
           const isActive = tab.key === activeTab;
@@ -126,17 +137,17 @@ function TabBar({ tabs, activeTab, onChange, disabled }) {
               aria-selected={isActive}
               onClick={() => onChange(tab.key)}
               disabled={disabled}
-              className={`relative flex shrink-0 items-center gap-1.5 whitespace-nowrap px-3 py-2.5 text-xs font-black transition disabled:cursor-not-allowed disabled:opacity-50 sm:flex-1 sm:justify-center sm:px-4 sm:text-sm ${
-                isActive ? 'text-white' : 'text-slate-300/70 hover:text-white'
+              className={`relative flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap px-3.5 py-3 text-xs font-black leading-none tracking-tight transition disabled:cursor-not-allowed disabled:opacity-50 sm:flex-1 sm:gap-2 sm:px-4 sm:text-sm ${
+                isActive ? 'text-white' : 'text-white/60 hover:text-white'
               }`}
             >
-              <span className="text-sm sm:text-base">{tab.icon}</span>
+              <span className="text-sm leading-none sm:text-base">{tab.icon}</span>
               {tab.label}
               {isActive && (
                 <motion.span
                   layoutId="access-tab-indicator"
                   transition={{ type: 'spring', stiffness: 500, damping: 40 }}
-                  className="absolute inset-x-2 -bottom-px h-[3px] rounded-full bg-white sm:inset-x-4"
+                  className="absolute inset-x-3 -bottom-px h-[3px] rounded-full bg-white sm:inset-x-4"
                 />
               )}
             </button>
@@ -516,7 +527,6 @@ function GameAccessEditor({
   const [lastMove, setLastMove] = useState(null);
   const [localSaving, setLocalSaving] = useState(false);
   const [localError, setLocalError] = useState(null);
-  const [shopSavingKey, setShopSavingKey] = useState(null);
 
   const initializedRef = useRef(false);
   const moveTimerRef = useRef(null);
@@ -681,32 +691,6 @@ function GameAccessEditor({
     }
   };
 
-  const handleShopToggle = async (game) => {
-    if (shopSavingKey || localSaving || isSaving) return;
-    const isAdded = visibleGames.some((item) => item.key === game.key);
-    setLocalError(null);
-    onGlobalError(null);
-    setShopSavingKey(game.key);
-
-    try {
-      if (isAdded) {
-        await removeGameForClass(game.key, classId, teacherCode);
-      } else {
-        await addGameForClass(game.key, classId, teacherCode);
-      }
-      const rows = await fetchGameAccessForClass(classId, teacherCode);
-      const nextGames = mergeRows(rows);
-      setGames(nextGames);
-      const snapshot = copyGames(nextGames);
-      setDraftGames(snapshot);
-      setOriginalGames(copyGames(snapshot));
-    } catch (err) {
-      setLocalError(err.message || 'Could not update this class. Please try again.');
-    } finally {
-      setShopSavingKey(null);
-    }
-  };
-
   return (
     <>
       <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-stretch">
@@ -760,47 +744,6 @@ function GameAccessEditor({
         Drag a slot to reorder, or hover over one to preview the new placement.
       </p>
 
-      <div className="mb-6 rounded-2xl border border-white/20 bg-white/10 px-4 py-3">
-        <p className="mb-3 text-sm font-semibold text-white">
-          Game shop — <strong>+</strong> adds this game to the class, <strong>Remove</strong> takes
-          it out.
-        </p>
-        <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-          {GAME_CATALOG.map((game) => {
-            const isAdded = visibleGames.some((item) => item.key === game.key);
-            const isSavingThis = shopSavingKey === game.key;
-            return (
-              <li key={game.key} className="flex items-center gap-3 rounded-2xl aura-card p-3 sm:p-4">
-                <span
-                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-xl"
-                  style={{ background: game.tint }}
-                >
-                  {game.emoji}
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-black aura-text">{game.label}</p>
-                  <p className="mt-0.5 whitespace-pre-line text-[11px] font-semibold leading-snug aura-muted">
-                    {game.subtitle}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => handleShopToggle(game)}
-                  disabled={Boolean(shopSavingKey) || !isReady || localSaving || isSaving}
-                  className={`min-h-10 shrink-0 rounded-xl px-3 text-xs font-black transition disabled:cursor-not-allowed disabled:opacity-55 ${
-                    isAdded
-                      ? 'bg-rose-500/25 text-rose-100 hover:bg-rose-500/40'
-                      : 'bg-indigo-600 text-white hover:bg-indigo-500'
-                  }`}
-                >
-                  {isSavingThis ? 'Saving…' : isAdded ? 'Remove' : '+ Add'}
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      </div>
-
       <DndContext
         sensors={sensors}
         collisionDetection={closestCenter}
@@ -841,7 +784,7 @@ function GameAccessEditor({
             <div className="rounded-2xl border border-dashed border-white/25 bg-white/10 px-5 py-8 text-center">
               <span className="text-4xl">🎮</span>
               <p className="mt-3 text-base font-black aura-text">No games yet</p>
-              <p className="mt-1 text-sm font-semibold aura-soft">Add games from the shop above.</p>
+              <p className="mt-1 text-sm font-semibold aura-soft">Add games from the Shop tab.</p>
             </div>
           )}
         </SortableContext>
@@ -891,6 +834,189 @@ function GameAccessEditor({
         )}
       </div>
     </>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Shop tab — the game catalogue as a searchable add/remove storefront. Split
+// out of the game editor so a teacher browses (and opts into) the full catalog
+// on its own tab instead of scrolling past it every time they reorder.
+// ---------------------------------------------------------------------------
+function GameShop({ classId, teacherCode }) {
+  const [addedKeys, setAddedKeys] = useState(null);
+  const [status, setStatus] = useState('loading');
+  const [error, setError] = useState(null);
+  const [query, setQuery] = useState('');
+  const [savingKey, setSavingKey] = useState(null);
+
+  const load = useCallback(async () => {
+    setStatus('loading');
+    setError(null);
+    try {
+      const rows = await fetchGameAccessForClass(classId, teacherCode);
+      setAddedKeys(new Set(mergeRows(rows).map((game) => game.key)));
+      setStatus('ready');
+    } catch (err) {
+      setError(err.message || 'Could not load the game catalogue.');
+      setStatus('error');
+    }
+  }, [classId, teacherCode]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const addedCount = addedKeys ? addedKeys.size : 0;
+
+  // Match against the title and the description so a teacher can search either
+  // by game name or by what the game teaches (e.g. "number bonds", "counting").
+  const filteredGames = useMemo(() => {
+    const term = query.trim().toLowerCase();
+    if (!term) return GAME_CATALOG;
+    return GAME_CATALOG.filter((game) => {
+      const haystack = `${game.title} ${game.label} ${game.subtitle} ${game.description || ''}`
+        .toLowerCase();
+      return haystack.includes(term);
+    });
+  }, [query]);
+
+  const toggle = async (game) => {
+    if (!addedKeys || savingKey) return;
+    const isAdded = addedKeys.has(game.key);
+    setSavingKey(game.key);
+    setError(null);
+    try {
+      if (isAdded) {
+        await removeGameForClass(game.key, classId, teacherCode);
+      } else {
+        await addGameForClass(game.key, classId, teacherCode);
+      }
+      // Trust the server round-trip over optimistic state so two tabs can't
+      // drift the "added" set.
+      const rows = await fetchGameAccessForClass(classId, teacherCode);
+      setAddedKeys(new Set(mergeRows(rows).map((item) => item.key)));
+    } catch (err) {
+      setError(err.message || 'Could not update the shop. Please try again.');
+    } finally {
+      setSavingKey(null);
+    }
+  };
+
+  return (
+    <div>
+      <div className="mb-4 rounded-2xl aura-card p-4 sm:p-5">
+        <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+          <p className="text-sm font-black aura-text">Game shop</p>
+          <p className="text-[11px] font-black uppercase tracking-wide aura-muted">
+            {addedCount} of {GAME_CATALOG.length} added
+          </p>
+        </div>
+        <p className="mt-1 text-xs font-semibold aura-soft">
+          Add a game to make it available to your class, or remove one to take it back out.
+        </p>
+        <div className="relative mt-3">
+          <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-sm aura-muted">
+            🔍
+          </span>
+          <input
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search games by title or description…"
+            className="w-full rounded-2xl border border-white/20 bg-white/10 py-2.5 pl-10 pr-4 text-sm font-semibold text-white placeholder:text-white/45 focus:border-violet-300/60 focus:outline-none focus:ring-2 focus:ring-violet-400/40"
+          />
+        </div>
+      </div>
+
+      <AnimatePresence mode="wait">
+        {error && (
+          <motion.p
+            initial={{ opacity: 0, y: -6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -6 }}
+            className="mb-3 rounded-2xl border border-rose-500/30 bg-rose-500/20 px-3 py-3 text-sm font-bold text-rose-100"
+          >
+            ⚠️ {error}
+          </motion.p>
+        )}
+      </AnimatePresence>
+
+      {status === 'loading' && (
+        <div className="mb-3 flex items-center gap-2 rounded-2xl border border-white/15 bg-white/10 px-3 py-2.5 text-xs font-bold aura-soft">
+          <span className="h-3 w-3 animate-spin rounded-full border-2 border-white/70 border-t-transparent" />
+          Loading the catalogue…
+        </div>
+      )}
+
+      {status === 'ready' && (
+        <ul className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+          {filteredGames.map((game) => {
+            const isAdded = addedKeys.has(game.key);
+            const isSavingThis = savingKey === game.key;
+            const isBusy = Boolean(savingKey);
+            return (
+              <li
+                key={game.key}
+                className="flex flex-col gap-3 rounded-2xl aura-card p-3.5 sm:p-4"
+              >
+                <div className="flex items-start gap-3">
+                  <span
+                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-xl leading-none"
+                    style={{ background: game.tint }}
+                  >
+                    {game.emoji}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="min-w-0 flex-1 text-sm font-black leading-snug aura-text">
+                        {game.label}
+                      </p>
+                      <span
+                        className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-black ${
+                          isAdded
+                            ? 'bg-emerald-500/25 text-emerald-100'
+                            : 'bg-white/10 text-white/60'
+                        }`}
+                      >
+                        {isAdded ? 'Added' : 'Not added'}
+                      </span>
+                    </div>
+                    <p className="mt-0.5 whitespace-pre-line text-[11px] font-semibold leading-snug aura-muted">
+                      {game.subtitle}
+                    </p>
+                  </div>
+                </div>
+
+                <p className="text-xs font-semibold leading-snug aura-soft">{game.description}</p>
+
+                <button
+                  type="button"
+                  onClick={() => toggle(game)}
+                  disabled={isBusy}
+                  className={`min-h-10 w-full rounded-xl px-3 text-xs font-black transition disabled:cursor-not-allowed disabled:opacity-55 ${
+                    isAdded
+                      ? 'bg-rose-500/25 text-rose-100 hover:bg-rose-500/40'
+                      : 'bg-indigo-600 text-white hover:bg-indigo-500'
+                  }`}
+                >
+                  {isSavingThis ? 'Saving…' : isAdded ? 'Remove' : '+ Add'}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+
+      {status === 'ready' && filteredGames.length === 0 && (
+        <div className="rounded-2xl border border-dashed border-white/25 bg-white/10 px-5 py-8 text-center">
+          <span className="text-4xl">🔍</span>
+          <p className="mt-3 text-base font-black aura-text">No games found</p>
+          <p className="mt-1 text-sm font-semibold aura-soft">
+            Nothing matches “{query.trim()}”. Try another word like “counting” or “bonds”.
+          </p>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -1566,6 +1692,19 @@ function TeacherSettings({ classId, teacherCode, teacherName, onClose, resetPlay
 
   const togglePublic = async (value) => {
     if (!info || savingPublic || info.isPublic === value) return;
+    // Privacy changes are hard to explain after the fact (they alter how every
+    // student signs in), so confirm before applying — same dialog as sign-out.
+    const ok = await confirmDialog({
+      title: value ? 'Make class public?' : 'Make class private?',
+      message: value
+        ? 'Anyone with the class code can join using just their name.'
+        : 'Each student will need their own individual code to join.',
+      confirmLabel: value ? 'Make public' : 'Make private',
+      cancelLabel: 'Cancel',
+      danger: !value,
+      icon: value ? '🌐' : '🔒',
+    });
+    if (!ok) return;
     setSavingPublic(true);
     setError(null);
     try {
@@ -2133,7 +2272,21 @@ function AdminClassDetail({ classId, teacherCode, onBack, onSaved }) {
                 <input
                   type="checkbox"
                   checked={form.isPublic}
-                  onChange={(e) => setForm((f) => ({ ...f, isPublic: e.target.checked }))}
+                  onChange={async (e) => {
+                    const next = e.target.checked;
+                    if (next === form.isPublic) return;
+                    const ok = await confirmDialog({
+                      title: next ? 'Make class public?' : 'Make class private?',
+                      message: next
+                        ? 'Anyone with the class code can join using just their name.'
+                        : 'Each student will need their own individual code to join.',
+                      confirmLabel: next ? 'Make public' : 'Make private',
+                      cancelLabel: 'Cancel',
+                      danger: !next,
+                      icon: next ? '🌐' : '🔒',
+                    });
+                    if (ok) setForm((f) => ({ ...f, isPublic: next }));
+                  }}
                   disabled={saving}
                   className="h-4 w-4 accent-emerald-500"
                 />
@@ -2593,44 +2746,51 @@ export default function GameAccessPanel({ onClose, initialTab }) {
 
   return (
     <div className="aura-page min-h-[100dvh] w-full">
-      <header className="sticky top-[var(--maint-banner-h,0px)] z-30 border-b border-white/15 bg-gradient-to-br from-[#315ed8]/95 via-[#5a3fc4]/95 to-[#972aa8]/95 px-4 pb-0 pt-[max(1rem,env(safe-area-inset-top))] shadow-[0_14px_40px_-28px_rgba(0,0,0,0.4)] backdrop-blur-xl sm:px-6 sm:pt-6 lg:px-10">
-        <div className="mx-auto flex w-full max-w-5xl items-center gap-2.5 pb-2 sm:gap-3 sm:pb-3">
+      <header className="sticky top-[var(--maint-banner-h,0px)] z-30 border-b border-white/15 bg-gradient-to-br from-[#315ed8]/95 via-[#5a3fc4]/95 to-[#972aa8]/95 px-4 pt-[max(0.875rem,env(safe-area-inset-top))] shadow-[0_14px_40px_-28px_rgba(0,0,0,0.4)] backdrop-blur-xl sm:px-6 sm:pt-5 lg:px-10">
+        <div className="mx-auto flex w-full max-w-5xl items-center gap-2.5 pb-3 sm:gap-4 sm:pb-4">
           <button
             type="button"
             onClick={onClose}
             disabled={globalSaving}
             aria-label="Back home"
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/25 bg-white/15 text-lg text-white shadow-sm transition hover:bg-white/25 disabled:cursor-not-allowed disabled:opacity-50 sm:h-11 sm:w-11 sm:text-xl"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/25 bg-white/15 text-lg leading-none text-white shadow-sm transition hover:bg-white/25 disabled:cursor-not-allowed disabled:opacity-50 sm:h-11 sm:w-11 sm:text-xl"
           >
             ←
           </button>
 
-          <span className="hidden h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white/15 text-2xl shadow-sm ring-1 ring-white/25 sm:flex sm:h-12 sm:w-12">
+          <span className="hidden h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white/15 text-2xl leading-none shadow-sm ring-1 ring-white/25 sm:flex">
             🏫
           </span>
 
           <div className="min-w-0 flex-1">
-            <p className="hidden text-[10px] font-black uppercase tracking-[0.14em] text-white/70 sm:block sm:text-xs">
+            <p className="text-[10px] font-black uppercase leading-none tracking-[0.16em] text-white/70 sm:text-[11px]">
               {isAdmin ? 'Admin controls' : 'Teacher controls'}
             </p>
-            <h1 className="break-words text-base font-black leading-tight tracking-tight text-white sm:text-2xl lg:text-3xl">
+            <h1 className="mt-1.5 truncate text-lg font-black leading-tight tracking-tight text-white sm:text-2xl">
               {isAdmin ? 'Class management' : 'Class controls'}
             </h1>
+            <p className="mt-1 hidden truncate text-xs font-semibold leading-snug text-white/80 sm:block">
+              {activeConfig?.description || ''}
+            </p>
           </div>
 
-          <Link
-            to="/"
-            title="Home"
-            className="flex h-10 shrink-0 items-center justify-center gap-1.5 rounded-xl border border-white/25 bg-white/15 px-2.5 text-base text-white shadow-sm transition hover:bg-white/25 sm:h-11 sm:w-auto sm:px-4 sm:text-sm"
+          <button
+            type="button"
+            onClick={() => handleTabChange('shop')}
+            disabled={globalSaving}
+            aria-label="Open the game shop"
+            className={`flex h-10 shrink-0 items-center gap-1.5 rounded-xl border px-3 text-xs font-black shadow-sm transition disabled:cursor-not-allowed disabled:opacity-50 sm:h-11 sm:px-4 sm:text-sm ${
+              activeTab === 'shop'
+                ? 'border-white/40 bg-white text-[#5a3fc4]'
+                : 'border-white/25 bg-white/15 text-white hover:bg-white/25'
+            }`}
           >
-            <span aria-hidden="true">🏠</span>
-            <span className="hidden sm:inline">Home</span>
-          </Link>
+            <span aria-hidden="true" className="text-base leading-none">
+              🛒
+            </span>
+            <span className="hidden sm:inline">Shop</span>
+          </button>
         </div>
-
-        <p className="mx-auto hidden max-w-5xl pb-4 text-xs font-semibold leading-relaxed text-white/85 sm:block sm:text-sm">
-          {activeConfig?.description || ''}
-        </p>
 
         <TabBar
           tabs={tabs}
@@ -2663,6 +2823,10 @@ export default function GameAccessPanel({ onClose, initialTab }) {
             onGlobalError={setGlobalError}
             onGlobalSavingChange={setGlobalSaving}
           />
+        )}
+
+        {activeTab === 'shop' && (
+          <GameShop key={`shop-${classId}`} classId={classId} teacherCode={teacherCode} />
         )}
 
         {activeTab === 'students' && (
