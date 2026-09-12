@@ -29,6 +29,7 @@ import {
   setGameOrderForClass,
   setGameShinyForClass,
   setGameUnlockedForClass,
+  setGameUnlockScheduleForClass,
 } from './gameAccess';
 import {
   checkCodeAvailable,
@@ -266,6 +267,29 @@ function toLocalInput(iso) {
   )}:${pad(d.getMinutes())}`;
 }
 
+// Human-readable label for a pending scheduled unlock, e.g. "Sat 13 Sep, 9:00 am".
+function formatUnlockAt(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleString(undefined, {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
+// Defaults the datetime-local input to 9am tomorrow — always in the future, so
+// the teacher has a valid starting point to adjust rather than an empty field.
+function defaultUnlockInput() {
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  d.setHours(9, 0, 0, 0);
+  return toLocalInput(d.toISOString());
+}
+
 const textInputCls =
   'aura-input px-3 py-2.5 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-60';
 
@@ -299,6 +323,23 @@ function GameIcon({ game }) {
     >
       {game.emoji}
     </span>
+  );
+}
+
+// A clock glyph for the schedule control. Drawn rather than emoji so it
+// matches the other vector buttons in the row at every size.
+function ClockIcon({ className }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="none" aria-hidden="true">
+      <circle cx="12" cy="12" r="8.4" stroke="currentColor" strokeWidth="2" />
+      <path
+        d="M12 7.6V12l3 1.9"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
   );
 }
 
@@ -349,6 +390,7 @@ function SortableGameSlot({
   disabled,
   onToggleAccess,
   onToggleShiny,
+  onSchedule,
 }) {
   const {
     attributes,
@@ -461,9 +503,39 @@ function SortableGameSlot({
                 ✨ Featured
               </span>
             )}
+            {/* Only meaningful while the game is still locked — once it is
+                unlocked the schedule has served its purpose. */}
+            {!game.unlocked && game.unlockAt && (
+              <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-sky-500/25 px-1.5 py-0.5 text-[8px] font-black text-sky-100 sm:text-[9px]">
+                ⏰ Unlocks {formatUnlockAt(game.unlockAt)}
+              </span>
+            )}
           </div>
 
           <div className="flex shrink-0 flex-col items-center gap-1.5 sm:flex-row sm:gap-2">
+            {/* Scheduling only makes sense for a game that is still locked;
+                once it is unlocked the panel hides the control entirely. */}
+            {!game.unlocked && (
+              <button
+                type="button"
+                onClick={() => onSchedule(game)}
+                disabled={disabled}
+                title={
+                  game.unlockAt
+                    ? `Scheduled for ${formatUnlockAt(game.unlockAt)} — tap to change`
+                    : 'Schedule unlock'
+                }
+                aria-label={`Schedule an unlock time for ${game.label}`}
+                className={`flex h-8 w-8 items-center justify-center rounded-lg transition disabled:cursor-not-allowed disabled:opacity-50 sm:h-10 sm:w-10 sm:rounded-xl ${
+                  game.unlockAt
+                    ? 'bg-gradient-to-br from-sky-400 to-blue-600 text-white shadow-sm'
+                    : 'bg-sky-500/25 text-sky-100 hover:bg-sky-500/40'
+                }`}
+              >
+                <ClockIcon className="h-4 w-4 sm:h-5 sm:w-5" />
+              </button>
+            )}
+
             <button
               type="button"
               onClick={() => onToggleShiny(game.key, !game.shiny)}
@@ -527,6 +599,8 @@ function GameAccessEditor({
   const [lastMove, setLastMove] = useState(null);
   const [localSaving, setLocalSaving] = useState(false);
   const [localError, setLocalError] = useState(null);
+  // The game currently open in the schedule dialog (null when closed).
+  const [scheduleTarget, setScheduleTarget] = useState(null);
 
   const initializedRef = useRef(false);
   const moveTimerRef = useRef(null);
@@ -605,7 +679,14 @@ function GameAccessEditor({
 
   const handleToggleAccess = (gameKey, unlocked) => {
     setDraftGames((current) =>
-      current.map((game) => (game.key === gameKey ? { ...game, unlocked } : game))
+      current.map((game) =>
+        game.key === gameKey
+          ? // Unlocking now scraps any pending schedule (the server does the
+            // same), so drop it from the draft too or the row would keep
+            // showing an "unlocks at" badge until the next refetch.
+            { ...game, unlocked, unlockAt: unlocked ? null : game.unlockAt }
+          : game
+      )
     );
   };
 
@@ -616,7 +697,41 @@ function GameAccessEditor({
   };
 
   const handleBulk = (unlocked) => {
-    setDraftGames((current) => current.map((game) => ({ ...game, unlocked })));
+    setDraftGames((current) =>
+      current.map((game) => ({
+        ...game,
+        unlocked,
+        unlockAt: unlocked ? null : game.unlockAt,
+      }))
+    );
+  };
+
+  // Scheduling writes straight through instead of going through Confirm: it
+  // carries its own explicit date/time dialog (so the intent is already
+  // confirmed), and routing it through Confirm would discard any unsaved
+  // reorder/lock drafts the teacher has on screen.
+  const handleSchedule = async (gameKey, unlockAtIso) => {
+    setLocalError(null);
+    onGlobalError(null);
+    setLocalSaving(true);
+    onGlobalSavingChange(true);
+    try {
+      await setGameUnlockScheduleForClass(gameKey, unlockAtIso, classId, teacherCode);
+      // Patch both the draft and the saved snapshot so the change is not
+      // picked up as an unsaved edit and can't be reverted by Reset.
+      const patch = (list) =>
+        list.map((game) =>
+          game.key === gameKey ? { ...game, unlockAt: unlockAtIso } : game
+        );
+      setDraftGames(patch);
+      setOriginalGames(patch);
+      setScheduleTarget(null);
+    } catch (err) {
+      setLocalError(err.message || 'Could not schedule this unlock.');
+    } finally {
+      setLocalSaving(false);
+      onGlobalSavingChange(false);
+    }
   };
 
   const handleReset = () => {
@@ -776,6 +891,7 @@ function GameAccessEditor({
                 disabled={!isReady || localSaving || isSaving}
                 onToggleAccess={handleToggleAccess}
                 onToggleShiny={handleToggleShiny}
+                onSchedule={setScheduleTarget}
               />
             ))}
           </ul>
@@ -833,7 +949,133 @@ function GameAccessEditor({
           </p>
         )}
       </div>
+
+      {/* Name the time in every "unlocks at" label so a teacher outside the
+          device's own timezone isn't misled by a bare clock time. */}
+      <p className="mt-3 px-1 text-[11px] font-semibold aura-muted">
+        Scheduled unlocks follow your device time ({Intl.DateTimeFormat().resolvedOptions().timeZone}).
+      </p>
+
+      <AnimatePresence>
+        {scheduleTarget && (
+          <ScheduleUnlockDialog
+            game={scheduleTarget}
+            saving={localSaving || isSaving}
+            onCancel={() => setScheduleTarget(null)}
+            onConfirm={(iso) => handleSchedule(scheduleTarget.key, iso)}
+          />
+        )}
+      </AnimatePresence>
     </>
+  );
+}
+
+// Modal for picking the unlock moment. Split out so its draft input state
+// resets naturally each time it is opened for a different game.
+function ScheduleUnlockDialog({ game, saving, onCancel, onConfirm }) {
+  const [value, setValue] = useState(() =>
+    game.unlockAt ? toLocalInput(game.unlockAt) : defaultUnlockInput()
+  );
+  // Date.now() can't be read during render, so the "is this in the future?"
+  // hint is measured against the moment the dialog opened.
+  const [openedAt] = useState(() => Date.now());
+  // Set when the chosen time has slid into the past while the dialog sat open.
+  const [stale, setStale] = useState(false);
+
+  // datetime-local yields wall-clock text with no timezone, so `new Date()`
+  // reads it in the browser's own zone — the same way it displays it back.
+  const when = value ? new Date(value) : null;
+  const valid = Boolean(when) && !Number.isNaN(when.getTime());
+  const tooSoon = stale || (valid && when.getTime() <= openedAt);
+
+  const submit = (event) => {
+    event.preventDefault();
+    if (!valid || saving) return;
+    // Re-checked here (fine in an event handler) so a time that expired while
+    // the dialog was open is caught before the round trip.
+    if (when.getTime() <= Date.now()) {
+      setStale(true);
+      return;
+    }
+    onConfirm(when.toISOString());
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 px-4 py-6 backdrop-blur-sm"
+      onClick={() => !saving && onCancel()}
+    >
+      <motion.form
+        initial={{ opacity: 0, scale: 0.94, y: 18 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.94, y: 18 }}
+        transition={{ type: 'spring', stiffness: 300, damping: 26 }}
+        onClick={(e) => e.stopPropagation()}
+        onSubmit={submit}
+        className="flex w-full max-w-md flex-col gap-4 rounded-[2rem] aura-card p-5 sm:p-6"
+      >
+        <div className="flex items-start gap-3">
+          <span
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-xl"
+            style={{ background: game.tint || '#EFF6FF' }}
+          >
+            {game.emoji || '🎮'}
+          </span>
+          <div className="min-w-0">
+            <h3 className="text-lg font-black aura-text">Schedule unlock</h3>
+            <p className="mt-0.5 truncate text-sm font-semibold aura-soft">{game.label}</p>
+          </div>
+        </div>
+
+        <div>
+          <label htmlFor="schedule-at" className="mb-1 block text-[11px] font-black aura-soft">
+            Unlock on
+          </label>
+          <input
+            id="schedule-at"
+            type="datetime-local"
+            value={value}
+            onChange={(e) => {
+              setValue(e.target.value);
+              setStale(false);
+            }}
+            disabled={saving}
+            className="aura-input px-3 py-2.5 text-sm font-bold disabled:opacity-60"
+          />
+          {tooSoon && (
+            <p className="mt-1.5 text-[11px] font-bold text-rose-200">
+              Pick a time in the future.
+            </p>
+          )}
+        </div>
+
+        <p className="rounded-xl bg-white/10 px-3 py-2 text-[11px] font-semibold aura-soft">
+          The game stays locked and unlocks by itself at this time. Unlocking it early cancels the
+          schedule.
+        </p>
+
+        <div className="flex gap-2">
+          <button
+            type="submit"
+            disabled={!valid || tooSoon || saving}
+            className="aura-btn aura-btn-violet min-h-11 flex-1 text-sm disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {saving ? 'Scheduling…' : 'Schedule unlock'}
+          </button>
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={saving}
+            className="aura-ghost min-h-11 px-4 text-sm disabled:opacity-50"
+          >
+            Cancel
+          </button>
+        </div>
+      </motion.form>
+    </motion.div>
   );
 }
 

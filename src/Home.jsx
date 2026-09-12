@@ -6,6 +6,7 @@ import NextGameTimer from "./NextGameTimer";
 import { usePlayerStore } from "./playerStore";
 import {
   useGameAccessStore,
+  useNextScheduledGame,
   isGameUnlockedNow,
 } from "./gameAccess";
 import { fetchSummary } from "./logPlaySession";
@@ -138,6 +139,9 @@ function HomeContent() {
 
   const unlocked = useGameAccessStore((state) => state.unlocked);
   const orderedGames = useGameAccessStore((state) => state.games);
+  // Drives whether the "next game" banner appears at all: with nothing
+  // scheduled there is no countdown to show and the banner stays hidden.
+  const nextScheduled = useNextScheduledGame();
 
   const numberedGames = useMemo(() => {
     let nextGameNumber = 0;
@@ -408,7 +412,7 @@ function HomeContent() {
       </div>
 
       <div className="relative z-10 flex flex-1 flex-col items-center justify-center px-4 py-10 sm:px-8">
-        <NextGameTimer withTopOffset={isTeacher} />
+        {nextScheduled && <NextGameTimer withTopOffset={isTeacher} />}
 
         <div className="animate-pop-in mt-4 text-center">
           <h1 className="font-heading text-[clamp(2.4rem,7vw,6rem)] font-bold leading-tight drop-shadow-[0_2px_12px_rgba(139,92,246,0.45)]">

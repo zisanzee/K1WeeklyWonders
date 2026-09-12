@@ -7,7 +7,12 @@ import { twMerge } from "tailwind-merge";
 import NameGate from "./NameGate";
 import NextGameTimer from "./NextGameTimer";
 import { usePlayerStore } from "./playerStore";
-import { GAME_CATALOG, useGameAccessStore, isGameUnlockedNow } from "./gameAccess";
+import {
+  GAME_CATALOG,
+  useGameAccessStore,
+  useNextScheduledGame,
+  isGameUnlockedNow,
+} from "./gameAccess";
 import { fetchSummary, fetchLeaderboard } from "./logPlaySession";
 import { confirmDialog } from "./confirmDialog";
 import BrandLoader from "./BrandLoader";
@@ -536,6 +541,10 @@ function WobbleEmoji({ emoji, size = "text-5xl sm:text-6xl", isOpen = true }) {
 // ===========================================================================
 
 function TimerLeaderboardCard({ classId, playerName }) {
+  // Only used to decide whether the timer strip (and its divider) render at
+  // all — the Weekly Champions section below always shows regardless.
+  const nextScheduled = useNextScheduledGame();
+
   const [state, setState] = useState({
     classId: null,
     leaderboard: [],
@@ -583,12 +592,17 @@ function TimerLeaderboardCard({ classId, playerName }) {
         WebkitBackdropFilter: "blur(14px)",
       }}
     >
-      {/* Timer strip */}
-      <div className="relative px-3 pt-4 sm:px-6 sm:pt-5">
-        <NextGameTimer withTopOffset={false} />
-      </div>
-
-      <div className="mx-4 sm:mx-6 mt-3 sm:mt-4 h-1 rounded-full bg-gradient-to-r from-pink-400 via-violet-400 to-cyan-400" />
+      {/* Timer strip — the banner hides itself when nothing is scheduled, and
+          its divider goes with it so the Weekly Champions card keeps its
+          normal spacing rather than showing a stray line. */}
+      {nextScheduled && (
+        <>
+          <div className="relative px-3 pt-4 sm:px-6 sm:pt-5">
+            <NextGameTimer withTopOffset={false} />
+          </div>
+          <div className="mx-4 sm:mx-6 mt-3 sm:mt-4 h-1 rounded-full bg-gradient-to-r from-pink-400 via-violet-400 to-cyan-400" />
+        </>
+      )}
 
       {/* Leaderboard */}
       <div className="px-3 py-4 sm:px-6 sm:py-6" style={{ fontFamily: FONT }}>

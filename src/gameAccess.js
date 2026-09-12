@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { create } from 'zustand';
 import { usePlayerStore } from './playerStore';
 
@@ -178,6 +179,10 @@ export function mergeRows(rows) {
         unlocked: Boolean(row?.unlocked),
         shiny: Boolean(row?.shiny),
         order: Number.isInteger(row?.order) ? row.order : defaultOrder,
+        // ISO string while a teacher-scheduled unlock is still pending, else
+        // null. The server only ever reports a future time here, so the
+        // countdown can trust it without re-validating against the clock.
+        unlockAt: row?.unlockAt || null,
       };
     })
     .sort(
@@ -401,6 +406,19 @@ export const useGameAccessStore = create((set, get) => ({
     set((state) => ({
       games: state.games.map((game) =>
         game.key === key ? { ...game, shiny } : game
+      ),
+    }));
+  },
+
+  // Patches a game's pending unlock time in place. Used by the panel after a
+  // schedule is saved so the row shows its countdown without a full refetch
+  // (a refetch would discard any unsaved reorder/lock drafts on screen).
+  setUnlockAtLocal: (gameKey, unlockAt) => {
+    const key = normalizeKey(gameKey);
+
+    set((state) => ({
+      games: state.games.map((game) =>
+        game.key === key ? { ...game, unlockAt } : game
       ),
     }));
   },
@@ -657,6 +675,52 @@ export async function addGameForClass(gameKey, classId, teacherCode) {
   }
 
   return response.json();
+}
+
+// Schedules a locked game to unlock at an ISO time. The server rejects an
+// already-unlocked game and a past time, so those errors are surfaced as-is.
+export async function setGameUnlockScheduleForClass(
+  gameKey,
+  unlockAt,
+  classId,
+  teacherCode
+) {
+  const key = normalizeKey(gameKey);
+  const response = await fetch(
+    `${API_BASE}/api/game-access/${encodeURIComponent(key)}/schedule`,
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ unlockAt, classId, teacherCode }),
+    }
+  );
+
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    throw new Error(body.error || 'Could not schedule this unlock');
+  }
+
+  return response.json();
+}
+
+// The soonest still-locked game with a pending unlock time, or null. Drives the
+// student-facing "next game" banner — with nothing scheduled it returns null
+// and the banner stays hidden entirely (there is no default weekly timer).
+export function nextScheduledGame(games) {
+  const pending = (Array.isArray(games) ? games : [])
+    .filter((game) => !game.unlocked && game.unlockAt)
+    .map((game) => ({ ...game, unlockTime: Date.parse(game.unlockAt) }))
+    .filter((game) => Number.isFinite(game.unlockTime))
+    .sort((a, b) => a.unlockTime - b.unlockTime);
+
+  return pending[0] || null;
+}
+
+// Convenience selector over the read store's game list. Falls back to the
+// last-known arrangement while a refresh is in flight, exactly like the grid.
+export function useNextScheduledGame() {
+  const games = useGameAccessStore((state) => state.games);
+  return useMemo(() => nextScheduledGame(games), [games]);
 }
 
 export async function removeGameForClass(gameKey, classId, teacherCode) {

@@ -46,6 +46,16 @@ Express + Mongoose (MongoDB). No JWT/session middleware — auth is a shared
   `shiny` (featured), `order`, `added` (opted in from the shop), per
   `{classType, gameKey}` (unique compound index). Every class of the same
   type sees identical game arrangement/lock state.
+- **Scheduled unlock**: `GameAccess.unlockAt` (Date, nullable) is the only new
+  field the scheduling feature added. A row with `unlockAt` set is *always*
+  `unlocked: false` — the schedule is a promise to flip it later, not a
+  parallel state. Unlocking early clears `unlockAt` (the teacher just did what
+  the schedule was going to do); removing a game or re-adding it also clears
+  it. Due unlocks are applied **lazily on read** by `resolveDueUnlocks()`
+  inside `getGameAccessRows()` — there is no cron, so a schedule still fires
+  correctly after the server slept through the exact minute. Because of that,
+  every read path that returns game rows auto-unlocks first; don't add a new
+  read path that queries `GameAccess` directly and skips it.
 - **PlaySession**: one row per completed round, still `classId`-scoped
   (`game`, `playerName`, `classId`, `stars`, `totalRounds`, `peakStreak`,
   optional `elapsedSeconds`/`mistakes` for time-trial games, `device`
@@ -120,6 +130,9 @@ for the overhaul. New game routes still need both gates, in that order.
 - `PUT/POST/DELETE /api/game-access[...]` — WRITE, admin-only
   (`requireAdmin`), body includes `classType` directly (not resolved from
   the caller's own classId).
+- `PUT /api/game-access/:gameKey/schedule` — sets `unlockAt` (`{unlockAt}`
+  ISO string). Rejects a past time (400) and an already-unlocked game
+  (409). Must stay **above** `/api/game-access/:gameKey` in the file.
 - `GET/POST/DELETE /api/students` — teacher-only (`requireTeacher`),
   scoped to the caller's own `classId`.
 - `POST /api/plays` — logs a session; `classId`-scoped, falls back to the
@@ -150,6 +163,24 @@ helpers throw `new Error(body.error || 'fallback message')`.
   fetch-helper file per API concern.
 - Env var: `VITE_API_BASE_URL` (frontend, defaults to
   `http://localhost:4000`). Backend uses `MONGODB_URI`.
+
+## Scheduled unlocks / the "next game" banner
+- `NextGameTimer.jsx` is **schedule-driven, not calendar-driven**. The old
+  hardcoded "new game every Friday" countdown is gone — there is no default
+  cadence anymore.
+- It renders **nothing** when the class has no pending schedule; callers gate
+  it on `useNextScheduledGame()` so the surrounding layout collapses cleanly
+  (Home.jsx renders it conditionally; BetaHome's `TimerLeaderboardCard` also
+  drops its divider). The Weekly Champions leaderboard always shows regardless.
+- `nextScheduledGame(games)` (in `gameAccess.js`) picks the soonest
+  `!unlocked && unlockAt` game. The banner names that game and counts down in
+  days/hours/mins/secs, then calls `fetchGameAccess()` at zero so the server
+  applies the unlock and the banner either rolls on or disappears.
+- Teachers see it too (it's a schedule preview); the admin has no class, so it
+  self-hides for them.
+- Panel control: the clock button in each locked game row opens
+  `ScheduleUnlockDialog`. Scheduled rows show an "⏰ Unlocks ..." badge. The
+  button is hidden entirely once a game is unlocked.
 
 ## Adding a new game — checklist
 1. Build the game component/scene (React or Phaser) under `games/src`.
