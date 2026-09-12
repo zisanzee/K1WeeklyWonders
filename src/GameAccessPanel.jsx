@@ -42,6 +42,7 @@ import {
 } from './classInfo';
 import {
   addStudentToClass,
+  deleteIdentityInClass,
   deleteStudentInClass,
   fetchClassIdentities,
   generateStudentCode,
@@ -68,9 +69,9 @@ const TEACHER_TABS = [
     description: 'Reorder games and choose what is locked or featured for your class.',
   },
   {
-    key: 'shop',
-    label: 'Shop',
-    icon: '🛒',
+    key: 'catalogue',
+    label: 'Catalogue',
+    icon: '📚',
     description: 'Browse the game catalogue and add or remove games for your class.',
   },
   {
@@ -101,9 +102,9 @@ const ADMIN_TABS = [
     description: 'Create classes, edit their details and teachers, and manage each class\'s games.',
   },
   {
-    key: 'shop',
-    label: 'Shop',
-    icon: '🛒',
+    key: 'catalogue',
+    label: 'Catalogue',
+    icon: '📚',
     description: 'Browse the game catalogue and add or remove games for your own class.',
   },
   {
@@ -900,7 +901,7 @@ function GameAccessEditor({
             <div className="rounded-2xl border border-dashed border-white/25 bg-white/10 px-5 py-8 text-center">
               <span className="text-4xl">🎮</span>
               <p className="mt-3 text-base font-black aura-text">No games yet</p>
-              <p className="mt-1 text-sm font-semibold aura-soft">Add games from the Shop tab.</p>
+              <p className="mt-1 text-sm font-semibold aura-soft">Add games from the Catalogue tab.</p>
             </div>
           )}
         </SortableContext>
@@ -1080,11 +1081,11 @@ function ScheduleUnlockDialog({ game, saving, onCancel, onConfirm }) {
 }
 
 // ---------------------------------------------------------------------------
-// Shop tab — the game catalogue as a searchable add/remove storefront. Split
-// out of the game editor so a teacher browses (and opts into) the full catalog
-// on its own tab instead of scrolling past it every time they reorder.
+// Catalogue tab — the game catalogue as a searchable add/remove storefront.
+// Split out of the game editor so a teacher browses (and opts into) the full
+// catalog on its own tab instead of scrolling past it every time they reorder.
 // ---------------------------------------------------------------------------
-function GameShop({ classId, teacherCode }) {
+function GameCatalogue({ classId, teacherCode }) {
   const [addedKeys, setAddedKeys] = useState(null);
   const [status, setStatus] = useState('loading');
   const [error, setError] = useState(null);
@@ -1138,7 +1139,7 @@ function GameShop({ classId, teacherCode }) {
       const rows = await fetchGameAccessForClass(classId, teacherCode);
       setAddedKeys(new Set(mergeRows(rows).map((item) => item.key)));
     } catch (err) {
-      setError(err.message || 'Could not update the shop. Please try again.');
+      setError(err.message || 'Could not update the catalogue. Please try again.');
     } finally {
       setSavingKey(null);
     }
@@ -1148,7 +1149,7 @@ function GameShop({ classId, teacherCode }) {
     <div>
       <div className="mb-4 rounded-2xl aura-card p-4 sm:p-5">
         <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-          <p className="text-sm font-black aura-text">Game shop</p>
+          <p className="text-sm font-black aura-text">Game catalogue</p>
           <p className="text-[11px] font-black uppercase tracking-wide aura-muted">
             {addedCount} of {GAME_CATALOG.length} added
           </p>
@@ -1387,7 +1388,8 @@ function AddStudentForm({ classId, teacherCode, onAdded }) {
 }
 
 // One roster/identity row. Rostered students are fully editable; "light" names
-// (no Student record) are selectable for merging but not editable/deletable.
+// (no Student record) are selectable for merging and can be deleted, but not
+// edited — there is no record to rename, only play history to remove.
 function IdentityRow({
   identity,
   classId,
@@ -1431,7 +1433,12 @@ function IdentityRow({
     if (deleting) return;
     const ok = await confirmDialog({
       title: `Remove ${identity.name}?`,
-      message: 'Their play history for this class will be removed too.',
+      // A light identity exists ONLY as play history, so spell that out — this
+      // is a harder delete than removing a roster student, who at least has a
+      // code and a badge that stop working.
+      message: identity.rostered
+        ? 'Their play history for this class will be removed too.'
+        : 'This player has no code — only their play history exists, and it will all be removed.',
       confirmLabel: 'Remove',
       cancelLabel: 'Keep',
       danger: true,
@@ -1441,12 +1448,16 @@ function IdentityRow({
     setDeleting(true);
     setError(null);
     try {
-      await deleteStudentInClass(classId, identity.studentId, teacherCode);
+      if (identity.rostered) {
+        await deleteStudentInClass(classId, identity.studentId, teacherCode);
+      } else {
+        await deleteIdentityInClass(classId, identity.name, teacherCode);
+      }
       // Leave `deleting` true — the parent reload drops this row from the list,
       // so the spinner stays until the row actually disappears.
       onChanged?.();
     } catch (err) {
-      setError(err.message || 'Could not delete student.');
+      setError(err.message || 'Could not delete this player.');
       setDeleting(false);
     }
   };
@@ -1553,11 +1564,19 @@ function IdentityRow({
                   <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34a.9959.9959 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z" />
                 </svg>
               </button>
+            </div>
+          )}
+
+          {/* A light identity has no code, so the badge and edit buttons above
+              don't apply — but deleting it does, since its play history is the
+              only thing keeping the row alive. */}
+          {!identity.rostered && (
+            <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
               <button
                 type="button"
                 onClick={handleDelete}
                 disabled={deleting}
-                title="Delete student"
+                title="Delete player"
                 aria-label={`Delete ${identity.name}`}
                 className="aura-icon-btn aura-ghost-danger h-9 w-9 active:scale-95 disabled:opacity-60"
               >
@@ -3016,22 +3035,6 @@ export default function GameAccessPanel({ onClose, initialTab }) {
             </p>
           </div>
 
-          <button
-            type="button"
-            onClick={() => handleTabChange('shop')}
-            disabled={globalSaving}
-            aria-label="Open the game shop"
-            className={`flex h-10 shrink-0 items-center gap-1.5 rounded-xl border px-3 text-xs font-black shadow-sm transition disabled:cursor-not-allowed disabled:opacity-50 sm:h-11 sm:px-4 sm:text-sm ${
-              activeTab === 'shop'
-                ? 'border-white/40 bg-white text-[#5a3fc4]'
-                : 'border-white/25 bg-white/15 text-white hover:bg-white/25'
-            }`}
-          >
-            <span aria-hidden="true" className="text-base leading-none">
-              🛒
-            </span>
-            <span className="hidden sm:inline">Shop</span>
-          </button>
         </div>
 
         <TabBar
@@ -3067,8 +3070,12 @@ export default function GameAccessPanel({ onClose, initialTab }) {
           />
         )}
 
-        {activeTab === 'shop' && (
-          <GameShop key={`shop-${classId}`} classId={classId} teacherCode={teacherCode} />
+        {activeTab === 'catalogue' && (
+          <GameCatalogue
+            key={`catalogue-${classId}`}
+            classId={classId}
+            teacherCode={teacherCode}
+          />
         )}
 
         {activeTab === 'students' && (

@@ -43,7 +43,7 @@ Express + Mongoose (MongoDB). No JWT/session middleware — auth is a shared
   functional linkage as part of the class-type overhaul; adding a student
   is a standalone action with no side effects elsewhere yet.
 - **GameAccess**: scoped by **classType**, not classId: `unlocked`,
-  `shiny` (featured), `order`, `added` (opted in from the shop), per
+  `shiny` (featured), `order`, `added` (opted in from the catalogue), per
   `{classType, gameKey}` (unique compound index). Every class of the same
   type sees identical game arrangement/lock state.
 - **Scheduled unlock**: `GameAccess.unlockAt` (Date, nullable) is the only new
@@ -72,11 +72,11 @@ Express + Mongoose (MongoDB). No JWT/session middleware — auth is a shared
   own class's info (name/id/image/teacher list), add students to their
   own roster, and view (never edit) their own class type's game
   arrangement. No other mutation surface should be reachable by a
-  non-admin anywhere in the panel — no reorder, lock/unlock, shiny, shop
+  non-admin anywhere in the panel — no reorder, lock/unlock, shiny, catalogue
   add/remove, student edit/delete, or class-info edit.
 - **Admin** (`requireAdmin`, stricter than `requireTeacher` — role must be
   `'admin'`): the only role that can mutate `GameAccess` (lock/unlock,
-  reorder, shiny, shop add/remove). Admins edit by `classType`, not by
+  reorder, shiny, catalogue add/remove). Admins edit by `classType`, not by
   their own classId — they can manage K1 and/or K2 regardless of which
   class is their homeroom.
 - Login: `NameGate.jsx` calls `POST /api/teacher-login` with the code and
@@ -135,6 +135,12 @@ for the overhaul. New game routes still need both gates, in that order.
   (409). Must stay **above** `/api/game-access/:gameKey` in the file.
 - `GET/POST/DELETE /api/students` — teacher-only (`requireTeacher`),
   scoped to the caller's own `classId`.
+- `DELETE /api/classes/:classId/identities/:name` — deletes a name-only
+  ("light") identity by removing its play sessions, since that history is the
+  only thing that makes it exist. 409s if the name still matches a roster
+  student (the UI must delete the student instead). Matches `classId` against
+  both the URL param and the actor's own classId — the two aren't always the
+  same string, which is why this one endpoint is defensive about it.
 - `POST /api/plays` — logs a session; `classId`-scoped, falls back to the
   legacy class if absent client-side.
 - `GET /api/stats`, `/api/summary`, `/api/plays` — teacher dashboard reads.
@@ -188,8 +194,8 @@ helpers throw `new Error(body.error || 'fallback message')`.
 3. Add an entry to `GAME_CATALOG` in `gameAccess.js`.
 4. Wrap the route content in `NameGate` → `GameAccessGate`.
 5. Call `logPlaySession(...)` on completion with the matching `game` slug.
-6. It appears once an **admin** adds it to a class type from the shop
-   (`addGameToType`) — teachers cannot do this themselves anymore.
+6. It appears once an **admin** adds it to a class type from the Catalogue
+   tab (`addGameToType`) — teachers cannot do this themselves anymore.
 
 ## Adding a new class type (e.g. a future 'k3')
 1. Add the value to the `classType` enum in `models/ClassInfo.js` and
@@ -197,4 +203,4 @@ helpers throw `new Error(body.error || 'fallback message')`.
 2. Add it as a new tab (alongside "K1 Games" / "K2 Games") in
    `GameAccessPanel.jsx`'s admin tab bar.
 3. No GameAccess rows exist for it until an admin adds games to it via the
-   shop — an empty class type is a valid, expected state.
+   Catalogue tab — an empty class type is a valid, expected state.

@@ -266,5 +266,15 @@ export async function deleteStudentInClass(classId, studentId, teacherCode) {
   );
 }
 
+// Deletes a name-only ("light") identity — a public-class kid with no Student
+// record. There is nothing to delete but their play history, so this hits the
+// identity endpoint rather than the student one.
+export async function deleteIdentityInClass(classId, name, teacherCode) {
+  return jsonRequest(
+    `/api/classes/${encodeURIComponent(classId)}/identities/${encodeURIComponent(name)}`,
+    { method: 'DELETE', body: { teacherCode } }
+  );
+}
+
 // Generator is exported so the panel can prefill a fresh 6-char code.
 export { generateStudentCode };
