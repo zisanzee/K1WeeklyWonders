@@ -6,13 +6,9 @@ import { usePlayerStore } from '../../playerStore';
 import { useState } from 'react';
 
 import { motion, AnimatePresence } from "motion/react";
-import clsx from 'clsx';
-import { twMerge } from 'tailwind-merge';
+import { cn } from '../../cn';
 import GameAccessGate from '../../GameAccessGate';
 
-function cn(...inputs) {
-  return twMerge(clsx(inputs));
-}
 
 const numberWords = [
   "One",
@@ -55,10 +51,6 @@ function PhaserDemoInner() {
 
   return (
     <div className="relative flex h-[100dvh] w-full flex-col items-center overflow-hidden bg-[linear-gradient(160deg,#1e1b5a_0%,#4338ca_22%,#7c3aed_46%,#9333ea_66%,#a21caf_84%,#be185d_100%)] px-0 pb-0 pt-0 sm:px-4 sm:pb-4 sm:pt-3">
-      <link
-        rel="stylesheet"
-        href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;700&family=Nunito:wght@600;800&display=swap"
-      />
 
       <style>{`
         @keyframes float-slow { 0%, 100% { transform: translateY(0px) translateX(0px); } 50% { transform: translateY(-16px) translateX(8px); } }

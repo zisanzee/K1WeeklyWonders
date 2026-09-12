@@ -1,8 +1,17 @@
 import { useEffect, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { usePlayerStore } from './playerStore';
 import { useSystemConfigStore, startSystemConfigPolling } from './systemConfig';
 import { ICON_URL } from './brand';
+import ContactStrip from './ContactStrip';
+
+// Routes that must render normally even while maintenance mode is ON, and
+// regardless of whether anyone is signed in. The teacher guide is documentation
+// — it explains how to sign in, so it is useless precisely when it is most
+// likely to be needed (a locked-out teacher during an outage). It is read-only
+// and reaches nothing privileged, so there is nothing to protect here.
+const PUBLIC_DURING_MAINTENANCE = new Set(['/teacher-onboarding']);
 
 // Height of the staff maintenance ribbon. Exposed to descendants as the
 // `--maint-banner-h` CSS variable so fixed/sticky top bars can offset
@@ -34,9 +43,11 @@ function useCountdown(endsAt) {
 // Sits above every route. When maintenance mode is ON:
 //  - teachers/admins see the app normally (plus a small amber ribbon that
 //    occupies its own space rather than covering the UI),
+//  - routes in PUBLIC_DURING_MAINTENANCE render normally for everyone,
 //  - EVERYONE else — including visitors who haven't logged in yet — sees the
 //    full-screen maintenance page, which also offers a teacher/admin sign-in.
 export default function MaintenanceGate({ children }) {
+  const { pathname } = useLocation();
   const identityKind = usePlayerStore((state) => state.identityKind);
   const isTeacher = usePlayerStore((state) => state.isTeacher);
   const isAdmin = usePlayerStore((state) => state.isAdmin);
@@ -63,8 +74,11 @@ export default function MaintenanceGate({ children }) {
   // React crashed to a black screen until a manual refresh.
   const countdown = useCountdown(staff ? null : maintenanceEndsAt);
 
+  const isPublicRoute = PUBLIC_DURING_MAINTENANCE.has(pathname);
+
   const showBanner = staff && maintenanceMode;
-  const showOverlay = maintenanceMode && !staff && !staffLoginOpen;
+  const showOverlay =
+    maintenanceMode && !staff && !staffLoginOpen && !isPublicRoute;
   const heading = maintenanceMessage?.trim()
     ? maintenanceMessage.trim()
     : 'EZ Wonders is under maintenance';
@@ -91,26 +105,32 @@ export default function MaintenanceGate({ children }) {
       )}
 
       {showOverlay ? (
-        <main className="aura-page relative flex min-h-[100dvh] items-center justify-center overflow-hidden px-5 py-8">
+        <main className="aura-page relative flex min-h-[100dvh] flex-col items-center overflow-x-hidden px-5 py-8">
           {/* Ambient background */}
-          <div className="pointer-events-none absolute -left-24 top-10 h-72 w-72 rounded-full bg-amber-400/25 blur-3xl" />
-          <div className="pointer-events-none absolute -right-20 bottom-0 h-80 w-80 rounded-full bg-violet-500/30 blur-3xl" />
-          <div className="pointer-events-none absolute left-1/2 top-1/3 h-64 w-64 -translate-x-1/2 rounded-full bg-sky-400/20 blur-3xl" />
-          <span className="pointer-events-none absolute left-[8%] top-[14%] text-3xl opacity-70 sm:text-4xl">
-            ⚙️
-          </span>
-          <span className="pointer-events-none absolute right-[10%] top-[22%] text-2xl opacity-70 sm:text-3xl">
-            ✨
-          </span>
-          <span className="pointer-events-none absolute bottom-[12%] left-[12%] text-3xl opacity-60 sm:text-4xl">
-            🔧
-          </span>
+          <div className="pointer-events-none absolute inset-0 overflow-hidden">
+            <div className="absolute -left-24 top-10 h-72 w-72 rounded-full bg-amber-400/25 blur-3xl" />
+            <div className="absolute -right-20 bottom-0 h-80 w-80 rounded-full bg-violet-500/30 blur-3xl" />
+            <div className="absolute left-1/2 top-1/3 h-64 w-64 -translate-x-1/2 rounded-full bg-sky-400/20 blur-3xl" />
+            <span className="absolute left-[8%] top-[14%] text-3xl opacity-70 sm:text-4xl">
+              ⚙️
+            </span>
+            <span className="absolute right-[10%] top-[22%] text-2xl opacity-70 sm:text-3xl">
+              ✨
+            </span>
+            <span className="absolute bottom-[12%] left-[12%] text-3xl opacity-60 sm:text-4xl">
+              🔧
+            </span>
+          </div>
 
+          {/* my-auto rather than justify-center: centred when there is room to
+              spare, top-aligned (and therefore scrollable-to) when there is
+              not. `overflow-hidden` on <main> used to clip the bottom of this
+              card with no way to reach it, since html/body never scroll. */}
           <motion.section
             initial={{ opacity: 0, y: 22, scale: 0.97 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             transition={{ type: 'spring', stiffness: 240, damping: 24 }}
-            className="aura-panel relative z-10 w-full max-w-md overflow-hidden rounded-[2rem] px-6 py-8 text-center sm:px-8 sm:py-10"
+            className="aura-panel relative z-10 my-auto w-full max-w-md overflow-hidden rounded-[2rem] px-6 py-8 text-center sm:px-8 sm:py-10"
           >
             {/* Brand row */}
             <div className="flex items-center justify-center gap-2">
@@ -173,6 +193,15 @@ export default function MaintenanceGate({ children }) {
             <p className="mt-3 text-[11px] font-semibold text-white/60">
               Students don&rsquo;t need to do anything — just check back soon.
             </p>
+
+            {/* The one place people are most likely to give up and need a human
+                — an outage is exactly when this address matters most. */}
+            <div className="mt-7 border-t border-white/15 pt-6">
+              <ContactStrip
+                heading="Need help right now?"
+                hint="Email us and we will get back to you as soon as we are back online."
+              />
+            </div>
           </motion.section>
         </main>
       ) : (

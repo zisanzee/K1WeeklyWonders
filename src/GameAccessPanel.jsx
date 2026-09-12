@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { AnimatePresence, motion } from 'motion/react';
 import {
   closestCenter,
@@ -3035,6 +3036,16 @@ export default function GameAccessPanel({ onClose, initialTab }) {
             </p>
           </div>
 
+          <Link
+            to="/teacher-onboarding"
+            aria-label="Open the teacher guide"
+            className="flex h-10 shrink-0 items-center gap-1.5 rounded-xl border border-white/25 bg-white/15 px-3 text-xs font-black text-white shadow-sm transition hover:bg-white/25 sm:h-11 sm:px-4 sm:text-sm"
+          >
+            <span aria-hidden="true" className="text-base leading-none">
+              📘
+            </span>
+            <span className="hidden sm:inline">Teacher guide</span>
+          </Link>
         </div>
 
         <TabBar

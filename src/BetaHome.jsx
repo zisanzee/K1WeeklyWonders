@@ -2,8 +2,7 @@ import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion, useReducedMotion, AnimatePresence } from "motion/react";
 import { Helmet } from "react-helmet-async";
-import { clsx } from "clsx";
-import { twMerge } from "tailwind-merge";
+import { cn } from "./cn";
 import NameGate from "./NameGate";
 import NextGameTimer from "./NextGameTimer";
 import { usePlayerStore } from "./playerStore";
@@ -21,13 +20,6 @@ import { LOGO_URL } from "./brand";
 import PublicLanding from "./PublicLanding";
 import FeedbackButton from "./FeedbackButton";
 import ContactStrip from "./ContactStrip";
-
-// ---------------------------------------------------------------------------
-// Shared utility
-// ---------------------------------------------------------------------------
-function cn(...inputs) {
-  return twMerge(clsx(inputs));
-}
 
 // ---------------------------------------------------------------------------
 // Design tokens

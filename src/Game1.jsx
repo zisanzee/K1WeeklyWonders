@@ -13,8 +13,7 @@ import { CSS } from '@dnd-kit/utilities';
 import { motion } from 'motion/react';
 import Confetti from 'react-confetti';
 import { useWindowSize } from 'react-use';
-import clsx from 'clsx';
-import { twMerge } from 'tailwind-merge';
+import { cn } from './cn';
 import NameGate from './NameGate';
 import GameAccessGate from './GameAccessGate';
 import { usePlayerStore } from './playerStore';
@@ -25,9 +24,6 @@ import { speak, warmupSpeech, cancelSpeech } from './Phaser/common/speech';
 const TOTAL_ROUNDS = 10;
 const NUMBER_WORDS = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
 
-function cn(...inputs) {
-  return twMerge(clsx(inputs));
-}
 
 function capitalize(s) {
   return s.charAt(0).toUpperCase() + s.slice(1);
@@ -234,10 +230,6 @@ function Game1Inner() {
 
   return (
     <div className="page-bleed-bg relative mx-auto h-[100dvh] w-full max-w-[1126px] overflow-hidden bg-gradient-to-b from-sky-400 via-sky-300 to-lime-100">
-      <link
-        rel="stylesheet"
-        href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap"
-      />
       <Helmet>
     <title>Count and Win | EZ Wonders</title>
 

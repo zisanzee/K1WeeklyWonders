@@ -112,6 +112,20 @@ for the overhaul. New game routes still need both gates, in that order.
 - `main.jsx` — all game routes lazy-loaded. Phaser-based games live under
   `BonusGames/<name>/PhaserDemo.jsx` even when not labeled "bonus" in the
   catalog (e.g. Game4).
+- `TeacherOnboarding.jsx` (`/teacher-onboarding`) — the teacher guide. Copy and
+  imagery are NOT in the component: everything lives in
+  `teacherOnboardingContent.js` (`ONBOARDING_SECTIONS` blocks + `ONBOARDING_GIFS`).
+  To ship a section's animation, paste the URL into
+  `ONBOARDING_GIFS[<section id>]`; an empty string renders the "coming soon"
+  placeholder automatically, and a broken URL falls back to it via `onError`.
+  The page is deliberately **public** — the panel it links to is still the gate.
+  It is not wrapped in `NameGate`, and `/teacher-onboarding` is listed in
+  `PUBLIC_DURING_MAINTENANCE` in `MaintenanceGate.jsx` so it also renders while
+  maintenance mode is ON (a locked-out teacher needs the guide most during an
+  outage). **Never rename the content file to `teacherOnboarding.js`**: it would
+  differ from the component only by case, and on a case-insensitive filesystem
+  an extension-less `./TeacherOnboarding` import can resolve to it instead of
+  the component.
 - `GameAccessPanel.jsx` — for admins, the tab bar is **"K1 Games" / "K2
   Games" / Students / Settings** (two separate top-level tabs, not a
   toggle inside one tab), each fully editable independently and defaulting
@@ -169,6 +183,36 @@ helpers throw `new Error(body.error || 'fallback message')`.
   fetch-helper file per API concern.
 - Env var: `VITE_API_BASE_URL` (frontend, defaults to
   `http://localhost:4000`). Backend uses `MONGODB_URI`.
+- **`cn()` lives in `src/cn.js`** — import it, never redefine it locally.
+  `clsx`/`tailwind-merge` should only be imported by that one file.
+- **Never add a `<link>` to Google Fonts from a component.** Fredoka is loaded
+  once in `index.html` so the request starts in parallel with the JS bundle; a
+  component-level link can't even begin until that lazy chunk has executed, so
+  the font competes with the page and text re-flows on arrival. The
+  `.font-heading` / `.font-body` utilities are declared in `index.css`.
+- **Everything must render inside an error boundary.** `ErrorBoundary.jsx` is
+  applied twice in `main.jsx` (app-level + per-route) precisely so a failed
+  lazy chunk can never blank the whole app. Wrap any new top-level surface.
+
+## Performance / platform notes
+- `vite.config.js` sets `manualChunks` as a **function** — Vite 8 bundles with
+  rolldown, which rejects the Rollup object form with "manualChunks is not a
+  function".
+- `vite-plugin-pwa` ships the service worker. Phaser is matched by
+  `globIgnores` and cached at runtime on first real play rather than
+  precached, because eager precaching would push ~1.4MB onto every visitor
+  including those who never open a game.
+- The API is never cached by the service worker (`navigateFallbackDenylist`).
+- **Canonical/robots are per-route** via `src/seo.jsx`; add a public route to
+  `INDEXABLE_ROUTES` there AND to `public/sitemap.xml`, or it will be marked
+  `noindex` and pointed at the root canonical.
+- Backend rate limits (`server.js`) are on the unauthenticated/abuse-prone
+  routes only — `code-lookup`, `teacher-login`, `student-login`, `plays`,
+  `feedback`. Do NOT add limits to the authenticated write paths: a whole
+  class can legitimately burst through `/api/plays`, and a per-IP cap would
+  throttle everyone behind one school NAT.
+- `GameAccess` reads are guarded by a per-process `pendingUnlockCache`. Any new
+  write path that can change `unlockAt` MUST call `invalidateUnlockCache(classId)`.
 
 ## Scheduled unlocks / the "next game" banner
 - `NextGameTimer.jsx` is **schedule-driven, not calendar-driven**. The old

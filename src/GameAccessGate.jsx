@@ -33,10 +33,6 @@ export default function GameAccessGate({ gameNumber, gameLabel, children }) {
   if ((!loaded || loadedClassId !== classId) && error) {
     return (
       <div className="relative flex min-h-[100dvh] w-full flex-col items-center justify-center gap-4 overflow-hidden bg-gradient-to-b from-[#48BFEE] via-[#8FE0FA] to-[#FFE9A8] px-4 text-center">
-        <link
-          rel="stylesheet"
-          href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;700&family=Nunito:wght@600;800&display=swap"
-        />
         <span className="text-5xl">😕</span>
         <p style={{ fontFamily: "'Nunito', sans-serif" }} className="max-w-xs text-sm font-bold text-slate-700">
           {error}
@@ -69,10 +65,6 @@ export default function GameAccessGate({ gameNumber, gameLabel, children }) {
 
   return (
     <div className="relative flex min-h-[100dvh] w-full flex-col items-center justify-center gap-4 overflow-hidden bg-gradient-to-b from-[#48BFEE] via-[#8FE0FA] to-[#FFE9A8] px-4 text-center">
-      <link
-        rel="stylesheet"
-        href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;700&family=Nunito:wght@600;800&display=swap"
-      />
       <div className="pointer-events-none absolute left-[8%] top-[10%] text-5xl opacity-80">☁️</div>
       <div className="pointer-events-none absolute right-[10%] top-[16%] text-4xl opacity-70">☁️</div>
 

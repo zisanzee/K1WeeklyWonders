@@ -160,13 +160,25 @@ export default function NameGate({ gameLabel, children }) {
   }[step];
 
   return (
-    <main className="aura-page relative flex min-h-[100dvh] flex-col items-center justify-center gap-5 overflow-hidden px-4 py-6 sm:px-6">
-      <div className="pointer-events-none absolute -left-16 top-16 h-48 w-48 rounded-full bg-violet-500/30 blur-3xl" />
-      <div className="pointer-events-none absolute -right-12 bottom-6 h-52 w-52 rounded-full bg-fuchsia-500/30 blur-3xl" />
-      <div className="pointer-events-none absolute left-[7%] top-[12%] text-4xl opacity-70 sm:text-5xl">&#9729;&#65039;</div>
-      <div className="pointer-events-none absolute right-[8%] top-[20%] text-3xl opacity-60 sm:text-4xl">&#10024;</div>
-      <div className="pointer-events-none absolute bottom-[9%] left-[10%] text-3xl opacity-55">&#127800;</div>
+    // `overflow-x-hidden` rather than `overflow-hidden`: the decorative blobs
+    // are clipped by their own wrapper below, leaving vertical overflow
+    // reachable. With `overflow-hidden` here, a short viewport (or a taller
+    // form) silently clipped the contact strip off the bottom — and since
+    // html/body don't scroll, it was unreachable rather than merely off-screen.
+    <main className="aura-page relative flex min-h-[100dvh] flex-col items-center overflow-x-hidden px-4 py-6 sm:px-6">
+      <div className="pointer-events-none absolute inset-0 overflow-hidden">
+        <div className="absolute -left-16 top-16 h-48 w-48 rounded-full bg-violet-500/30 blur-3xl" />
+        <div className="absolute -right-12 bottom-6 h-52 w-52 rounded-full bg-fuchsia-500/30 blur-3xl" />
+        <div className="absolute left-[7%] top-[12%] text-4xl opacity-70 sm:text-5xl">&#9729;&#65039;</div>
+        <div className="absolute right-[8%] top-[20%] text-3xl opacity-60 sm:text-4xl">&#10024;</div>
+        <div className="absolute bottom-[9%] left-[10%] text-3xl opacity-55">&#127800;</div>
+      </div>
 
+      {/* `my-auto` on one wrapper rather than `justify-center` on the main:
+          centred when there is room, but starting at the top when there is
+          not, so tall content can never overflow past the top edge where
+          scrolling cannot reach it. */}
+      <div className="relative z-10 my-auto flex w-full max-w-md flex-col items-center gap-5">
       <AnimatePresence mode="wait">
         <motion.form
           key={step}
@@ -313,7 +325,12 @@ export default function NameGate({ gameLabel, children }) {
         </motion.form>
       </AnimatePresence>
 
-      <ContactStrip heading="Need help? Reach out" className="relative z-10 w-full max-w-md" />
+      <ContactStrip
+        heading="Need help? Reach out"
+        className="w-full"
+        hint="Stuck with your code, or need a class set up? Email us any time."
+      />
+      </div>
     </main>
   );
 }

@@ -39,6 +39,26 @@ body,
   font-family: "Fredoka", sans-serif;
 }
 
+/*
+  Shared font-family utilities.
+
+  These were previously re-declared inside the inline <style> block of almost
+  every game and page (~20 files), each with its own copy. One declaration here
+  keeps them consistent and lets those per-file blocks eventually disappear.
+
+  Fredoka itself is loaded ONCE from index.html so the request starts in
+  parallel with the JS bundle — see the comment there. Never add another
+  <link> to these families from a component: it cannot start until that lazy
+  chunk has executed, so the font competes with the page for a round trip and
+  text visibly re-flows on arrival.
+*/
+.font-heading {
+  font-family: "Fredoka", sans-serif;
+}
+.font-body {
+  font-family: "Fredoka", sans-serif;
+}
+
 @media (prefers-color-scheme: dark) {
   :root {
     --text: #9ca3af;

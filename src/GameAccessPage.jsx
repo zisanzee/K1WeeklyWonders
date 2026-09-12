@@ -33,10 +33,6 @@ function GameAccessPageContent() {
   if (!isTeacher) {
     return (
       <div className="aura-page flex min-h-[100dvh] w-full flex-col items-center justify-center gap-4 px-4 text-center">
-        <link
-          rel="stylesheet"
-          href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;700&family=Nunito:wght@600;800&display=swap"
-        />
         <span className="text-7xl drop-shadow-[0_2px_8px_rgba(76,29,149,0.18)]">🔒</span>
         <h1 style={{ fontFamily: "'Fredoka', sans-serif" }} className="aura-text text-2xl font-bold sm:text-3xl">
           Teachers only

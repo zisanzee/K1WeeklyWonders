@@ -13,8 +13,7 @@ import { CSS } from '@dnd-kit/utilities';
 import { motion } from 'motion/react';
 import Confetti from 'react-confetti';
 import { useWindowSize } from 'react-use';
-import clsx from 'clsx';
-import { twMerge } from 'tailwind-merge';
+import { cn } from './cn';
 import NameGate from './NameGate';
 import GameAccessGate from './GameAccessGate';
 import { usePlayerStore } from './playerStore';
@@ -114,9 +113,6 @@ function cancelAudio() {
   }
 }
 
-function cn(...inputs) {
-  return twMerge(clsx(inputs));
-}
 
 // One consistent "big, highlighted number" treatment used everywhere a value
 // appears — keys, chests, choices — so numbers are always the loudest thing
@@ -469,12 +465,8 @@ function Game6Inner() {
 
   return (
     <div className="page-bleed-bg relative mx-auto h-[100dvh] w-full max-w-[1126px] overflow-hidden bg-gradient-to-b from-[#3FB6EA] via-[#8FE0FA] to-[#F4D9A0]">
-      <link
-        rel="stylesheet"
-        href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap"
-      />
-        <Helmet>
-          <title>Part-Part-Whole | EZ Wonders</title>
+      <Helmet>
+        <title>Part-Part-Whole | EZ Wonders</title>
       
           <meta
             name="description"

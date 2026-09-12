@@ -1,16 +1,31 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <!--
-    Only the root is listed, on purpose. Every route is served the same static
-    shell, whose <link rel="canonical"> points at https://ezwonders.com/. The
-    /gameN routes additionally sit behind the sign-in gate, so a crawler only
-    ever sees a login form there — listing them would just generate "Duplicate,
-    Google chose a different canonical" noise. Add a route here only once it has
-    its own content AND its own per-route canonical.
+    Only genuinely public, indexable content is listed.
+
+    These two routes set their OWN <link rel="canonical"> and robots tag at
+    runtime via src/seo.jsx, so each is a distinct page rather than a duplicate
+    of the root. (An earlier revision of this file listed only "/" because the
+    canonical was hardcoded to the homepage for every route — that is no longer
+    true, so the guide can be listed.)
+
+    Everything else stays out on purpose:
+      - /gameN and /bonus-game1 sit behind the sign-in gate, so a crawler only
+        ever sees a login form there.
+      - /p/:code contains private per-student codes (also Disallowed in
+        robots.txt).
+      - /game-access is the teacher/admin panel (also Disallowed).
+    Add a route here only once it has its own content AND is in
+    INDEXABLE_ROUTES in src/seo.jsx.
   -->
   <url>
     <loc>https://ezwonders.com/</loc>
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
+  </url>
+  <url>
+    <loc>https://ezwonders.com/teacher-onboarding</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
   </url>
 </urlset>

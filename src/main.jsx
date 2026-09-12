@@ -8,6 +8,8 @@ import { warmupSpeech } from "./Phaser/common/speech";
 import RotateHint from "./RotateHint";
 import MaintenanceGate from "./MaintenanceGate";
 import BrandLoader from "./BrandLoader";
+import ErrorBoundary from "./ErrorBoundary";
+import RouteSeo from "./seo";
 import { ConfirmHost } from "./confirmDialog";
 import { usePlayerStore } from "./playerStore";
 import { startSystemConfigPolling } from "./systemConfig";
@@ -53,6 +55,7 @@ const Game7 = lazy(() => import("./BonusGames/Game 7/PhaserDemo"));
 const Game8 = lazy(() => import("./BonusGames/Game 8/PhaserDemo"));
 const Game9 = lazy(() => import("./BonusGames/Game 9/PhaserDemo"));
 const GameAccessPage = lazy(() => import("./GameAccessPage"));
+const TeacherOnboarding = lazy(() => import("./TeacherOnboarding"));
 const StudentLogin = lazy(() => import("./StudentLogin"));
 const BetaHome = lazy(() => import("./BetaHome"));
 
@@ -84,35 +87,71 @@ function AuthBootstrap({ children }) {
   return children;
 }
 
-ReactDOM.createRoot(document.getElementById("root")).render(
-  <HelmetProvider>
-    <BrowserRouter>
+// The router body, extracted so the per-route boundary below can remount it.
+// `resetKey` changing forces React to discard the failed subtree and try
+// again — without it, "Try again" would re-render the same broken element.
+function AppRoutes({ resetKey }) {
+  return (
+    <>
+      <RouteSeo />
+      <Suspense fallback={<GameLoading />}>
+        <Routes>
+          {/* BetaHome is now the real production home at the root path. */}
+          <Route path="/" element={<BetaHome />} />
+          {/* Keep the old URL working as an alias, but never as the primary. */}
+          <Route path="/beta-ezwonders" element={<Navigate to="/" replace />} />
+          <Route path="/game1" element={<Game1 />} />
+          <Route path="/game2" element={<Game2 />} />
+          <Route path="/game3" element={<Game3 />} />
+          <Route path="/game4" element={<Game4 />} />
+          <Route path="/game5" element={<Game5 />} />
+          <Route path="/game7" element={<Game7 />} />
+          <Route path="/game8" element={<Game8 />} />
+          <Route path="/game9" element={<Game9 />} />
+          <Route path="/game6" element={<Game6 />} />
+          <Route path="/bonus-game1" element={<PhaserDemo />} />
+          <Route path="/game-access" element={<GameAccessPage />} />
+          <Route path="/teacher-onboarding" element={<TeacherOnboarding />} />
+          <Route path="/p/:code" element={<StudentLogin />} />
+        </Routes>
+      </Suspense>
+      {/* resetKey is unused inside, but keying the fragment on it is what
+          makes the retry actually re-run the lazy imports. */}
+      <span key={resetKey} className="hidden" aria-hidden="true" />
+    </>
+  );
+}
+
+// Two boundaries, deliberately:
+//  - INNER, around the routes, so a single broken game chunk costs only that
+//    page and the surrounding chrome (maintenance gate, rotate hint) survives.
+//  - OUTER, around everything, so nothing can ever unmount the whole app and
+//    leave a blank screen.
+function AppShell() {
+  const [retryNonce, setRetryNonce] = useState(0);
+
+  return (
+    <ErrorBoundary>
       <RotateHint />
       <ConfirmHost />
       <AuthBootstrap>
         <MaintenanceGate>
-          <Suspense fallback={<GameLoading />}>
-            <Routes>
-            {/* BetaHome is now the real production home at the root path. */}
-            <Route path="/" element={<BetaHome />} />
-            {/* Keep the old URL working as an alias, but never as the primary. */}
-            <Route path="/beta-ezwonders" element={<Navigate to="/" replace />} />
-            <Route path="/game1" element={<Game1 />} />
-            <Route path="/game2" element={<Game2 />} />
-            <Route path="/game3" element={<Game3 />} />
-            <Route path="/game4" element={<Game4 />} />
-            <Route path="/game5" element={<Game5 />} />
-            <Route path="/game7" element={<Game7 />} />
-            <Route path="/game8" element={<Game8 />} />
-            <Route path="/game9" element={<Game9 />} />
-            <Route path="/game6" element={<Game6 />} />
-            <Route path="/bonus-game1" element={<PhaserDemo />} />
-            <Route path="/game-access" element={<GameAccessPage />} />
-            <Route path="/p/:code" element={<StudentLogin />} />
-            </Routes>
-          </Suspense>
+          <ErrorBoundary
+            homeHref="/"
+            onDismiss={() => setRetryNonce((n) => n + 1)}
+          >
+            <AppRoutes resetKey={retryNonce} />
+          </ErrorBoundary>
         </MaintenanceGate>
       </AuthBootstrap>
+    </ErrorBoundary>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(
+  <HelmetProvider>
+    <BrowserRouter>
+      <AppShell />
     </BrowserRouter>
   </HelmetProvider>
 );

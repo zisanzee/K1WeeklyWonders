@@ -13,8 +13,7 @@ import { CSS } from '@dnd-kit/utilities';
 import { motion, AnimatePresence } from "motion/react";
 import Confetti from 'react-confetti';
 import { useWindowSize } from 'react-use';
-import clsx from 'clsx';
-import { twMerge } from 'tailwind-merge';
+import { cn } from './cn';
 import NameGate from './NameGate';
 import GameAccessGate from './GameAccessGate';
 import { usePlayerStore } from './playerStore';
@@ -45,9 +44,6 @@ const numberWords = [
 ];
 
 
-function cn(...inputs) {
-  return twMerge(clsx(inputs));
-}
 
 const CARGO_TYPES = [
   { key: 'alien', emoji: '👽', name: 'aliens' },
@@ -305,12 +301,8 @@ function Game5Inner() {
 
   return (
     <div className="page-bleed-bg relative mx-auto h-[100dvh] w-full max-w-[1126px] overflow-hidden bg-gradient-to-b from-[#0B1130] via-[#1B1F52] to-[#3A2A6B]">
-      <link
-        rel="stylesheet"
-        href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap"
-      />
-        <Helmet>
-          <title>Splits and Groups | EZ Wonders</title>
+      <Helmet>
+        <title>Splits and Groups | EZ Wonders</title>
       
           <meta
             name="description"
