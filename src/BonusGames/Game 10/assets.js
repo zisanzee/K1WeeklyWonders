@@ -8,12 +8,18 @@
 // property clip ("shape that is round with no corners"), which would leak the
 // Level 2 phrasing into Level 1.
 
+import { MONSTER_IMAGE_URLS } from './monster';
+
 export const IMAGES = {
-  'background': 'https://res.cloudinary.com/hijmipga/image/upload/v1789297946/background_2_odlkx2.png', // original size 250x250
+  'background': 'https://res.cloudinary.com/hijmipga/image/upload/v1789297946/background_2_odlkx2.png', // 2:3 portrait scene backdrop (wood grain + the four foods in the corners) — cover-fit full-screen, not a sprite
   'cookie-circle': 'https://res.cloudinary.com/hijmipga/image/upload/v1789297282/cookie_hjnlx5.png',// original size 250x250
   'pizza-triangle': 'https://res.cloudinary.com/hijmipga/image/upload/v1789297278/pizza_zt7peq.png',// original size 250x225
   'cracker-square': 'https://res.cloudinary.com/hijmipga/image/upload/v1789297278/cracker_eah9fl.png',// original size 250x250
   'juicebox-rectangle': 'https://res.cloudinary.com/hijmipga/image/upload/v1789297278/juicebox_s9r1fb.png',// original size 150x250
+
+  // Monster parts are declared in monster.js next to the code that assembles
+  // and poses them, then merged in here so there's still one manifest.
+  ...MONSTER_IMAGE_URLS,
 };
 
 export const AUDIO = {

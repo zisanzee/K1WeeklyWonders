@@ -14,6 +14,7 @@ import * as Phaser from 'phaser';
 import BaseScene from '../../Phaser/BaseScene';
 import { ROUND_SCRIPT, SHAPES, SHAPE_IDS, TOTAL_ROUNDS, FEEDS_PER_ROUND } from './levels';
 import { ensureBgMusic, addMuteButton } from './audioState';
+import createMonster, { MONSTER_FEED_RADIUS_X, MONSTER_FEED_RADIUS_Y } from './monster';
 
 // ---------------------------------------------------------------------------
 // Layout + tuning constants (720x1080 base resolution — see Phaser/config.js)
@@ -41,17 +42,13 @@ const LAUNCH_VX_MAX = 45;
 const SPAWN_MIN_MS = 1400;
 const SPAWN_MAX_MS = 2000;
 
-const MONSTER_X = 590;
-const MONSTER_Y = 930;
-const MONSTER_MOUTH_DY = 30;
-// Deliberately generous, and wider vertically than horizontally. The drop
-// check is "is the shape's CENTRE inside this circle", so it has to cover the
-// whole area a child would reasonably aim at — working distance, not accuracy,
-// is the skill being tested here. Vertical radius is the larger of the two
-// because the monster is approached from above, so a drop that lands on its
-// head should still count.
-const FEED_RADIUS_X = 160;
-const FEED_RADIUS_Y = 230;
+// The monster's position, part scales and feed-zone size all live in
+// ./monster.js (MONSTER_POSE / MONSTER_FEED_RADIUS_*) — that file is the one
+// place to move or resize any part of it.
+
+// How far "above" its shadow the held shape floats. The shadow is offset down
+// by this much and shrunk, which is what sells the shape as lifted.
+const LIFT_HEIGHT = 48;
 
 // Bottom-left corner, left-anchored so it grows away from the screen edge. The
 // left edge plus a 340px wrap caps the widest bubble at ~436px, which stops it
@@ -69,11 +66,22 @@ const PROGRESS_X = 100;
 
 const TOTAL_FEEDS = TOTAL_ROUNDS * FEEDS_PER_ROUND;
 
-// Backgrounds + clouds, matching the shared aurora night-sky theme.
+// Fallback gradient behind the 'background' art — sampled from that artwork's
+// own wood palette so the fill during the first frames matches the texture
+// instead of flashing the aurora indigo the other games use.
 const THEME = {
-  bgColors: ['#1e1b5a', '#4c1d95', '#831843'],
-  groundColor: '#312e81',
+  bgColors: ['#FBE7B4', '#F6D794', '#EDC066'],
+  groundColor: '#E4AE55',
 };
+
+// HUD colours for sitting on the cream artwork. The shared white/translucent
+// styling the other games use is invisible here — a 22%-alpha white track on
+// near-white reads as nothing at all — so the bar switches to a dark brown
+// track with a gold fill.
+const TRACK_COLOR = 0x5b3a12;
+const TRACK_ALPHA = 0.32;
+const TICK_COLOR = 0xffffff;
+const FILL_COLOR = 0xfbbf24;
 
 // Safe voice playback — skips gracefully if a clip is missing (round 4 has no
 // name clip in some manifests) and stops any previous line so prompts never
@@ -161,15 +169,23 @@ export default class GameScene extends BaseScene {
       }
     });
 
-    // 1. Background — the shared baked aurora gradient rather than the
-    //    'background' texture (which is a 250x250 image at the same scale as
-    //    the food sprites, so it isn't a scene backdrop) plus a few drifting
-    //    clouds, matching the other bonus games.
+    // 1. Background layer, back to front:
+    //    a) the fallback gradient, so the first frames before the art draws
+    //       aren't a bare indigo canvas;
+    //    b) the 'background' artwork, cover-fit. The manifest comment claiming
+    //       it is 250x250 is wrong — it's a 2:3 portrait backdrop (wood grain
+    //       with the four foods tucked into the corners), which is exactly the
+    //       canvas aspect, so cover-fit lands it almost 1:1;
+    //    c) a light wash. Without it the pale artwork leaves the white in-game
+    //       text (and the pale prompt bubble) with almost no contrast.
     this.addSkyBackground(THEME, 'game10-bg').setDepth(0);
-    this.addDriftingClouds([
-      { xr: 0.16, yr: 0.3, scale: 0.9, alpha: 0.45 },
-      { xr: 0.74, yr: 0.52, scale: 1.1, alpha: 0.35 },
-    ]);
+
+    this.bgArt = this.add.image(width / 2, height / 2, 'background').setDepth(1);
+    const cover = Math.max(width / this.bgArt.width, height / this.bgArt.height);
+    this.bgArt.setScale(cover);
+    this.levelWash = this.add
+      .rectangle(width / 2, height / 2, width, height, 0xffffff, 0.12)
+      .setDepth(2);
 
     // 2. Play area is the whole canvas — shapes sit at a low depth so they can
     //    fly behind the monster and HUD.
@@ -224,8 +240,10 @@ export default class GameScene extends BaseScene {
 
     // The veil swallows taps that miss the Start button, so an eager first
     // tap can't grab a shape through the overlay.
+    // Warm brown rather than the indigo the other games veil with — over the
+    // cream artwork an indigo scrim reads as a muddy grey.
     this.startOverlay.add(
-      this.add.rectangle(0, 0, width, height, 0x1e1b5a, 0.55).setInteractive()
+      this.add.rectangle(0, 0, width, height, 0x4a2c0a, 0.35).setInteractive()
     );
 
     // Panel runs nearly the full canvas height. Its children are positioned
@@ -334,7 +352,7 @@ export default class GameScene extends BaseScene {
     const radius = PROGRESS_H / 2;
 
     this.progressTrack = this.add.graphics().setDepth(30);
-    this.progressTrack.fillStyle(0xffffff, 0.22);
+    this.progressTrack.fillStyle(TRACK_COLOR, TRACK_ALPHA);
     this.progressTrack.fillRoundedRect(left, PROGRESS_Y - radius, PROGRESS_W, PROGRESS_H, radius);
 
     this.progressFill = this.add.graphics().setDepth(31);
@@ -343,7 +361,7 @@ export default class GameScene extends BaseScene {
     // Ten faint ticks marking the round boundaries, so "after 10 rounds it
     // fills up completely" is readable at a glance.
     this.progressTicks = this.add.graphics().setDepth(32);
-    this.progressTicks.fillStyle(0xffffff, 0.35);
+    this.progressTicks.fillStyle(TICK_COLOR, 0.55);
     for (let i = 1; i < TOTAL_ROUNDS; i += 1) {
       const x = left + (PROGRESS_W * i) / TOTAL_ROUNDS;
       this.progressTicks.fillRect(x - 1, PROGRESS_Y - radius + 4, 2, PROGRESS_H - 8);
@@ -360,7 +378,7 @@ export default class GameScene extends BaseScene {
     this.progressFill.clear();
     if (w <= 0) return;
 
-    this.progressFill.fillStyle(0xfbbf24, 1);
+    this.progressFill.fillStyle(FILL_COLOR, 1);
     if (w < PROGRESS_H) {
       this.progressFill.fillRoundedRect(left, PROGRESS_Y - radius, w, PROGRESS_H, w / 2);
     } else {
@@ -437,102 +455,44 @@ export default class GameScene extends BaseScene {
   }
 
   // -----------------------------------------------------------------------
-  // Monster (placeholder art — kept in one method so real art is a local swap)
+  // Monster
   // -----------------------------------------------------------------------
+  // Assembly and posing live in ./monster.js — MONSTER_POSE at the top of that
+  // file is the single place to adjust any part's position or scale.
+
+  // Tapping the monster replays the round's instruction so the child can hear
+  // the question again — the main reason to tap it. `phase` isn't checked:
+  // unlike the old full-screen prompt bubbles, replaying a clip during the
+  // success beat is genuinely useful here and safe (playVoice stops whatever
+  // is currently speaking, so the "Treasure found!"-style praise is
+  // superseded rather than layered).
+  pokeMonster() {
+    playVoice(this, this.round.voiceKey);
+    this.monster.reactToPoke();
+  }
 
   buildMonster() {
-    const c = this.add.container(MONSTER_X, MONSTER_Y).setDepth(12);
-
-    const body = this.add.graphics();
-    body.fillStyle(0x22c55e, 1);
-    body.fillEllipse(0, 0, 200, 180);
-    body.lineStyle(6, 0x15803d, 1);
-    body.strokeEllipse(0, 0, 200, 180);
-    body.fillStyle(0x4ade80, 1);
-    body.fillCircle(-58, -42, 16);
-    body.fillCircle(52, -50, 12);
-    c.add(body);
-
-    c.add(this.add.circle(-38, -30, 22, 0xffffff));
-    c.add(this.add.circle(38, -30, 22, 0xffffff));
-    c.add(this.add.circle(-38, -26, 11, 0x1f2937));
-    c.add(this.add.circle(38, -26, 11, 0x1f2937));
-
-    // The mouth is its own object so it can squash open on a chomp.
-    this.monsterMouth = this.add.ellipse(0, MONSTER_MOUTH_DY, 92, 30, 0x7f1d1d);
-    c.add(this.monsterMouth);
-
-    this.monster = c;
-
-    // Idle "breathing" so the corner never looks static.
-    this.monsterIdleTween = this.tweens.add({
-      targets: c,
-      y: MONSTER_Y - 9,
-      duration: 1400,
-      yoyo: true,
-      repeat: -1,
-      ease: 'Sine.easeInOut',
-    });
+    this.monster = createMonster(this);
 
     // Invisible hit-ellipse at the mouth, used to resolve a drop. Elliptical
-    // rather than circular — see FEED_RADIUS_X/Y for why it's taller than wide.
+    // rather than circular, and taller than it is wide, because shapes are
+    // dropped onto the monster from above.
+    const mouth = this.monster.mouthPoint;
     this.feedZone = {
-      x: MONSTER_X,
-      y: MONSTER_Y + MONSTER_MOUTH_DY,
-      radiusX: FEED_RADIUS_X,
-      radiusY: FEED_RADIUS_Y,
+      x: mouth.x,
+      y: mouth.y,
+      radiusX: MONSTER_FEED_RADIUS_X,
+      radiusY: MONSTER_FEED_RADIUS_Y,
     };
   }
 
   chompMonster() {
-    this.tweens.killTweensOf(this.monsterMouth);
-    this.monsterMouth.setScale(1, 1);
-    this.tweens.add({
-      targets: this.monsterMouth,
-      scaleY: 2.4,
-      scaleX: 1.15,
-      duration: 110,
-      yoyo: true,
-      repeat: 1,
-      ease: 'Sine.easeInOut',
-      onComplete: () => this.monsterMouth.setScale(1, 1),
-    });
-
-    // Only the chomp tween is interrupted here — killing every tween on the
-    // container would also kill the infinite idle-bob, freezing the monster
-    // for the rest of the run after the very first feed.
-    if (this.chompTween) this.chompTween.stop();
-    this.chompTween = this.tweens.add({
-      targets: this.monster,
-      scaleX: 1.12,
-      scaleY: 0.88,
-      duration: 130,
-      yoyo: true,
-      repeat: 1,
-      ease: 'Sine.easeInOut',
-      onComplete: () => {
-        this.monster.setScale(1, 1);
-        this.chompTween = null;
-      },
-    });
+    this.monster.chomp();
   }
 
-  // Quick "no" head-shake. Moves the mouth (not the container) so it can't
-  // fight the idle-bob tween driving the container's y.
+  // Quick "no" head-shake + show the refused face.
   rejectMonster() {
-    if (this.rejectTween) this.rejectTween.stop();
-    this.rejectTween = this.tweens.add({
-      targets: this.monsterMouth,
-      x: -12,
-      duration: 70,
-      yoyo: true,
-      repeat: 3,
-      ease: 'Sine.easeInOut',
-      onComplete: () => {
-        this.monsterMouth.setX(0);
-        this.rejectTween = null;
-      },
-    });
+    this.monster.refuse();
   }
 
   // -----------------------------------------------------------------------
@@ -644,6 +604,16 @@ export default class GameScene extends BaseScene {
     const px = this.toWorldX(pointer.x);
     const py = pointer.y;
 
+    // A tap on the monster is its own action, not a grab. Checked first: the
+    // monster sits at the bottom right, where a shape may be in flight, and
+    // grabbing in that case would be surprising.
+    const pokeDx = (px - this.feedZone.x) / this.feedZone.radiusX;
+    const pokeDy = (py - this.feedZone.y) / this.feedZone.radiusY;
+    if (pokeDx * pokeDx + pokeDy * pokeDy <= 1) {
+      this.pokeMonster();
+      return;
+    }
+
     // Generous enough for a fingertip, and scaled off the shape size so it
     // stays proportionate if SHAPE_HEIGHT is ever retuned.
     const grabRadius = SHAPE_HEIGHT * 1.05;
@@ -683,8 +653,26 @@ export default class GameScene extends BaseScene {
     this.heldBaseScale = sprite.scaleX;
     sprite.setScale(sprite.scaleX * 1.15, sprite.scaleY * 1.15);
 
+    // The monster watches whatever the child is holding.
+    this.monster.lookAt(sprite.x, sprite.y);
+
+    // A soft ring behind the shape plus its own drop shadow, offset downward.
+    // Together they read as "picked up and floating" rather than "stuck to the
+    // finger" — the ground shadow the shape normally has is faded out in
+    // update() while it's held, so this is the only shadow on screen.
     this.heldGlow = this.add
-      .circle(sprite.x, sprite.y, SHAPE_HEIGHT * 0.72, 0xffffff, 0.22)
+      .circle(sprite.x, sprite.y, SHAPE_HEIGHT * 0.78, 0xffffff, 0.18)
+      .setDepth(4);
+
+    this.liftShadow = this.add
+      .ellipse(
+        sprite.x,
+        sprite.y + LIFT_HEIGHT,
+        sprite.displayWidth * 0.85,
+        sprite.displayHeight * 0.34,
+        0x000000,
+        0.3
+      )
       .setDepth(5);
   }
 
@@ -693,11 +681,12 @@ export default class GameScene extends BaseScene {
     if (!sprite) return;
 
     this.heldShape = null;
-    if (this.heldGlow) {
-      this.heldGlow.destroy();
-      this.heldGlow = null;
-    }
+    this.clearHeldVisuals();
     sprite.setScale(this.heldBaseScale, this.heldBaseScale);
+
+    // Eyes return to centre and the idle wander resumes. Placed before the
+    // early return below so every release path clears the tracking state.
+    this.monster.stopLooking();
 
     // Grabs are deliberately loose, so a plain tap near a shape shouldn't count
     // as a feed — that would let the child feed the monster by tapping empty
@@ -821,13 +810,23 @@ export default class GameScene extends BaseScene {
     if (i !== -1) this.shapes.splice(i, 1);
   }
 
-  // Clears anything still in flight, e.g. between rounds.
-  clearShapes() {
-    this.heldShape = null;
+  // Tears down the held shape's glow + lift shadow. Shared by release and by
+  // the round/level teardown, so neither path can leave a stray shadow behind.
+  clearHeldVisuals() {
     if (this.heldGlow) {
       this.heldGlow.destroy();
       this.heldGlow = null;
     }
+    if (this.liftShadow) {
+      this.liftShadow.destroy();
+      this.liftShadow = null;
+    }
+  }
+
+  // Clears anything still in flight, e.g. between rounds.
+  clearShapes() {
+    this.heldShape = null;
+    this.clearHeldVisuals();
     this.shapes.forEach((sprite) => this.destroyShape(sprite));
     this.shapes = [];
   }
@@ -965,6 +964,16 @@ export default class GameScene extends BaseScene {
       if (this.heldGlow) {
         this.heldGlow.setPosition(this.heldShape.x, this.heldShape.y);
       }
+      if (this.liftShadow) {
+        // Trails the shape slightly so a quick drag reads as the shape
+        // swinging above its shadow rather than dragging it rigidly along.
+        this.liftShadow.x += (this.heldShape.x - this.liftShadow.x) * 0.2;
+        this.liftShadow.y +=
+          (this.heldShape.y + LIFT_HEIGHT - this.liftShadow.y) * 0.2;
+      }
+
+      // Eyes track the held shape as it's dragged around.
+      this.monster.lookAt(this.heldShape.x, this.heldShape.y);
     }
 
     const { height } = this.scale;
@@ -975,11 +984,17 @@ export default class GameScene extends BaseScene {
       const sprite = this.shapes[i];
 
       if (sprite.shadow) {
-        // Lower on screen = closer to the ground = bigger, darker shadow.
-        const t = Phaser.Math.Clamp((sprite.y - 200) / (height - 200), 0, 1);
-        sprite.shadow.x = sprite.x;
-        sprite.shadow.setScale(0.55 + t * 0.75, 0.55 + t * 0.75);
-        sprite.shadow.setAlpha(0.08 + t * 0.18);
+        // While held, fade the ground shadow out — the lift shadow created in
+        // onShapeGrabbed() takes over as the only shadow on screen.
+        if (sprite === this.heldShape) {
+          sprite.shadow.setAlpha(0);
+        } else {
+          // Lower on screen = closer to the ground = bigger, darker shadow.
+          const t = Phaser.Math.Clamp((sprite.y - 200) / (height - 200), 0, 1);
+          sprite.shadow.x = sprite.x;
+          sprite.shadow.setScale(0.55 + t * 0.75, 0.55 + t * 0.75);
+          sprite.shadow.setAlpha(0.08 + t * 0.18);
+        }
       }
 
       // A world-bounds bounce only reverses on the next physics step, by which
