@@ -54,6 +54,7 @@ const Game4 = lazy(() => import("./BonusGames/Game4/PhaserDemo"));
 const Game7 = lazy(() => import("./BonusGames/Game 7/PhaserDemo"));
 const Game8 = lazy(() => import("./BonusGames/Game 8/PhaserDemo"));
 const Game9 = lazy(() => import("./BonusGames/Game 9/PhaserDemo"));
+const Game10 = lazy(() => import("./BonusGames/Game 10/PhaserDemo"));
 const GameAccessPage = lazy(() => import("./GameAccessPage"));
 const TeacherOnboarding = lazy(() => import("./TeacherOnboarding"));
 const StudentLogin = lazy(() => import("./StudentLogin"));
@@ -108,6 +109,7 @@ function AppRoutes({ resetKey }) {
           <Route path="/game7" element={<Game7 />} />
           <Route path="/game8" element={<Game8 />} />
           <Route path="/game9" element={<Game9 />} />
+          <Route path="/game10" element={<Game10 />} />
           <Route path="/game6" element={<Game6 />} />
           <Route path="/bonus-game1" element={<PhaserDemo />} />
           <Route path="/game-access" element={<GameAccessPage />} />

@@ -153,6 +153,20 @@ export const GAME_CATALOG = [
     gradient: 'linear-gradient(135deg, #FFD76A 0%, #F59E0B 55%, #D97706 100%)',
     ring: 'ring-[#FFEBC0]',
   },
+  {
+    key: '10',
+    emoji: '\uD83C\uDF55',
+    label: 'Feed the Shapes',
+    title: 'Feed the Shapes',
+    subtitle: '4 Basic Shapes\n(Circle, Square, Triangle, Rectangle)',
+    description: 'Catch the food shapes the monster asks for — first by name, then by their properties — and drag them into its mouth.',
+    hue: '#22C55E',
+    tint: '#ECFDF5',
+    to: '/Game10',
+    progressKey: 'game10',
+    gradient: 'linear-gradient(135deg, #6EE7B7 0%, #22C55E 55%, #15803D 100%)',
+    ring: 'ring-[#C7F5DC]',
+  },
 ];
 
 export const GAME_KEYS = GAME_CATALOG.map((game) => game.key);

@@ -21,6 +21,7 @@ const GAME_LABELS = {
   game7: "🥚 Mama Bird's Eggs",
   game8: "🍕 Pizza Order!",
   game9: "🦜 Polly's Treasure Quest",
+  game10: "🍕 Feed the Shapes",
   bonusGame1: "9️⃣ Number Pop",
 };
 
