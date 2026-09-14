@@ -264,8 +264,14 @@ authenticated write paths — a whole class can legitimately burst through
   parallel one. One store per domain, one thin fetch-helper file per API concern,
   and **one** shared `apiClient.js`.
 - Env: `VITE_API_BASE_URL` (frontend, defaults to `http://localhost:4000`),
-  `MONGODB_URI` and `ADMIN_CODE` (backend). Env files are gitignored; `.env` is
-  only present locally and holds the public API URL.
+  `MONGODB_URI`, `ADMIN_CODE` and `ALLOWED_ORIGINS` (backend).
+- **`frontend .env` IS COMMITTED and must stay committed.** It holds only the
+  public API origin, and it is the only place a deployed build can read it from
+  — this project sets no host-side frontend env. Untracking it makes production
+  fall back to `http://localhost:4000`, which every request fails against and
+  the browser reports as a **CORS error**, pointing at the server instead of at
+  the missing config. Private values go in `.env.local` (gitignored) or the
+  backend host's own env (`ALLOWED_ORIGINS` etc.).
 - **`cn()` lives in `src/cn.js`.** Import it; never redefine it. `clsx` and
   `tailwind-merge` should be imported by that one file only.
 - **Fonts: Fredoka only, loaded once in `index.html`.** Never add a `<link>` to

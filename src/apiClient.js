@@ -10,8 +10,21 @@
 // render — a hung /api/code-lookup left a child staring at the loading screen
 // forever, with no error and no way to retry.
 
-export const API_BASE =
-  import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
+const FALLBACK_API_BASE = 'http://localhost:4000';
+
+export const API_BASE = import.meta.env.VITE_API_BASE_URL || FALLBACK_API_BASE;
+
+// A production build that silently falls back to localhost is the worst
+// possible failure mode: every request dies, and because the browser blocks the
+// cross-origin call the console reports it as an opaque CORS error, which points
+// at the server rather than at the missing build config. That exact red herring
+// cost real debugging time once, so it now announces itself.
+if (import.meta.env.PROD && API_BASE === FALLBACK_API_BASE) {
+  console.error(
+    '[apiClient] VITE_API_BASE_URL was not set at build time — falling back to ' +
+      `${FALLBACK_API_BASE}, so every API request will fail. Set it in .env and rebuild.`
+  );
+}
 
 // One shared budget. A Render free instance can take 30-60s to wake from cold,
 // so this is deliberately generous; callers that can render a partial UI should
