@@ -194,6 +194,12 @@ export default class GameScene extends BaseScene {
     this.round = ROUND_SCRIPT[0];
     this.phase = 'ready'; // flipped to 'playing' by beginPlay()
     this.currentVoice = null;
+    // The start screen's welcome line, held separately from `currentVoice`
+    // (which is the round's instruction). Separate because playVoice() returns
+    // early when a key is missing — before stopping what's playing — so a round
+    // with no voice clip would leave the welcome talking over the game.
+    // beginPlay() stops this explicitly instead.
+    this.welcomeVoice = null;
 
     this.shapes = [];
     this.lastSpawnShape = null;
@@ -224,13 +230,18 @@ export default class GameScene extends BaseScene {
     this.input.once('pointerdown', () => ensureBgMusic(this));
     addMuteButton(this, 16, 16, { anchor: 'topLeft', depth: 1000 });
 
-    // Stop any in-flight voice when leaving/restarting this scene.
+    // Stop any in-flight voice when leaving/restarting this scene. The welcome
+    // line counts too — leaving the start screen without pressing Start (via
+    // the Home link, or a scene restart) must not leave it playing.
     this.events.once('shutdown', () => {
-      if (this.currentVoice) {
-        this.currentVoice.stop();
-        this.currentVoice.destroy();
-        this.currentVoice = null;
-      }
+      [this.currentVoice, this.welcomeVoice].forEach((voice) => {
+        if (voice) {
+          voice.stop();
+          voice.destroy();
+        }
+      });
+      this.currentVoice = null;
+      this.welcomeVoice = null;
     });
 
     // 1. Background: the 'background' artwork, cover-fit.
@@ -368,12 +379,64 @@ export default class GameScene extends BaseScene {
     });
 
     startBtn.on('pointerup', () => this.beginPlay());
+
+    // Autoplay the welcome line with the title card. Works without a click for
+    // the same reason the round voices do — the scene's SoundManager has
+    // already been unlocked by the time the child reaches this screen (they
+    // tapped through NameGate), so no extra gesture gate is needed here.
+    this.playWelcome();
   }
 
   beginPlay() {
     if (this.phase !== 'ready') return;
+
+    // Cut the welcome line the moment the child commits, rather than letting it
+    // talk over the first round's instruction.
+    if (this.welcomeVoice) {
+      this.welcomeVoice.stop();
+      this.welcomeVoice.destroy();
+      this.welcomeVoice = null;
+    }
+
     this.startRound(0);
     this.hideStartOverlay();
+  }
+
+  // Plays the start screen's welcome line. Kept separate from playVoice() so
+  // it can be stopped on demand (see beginPlay) and so it doesn't occupy
+  // `currentVoice`, which belongs to the round instruction.
+  playWelcome() {
+    const key = 'VA-Welcome';
+    if (!this.cache.audio.exists(key)) return;
+
+    // Idempotent, and that guard is load-bearing. A play() on a locked context
+    // isn't dropped — it buffers and starts the moment the context unlocks — so
+    // the immediate call below AND the unlock retry both fire, giving two
+    // overlapping copies of the line. Checking isPlaying is the same guard
+    // ensureBgMusic() uses to survive exactly this.
+    const start = () => {
+      if (this.welcomeVoice && this.welcomeVoice.isPlaying) return;
+
+      this.welcomeVoice = this.sound.add(key);
+      this.welcomeVoice.once('complete', () => {
+        this.welcomeVoice.destroy();
+        this.welcomeVoice = null;
+      });
+      this.welcomeVoice.play();
+    };
+
+    // A deep link straight to the game (persisted login, no tap on this page
+    // load) leaves the AudioContext locked. Retry on the unlock event — but only
+    // while still on the start screen: if the child has already pressed Start,
+    // that press IS the unlock, and playing the welcome then would talk over the
+    // first round.
+    if (this.sound.locked) {
+      this.sound.once('unlocked', () => {
+        if (this.phase === 'ready') start();
+      });
+    }
+
+    start();
   }
 
   hideStartOverlay() {

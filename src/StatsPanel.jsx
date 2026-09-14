@@ -99,6 +99,9 @@ const DEFAULT_SORT_DIR = {
   playerName: 'asc',
   game: 'asc',
   bestStreak: 'desc',
+  // Fewest wrong per play first — a teacher opening this column wants the
+  // children who are struggling, not the ones who are fine.
+  avgMistakes: 'asc',
   lastPlayedAt: 'desc',
 };
 
@@ -738,7 +741,7 @@ function TeacherStatsPanel({ onClose, embedded = false }) {
                                   </button>
                                 </div>
                                 <div className="mt-2.5 flex items-center justify-between text-xs font-semibold aura-muted">
-                                  <span>❌ {row.totalMistakes ?? 0} wrong</span>
+                                  <span>❌ {(row.avgMistakes ?? 0).toFixed(1)} wrong/play</span>
                                   <span>🔥 {row.bestStreak} best</span>
                                   <span>
                                     {new Date(row.lastPlayedAt).toLocaleString(undefined, {
@@ -761,7 +764,7 @@ function TeacherStatsPanel({ onClose, embedded = false }) {
                                 {filter === 'all' && (
                                   <SortHeader label="Game" sortKey="game" current={sortKey} dir={sortDir} onSort={handleSort} align="center" />
                                 )}
-                                <SortHeader label="Wrong" sortKey="totalMistakes" current={sortKey} dir={sortDir} onSort={handleSort} align="center" />
+                                <SortHeader label="Wrong / play" sortKey="avgMistakes" current={sortKey} dir={sortDir} onSort={handleSort} align="center" />
                                 <SortHeader label="Best streak" sortKey="bestStreak" current={sortKey} dir={sortDir} onSort={handleSort} align="center" />
                                 <SortHeader label="Last played" sortKey="lastPlayedAt" current={sortKey} dir={sortDir} onSort={handleSort} align="center" />
                                 <th className="px-3 py-1">
@@ -794,7 +797,9 @@ function TeacherStatsPanel({ onClose, embedded = false }) {
                                           </span>
                                         </td>
                                       )}
-                                      <td className="px-4 py-3.5 text-center aura-soft">❌{row.totalMistakes ?? 0}</td>
+                                      <td className="px-4 py-3.5 text-center aura-soft">
+                                        {(row.avgMistakes ?? 0).toFixed(1)}
+                                      </td>
                                       <td className="px-4 py-3.5 text-center aura-soft">🔥{row.bestStreak}</td>
                                       <td className="px-4 py-3.5 text-center aura-muted">
                                         {new Date(row.lastPlayedAt).toLocaleString(undefined, {

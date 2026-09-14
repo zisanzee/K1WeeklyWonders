@@ -427,7 +427,7 @@ function Sparkle({ delay = 0, className }) {
 // ProgressBadge — colourful pills with vector icons
 // ---------------------------------------------------------------------------
 // The badge reads a summary ROW, whose fields are `bestStreak`, `bestStars`
-// and `totalMistakes` — not `stars`/`peakStreak`.
+// and `avgMistakes` — not `stars`/`peakStreak`.
 //
 // It previously read `progress.stars` and `progress.peakStreak`, neither of
 // which the summary endpoint returns, so both fell through to 0 and the
@@ -435,7 +435,8 @@ function Sparkle({ delay = 0, className }) {
 // rendered for anyone.
 function ProgressBadge({ progress }) {
   if (!progress) return null;
-  const wrong = progress.totalMistakes ?? 0;
+  // Rounded for display: this is the per-play average, so it's fractional.
+  const wrong = Math.round(progress.avgMistakes ?? 0);
   const streak = progress.bestStreak ?? 0;
   // Nothing worth showing until the child has actually played: a zero-wrong
   // pill would appear on every untouched game card.
