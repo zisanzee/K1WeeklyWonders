@@ -329,6 +329,20 @@ export const MONSTER_FEET_Y =
   (MONSTER_POSE.leg.y + LEG_ART_BELOW_ORIGIN * MONSTER_POSE.leg.scale) *
     MONSTER_POSE.scale;
 
+// The monster's whole-body tap target, as offsets from its own origin. Separate
+// from the catch zone on purpose: the catch zone is the head (what food has to
+// reach), while this is everything a child can tap to replay the round's
+// question.
+//
+// Derived from the head... body... legs stack rather than guessed, so it stays
+// correct if any part is moved or rescaled. The head is the tallest thing;
+// `body` gives the half-width the legs can be assumed to sit inside.
+export const MONSTER_TAP_TOP =
+  (MONSTER_POSE.head.y - (HEAD_ART_H / 2) * MONSTER_POSE.head.scale) *
+  MONSTER_POSE.scale;
+export const MONSTER_TAP_BOTTOM = MONSTER_FEET_Y - MONSTER_POSE.y;
+export const MONSTER_TAP_HALF_W = (HEAD_ART_W / 2) * MONSTER_POSE.head.scale * MONSTER_POSE.scale;
+
 // How far in from each canvas edge the monster's centre may be steered, i.e.
 // the walk range is [MONSTER_TRAVEL_MARGIN, width - MONSTER_TRAVEL_MARGIN].
 //
@@ -672,7 +686,6 @@ export default function createMonster(scene) {
   // Pupil travel, applied on top of each eye's resting position. Both eyes
   // share it so they always look the same way.
   const eyeOffset = { x: 0, y: 0 };
-  let eyeTween = null;
   let eyeTracking = false;
 
   // Vertical squeeze, 1 = fully open. This single value is the eyes' ONLY
@@ -716,44 +729,69 @@ export default function createMonster(scene) {
     applyEyeOffset();
   }
 
-  // Eases the pupils toward (x, y). Re-tweening before the previous one has
-  // finished *continues from the current offset* rather than restarting.
+  // The pupils ease toward a target with a per-frame lerp rather than a tween.
   //
-  // This matters because GameScene calls lookAt() every frame while a shape is
-  // held: creating a fresh tween each call and stopping the previous one means
-  // the old tween never gets to advance before it's killed, so the offset would
-  // sit at ~0 and the eyes would appear frozen. Re-tweens are throttled so the
-  // travel actually has time to accumulate.
-  let nextEyeMoveAt = 0;
+  // This is the one place in the monster where a tween was actively the wrong
+  // tool. GameScene calls lookAt() every frame while a shape is held, so the
+  // target changes constantly — a tween-based approach had to build a fresh
+  // tween ~30 times a second (created, run a frame or two, discarded), which is
+  // sustained allocation in the main loop and the usual cause of periodic GC
+  // hitches on mobile.
+  //
+  // A lerp has none of that: no objects, no tween bookkeeping, and it retargets
+  // continuously instead of being throttled. It also can't leave the eyes frozen
+  // in the "retargeted before it ever advanced" way the tween version could.
+  const eyeTarget = { x: 0, y: 0 };
 
-  // Retargeting is throttled to ~30fps; the motion itself is carried by the
-  // tween, so calling less often doesn't make it jerkier.
-  const EYE_RETARGET_MS = 32;
+  // Fraction of the remaining distance covered per 60fps frame. Converted to
+  // real elapsed time in updateEyes so the ease doesn't run at double speed on
+  // a 120Hz screen.
+  const EYE_EASE_PER_FRAME = 0.16;
 
-  function moveEyesTo(x, y, duration, force = false) {
-    const now = scene.time.now;
-    if (!force && now < nextEyeMoveAt) return;
-    nextEyeMoveAt = now + EYE_RETARGET_MS;
+  // How far the pupils can travel per second, px/s. Caps the lerp so a target
+  // that jumps across the screen doesn't snap the eyes over in one frame.
+  const EYE_MAX_SPEED = 340;
 
-    // eyeOffset is the tween's own target, so it already holds the interpolated
-    // position mid-flight. Stopping the tween leaves it there, and the new tween
-    // starts from that value — i.e. the pupils continue from where they are
-    // instead of snapping back to 0 and never appearing to move.
-    if (eyeTween) eyeTween.stop();
-    eyeTween = scene.tweens.add({
-      targets: eyeOffset,
-      x,
-      y,
-      duration,
-      ease: 'Sine.easeOut',
-      onUpdate: applyEyeOffset,
-      onComplete: () => {
-        eyeOffset.x = x;
-        eyeOffset.y = y;
-        applyEyeOffset();
-        eyeTween = null;
-      },
-    });
+  function moveEyesTo(x, y, _duration, force = false) {
+    // `force` only ever means "ignore the ease and go now", used by
+    // stopLooking() — everything else wants the same smooth glide.
+    if (force) {
+      eyeOffset.x = x;
+      eyeOffset.y = y;
+      eyeTarget.x = x;
+      eyeTarget.y = y;
+      applyEyeOffset();
+      return;
+    }
+    eyeTarget.x = x;
+    eyeTarget.y = y;
+  }
+
+  // Called once per frame from the monster's update hook.
+  function updateEyes(delta) {
+    const dt = Math.min(delta, 50) / 1000;
+
+    let dx = eyeTarget.x - eyeOffset.x;
+    let dy = eyeTarget.y - eyeOffset.y;
+    if (Math.abs(dx) < 0.2 && Math.abs(dy) < 0.2) return;
+
+    // Frame-rate independent form of "cover EYE_EASE_PER_FRAME each frame":
+    // 1 - (1 - k)^(fps) produces the same motion at any refresh rate.
+    const step = 1 - Math.pow(1 - EYE_EASE_PER_FRAME, dt * 60);
+
+    dx *= step;
+    dy *= step;
+
+    const dist = Math.hypot(dx, dy);
+    const maxStep = EYE_MAX_SPEED * dt;
+    if (dist > maxStep) {
+      dx = (dx / dist) * maxStep;
+      dy = (dy / dist) * maxStep;
+    }
+
+    eyeOffset.x += dx;
+    eyeOffset.y += dy;
+    applyEyeOffset();
   }
 
   // Idle wander: occasional small glances in a random direction.
@@ -762,10 +800,11 @@ export default function createMonster(scene) {
     driftEvent = scene.time.delayedCall(randBetween(pose.eyeDriftEveryMs), () => {
       // Skip while tracking a held shape — that would fight lookAt().
       if (!eyeTracking) {
+        // Just set the target — updateEyes() glides the pupils to it, so the
+        // wander reads as a glance rather than a jump.
         moveEyesTo(
           -pose.eyeDrift + Math.random() * pose.eyeDrift * 2,
-          -pose.eyeDrift + Math.random() * pose.eyeDrift * 2,
-          900
+          -pose.eyeDrift + Math.random() * pose.eyeDrift * 2
         );
       }
       scheduleDrift();
@@ -889,16 +928,34 @@ export default function createMonster(scene) {
   // Advances by real distance, so the cycle rate is speed-independent in the
   // sense that matters: a step is always the same length of ground.
   let walkPhase = 0;
+  // Whether the legs are currently parked in their authored resting pose, so
+  // the idle early-out only writes them once rather than every frame.
+  let legsAtRest = false;
 
-  // One leg's resting spot, and its distance from the monster's centre line.
-  // That distance is the yardstick for the whole walk: every reach below is a
-  // fraction of it, so a leg can never over-swing into the other one whatever
-  // legGap or overall scale are set to.
-  function legHome(which) {
+  // Each leg's resting spot, the distance from there to the monster's centre
+  // line, and which way "toward the middle" is.
+  //
+  // Precomputed once rather than in a legHome() helper, which was building a
+  // fresh object twice per frame — small, but it's in the perpetual update path
+  // and there's no reason for it.
+  //
+  // `reach` is the yardstick for the whole walk: every swing below is a fraction
+  // of it, so a leg can never over-swing into the other one whatever legGap or
+  // overall scale are set to.
+  const LEG_HOME = ['left', 'right'].map((which) => {
     const restX =
       which === 'left' ? -pose.legGap + pose.legLeft.x : pose.legGap + pose.leg.x;
-    return { restX, reach: Math.abs(restX), towards: restX > 0 ? -1 : 1 };
-  }
+    return {
+      key: which,
+      restX,
+      reach: Math.abs(restX),
+      towards: restX > 0 ? -1 : 1,
+    };
+  });
+
+  // The legs' authored x/y/scale, so the walk can detect "already exactly
+  // standing" without re-deriving them.
+  const LEG_REST = LEG_HOME.map((h) => ({ x: h.restX, y: pose.leg.y }));
 
   // `stride` runs 0..1 through one leg's cycle. 0 is the moment the foot has
   // planted at the front; 0.5 is when it has been left behind and starts
@@ -952,6 +1009,29 @@ export default function createMonster(scene) {
     const ramp = dt / ((moving ? pose.walkEaseMs : pose.walkSettleMs) / 1000);
     walkAmount = clamp(walkAmount + (moving ? ramp : -ramp), 0, 1);
 
+    // Standing perfectly still: leave the legs exactly as authored and skip the
+    // rest of this entirely. It runs every frame for the whole session, and the
+    // common case is a monster that isn't moving, so the ~10 property writes
+    // per leg below are pure waste when nothing has changed.
+    //
+    // The one-time snap back to rest is what makes that safe: the legs are
+    // written from a known state on the frame the walk ends, rather than being
+    // left wherever the last step happened to put them.
+    if (!moving && walkAmount === 0) {
+      if (!legsAtRest) {
+        LEG_REST.forEach((rest, i) => {
+          const sprite = i === 0 ? legLeft : legRight;
+          sprite.setPosition(rest.x, rest.y);
+          sprite.setScale(pose.leg.scale);
+          sprite.setAngle(0);
+        });
+        walkGroup.y = 0;
+        legsAtRest = true;
+      }
+      return;
+    }
+    legsAtRest = false;
+
     // Phase advances by DISTANCE, not time, so a step is always the same length
     // of ground — the feet can't skate at low speed or scurry at high speed.
     if (moving) walkPhase += (speed * dt) / pose.walkGroundPerCycle;
@@ -964,9 +1044,8 @@ export default function createMonster(scene) {
     const legW = legBaseW * pose.leg.scale;
     const legH = legBaseH * pose.leg.scale;
 
-    const applyLeg = (which, stride) => {
-      const sprite = which === 'left' ? legLeft : legRight;
-      const { restX, reach, towards } = legHome(which);
+    const applyLeg = (home, sprite, stride) => {
+      const { restX, reach, towards } = home;
       const p = legPoseFor(stride);
 
       // Each leg swings TOWARD the centre line, so the pair crosses — the
@@ -981,8 +1060,8 @@ export default function createMonster(scene) {
       // Interpolated from exactly 1 (the authored scale), so a standing monster
       // keeps its proportions untouched — walkAmount of 0 is a true no-op.
       const scaleX = pose.leg.scale * (1 + (p.thin - 1) * walkAmount);
-      const scaleY_base = pose.leg.scale * (1 + (p.stretchY - 1) * walkAmount);
-      const scaleY = scaleY_base * (1 + (p.dragStretch - 1) * walkAmount * 0.5);
+      const scaleYBase = pose.leg.scale * (1 + (p.stretchY - 1) * walkAmount);
+      const scaleY = scaleYBase * (1 + (p.dragStretch - 1) * walkAmount * 0.5);
 
       sprite.setScale(scaleX, scaleY);
 
@@ -994,8 +1073,8 @@ export default function createMonster(scene) {
       sprite.y = pose.leg.y + (scaleY - pose.leg.scale) * legH * 0.5;
     };
 
-    applyLeg('left', strideL);
-    applyLeg('right', strideR);
+    applyLeg(LEG_HOME[0], legLeft, strideL);
+    applyLeg(LEG_HOME[1], legRight, strideR);
 
     // One dip per FOOTFALL, hence the doubled frequency: two steps happen per
     // cycle, so the body sinks twice. Applied to the whole monster rather than
@@ -1413,7 +1492,6 @@ export default function createMonster(scene) {
       refuseTween,
       pokeTween,
       mouthPopTween,
-      eyeTween,
       eyeLidTween,
       leadTween,
       bodyAnticipateTween,
@@ -1444,6 +1522,7 @@ export default function createMonster(scene) {
     reactToPoke,
     lean,
     walk: updateWalk,
+    updateEyes,
     anticipate,
     sulk,
     lookAt,

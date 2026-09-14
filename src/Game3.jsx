@@ -403,6 +403,7 @@ function Game3Inner() {
   }, []);
 
   const peakStreakRef = useRef(0);
+  const mistakesRef = useRef(0);
   const hasLoggedRef = useRef(false);
   const hasSpokenRef = useRef(false);
   if (!hasSpokenRef.current) {
@@ -429,6 +430,7 @@ function Game3Inner() {
       speak(getResultMessage(round), muted);
     } else {
       setHasErred(true);
+      mistakesRef.current += 1;
       setStreak(0);
       setWrongValue(value);
       speak('Not quite, try again!', muted);
@@ -443,7 +445,14 @@ function Game3Inner() {
       speak("You're a number-line explorer! Amazing job!", muted);
       if (!hasLoggedRef.current) {
         hasLoggedRef.current = true;
-        logPlaySession({ game: 'game3', playerName, stars, totalRounds: TOTAL_ROUNDS, peakStreak: peakStreakRef.current });
+        logPlaySession({
+          game: 'game3',
+          playerName,
+          stars,
+          totalRounds: TOTAL_ROUNDS,
+          peakStreak: peakStreakRef.current,
+          mistakes: mistakesRef.current,
+        });
       }
       return;
     }
@@ -469,6 +478,7 @@ function Game3Inner() {
     setWrongValue(null);
     setHasErred(false);
     peakStreakRef.current = 0;
+    mistakesRef.current = 0;
     hasLoggedRef.current = false;
     speak(getSpeechPrompt(newRound), muted);
   };

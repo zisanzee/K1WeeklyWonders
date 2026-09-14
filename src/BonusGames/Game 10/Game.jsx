@@ -1,7 +1,7 @@
 // Game.jsx
 import BaseGame from '../../Phaser/BaseGame';
 import BasePreloadScene from '../../Phaser/BasePreloadScene';
-import GameScene from './GameScene';
+import GameScene, { BACKGROUND_COLOR } from './GameScene';
 import { ASSET_MANIFEST } from './assets';
 import { logPlaySession } from '../../logPlaySession';
 
@@ -35,6 +35,10 @@ export default function Game({ playerName }) {
       buildScenes={buildScenes}
       completeEventName="game10-complete"
       onComplete={handleComplete}
+      // Matches the background artwork's own palette. This replaces a
+      // full-screen gradient texture that GameScene used to build and draw
+      // underneath that artwork, where it could never actually be seen.
+      backgroundColor={BACKGROUND_COLOR}
     />
   );
 }

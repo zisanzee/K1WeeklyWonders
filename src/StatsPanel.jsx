@@ -33,6 +33,36 @@ function gameLabel(key) {
   return num ? `🎮 Game ${num}` : key;
 }
 
+// How many rounds each game runs, so the panel can show it beside the game's
+// name. Games 1-6 and 8/10 use a fixed TOTAL_ROUNDS; 7, Game4 and bonusGame1
+// are level-based, so the number is what a full successful run accumulates
+// (Game4 and bonusGame1 report totalRounds as the level index, so a completed
+// run ends at the level count).
+//
+// Hardcoded here on purpose: the frontend has no way to read another game's
+// TOTAL_ROUNDS without importing every game's levels module into the stats
+// bundle. If a game's round count changes, change it here too.
+const GAME_ROUNDS = {
+  game1: 10,
+  game2: 12,
+  game3: 15,
+  game4: 2,
+  game5: 10,
+  game6: 10,
+  game7: 12, // 2 levels x 6 rounds
+  game8: 10,
+  game9: 10,
+  game10: 10,
+  bonusGame1: 4, // 4 levels
+};
+
+// Compact "· 10 rounds" hint, or '' when the game has no known round count so
+// the label stays clean rather than showing a wrong number.
+function roundsHint(key) {
+  const n = GAME_ROUNDS[key];
+  return n ? `· ${n} rounds` : '';
+}
+
 // Splits a "🧺 Count & Win"-style label into its emoji and name, so the
 // dropdown can show the emoji on its own (trigger button) and both together
 // (menu rows). Every entry in GAME_LABELS follows "emoji name", and the
@@ -44,11 +74,6 @@ function splitLabel(label) {
   return { emoji: label.slice(0, idx), name: label.slice(idx + 1) };
 }
 
-// Formats a play's score consistently across the summary and all-plays views.
-function formatStars(stars, totalRounds) {
-  if (stars == null) return '—';
-  return totalRounds ? `${stars}/${totalRounds} ⭐` : `${stars} ⭐`;
-}
 
 // Bonus games (the Phaser time-trials) don't fit the round/star/streak shape
 // the numbered games use — "streak" is always 0 and "stars" is always 1/1
@@ -479,8 +504,9 @@ function TeacherStatsPanel({ onClose, embedded = false }) {
   // rows is currently loaded.
   const activeGameStats = filter === 'all' ? null : (stats?.perGame || []).find((g) => g._id === filter) || null;
   const activeIsBonus = filter !== 'all' && isBonusGame(filter);
-  const columnCount = filter === 'all' ? 5 : 4;
-  // The all-plays table swaps the Actions column for Stars *and* adds a
+  // Player + [Game] + Wrong + Best streak + Last played + Actions.
+  const columnCount = filter === 'all' ? 6 : 5;
+  // The all-plays table swaps the Actions column for Wrong *and* adds a
   // Device column, so it has one more column than the summary table.
   const columnCountAll = columnCount + 1;
   // When a single game is filtered the column can say exactly what it shows;
@@ -641,7 +667,14 @@ function TeacherStatsPanel({ onClose, embedded = false }) {
                     <>
                       <StatCard label={gameLabel(filter)} value={activeGameStats.plays} sub="total plays" />
                       <StatCard label="Players" value={activeGameStats.players} />
-                      <StatCard label="Avg score" value={activeGameStats.avgStars?.toFixed(1)} sub="★ per play" />
+                      {/* Wrong answers replace the old average-score card: stars
+                          always reached the maximum (you can't advance without
+                          a correct answer), so it carried no signal. */}
+                      <StatCard
+                        label="Wrong / play"
+                        value={(activeGameStats.avgMistakes ?? 0).toFixed(1)}
+                        sub="❌ average"
+                      />
                       {activeIsBonus ? (
                         <StatCard label="Avg time" value={formatSeconds(activeGameStats.avgElapsedSeconds)} sub="⏱️ per play" />
                       ) : (
@@ -685,7 +718,10 @@ function TeacherStatsPanel({ onClose, embedded = false }) {
                                   <div>
                                     <PlayerName name={row.playerName} timesPlayed={row.timesPlayed} />
                                     {filter === 'all' && (
-                                      <p className="mt-0.5 text-xs font-semibold aura-muted">{gameLabel(row.game)}</p>
+                                      <p className="mt-0.5 text-xs font-semibold aura-muted">
+                                        {gameLabel(row.game)}
+                                        <span className="ml-1 opacity-70">{roundsHint(row.game)}</span>
+                                      </p>
                                     )}
                                   </div>
                                   <button
@@ -702,7 +738,8 @@ function TeacherStatsPanel({ onClose, embedded = false }) {
                                   </button>
                                 </div>
                                 <div className="mt-2.5 flex items-center justify-between text-xs font-semibold aura-muted">
-                                  <span>🔥 {row.bestStreak} best streak</span>
+                                  <span>❌ {row.totalMistakes ?? 0} wrong</span>
+                                  <span>🔥 {row.bestStreak} best</span>
                                   <span>
                                     {new Date(row.lastPlayedAt).toLocaleString(undefined, {
                                       dateStyle: 'medium',
@@ -724,6 +761,7 @@ function TeacherStatsPanel({ onClose, embedded = false }) {
                                 {filter === 'all' && (
                                   <SortHeader label="Game" sortKey="game" current={sortKey} dir={sortDir} onSort={handleSort} align="center" />
                                 )}
+                                <SortHeader label="Wrong" sortKey="totalMistakes" current={sortKey} dir={sortDir} onSort={handleSort} align="center" />
                                 <SortHeader label="Best streak" sortKey="bestStreak" current={sortKey} dir={sortDir} onSort={handleSort} align="center" />
                                 <SortHeader label="Last played" sortKey="lastPlayedAt" current={sortKey} dir={sortDir} onSort={handleSort} align="center" />
                                 <th className="px-3 py-1">
@@ -749,8 +787,14 @@ function TeacherStatsPanel({ onClose, embedded = false }) {
                                         <PlayerName name={row.playerName} timesPlayed={row.timesPlayed} />
                                       </td>
                                       {filter === 'all' && (
-                                        <td className="px-4 py-3.5 text-center aura-soft">{gameLabel(row.game)}</td>
+                                        <td className="px-4 py-3.5 text-center aura-soft">
+                                          {gameLabel(row.game)}
+                                          <span className="ml-1 text-[10px] font-bold opacity-70">
+                                            {roundsHint(row.game)}
+                                          </span>
+                                        </td>
                                       )}
+                                      <td className="px-4 py-3.5 text-center aura-soft">❌{row.totalMistakes ?? 0}</td>
                                       <td className="px-4 py-3.5 text-center aura-soft">🔥{row.bestStreak}</td>
                                       <td className="px-4 py-3.5 text-center aura-muted">
                                         {new Date(row.lastPlayedAt).toLocaleString(undefined, {
@@ -807,13 +851,13 @@ function TeacherStatsPanel({ onClose, embedded = false }) {
                                   <p className="mt-0.5 text-xs font-semibold aura-muted">{gameLabel(row.game)}</p>
                                 )}
                                 <div className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-semibold aura-muted">
-                                  {bonus ? (
+                                  {/* Wrong answers and streak per play. `stars`
+                                      is gone from here: it always hit the max,
+                                      so it told the teacher nothing. */}
+                                  <span>❌ {row.mistakes ?? 0} wrong</span>
+                                  <span>🔥 {row.peakStreak}</span>
+                                  {bonus && (
                                     <span>⏱️ {row.elapsedSeconds != null ? `${row.elapsedSeconds}s` : '—'}</span>
-                                  ) : (
-                                    <>
-                                      <span>{formatStars(row.stars, row.totalRounds)}</span>
-                                      <span>🔥 {row.peakStreak}</span>
-                                    </>
                                   )}
                                   <span>
                                     {new Date(row.completedAt).toLocaleString(undefined, {
@@ -839,7 +883,7 @@ function TeacherStatsPanel({ onClose, embedded = false }) {
                                 {filter === 'all' && (
                                   <SortHeader label="Game" sortKey="game" current={sortKeyAll} dir={sortDirAll} onSort={handleSortAll} align="center" />
                                 )}
-                                <SortHeader label="Stars" sortKey="stars" current={sortKeyAll} dir={sortDirAll} onSort={handleSortAll} align="center" />
+                                <SortHeader label="Wrong" sortKey="mistakes" current={sortKeyAll} dir={sortDirAll} onSort={handleSortAll} align="center" />
                                 <SortHeader label={streakOrTimeHeader} sortKey="peakStreak" current={sortKeyAll} dir={sortDirAll} onSort={handleSortAll} align="center" />
                                 <SortHeader label="Played at" sortKey="completedAt" current={sortKeyAll} dir={sortDirAll} onSort={handleSortAll} align="center" />
                                 <SortHeader label="Device" sortKey="deviceKind" current={sortKeyAll} dir={sortDirAll} onSort={handleSortAll} align="center" />
@@ -865,7 +909,7 @@ function TeacherStatsPanel({ onClose, embedded = false }) {
                                       {filter === 'all' && (
                                         <td className="px-4 py-3.5 text-center aura-soft">{gameLabel(row.game)}</td>
                                       )}
-                                      <td className="px-4 py-3.5 text-center aura-soft">{formatStars(row.stars, row.totalRounds)}</td>
+                                      <td className="px-4 py-3.5 text-center aura-soft">❌{row.mistakes ?? 0}</td>
                                       <td className="px-4 py-3.5 text-center aura-soft">
                                         {bonus ? `⏱️ ${row.elapsedSeconds != null ? `${row.elapsedSeconds}s` : '—'}` : `🔥${row.peakStreak}`}
                                       </td>
@@ -1325,7 +1369,7 @@ function AdminStatsView({ onClose, embedded }) {
                           <th className="px-4 py-3 text-left">Game</th>
                           <th className="px-4 py-3 text-center">Plays</th>
                           <th className="px-4 py-3 text-center">Players</th>
-                          <th className="px-4 py-3 text-center">Avg score</th>
+                          <th className="px-4 py-3 text-center">Wrong / play</th>
                           <th className="px-4 py-3 text-center">Streak / Time</th>
                         </tr>
                       </thead>
@@ -1334,11 +1378,14 @@ function AdminStatsView({ onClose, embedded }) {
                           <tr key={g._id} className="aura-table-row">
                             <td className="px-4 py-3.5 text-left font-bold aura-text">
                               {gameLabel(g._id)}
+                              <span className="ml-1 text-[10px] font-bold opacity-70">
+                                {roundsHint(g._id)}
+                              </span>
                             </td>
                             <td className="px-4 py-3.5 text-center aura-soft">{g.plays ?? 0}</td>
                             <td className="px-4 py-3.5 text-center aura-soft">{g.players ?? 0}</td>
                             <td className="px-4 py-3.5 text-center aura-soft">
-                              {g.avgStars != null ? `${Number(g.avgStars).toFixed(1)} ★` : '—'}
+                              {g.avgMistakes != null ? `❌ ${Number(g.avgMistakes).toFixed(1)}` : '—'}
                             </td>
                             <td className="px-4 py-3.5 text-center aura-soft">
                               {isBonusGame(g._id)

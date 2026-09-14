@@ -426,34 +426,28 @@ function Sparkle({ delay = 0, className }) {
 // ---------------------------------------------------------------------------
 // ProgressBadge — colourful pills with vector icons
 // ---------------------------------------------------------------------------
+// The badge reads a summary ROW, whose fields are `bestStreak`, `bestStars`
+// and `totalMistakes` — not `stars`/`peakStreak`.
+//
+// It previously read `progress.stars` and `progress.peakStreak`, neither of
+// which the summary endpoint returns, so both fell through to 0 and the
+// `!stars && !streak` guard below returned null every time. The badge never
+// rendered for anyone.
 function ProgressBadge({ progress }) {
   if (!progress) return null;
-  const stars = progress.stars ?? 0;
-  const streak = progress.peakStreak ?? 0;
-  if (!stars && !streak) return null;
+  const wrong = progress.totalMistakes ?? 0;
+  const streak = progress.bestStreak ?? 0;
+  // Nothing worth showing until the child has actually played: a zero-wrong
+  // pill would appear on every untouched game card.
+  if (!streak && !progress.timesPlayed) return null;
 
   return (
     <div className="mt-2 sm:mt-3 flex items-center justify-center gap-1.5 sm:gap-2 flex-wrap">
-      {stars > 0 && (
-        <motion.span
-          initial={{ scale: 0 }}
-          animate={{ scale: 1 }}
-          transition={{ type: "spring", stiffness: 400, damping: 15 }}
-          className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 sm:px-3 sm:py-1 text-[11px] sm:text-xs font-black text-white shadow-md sm:shadow-lg ring-2 ring-white/50"
-          style={{
-            fontFamily: FONT,
-            background: "linear-gradient(135deg, #ffe486 0%, #ffca28 50%, #ff8a3d 100%)",
-          }}
-        >
-          <Icon name="star" size="0.8em" />
-          <span className="drop-shadow-sm">{stars}</span>
-        </motion.span>
-      )}
       {streak > 0 && (
         <motion.span
           initial={{ scale: 0 }}
           animate={{ scale: 1 }}
-          transition={{ type: "spring", stiffness: 400, damping: 15, delay: 0.1 }}
+          transition={{ type: "spring", stiffness: 400, damping: 15 }}
           className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 sm:px-3 sm:py-1 text-[11px] sm:text-xs font-black text-white shadow-md sm:shadow-lg ring-2 ring-white/50"
           style={{
             fontFamily: FONT,
@@ -462,6 +456,20 @@ function ProgressBadge({ progress }) {
         >
           <Icon name="fire" size="0.8em" />
           <span className="drop-shadow-sm">{streak}</span>
+        </motion.span>
+      )}
+      {wrong > 0 && (
+        <motion.span
+          initial={{ scale: 0 }}
+          animate={{ scale: 1 }}
+          transition={{ type: "spring", stiffness: 400, damping: 15, delay: 0.1 }}
+          className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 sm:px-3 sm:py-1 text-[11px] sm:text-xs font-black text-white shadow-md sm:shadow-lg ring-2 ring-white/50"
+          style={{
+            fontFamily: FONT,
+            background: "linear-gradient(135deg, #c4b5fd 0%, #8b5cf6 50%, #6d28d9 100%)",
+          }}
+        >
+          <span className="drop-shadow-sm">❌ {wrong}</span>
         </motion.span>
       )}
     </div>

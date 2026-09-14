@@ -16,7 +16,11 @@ export const IMAGES = {
   'pizza-triangle': 'https://res.cloudinary.com/hijmipga/image/upload/v1789297278/pizza_zt7peq.png',// original size 250x225
   'cracker-square': 'https://res.cloudinary.com/hijmipga/image/upload/v1789297278/cracker_eah9fl.png',// original size 250x250
   'juicebox-rectangle': 'https://res.cloudinary.com/hijmipga/image/upload/v1789297278/juicebox_s9r1fb.png',// original size 150x250
-
+  'chocolate-rectangle': 'https://res.cloudinary.com/hijmipga/image/upload/v1789382158/chocolate-bar_adokxv.png',// original size 150x250
+  'donut-circle': 'https://res.cloudinary.com/hijmipga/image/upload/v1789382158/Donut_voemzc.png',// 
+  'waffle-square': 'https://res.cloudinary.com/hijmipga/image/upload/v1789382158/waffle_tzzoso.png',//
+  'sandwich-triangle': 'https://res.cloudinary.com/hijmipga/image/upload/v1789382157/sandwich_wgdx4z.png',// 
+  'game-start':'https://res.cloudinary.com/hijmipga/image/upload/v1789381833/game-start_lce0zl.png',
   // Monster parts are declared in monster.js next to the code that assembles
   // and poses them, then merged in here so there's still one manifest.
   ...MONSTER_IMAGE_URLS,

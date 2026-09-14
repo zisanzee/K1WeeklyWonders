@@ -337,6 +337,10 @@ function Game6Inner() {
 
   const hasLoggedRef = useRef(false);
   const peakStreakRef = useRef(0);
+  // Wrong drags/taps across the run. A ref rather than state: only read at the
+  // end when logging, so making it state would re-render on every mistake for
+  // no visible reason.
+  const mistakesRef = useRef(0);
   const hasSpokenRef = useRef(false);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
@@ -383,6 +387,7 @@ function Game6Inner() {
     } else {
       setWrongChoiceId(choice.id);
       setHasErred(true);
+      mistakesRef.current += 1;
       setStreak(0);
       setFeedback({ msg: 'Not quite! Try another key. 🗝️' });
       speak('Not quite, try another key!', muted);
@@ -402,6 +407,7 @@ function Game6Inner() {
     } else {
       setWrongChestId(chest.id);
       setHasErred(true);
+      mistakesRef.current += 1;
       setStreak(0);
       setFeedback({ msg: 'Not quite! Try another chest. 🏴‍☠️' });
       speak('Not quite, try another chest!', muted);
@@ -416,7 +422,14 @@ function Game6Inner() {
       speak(`Ye be a true treasure hunter, ${playerName}!`, muted);
       if (!hasLoggedRef.current) {
         hasLoggedRef.current = true;
-        logPlaySession({ game: 'game6', playerName, stars, totalRounds: TOTAL_ROUNDS, peakStreak: peakStreakRef.current });
+        logPlaySession({
+          game: 'game6',
+          playerName,
+          stars,
+          totalRounds: TOTAL_ROUNDS,
+          peakStreak: peakStreakRef.current,
+          mistakes: mistakesRef.current,
+        });
       }
       return;
     }
@@ -447,6 +460,7 @@ function Game6Inner() {
     setPhase('playing');
     hasLoggedRef.current = false;
     peakStreakRef.current = 0;
+    mistakesRef.current = 0;
     speak(roundSpeech(newRound), muted);
   };
 

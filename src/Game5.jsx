@@ -127,6 +127,10 @@ function Game5Inner() {
 
   const hasLoggedRef = useRef(false);
   const peakStreakRef = useRef(0);
+  // Wrong checks across the run. A ref rather than state: only read at the end
+  // when logging, so making it state would re-render on every mistake for no
+  // visible reason.
+  const mistakesRef = useRef(0);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
@@ -187,6 +191,7 @@ function Game5Inner() {
     if (poolCount > 0) {
       setFeedback({ type: 'incomplete', poolCount });
       setHasErred(true);
+      mistakesRef.current += 1;
       setStreak(0);
       setBayPulse(true);
       setTimeout(() => setBayPulse(false), 900);
@@ -198,6 +203,7 @@ function Game5Inner() {
       if (leftCount === 0 || rightCount === 0) {
         setFeedback({ type: 'empty-side' });
         setHasErred(true);
+        mistakesRef.current += 1;
         setStreak(0);
         setRedShake(leftCount === 0);
         setBlueShake(rightCount === 0);
@@ -219,6 +225,7 @@ function Game5Inner() {
       if (leftCount !== rightCount) {
         setFeedback({ type: 'uneven' });
         setHasErred(true);
+        mistakesRef.current += 1;
         setStreak(0);
         setRedShake(true);
         setBlueShake(true);
@@ -242,6 +249,7 @@ function Game5Inner() {
     if (!matches) {
       setFeedback({ type: 'mismatch' });
       setHasErred(true);
+      mistakesRef.current += 1;
       setStreak(0);
       setRedShake(true);
       setBlueShake(true);
@@ -265,7 +273,14 @@ function Game5Inner() {
       speak(`Mission complete, ${playerName}! You're a splitting superstar!`, muted);
       if (!hasLoggedRef.current) {
         hasLoggedRef.current = true;
-        logPlaySession({ game: 'game5', playerName, stars, totalRounds: TOTAL_ROUNDS, peakStreak: peakStreakRef.current });
+        logPlaySession({
+          game: 'game5',
+          playerName,
+          stars,
+          totalRounds: TOTAL_ROUNDS,
+          peakStreak: peakStreakRef.current,
+          mistakes: mistakesRef.current,
+        });
       }
       return;
     }
@@ -291,6 +306,7 @@ function Game5Inner() {
     setSelectedNumber(null);
     hasLoggedRef.current = false;
     peakStreakRef.current = 0;
+    mistakesRef.current = 0;
     speak(missionSpeech(newRound), muted);
   };
 

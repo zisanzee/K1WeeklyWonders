@@ -110,6 +110,10 @@ function Game1Inner() {
   const prevBasketCountRef = useRef(0);
   const hasLoggedRef = useRef(false);
   const peakStreakRef = useRef(0);
+  // Wrong checks across the whole run. A ref, not state: it's only read at the
+  // end when logging, and putting it in state would re-render on every mistake
+  // for no visible reason.
+  const mistakesRef = useRef(0);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
@@ -172,6 +176,7 @@ function Game1Inner() {
       const diff = basketCount - round.target;
       setFeedback({ over: true, diff });
       setHasErred(true);
+      mistakesRef.current += 1;
       setStreak(0);
       setBasketShake(true);
       setTimeout(() => setBasketShake(false), 500);
@@ -180,6 +185,7 @@ function Game1Inner() {
       const diff = round.target - basketCount;
       setFeedback({ over: false, diff });
       setHasErred(true);
+      mistakesRef.current += 1;
       setStreak(0);
       setPoolPulse(true);
       setTimeout(() => setPoolPulse(false), 900);
@@ -194,7 +200,14 @@ function Game1Inner() {
       speak(`Amazing job, ${playerName}! You're a counting champion!`, muted);
       if (!hasLoggedRef.current) {
         hasLoggedRef.current = true;
-        logPlaySession({ game: 'game1', playerName, stars, totalRounds: TOTAL_ROUNDS, peakStreak: peakStreakRef.current });
+        logPlaySession({
+          game: 'game1',
+          playerName,
+          stars,
+          totalRounds: TOTAL_ROUNDS,
+          peakStreak: peakStreakRef.current,
+          mistakes: mistakesRef.current,
+        });
       }
       return;
     }
@@ -222,6 +235,7 @@ function Game1Inner() {
     setPhase('playing');
     hasLoggedRef.current = false;
     peakStreakRef.current = 0;
+    mistakesRef.current = 0;
     speak(`Fill the basket with ${newRound.target} ${newRound.item.name}!`, muted);
   };
 

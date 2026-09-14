@@ -10,16 +10,37 @@
 export const TOTAL_ROUNDS = 10;
 export const FEEDS_PER_ROUND = 3;
 
-// Single source of truth for "what is a triangle" (image key + display label).
-// GameScene never hardcodes an image-key string; it looks shapes up here.
+// Single source of truth for "what is a triangle" — its display label and the
+// foods that ARE that shape. GameScene never hardcodes an image-key string; it
+// looks both up here.
+//
+// Two foods per shape, and the choice between them is cosmetic only. The game
+// logic is entirely shape-level: the monster asks for "a shape with 3 sides"
+// and any triangle counts. So which food appears is variety, not difficulty —
+// adding a third food for a shape needs no other change.
 export const SHAPES = {
-  circle: { imageKey: 'cookie-circle', label: 'circle' },
-  square: { imageKey: 'cracker-square', label: 'square' },
-  triangle: { imageKey: 'pizza-triangle', label: 'triangle' },
-  rectangle: { imageKey: 'juicebox-rectangle', label: 'rectangle' },
+  circle: {
+    label: 'circle',
+    foods: ['cookie-circle', 'donut-circle'],
+  },
+  square: {
+    label: 'square',
+    foods: ['cracker-square', 'waffle-square'],
+  },
+  triangle: {
+    label: 'triangle',
+    foods: ['pizza-triangle', 'sandwich-triangle'],
+  },
+  rectangle: {
+    label: 'rectangle',
+    foods: ['juicebox-rectangle', 'chocolate-rectangle'],
+  },
 };
 
 export const SHAPE_IDS = Object.keys(SHAPES);
+
+// Every food key, flattened. Used to measure each texture once at scene start.
+export const FOOD_KEYS = SHAPE_IDS.flatMap((id) => SHAPES[id].foods);
 
 // Fixed order — index 0 is round 1. `voiceKey: null` means "no clip for this
 // round" (the caller must no-op rather than substitute a different clip).

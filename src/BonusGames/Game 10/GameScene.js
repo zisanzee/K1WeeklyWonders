@@ -22,12 +22,22 @@
 
 import * as Phaser from 'phaser';
 import BaseScene from '../../Phaser/BaseScene';
-import { ROUND_SCRIPT, SHAPES, SHAPE_IDS, TOTAL_ROUNDS, FEEDS_PER_ROUND } from './levels';
+import {
+  ROUND_SCRIPT,
+  SHAPES,
+  SHAPE_IDS,
+  FOOD_KEYS,
+  TOTAL_ROUNDS,
+  FEEDS_PER_ROUND,
+} from './levels';
 import { ensureBgMusic, addMuteButton } from './audioState';
 import createMonster, {
   MONSTER_START_X,
   MONSTER_CATCH_RADIUS_X,
   MONSTER_CATCH_RADIUS_Y,
+  MONSTER_TAP_TOP,
+  MONSTER_TAP_BOTTOM,
+  MONSTER_TAP_HALF_W,
   MONSTER_TRAVEL_MARGIN,
   MONSTER_WORLD_SCALE,
   MONSTER_FEET_Y,
@@ -115,13 +125,14 @@ const FEET_Y = MONSTER_FEET_Y;
 
 const TOTAL_FEEDS = TOTAL_ROUNDS * FEEDS_PER_ROUND;
 
-// Fallback gradient behind the 'background' art — sampled from that artwork's
-// own wood palette so the fill during the first frames matches the texture
-// instead of flashing the aurora indigo the other games use.
-const THEME = {
-  bgColors: ['#FBE7B4', '#F6D794', '#EDC066'],
-  groundColor: '#E4AE55',
-};
+// The clear colour behind everything, sampled from the 'background' artwork's
+// own wood palette.
+//
+// This used to feed a full-screen gradient texture that sat UNDER that artwork
+// and was therefore never visible. Instead it's now handed to Phaser as the
+// scene's background colour via Game.jsx, which costs nothing per frame and
+// covers the one frame before the artwork's texture first draws.
+export const BACKGROUND_COLOR = '#FBE7B4';
 
 // HUD colours for sitting on the cream artwork. The shared white/translucent
 // styling the other games use is invisible here — a 22%-alpha white track on
@@ -224,18 +235,21 @@ export default class GameScene extends BaseScene {
       }
     });
 
-    // 1. Background layer, back to front:
-    //    a) the fallback gradient, so the first frames before the art draws
-    //       aren't a bare indigo canvas;
-    //    b) the 'background' artwork, cover-fit. The manifest comment claiming
-    //       it is 250x250 is wrong — it's a 2:3 portrait backdrop (wood grain
-    //       with the four foods tucked into the corners), which is exactly the
-    //       canvas aspect, so cover-fit lands it almost 1:1;
-    //    c) a light wash. Without it the pale artwork leaves the white in-game
-    //       text (and the pale prompt bubble) with almost no contrast.
-    this.addSkyBackground(THEME, 'game10-bg').setDepth(0);
-
+    // 1. Background: just the 'background' artwork, cover-fit.
+    //
+    // There is deliberately no addSkyBackground() gradient underneath it. That
+    // would build a second full-screen 720x1080 canvas texture and draw it,
+    // blended, every frame — all of it permanently hidden behind this image,
+    // which covers the entire canvas by construction. It was pure cost for zero
+    // pixels, and two full-screen quads on a mobile GPU is not free.
+    //
+    // The art is a 2:3 portrait backdrop (wood grain with the four foods tucked
+    // into the corners), which is exactly the canvas aspect, so cover-fit lands
+    // it almost 1:1.
     this.bgArt = this.add.image(width / 2, height / 2, 'background').setDepth(1);
+
+    // A light wash. Without it the pale artwork leaves the white in-game text
+    // (and the pale prompt bubble) with almost no contrast.
     const cover = Math.max(width / this.bgArt.width, height / this.bgArt.height);
     this.bgArt.setScale(cover);
     this.levelWash = this.add
@@ -255,11 +269,16 @@ export default class GameScene extends BaseScene {
       .setDepth(85)
       .setAlpha(0);
 
-    // 4. Scale factors — all four shape textures normalise to SHAPE_HEIGHT.
-    this.shapeScales = {};
-    SHAPE_IDS.forEach((id) => {
-      const tex = measureTexture(this, SHAPES[id].imageKey);
-      this.shapeScales[id] = SHAPE_HEIGHT / tex.h;
+    // 4. Scale factors, per FOOD rather than per shape — every food texture
+    // normalises to SHAPE_HEIGHT.
+    //
+    // Keyed by texture, not by shape id: a shape now has more than one food, and
+    // they are different sizes (a 250x250 donut and a 150x250 chocolate bar both
+    // represent the same shape at very different aspect ratios). Measuring each
+    // texture once here is both correct and cheaper than measuring on spawn.
+    this.foodScales = {};
+    FOOD_KEYS.forEach((key) => {
+      this.foodScales[key] = SHAPE_HEIGHT / measureTexture(this, key).h;
     });
 
     // Input: the monster follows a held finger anywhere in the play area, and
@@ -297,75 +316,54 @@ export default class GameScene extends BaseScene {
       this.add.rectangle(0, 0, width, height, 0x4a2c0a, 0.35).setInteractive()
     );
 
-    // Panel runs nearly the full canvas height. Its children are positioned
-    // relative to the centre of this box, not the screen, so growing it here
-    // moves the card's content down with it.
-    const panelTop = 150 - height / 2;
-    const panelH = 780;
-    const panel = this.add.graphics();
-    panel.fillStyle(0x000000, 0.25);
-    panel.fillRoundedRect(-340, panelTop + 8, 680, panelH, 40);
-    panel.fillStyle(0xffffff, 1);
-    panel.fillRoundedRect(-340, panelTop, 680, panelH, 40);
-    panel.lineStyle(8, 0x8b5cf6, 1);
-    panel.strokeRoundedRect(-340, panelTop, 680, panelH, 40);
-    this.startOverlay.add(panel);
+    // The whole card is the 'game-start' artwork — title, mascot, the four
+    // foods and the how-to-play line are all baked into it, so none of it is
+    // rebuilt here. That replaced a drawn panel plus a food-preview row and
+    // three separate text objects, which is both less code and a few draw calls
+    // fewer per frame.
+    //
+    // Added to the overlay at the overlay's own origin, so the button below can
+    // be positioned against a known canvas point rather than a nested one.
+    const card = this.add.image(0, 0, 'game-start').setOrigin(0.5);
+    this.startOverlay.add(card);
 
-    // A row of the four food shapes as static art instead of one big emoji, so
-    // the title screen previews what's actually in the game.
-    SHAPE_IDS.forEach((id, i) => {
-      const preview = this.add
-        .image((i - 1.5) * 132, -255, SHAPES[id].imageKey)
-        .setScale(104 / measureTexture(this, SHAPES[id].imageKey).h);
-      this.tweens.add({
-        targets: preview,
-        y: -268,
-        duration: 900 + i * 120,
-        yoyo: true,
-        repeat: -1,
-        ease: 'Sine.easeInOut',
-      });
-      this.startOverlay.add(preview);
-    });
-    this.startOverlay.add(
-      this.add
-        .text(0, -132, 'Feed the\nShapes', {
-          fontSize: '48px',
-          fontFamily: 'Fredoka, sans-serif',
-          fontStyle: 'bold',
-          color: '#4c1d95',
-          align: 'center',
-        })
-        .setOrigin(0.5)
+    // Sized to fit the viewport with margin rather than at its natural size:
+    // the art is 460x500, so on a 720x1080 canvas it is the width that runs out
+    // first and the fit is width-driven.
+    const margin = 44;
+    const fit = Math.min(
+      (width - margin * 2) / card.width,
+      (height - margin * 2) / card.height
     );
-    this.startOverlay.add(
-      this.add
-        .text(0, 10, 'Walk the monster with the arrows\nto catch the shape it asks for!', {
-          fontSize: '24px',
-          fontFamily: 'Fredoka, sans-serif',
-          fontStyle: 'bold',
-          color: '#6d28d9',
-          align: 'center',
-          lineSpacing: 6,
-        })
-        .setOrigin(0.5)
-    );
+    card.setScale(fit);
 
-    const startBtn = this.createPillButton(0, 210, 'Start \u25B6', {
+    // The button sits near the bottom of the card, over the artwork's flat blue
+    // cloud area and clear of its own instruction text.
+    //
+    // Positioned in the OVERLAY's coordinates, like the card — not the canvas's.
+    // The overlay is centred on the canvas, so a canvas-space y here would be
+    // read as an offset from that centre and land the button half a screen too
+    // low.
+    const btnY = (card.height * fit) / 2 - 58;
+    const startBtn = this.createPillButton(0, btnY, 'Start \u25B6', {
       fontSize: '38px',
       paddingX: 56,
       paddingY: 20,
       bgColor: 0x8b5cf6,
       textColor: '#ffffff',
       borderColor: 0x5b21b6,
-      depth: 201,
     });
+
+    // MUST be added to the overlay. createPillButton() puts its container on the
+    // SCENE, so without this the button is not a child of the overlay — and
+    // hideStartOverlay() only fades and destroys the overlay, leaving an orphan
+    // Start button sitting on top of the game for the rest of the session.
     this.startOverlay.add(startBtn.container);
 
     // Soft "come play" bob, same cue the other games' start buttons use.
     this.tweens.add({
       targets: startBtn.container,
-      y: 201,
+      y: btnY - 9,
       duration: 900,
       yoyo: true,
       repeat: -1,
@@ -757,16 +755,26 @@ export default class GameScene extends BaseScene {
 
   spawnShape() {
     const id = this.pickShapeId();
-    const scale = this.shapeScales[id];
+
+    // Which FOOD carries this shape is cosmetic — the game only ever compares
+    // shape ids. Picked randomly per spawn so the two foods of a shape both
+    // appear over a run rather than one being effectively invisible.
+    const foods = SHAPES[id].foods;
+    const foodKey =
+      foods.length === 1 ? foods[0] : Phaser.Utils.Array.GetRandom(foods);
+
+    const scale = this.foodScales[foodKey];
     const x = Phaser.Math.Between(SPAWN_X_MIN, SPAWN_X_MAX);
 
     const shadow = this.add
       .ellipse(x, this.scale.height - 46, (SHAPE_HEIGHT * 0.9), 22, 0x000000, 0.22)
       .setDepth(5);
 
-    const sprite = this.physics.add.image(x, SPAWN_Y, SHAPES[id].imageKey).setDepth(6);
+    const sprite = this.physics.add.image(x, SPAWN_Y, foodKey).setDepth(6);
     sprite.setScale(scale);
+    // The SHAPE is what gameplay reads; the texture is only what's on screen.
     sprite.shapeId = id;
+    sprite.foodKey = foodKey;
     sprite.shadow = shadow;
 
     sprite.setVelocity(Phaser.Math.Between(-LAUNCH_VX_MAX, LAUNCH_VX_MAX), LAUNCH_VY);
@@ -826,15 +834,27 @@ export default class GameScene extends BaseScene {
     // Tapping the monster replays the round's line. This is not a way to move
     // it — only the buttons move it.
     //
-    // Tested against the head, like the catch zone: that's the part of the
-    // monster a child sees themselves tapping, and it's a big enough target to
-    // hit with a fingertip.
-    const head = this.catchCentre();
-    const pokeDx = (px - head.x) / this.feedZone.radiusX;
-    const pokeDy = (py - head.y) / this.feedZone.radiusY;
-    if (pokeDx * pokeDx + pokeDy * pokeDy <= 1) {
-      this.pokeMonster();
-    }
+    // The target is the monster's whole body, not just the head. A child
+    // reaching out to poke it aims at whatever they can see, so restricting the
+    // tap to the head means most taps on the body silently do nothing.
+    if (this.isOverMonster(px, py)) this.pokeMonster();
+  }
+
+  // Is a world-space point anywhere on the monster?
+  //
+  // A plain box, deliberately: the monster is a stack of loosely-joined parts
+  // (feet, body, head, mouth) with no single silhouette to test against, and a
+  // few px of slack around a box is far more forgiving for a fingertip than an
+  // exact outline would be.
+  isOverMonster(x, y) {
+    const c = this.monster.container;
+    const dx = x - c.x;
+    const dy = y - c.y;
+    return (
+      dy >= MONSTER_TAP_TOP &&
+      dy <= MONSTER_TAP_BOTTOM &&
+      Math.abs(dx) <= MONSTER_TAP_HALF_W
+    );
   }
 
   // Is a world-space point inside either pad button, with a little margin for
@@ -915,6 +935,10 @@ export default class GameScene extends BaseScene {
     // Legs step in proportion to the distance actually covered, so they can't
     // end up skating while the monster crawls or vice versa.
     this.monster.walk(delta, this.speed);
+
+    // The pupils ease toward their target here rather than through a tween, so
+    // there is nothing to allocate or tear down as the target changes.
+    this.monster.updateEyes(delta);
 
     if (this.monsterShadow) {
       this.monsterShadow.setX(nextX);
@@ -1305,16 +1329,25 @@ export default class GameScene extends BaseScene {
   // Feedback + finish
   // -----------------------------------------------------------------------
 
+  // Shakes the prompt bubble on a wrong feed.
+  //
+  // Restores to PROMPT_X rather than to whatever x the target had when this was
+  // called, and kills any shake already running first. Reading the live x is a
+  // trap: a second wrong feed landing mid-shake captures the DISPLACED position
+  // and then restores the prompt to that, nudging it sideways a little further
+  // on every mistake until it drifts off the edge.
   shake(target) {
-    const baseX = target.x;
+    this.tweens.killTweensOf(target);
+    target.setX(PROMPT_X);
+
     this.tweens.add({
       targets: target,
-      x: baseX + 8,
+      x: PROMPT_X + 8,
       duration: 55,
       yoyo: true,
       repeat: 4,
       ease: 'Sine.easeInOut',
-      onComplete: () => target.setX(baseX),
+      onComplete: () => target.setX(PROMPT_X),
     });
   }
 
@@ -1338,7 +1371,10 @@ export default class GameScene extends BaseScene {
       this.spawnTimer = null;
     }
     this.clearShapes();
-    playVoice(this, 'eating_sound'); // celebratory chomp on the final feed
+    // playSound, not playVoice: this is a sound effect, and playVoice() would
+    // also force-stop whatever the monster is currently saying and register the
+    // effect as the active "voice", so a later line could cut it off mid-chomp.
+    this.playSound('eating_sound', 0.9);
 
     const elapsedSeconds = Math.round((this.time.now - this.startTime) / 1000);
 
