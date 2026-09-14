@@ -8,10 +8,10 @@
 // be under the right shape as it lands, and to be out from under the wrong
 // ones. Three correct catches clears a round; 10 rounds total.
 //
-// The monster is the only thing the child controls, and it is moved ONLY by
-// the two on-screen buttons (see buildWalkPad). Neither the food nor the play
-// area is interactive beyond that, so the whole game is one continuous
-// decision: which way do I walk?
+// The monster is the only thing the child controls. It is steered by pressing
+// anywhere on the left or right half of the play area — the two discs down the
+// edges (see buildWalkPad) label those halves rather than being the targets, so
+// the whole game is one continuous decision: which way do I walk?
 //
 // Catching is resolved automatically when a shape reaches the monster's FACE —
 // the catch zone is the head's own footprint, so a shape landing on the body or
@@ -97,10 +97,26 @@ const STEER_MAX_SPEED = 620;
 // the button is what sets the pace rather than the cap clipping it.
 const STEER_BUTTON_SPEED = 480;
 
-// The on-screen steering buttons, one down each side and vertically centred.
-// These are the ONLY way to move the monster — see onPointerDown.
+// A press on the monster is ambiguous: it could be a tap to replay the round's
+// line, or the start of a walk. Below both of these it counts as the tap.
+// Deliberately short and tight — holding to walk has to begin moving quickly
+// enough to feel like steering rather than a delay.
+const POKE_TAP_MS = 260;
+const POKE_SLOP_PX = 18;
+
+// The on-screen steering discs, one down each side and vertically centred.
+// Purely the visual cue for the two halves — the whole half of the screen
+// presses the button behind it, so nothing depends on hitting the disc itself.
+//
+// Deliberately NOT enlarged to match that bigger target: at the walk limits the
+// disc already overlaps the monster, and growing it would sit it on top of the
+// face the child is trying to watch.
 const PAD_BUTTON_RADIUS = 64;
 const PAD_BUTTON_MARGIN = 30;
+
+// Draw order for the pad parts. Above the flying shapes (6) and the monster
+// (12), below the HUD (20+) and the red flash (85).
+const PAD_DEPTH = 45;
 
 // Top-left, left-anchored so the bubble grows away from the screen edge. The
 // left edge plus the wrap width caps the widest bubble at ~436px, which keeps
@@ -212,6 +228,9 @@ export default class GameScene extends BaseScene {
     this.walkMin = MONSTER_TRAVEL_MARGIN;
     this.walkMax = width - MONSTER_TRAVEL_MARGIN;
     this.speed = 0;
+    // A press on the monster that hasn't been resolved into either a poke or a
+    // walk yet — see onPointerDown / updatePendingPoke.
+    this.pendingPoke = null;
 
     this.progressFraction = 0;
 
@@ -641,14 +660,16 @@ export default class GameScene extends BaseScene {
   }
 
   // -----------------------------------------------------------------------
-  // Walk pad — one big round button down each side of the screen
+  // Walk pad — one disc down each side, one live half of the screen behind it
   // -----------------------------------------------------------------------
   // Stepping with a held thumb rather than dragging the monster itself: a child
   // steering an object by touching it also has to avoid the falling food, and
   // on a small screen their hand covers the very thing they need to watch.
-  // Edge buttons leave the whole play area visible.
   //
-  // These are the only way to move the monster.
+  // The discs are things to aim AT, not things that must be hit: the whole left
+  // half of the play area walks left and the whole right half walks right (see
+  // sideFor). A five-year-old aiming at a 64px circle misses it constantly, and
+  // a miss read as the game being broken.
 
   buildWalkPad() {
     const { width, height } = this.scale;
@@ -656,52 +677,36 @@ export default class GameScene extends BaseScene {
     // the top and the floor marker at the bottom.
     const y = height / 2;
 
-    // Each button is a container holding a ring, a disc and an arrow, rather
-    // than an Arc Shape with setInteractive(). A Shape falls back to a hit area
-    // built from its width/height, which is a top-left-anchored Rectangle —
-    // wrong shape AND in the wrong place for a circle.
+    // The discs are plain shapes at absolute canvas coordinates, NOT containers
+    // and NOT interactive. Input is resolved by onPointerDown against the whole
+    // half of the screen, so nothing here depends on Phaser hit-testing the art.
     //
-    // The container's hit area has its own trap, and it's why only a sliver of
-    // the button used to respond: Phaser adds a container's displayOrigin to
-    // the pointer BEFORE running the hit test, and a Container's displayOrigin
-    // is width/2. So a Circle declared at (0,0) is tested as though it were
-    // centred at (width/2, height/2) — half a button-size away from where it's
-    // drawn, leaving one small overlapping crescent that worked. Declaring the
-    // radius around the display origin instead puts it exactly where the art is.
-    const hitSize = (PAD_BUTTON_RADIUS + 12) * 2;
-    const hitOriginX = hitSize / 2;
-    const hitOriginY = hitSize / 2;
-
+    // That also retires the container hit-area trap these used to have: Phaser
+    // adds a container's displayOrigin to the pointer before running the hit
+    // test, and a Container's displayOrigin is width/2 — so a Circle declared at
+    // (0,0) was tested half a button-size away from where it was drawn, leaving
+    // a single small crescent that actually responded.
     const makeButton = (x, label, dir) => {
       const ring = this.add
-        .circle(0, 0, PAD_BUTTON_RADIUS + 7, 0xf59e0b, 0)
-        .setStrokeStyle(4, 0xf59e0b, 0.5);
-      const disc = this.add.circle(0, 0, PAD_BUTTON_RADIUS, 0xfff4cf, 0.62);
+        .circle(x, y, PAD_BUTTON_RADIUS + 7, 0xf59e0b, 0)
+        .setStrokeStyle(4, 0xf59e0b, 0.5)
+        .setDepth(PAD_DEPTH);
+      const disc = this.add
+        .circle(x, y, PAD_BUTTON_RADIUS, 0xfff4cf, 0.62)
+        .setDepth(PAD_DEPTH);
       const arrow = this.add
-        .text(0, 0, label, {
+        .text(x, y, label, {
           fontSize: '52px',
           fontFamily: 'Fredoka, sans-serif',
           fontStyle: 'bold',
           color: '#7c4a03',
         })
-        .setOrigin(0.5);
+        .setOrigin(0.5)
+        .setDepth(PAD_DEPTH);
 
-      const container = this.add
-        .container(x, y, [ring, disc, arrow])
-        .setDepth(45)
-        .setSize(hitSize, hitSize)
-        .setInteractive({
-          hitArea: new Phaser.Geom.Circle(
-            hitOriginX,
-            hitOriginY,
-            PAD_BUTTON_RADIUS + 12
-          ),
-          hitAreaCallback: Phaser.Geom.Circle.Contains,
-          useHandCursor: true,
-        });
-
-      // Held state lives on the button, because a pointer can leave it without
-      // ever firing a matching pointerup — see onPointerUp.
+      // Held state lives on the button, not on the scene, because several
+      // different presses — the disc and the empty half of the screen behind
+      // it — all land on the same button.
       //
       // `pointerId` is recorded so a two-thumb grip works: holding left and
       // releasing the right thumb must not cancel the left button. Only the
@@ -729,24 +734,12 @@ export default class GameScene extends BaseScene {
         arrow.setScale(1);
       };
 
-      container.on('pointerdown', press);
-      container.on('pointerup', release);
-      container.on('pointerout', release);
-
-      return { container, state, x, y, dir, press, release };
+      return { state, x, y, dir, press, release };
     };
 
     this.walkPad = {
-      left: makeButton(
-        PAD_BUTTON_MARGIN + PAD_BUTTON_RADIUS,
-        '\u25C0',
-        -1
-      ),
-      right: makeButton(
-        width - PAD_BUTTON_MARGIN - PAD_BUTTON_RADIUS,
-        '\u25B6',
-        1
-      ),
+      left: makeButton(PAD_BUTTON_MARGIN + PAD_BUTTON_RADIUS, '\u25C0', -1),
+      right: makeButton(width - PAD_BUTTON_MARGIN - PAD_BUTTON_RADIUS, '\u25B6', 1),
     };
   }
 
@@ -757,6 +750,56 @@ export default class GameScene extends BaseScene {
     const l = this.walkPad.left.state.held ? -1 : 0;
     const r = this.walkPad.right.state.held ? 1 : 0;
     return l + r;
+  }
+
+  // Which way a press at canvas x means. Splitting on the midpoint exactly means
+  // the two halves meet with no dead band down the middle of the screen.
+  sideFor(x) {
+    return x < this.scale.width / 2 ? -1 : 1;
+  }
+
+  // The one button a direction owns. Singular on purpose: a direction has
+  // exactly one disc, no matter which part of that half pressed it.
+  buttonFor(dir) {
+    return dir < 0 ? this.walkPad.left : this.walkPad.right;
+  }
+
+  // Holds the button for a direction, wherever on that half the press landed.
+  pressSide(dir, pointer) {
+    if (!this.walkPad) return;
+    this.buttonFor(dir).press(pointer);
+  }
+
+  // Resolves a pending press on the monster into either a poke or a walk.
+  // Called every frame, because "this has been held too long to be a tap" is a
+  // decision that can only be made with time passing.
+  updatePendingPoke() {
+    const pending = this.pendingPoke;
+    if (!pending) return;
+
+    // Steering only means anything mid-round. A press that straddles the beat
+    // between rounds is dropped rather than left armed to fire on the next one.
+    if (this.phase !== 'playing') {
+      this.pendingPoke = null;
+      return;
+    }
+
+    const heldTooLong = this.time.now - pending.time >= POKE_TAP_MS;
+    // Measured from where the finger landed, not from the monster: the monster
+    // may be walking, and the press is only a poke if the finger itself stayed
+    // put.
+    const dragged =
+      Phaser.Math.Distance.Between(
+        pending.x,
+        pending.y,
+        this.toWorldX(pending.pointer.x),
+        pending.pointer.y
+      ) > POKE_SLOP_PX;
+
+    if (!heldTooLong && !dragged) return;
+
+    this.pendingPoke = null;
+    this.pressSide(pending.dir, pending.pointer);
   }
 
   chompMonster() {
@@ -872,9 +915,12 @@ export default class GameScene extends BaseScene {
   // Steering — the only thing the player controls
   // -----------------------------------------------------------------------
 
-  // A press either pokes the monster (replaying the round's line) or starts
-  // steering. The poke is tested first and does NOT start a drag, so tapping
-  // the monster to re-hear the question can't also shunt it sideways.
+  // A press in the play area steers: the left half walks left, the right half
+  // walks right, and the disc drawn on that side is only the label saying so.
+  //
+  // A press that lands ON the monster is held back for a beat, because that
+  // same tap is how the round's line gets replayed. It converts to a walk the
+  // moment the finger drags or the press outlives a tap (updatePendingPoke).
   onPointerDown(pointer) {
     if (this.phase !== 'playing') return;
 
@@ -886,18 +932,21 @@ export default class GameScene extends BaseScene {
     // the monster to whichever edge the child happened to touch.
     if (py < 110) return;
 
-    // The pad buttons handle their own input, and are the ONLY way to steer.
-    // Stepping on the play area is deliberately not a control: a child aiming
-    // at a falling shape would otherwise drag the monster out from under it.
-    if (this.isOverWalkPad(px, py)) return;
-
-    // Tapping the monster replays the round's line. This is not a way to move
-    // it — only the buttons move it.
-    //
-    // The target is the monster's whole body, not just the head. A child
+    // The tap target is the monster's whole body, not just the head. A child
     // reaching out to poke it aims at whatever they can see, so restricting the
     // tap to the head means most taps on the body silently do nothing.
-    if (this.isOverMonster(px, py)) this.pokeMonster();
+    if (this.isOverMonster(px, py)) {
+      this.pendingPoke = {
+        pointer,
+        x: px,
+        y: py,
+        time: this.time.now,
+        dir: this.sideFor(px),
+      };
+      return;
+    }
+
+    this.pressSide(this.sideFor(px), pointer);
   }
 
   // Is a world-space point anywhere on the monster?
@@ -917,22 +966,20 @@ export default class GameScene extends BaseScene {
     );
   }
 
-  // Is a world-space point inside either pad button, with a little margin for
-  // fingertips, which land imprecisely?
-  isOverWalkPad(x, y) {
-    if (!this.walkPad) return false;
-    const reach = PAD_BUTTON_RADIUS + 12;
-    return (
-      Phaser.Math.Distance.Between(x, y, this.walkPad.left.x, this.walkPad.left.y) < reach ||
-      Phaser.Math.Distance.Between(x, y, this.walkPad.right.x, this.walkPad.right.y) < reach
-    );
-  }
-
   onPointerUp(pointer) {
-    // Belt and braces on the pad buttons. If a finger lifts outside the button
-    // (dragged off it, or off the canvas entirely) the button's own pointerup
-    // never fires, and it would stay held with the monster walking into the
-    // wall after the child has let go.
+    // A press that never converted into a walk was a tap on the monster, so
+    // replay the round's line. The strip above 110px can't reach here —
+    // onPointerDown returns before arming one.
+    if (this.pendingPoke && this.pendingPoke.pointer === pointer) {
+      this.pendingPoke = null;
+      this.pokeMonster();
+    }
+
+    // Belt and braces on the pad buttons. The disc is no longer a hit target,
+    // so the finger can lift anywhere — including off the canvas entirely — and
+    // no per-button pointerup will ever arrive. Without this the button would
+    // stay held and the monster would walk into the wall after the child has
+    // let go.
     //
     // The pointer is passed through so the buttons can check it against the one
     // that pressed them — releasing with one thumb must not cancel a button
@@ -1234,6 +1281,15 @@ export default class GameScene extends BaseScene {
     this.feedsThisRound = 0;
     this.phase = 'playing';
 
+    // A finger can be mid-press across a round change, and a held button is
+    // ignored outside 'playing'. Releasing here means the press the child was
+    // still making doesn't resume as a walk the instant play restarts.
+    this.pendingPoke = null;
+    if (this.walkPad) {
+      this.walkPad.left.release(null);
+      this.walkPad.right.release(null);
+    }
+
     this.setPrompt(this.round.prompt);
     this.popIn(this.promptContainer, 1);
     playVoice(this, this.round.voiceKey);
@@ -1327,7 +1383,11 @@ export default class GameScene extends BaseScene {
   update(time, delta) {
     const { height } = this.scale;
 
-    // Steering first: it decides where the mouth is, and the catch test below
+    // Resolve a press that landed on the monster before steering reads the pad,
+    // so a press that has just become a walk is already held this frame.
+    this.updatePendingPoke();
+
+    // Steering next: it decides where the mouth is, and the catch test below
     // reads that position through mouthPos().
     this.updateSteering(delta);
 
