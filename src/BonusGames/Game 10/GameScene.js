@@ -1,11 +1,21 @@
 // GameScene.js
 // Game 10 — "Feed the Shapes".
 //
-// Fruit-ninja-style food shapes launch up from the bottom and arc back down
-// under gravity. A monster in the bottom-right calls out a shape — by name in
-// Level 1 (rounds 1-4), by geometric property in Level 2 (rounds 5-10) — and
-// the child catches the matching shape mid-air and drags it into the monster's
-// mouth. Three correct feeds clears a round; 10 rounds total.
+// Fruit-ninja-style food shapes launch up from the bottom of the canvas and
+// arc back down under gravity. A monster stands on the ground and calls out a
+// shape — by name in Level 1 (rounds 1-4), by geometric property in Level 2
+// (rounds 5-10). The child walks the monster left and right along the floor to
+// be under the right shape as it lands, and to be out from under the wrong
+// ones. Three correct catches clears a round; 10 rounds total.
+//
+// The monster is the only thing the child controls, and it is moved ONLY by
+// the two on-screen buttons (see buildWalkPad). Neither the food nor the play
+// area is interactive beyond that, so the whole game is one continuous
+// decision: which way do I walk?
+//
+// Catching is resolved automatically when a shape reaches the monster's FACE —
+// the catch zone is the head's own footprint, so a shape landing on the body or
+// the legs does nothing at all. There is no timing input: only positioning.
 //
 // One scene, no level select: an internal `roundIndex` 0..9 and a per-round
 // `phase` of 'playing' → 'success' → next round (or finish at round 10).
@@ -14,16 +24,33 @@ import * as Phaser from 'phaser';
 import BaseScene from '../../Phaser/BaseScene';
 import { ROUND_SCRIPT, SHAPES, SHAPE_IDS, TOTAL_ROUNDS, FEEDS_PER_ROUND } from './levels';
 import { ensureBgMusic, addMuteButton } from './audioState';
-import createMonster, { MONSTER_FEED_RADIUS_X, MONSTER_FEED_RADIUS_Y } from './monster';
+import createMonster, {
+  MONSTER_START_X,
+  MONSTER_CATCH_RADIUS_X,
+  MONSTER_CATCH_RADIUS_Y,
+  MONSTER_TRAVEL_MARGIN,
+  MONSTER_WORLD_SCALE,
+  MONSTER_FEET_Y,
+} from './monster';
 
 // ---------------------------------------------------------------------------
 // Layout + tuning constants (720x1080 base resolution — see Phaser/config.js)
 // ---------------------------------------------------------------------------
 const GRAVITY = 430; // px/s^2, scene-local (the shared default stays 0)
-const SHAPE_HEIGHT = 150; // every shape is normalised to this on-screen height
+// Every shape is normalised to this on-screen height. Nudged down twice — 150
+// felt crowded on a phone, where the monster, the prompt bubble and two shapes
+// all compete for the same canvas.
+//
+// The CATCH ZONE is deliberately not scaled to match: it stays at its own fixed
+// size, so shrinking the food is a change in visual density, not in how easy
+// the game is to win.
+const SHAPE_HEIGHT = 110;
 const MAX_SHAPES = 2; // more than this is too busy for a K1 audience
-const SPAWN_X_MIN = 90;
-const SPAWN_X_MAX = 450; // clears the monster's corner (x >= ~490)
+// Spawn across the width the monster can actually reach. Now that it walks the
+// floor instead of living in one corner, the whole canvas floor is fair game —
+// a shape landing in a lane the monster can't stand in would be uncatchable.
+const SPAWN_X_MIN = 150;
+const SPAWN_X_MAX = 570;
 const SPAWN_Y = 1130; // just below the bottom edge, so shapes fly in
 // The arc is fully determined by two numbers: apex height = LAUNCH_VY^2 /
 // (2 * GRAVITY), and total flight time = 2 * |LAUNCH_VY| / GRAVITY.
@@ -36,33 +63,55 @@ const SPAWN_Y = 1130; // just below the bottom edge, so shapes fly in
 // to ~4.9s. Retune both together, or the shapes either stop reaching the top or
 // shoot past it.
 const LAUNCH_VY = -930;
-// Horizontal speed is deliberately gentle: this is a "catch and drag" game,
-// not a reflex game, so the shape should hang in the air long enough to grab.
+// Horizontal speed is deliberately gentle. This is a positioning game, not a
+// reflex game: the child is walking a monster into place with two buttons, so a
+// shape that streaks sideways would demand a sprint the controls can't deliver.
 const LAUNCH_VX_MAX = 45;
-const SPAWN_MIN_MS = 1400;
-const SPAWN_MAX_MS = 2000;
+// Shapes now arrive more often, so there's less dead air between throws — at
+// the old 1400-2000ms the child often had nothing to react to. The monster is
+// walked with buttons rather than dragged, so it can afford the extra traffic.
+const SPAWN_MIN_MS = 950;
+const SPAWN_MAX_MS = 1400;
 
-// The monster's position, part scales and feed-zone size all live in
+// The monster's position, part scales and catch-zone size all live in
 // ./monster.js (MONSTER_POSE / MONSTER_FEED_RADIUS_*) — that file is the one
 // place to move or resize any part of it.
 
-// How far "above" its shadow the held shape floats. The shadow is offset down
-// by this much and shrunk, which is what sells the shape as lifted.
-const LIFT_HEIGHT = 48;
+// Steering feel. The monster eases toward the target rather than snapping to
+// it, so it reads as walking and stopping rather than being slid.
+const STEER_LERP = 0.18;
+// Speed cap in px/s, so a held button can't make the catch zone outrun a shape
+// mid-drop. This is the hard ceiling on how fast the monster can ever move.
+const STEER_MAX_SPEED = 620;
+// Walking speed while a button is held, in px/s. Deliberately under the cap, so
+// the button is what sets the pace rather than the cap clipping it.
+const STEER_BUTTON_SPEED = 480;
 
-// Bottom-left corner, left-anchored so it grows away from the screen edge. The
-// left edge plus a 340px wrap caps the widest bubble at ~436px, which stops it
-// running under the (now much wider) feed zone, whose left edge is at x≈430.
-const PROMPT_X = 30;
-const PROMPT_Y = 950;
+// The on-screen steering buttons, one down each side and vertically centred.
+// These are the ONLY way to move the monster — see onPointerDown.
+const PAD_BUTTON_RADIUS = 64;
+const PAD_BUTTON_MARGIN = 30;
+
+// Top-left, left-anchored so the bubble grows away from the screen edge. The
+// left edge plus the wrap width caps the widest bubble at ~436px, which keeps
+// it clear of the progress bar running along the top.
+const PROMPT_X = 24;
+const PROMPT_Y = 196;
 const PROMPT_WRAP = 340;
 
-// Started at x=100 and stopped short of the right edge so the bar clears the
-// mute button (x≈38), which is the only other thing on the top row.
-const PROGRESS_W = 520;
+// Shares the top row with the mute button. The prompt bubble moved up to the
+// top-left, so the bar starts to the right of the mute button (which ends at
+// x=60) rather than at the far left, and runs to just short of the right edge.
+const PROGRESS_W = 600;
 const PROGRESS_H = 26;
-const PROGRESS_Y = 64;
-const PROGRESS_X = 100;
+const PROGRESS_Y = 52;
+const PROGRESS_X = 80;
+
+// Where the monster's feet meet the floor, in world y. Derived from the pose in
+// monster.js rather than hardcoded, because these must agree or the contact
+// shadow visibly detaches from the feet — and the pose y does not move when the
+// overall monster scale changes, only the legs' offset from it does.
+const FEET_Y = MONSTER_FEET_Y;
 
 const TOTAL_FEEDS = TOTAL_ROUNDS * FEEDS_PER_ROUND;
 
@@ -138,10 +187,16 @@ export default class GameScene extends BaseScene {
     this.currentVoice = null;
 
     this.shapes = [];
-    this.heldShape = null;
     this.lastSpawnShape = null;
     this.spawnsSinceTarget = 0;
     this.spawnTimer = null;
+
+    // Steering state. The monster's live position lives on its container; this
+    // is only the value the pad eases it toward.
+    this.monsterX = MONSTER_START_X;
+    this.walkMin = MONSTER_TRAVEL_MARGIN;
+    this.walkMax = width - MONSTER_TRAVEL_MARGIN;
+    this.speed = 0;
 
     this.progressFraction = 0;
 
@@ -192,6 +247,7 @@ export default class GameScene extends BaseScene {
     this.buildProgressBar();
     this.buildPromptBubble();
     this.buildMonster();
+    this.buildWalkPad();
 
     // 3. Full-screen red flash overlay — invisible until a wrong feed fires.
     this.redFlash = this.add
@@ -206,18 +262,13 @@ export default class GameScene extends BaseScene {
       this.shapeScales[id] = SHAPE_HEIGHT / tex.h;
     });
 
-    // Catching is a distance test against the pointer (grabBest) rather than a
-    // per-sprite hit area. Phaser tests a custom hit area in "top-left space"
-    // (it adds displayOriginX/Y to the transformed pointer before calling the
-    // callback), so a Rectangle built around a sprite's centre with negative
-    // coordinates only ever matched its bottom-right quadrant — which is why
-    // grabbing used to fail most of the time. One explicit test in world space
-    // is both correct and easier to reason about.
-    this.grabOffset = { x: 0, y: 0 };
-    this.heldDragged = false;
-
-    this.input.on('pointerdown', () => this.grabBest());
-    this.input.on('pointerup', () => this.onPointerUp());
+    // Input: the monster follows a held finger anywhere in the play area, and
+    // the round's line is replayed by tapping the monster itself (see
+    // onPointerDown). Both are registered on the scene rather than per-object,
+    // because the target is a container of sprites rather than one hit-testable
+    // image.
+    this.input.on('pointerdown', (pointer) => this.onPointerDown(pointer));
+    this.input.on('pointerup', (pointer) => this.onPointerUp(pointer));
 
     // The round only starts once the child taps Start — see buildStartOverlay()
     // / beginPlay().
@@ -289,7 +340,7 @@ export default class GameScene extends BaseScene {
     );
     this.startOverlay.add(
       this.add
-        .text(0, 10, 'Catch the shape the monster\nasks for and drag it into its mouth!', {
+        .text(0, 10, 'Walk the monster with the arrows\nto catch the shape it asks for!', {
           fontSize: '24px',
           fontFamily: 'Fredoka, sans-serif',
           fontStyle: 'bold',
@@ -462,10 +513,9 @@ export default class GameScene extends BaseScene {
 
   // Tapping the monster replays the round's instruction so the child can hear
   // the question again — the main reason to tap it. `phase` isn't checked:
-  // unlike the old full-screen prompt bubbles, replaying a clip during the
-  // success beat is genuinely useful here and safe (playVoice stops whatever
-  // is currently speaking, so the "Treasure found!"-style praise is
-  // superseded rather than layered).
+  // replaying a clip to re-hear the question is the whole point of the tap, and
+  // playVoice() stops whatever is currently speaking, so a fresh line
+  // supersedes any in-flight praise rather than layering over it.
   pokeMonster() {
     playVoice(this, this.round.voiceKey);
     this.monster.reactToPoke();
@@ -473,17 +523,182 @@ export default class GameScene extends BaseScene {
 
   buildMonster() {
     this.monster = createMonster(this);
+    this.monster.container.setX(MONSTER_START_X);
 
-    // Invisible hit-ellipse at the mouth, used to resolve a drop. Elliptical
-    // rather than circular, and taller than it is wide, because shapes are
-    // dropped onto the monster from above.
-    const mouth = this.monster.mouthPoint;
+    // Contact shadow under the feet. Kept width-only (no y scaling) so it reads
+    // as a shadow on the floor; the y here is the feet, not the assembly origin.
+    this.monsterShadow = this.add
+      .ellipse(
+        MONSTER_START_X,
+        FEET_Y,
+        300 * MONSTER_WORLD_SCALE,
+        56 * MONSTER_WORLD_SCALE,
+        0x3b230a,
+        0.24
+      )
+      .setDepth(8);
+
+    // The catch ellipse in LOCAL space — offsets from the monster's own origin,
+    // not world coordinates. It has to be local because the monster now moves:
+    // a world-space zone would have to be rewritten every frame, and more
+    // importantly the catch test would then be reading a stale copy the moment
+    // the monster is steered mid-drop. Callers add container.x/y to place it.
+    //
+    // The catch zone is the head's own footprint — food has to reach the face.
+    // Assigned before the reach marker below, which reads its radius.
     this.feedZone = {
-      x: mouth.x,
-      y: mouth.y,
-      radiusX: MONSTER_FEED_RADIUS_X,
-      radiusY: MONSTER_FEED_RADIUS_Y,
+      radiusX: MONSTER_CATCH_RADIUS_X,
+      radiusY: MONSTER_CATCH_RADIUS_Y,
     };
+
+    // A dim landing pad on the floor, exactly as wide as the catch zone — which
+    // is now the head's own width, so the marker genuinely traces what the
+    // monster can eat with. Catching is invisible geometry otherwise, and a
+    // child has no way to learn how close "close enough" is; this is what makes
+    // the mechanic legible, and it slides along the floor as they steer.
+    this.reachMark = this.add
+      .ellipse(
+        MONSTER_START_X,
+        FEET_Y,
+        this.feedZone.radiusX * 2,
+        64 * MONSTER_WORLD_SCALE,
+        0xf59e0b,
+        0.22
+      )
+      .setDepth(9);
+  }
+
+  // World-space centre of the catch zone — the head, not the mouth. The mouth
+  // is only the lower part of the face, so centring the zone there would let
+  // the monster miss anything that lands on its forehead.
+  catchCentre() {
+    return this.monster.getCatchCentre();
+  }
+
+  // World-space mouth position, used only for aiming the swallow animation and
+  // the "+1" pop. Separate from catchCentre() on purpose — a shape is eaten at
+  // the mouth, but it's caught across the whole face.
+  mouthPos() {
+    return this.monster.getMouth();
+  }
+
+  // -----------------------------------------------------------------------
+  // Walk pad — one big round button down each side of the screen
+  // -----------------------------------------------------------------------
+  // Stepping with a held thumb rather than dragging the monster itself: a child
+  // steering an object by touching it also has to avoid the falling food, and
+  // on a small screen their hand covers the very thing they need to watch.
+  // Edge buttons leave the whole play area visible.
+  //
+  // These are the only way to move the monster.
+
+  buildWalkPad() {
+    const { width, height } = this.scale;
+    // Vertically centred, one down each edge — clear of the prompt bubble at
+    // the top and the floor marker at the bottom.
+    const y = height / 2;
+
+    // Each button is a container holding a ring, a disc and an arrow, rather
+    // than an Arc Shape with setInteractive(). A Shape falls back to a hit area
+    // built from its width/height, which is a top-left-anchored Rectangle —
+    // wrong shape AND in the wrong place for a circle.
+    //
+    // The container's hit area has its own trap, and it's why only a sliver of
+    // the button used to respond: Phaser adds a container's displayOrigin to
+    // the pointer BEFORE running the hit test, and a Container's displayOrigin
+    // is width/2. So a Circle declared at (0,0) is tested as though it were
+    // centred at (width/2, height/2) — half a button-size away from where it's
+    // drawn, leaving one small overlapping crescent that worked. Declaring the
+    // radius around the display origin instead puts it exactly where the art is.
+    const hitSize = (PAD_BUTTON_RADIUS + 12) * 2;
+    const hitOriginX = hitSize / 2;
+    const hitOriginY = hitSize / 2;
+
+    const makeButton = (x, label, dir) => {
+      const ring = this.add
+        .circle(0, 0, PAD_BUTTON_RADIUS + 7, 0xf59e0b, 0)
+        .setStrokeStyle(4, 0xf59e0b, 0.5);
+      const disc = this.add.circle(0, 0, PAD_BUTTON_RADIUS, 0xfff4cf, 0.62);
+      const arrow = this.add
+        .text(0, 0, label, {
+          fontSize: '52px',
+          fontFamily: 'Fredoka, sans-serif',
+          fontStyle: 'bold',
+          color: '#7c4a03',
+        })
+        .setOrigin(0.5);
+
+      const container = this.add
+        .container(x, y, [ring, disc, arrow])
+        .setDepth(45)
+        .setSize(hitSize, hitSize)
+        .setInteractive({
+          hitArea: new Phaser.Geom.Circle(
+            hitOriginX,
+            hitOriginY,
+            PAD_BUTTON_RADIUS + 12
+          ),
+          hitAreaCallback: Phaser.Geom.Circle.Contains,
+          useHandCursor: true,
+        });
+
+      // Held state lives on the button, because a pointer can leave it without
+      // ever firing a matching pointerup — see onPointerUp.
+      //
+      // `pointerId` is recorded so a two-thumb grip works: holding left and
+      // releasing the right thumb must not cancel the left button. Only the
+      // pointer that pressed a button can release it.
+      const state = { held: false, pointerId: null };
+
+      const press = (pointer) => {
+        state.held = true;
+        state.pointerId = pointer ? pointer.id : null;
+        disc.setFillStyle(0xfde68a, 0.95);
+        ring.setStrokeStyle(4, 0xb45309, 0.9);
+        arrow.setScale(1.15);
+      };
+
+      const release = (pointer) => {
+        // Ignore a release from a DIFFERENT finger than the one holding this
+        // button — that finger owns the other button, not this one.
+        if (pointer && state.pointerId !== null && pointer.id !== state.pointerId) {
+          return;
+        }
+        state.held = false;
+        state.pointerId = null;
+        disc.setFillStyle(0xfff4cf, 0.62);
+        ring.setStrokeStyle(4, 0xf59e0b, 0.5);
+        arrow.setScale(1);
+      };
+
+      container.on('pointerdown', press);
+      container.on('pointerup', release);
+      container.on('pointerout', release);
+
+      return { container, state, x, y, dir, press, release };
+    };
+
+    this.walkPad = {
+      left: makeButton(
+        PAD_BUTTON_MARGIN + PAD_BUTTON_RADIUS,
+        '\u25C0',
+        -1
+      ),
+      right: makeButton(
+        width - PAD_BUTTON_MARGIN - PAD_BUTTON_RADIUS,
+        '\u25B6',
+        1
+      ),
+    };
+  }
+
+  // Which way the pad wants to go right now: -1, 0 or 1. Neutral when nothing
+  // is held, so releasing is a real command in its own right.
+  walkPadDirection() {
+    if (!this.walkPad) return 0;
+    const l = this.walkPad.left.state.held ? -1 : 0;
+    const r = this.walkPad.right.state.held ? 1 : 0;
+    return l + r;
   }
 
   chompMonster() {
@@ -577,136 +792,74 @@ export default class GameScene extends BaseScene {
       ease: 'Back.easeOut',
     });
 
-    // No per-sprite input at all: grabbing is resolved scene-wide in grabBest()
-    // on pointerdown. That avoids Phaser's hit-area coordinate space entirely
-    // and means a tap anywhere near a shape still catches it.
+    // Shapes are never interactive: pointer input drives the monster, and
+    // catching is resolved by the scene-wide sweep in checkCatches(). That
+    // sidesteps Phaser's hit-area coordinate space entirely.
 
     this.shapes.push(sprite);
     this.playSound(`throw-whoosh${Phaser.Math.Between(1, 3)}`, 0.7);
   }
 
   // -----------------------------------------------------------------------
-  // Catch + drag
+  // Steering — the only thing the player controls
   // -----------------------------------------------------------------------
 
-  // Picks the shape nearest the tap, within a forgiving radius. Iterating
-  // rather than hit-testing per sprite also makes "nearest wins" fall out for
-  // free when two shapes overlap.
-  grabBest() {
-    if (this.phase !== 'playing' || this.heldShape) return;
-
-    const pointer = this.input.activePointer;
-    // Ignore taps on the top strip (mute button + progress bar) — a shape near
-    // its apex can pass close enough to the mute button to fall inside the grab
-    // radius, which would make muting also snatch a shape out of the air.
-    if (pointer.y < 130) return;
+  // A press either pokes the monster (replaying the round's line) or starts
+  // steering. The poke is tested first and does NOT start a drag, so tapping
+  // the monster to re-hear the question can't also shunt it sideways.
+  onPointerDown(pointer) {
+    if (this.phase !== 'playing') return;
 
     const px = this.toWorldX(pointer.x);
     const py = pointer.y;
 
-    // A tap on the monster is its own action, not a grab. Checked first: the
-    // monster sits at the bottom right, where a shape may be in flight, and
-    // grabbing in that case would be surprising.
-    const pokeDx = (px - this.feedZone.x) / this.feedZone.radiusX;
-    const pokeDy = (py - this.feedZone.y) / this.feedZone.radiusY;
+    // Never steer from the top strip: that row holds the mute button and the
+    // progress bar, so a tap there is UI input, and leaning on it would drag
+    // the monster to whichever edge the child happened to touch.
+    if (py < 110) return;
+
+    // The pad buttons handle their own input, and are the ONLY way to steer.
+    // Stepping on the play area is deliberately not a control: a child aiming
+    // at a falling shape would otherwise drag the monster out from under it.
+    if (this.isOverWalkPad(px, py)) return;
+
+    // Tapping the monster replays the round's line. This is not a way to move
+    // it — only the buttons move it.
+    //
+    // Tested against the head, like the catch zone: that's the part of the
+    // monster a child sees themselves tapping, and it's a big enough target to
+    // hit with a fingertip.
+    const head = this.catchCentre();
+    const pokeDx = (px - head.x) / this.feedZone.radiusX;
+    const pokeDy = (py - head.y) / this.feedZone.radiusY;
     if (pokeDx * pokeDx + pokeDy * pokeDy <= 1) {
       this.pokeMonster();
-      return;
     }
-
-    // Generous enough for a fingertip, and scaled off the shape size so it
-    // stays proportionate if SHAPE_HEIGHT is ever retuned.
-    const grabRadius = SHAPE_HEIGHT * 1.05;
-
-    let best = null;
-    let bestDist = Infinity;
-    this.shapes.forEach((shape) => {
-      const dist = Phaser.Math.Distance.Between(px, py, shape.x, shape.y);
-      if (dist < bestDist) {
-        bestDist = dist;
-        best = shape;
-      }
-    });
-
-    if (best && bestDist <= grabRadius) this.onShapeGrabbed(best, px, py);
   }
 
-  onShapeGrabbed(sprite, px, py) {
-    if (this.phase !== 'playing' || this.heldShape) return;
-
-    this.heldShape = sprite;
-    // Remember where in the shape it was grabbed, so dragging doesn't teleport
-    // the sprite's centre onto the finger while a small one is held.
-    this.grabOffset.x = px - sprite.x;
-    this.grabOffset.y = py - sprite.y;
-    this.heldDragged = false;
-
-    // Freeze it mid-air: zero motion, no gravity, physics integration off —
-    // update() then drives its position straight off the pointer.
-    if (sprite.body) {
-      sprite.body.setVelocity(0, 0);
-      sprite.body.setAllowGravity(false);
-      sprite.body.moves = false;
-    }
-    sprite.setAngularVelocity(0);
-
-    this.heldBaseScale = sprite.scaleX;
-    sprite.setScale(sprite.scaleX * 1.15, sprite.scaleY * 1.15);
-
-    // The monster watches whatever the child is holding.
-    this.monster.lookAt(sprite.x, sprite.y);
-
-    // A soft ring behind the shape plus its own drop shadow, offset downward.
-    // Together they read as "picked up and floating" rather than "stuck to the
-    // finger" — the ground shadow the shape normally has is faded out in
-    // update() while it's held, so this is the only shadow on screen.
-    this.heldGlow = this.add
-      .circle(sprite.x, sprite.y, SHAPE_HEIGHT * 0.78, 0xffffff, 0.18)
-      .setDepth(4);
-
-    this.liftShadow = this.add
-      .ellipse(
-        sprite.x,
-        sprite.y + LIFT_HEIGHT,
-        sprite.displayWidth * 0.85,
-        sprite.displayHeight * 0.34,
-        0x000000,
-        0.3
-      )
-      .setDepth(5);
+  // Is a world-space point inside either pad button, with a little margin for
+  // fingertips, which land imprecisely?
+  isOverWalkPad(x, y) {
+    if (!this.walkPad) return false;
+    const reach = PAD_BUTTON_RADIUS + 12;
+    return (
+      Phaser.Math.Distance.Between(x, y, this.walkPad.left.x, this.walkPad.left.y) < reach ||
+      Phaser.Math.Distance.Between(x, y, this.walkPad.right.x, this.walkPad.right.y) < reach
+    );
   }
 
-  onPointerUp() {
-    const sprite = this.heldShape;
-    if (!sprite) return;
-
-    this.heldShape = null;
-    this.clearHeldVisuals();
-    sprite.setScale(this.heldBaseScale, this.heldBaseScale);
-
-    // Eyes return to centre and the idle wander resumes. Placed before the
-    // early return below so every release path clears the tracking state.
-    this.monster.stopLooking();
-
-    // Grabs are deliberately loose, so a plain tap near a shape shouldn't count
-    // as a feed — that would let the child feed the monster by tapping empty
-    // space beside it. Only a real drag can resolve as a feed.
-    if (!this.heldDragged) {
-      this.releaseToFlight(sprite, Phaser.Math.Between(-60, 60), 60, true);
-      return;
-    }
-
-    // Ellipse test: normalising each axis by its own radius turns any ellipse
-    // into a unit circle, so a single squared-distance comparison covers it.
-    const dx = (sprite.x - this.feedZone.x) / this.feedZone.radiusX;
-    const dy = (sprite.y - this.feedZone.y) / this.feedZone.radiusY;
-
-    if (dx * dx + dy * dy <= 1) {
-      this.resolveFeedAttempt(sprite);
-    } else {
-      // Released into open air — resume flight where it was dropped rather
-      // than snapping back to its launch spot.
-      this.releaseToFlight(sprite, Phaser.Math.Between(-60, 60), 120, true);
+  onPointerUp(pointer) {
+    // Belt and braces on the pad buttons. If a finger lifts outside the button
+    // (dragged off it, or off the canvas entirely) the button's own pointerup
+    // never fires, and it would stay held with the monster walking into the
+    // wall after the child has let go.
+    //
+    // The pointer is passed through so the buttons can check it against the one
+    // that pressed them — releasing with one thumb must not cancel a button
+    // being held by the other.
+    if (this.walkPad) {
+      this.walkPad.left.release(pointer);
+      this.walkPad.right.release(pointer);
     }
   }
 
@@ -716,19 +869,157 @@ export default class GameScene extends BaseScene {
     return this.cameras.main.getWorldPoint(pointerX, 0).x;
   }
 
-  releaseToFlight(sprite, vx, vy, allowGravity) {
-    if (!sprite.body) return;
-    sprite.body.moves = true;
-    sprite.body.setAllowGravity(allowGravity);
-    sprite.body.setVelocity(vx, vy);
-    sprite.setAngularVelocity(Phaser.Math.Between(-70, 70));
+  // Clamped destination for a raw x. Kept as its own method so the pointer
+  // path, the keyboard path and the per-frame easing all agree on the limits.
+  clampWalk(x) {
+    return Phaser.Math.Clamp(x, this.walkMin, this.walkMax);
+  }
+
+  steerToward(x) {
+    this.monsterX = this.clampWalk(x);
+  }
+
+  // Per-frame steering. Split out of update() so the catch logic below reads as
+  // its own concern.
+  updateSteering(delta) {
+    const dt = Math.min(delta, 50) / 1000; // clamp, so a stalled frame can't teleport
+
+    // The pads nudge the TARGET rather than the position, so the monster keeps
+    // moving for a moment after the child releases — that easing is what makes
+    // it feel like a character walking and stopping rather than a slider. Both
+    // buttons held cancel out, which is the natural reading of pressing both.
+    const padDir = this.phase === 'playing' ? this.walkPadDirection() : 0;
+    if (padDir !== 0) {
+      this.steerToward(
+        this.monsterX + Math.sign(padDir) * STEER_BUTTON_SPEED * dt
+      );
+    }
+
+    const prevX = this.monster.container.x;
+    let nextX = Phaser.Math.Linear(prevX, this.monsterX, STEER_LERP);
+
+    // Speed cap. The lerp alone would let a flick across the canvas cross the
+    // whole width in a few frames, which at this size reads as a teleport.
+    const maxStep = STEER_MAX_SPEED * dt;
+    nextX = Phaser.Math.Clamp(nextX, prevX - maxStep, prevX + maxStep);
+
+    this.monster.container.setX(nextX);
+    this.speed = dt > 0 ? Math.abs(nextX - prevX) / dt : 0;
+
+    // Lean into the direction of travel, and only while actually moving —
+    // otherwise a stationary monster would keep a stale lean after a flick.
+    // Called unconditionally: lean() is a no-op unless the direction changes,
+    // so there's no need to track the last one here as well.
+    this.monster.lean(this.speed > 30 ? Math.sign(nextX - prevX) : 0);
+
+    // Legs step in proportion to the distance actually covered, so they can't
+    // end up skating while the monster crawls or vice versa.
+    this.monster.walk(delta, this.speed);
+
+    if (this.monsterShadow) {
+      this.monsterShadow.setX(nextX);
+    }
+    if (this.reachMark) {
+      this.reachMark.setX(nextX);
+    }
+
+    // Let the monster watch the most threatening shape — the one about to land.
+    if (this.phase === 'playing') {
+      const incoming = this.mostImminentShape();
+      if (incoming) this.monster.lookAt(incoming.x, incoming.y);
+    }
+  }
+
+  // The shape closest to reaching the catch zone, i.e. the one that matters
+  // right now. Returns null when nothing is in flight.
+  mostImminentShape() {
+    let best = null;
+    let bestY = -Infinity;
+    this.shapes.forEach((shape) => {
+      if (shape.rejected) return;
+      // Ignore shapes still on the way up: they're nowhere near the monster's
+      // reach, and letting them win would point the eyes at every fresh throw.
+      if (shape.body && shape.body.velocity.y < 0) return;
+      if (shape.y > bestY) {
+        bestY = shape.y;
+        best = shape;
+      }
+    });
+    return best;
+  }
+
+  // -----------------------------------------------------------------------
+  // Catching — automatic, resolved against the monster's mouth
+  // -----------------------------------------------------------------------
+
+  // A shape is caught the moment it enters the catch ellipse.
+  //
+  // The `velocity.y > 0` guard is load-bearing, not a nicety: shapes launch
+  // from below the monster and rise straight through the catch zone on the way
+  // up, so without it every single throw would be swallowed at launch. Only a
+  // descending shape counts.
+  //
+  // A point test is enough because the zone is tall (~460px on its y axis) and
+  // a shape covers ~15px per frame at this gravity, so it cannot tunnel past it.
+  checkCatches() {
+    if (this.phase !== 'playing') return;
+
+    const head = this.catchCentre();
+
+    for (let i = this.shapes.length - 1; i >= 0; i -= 1) {
+      const shape = this.shapes[i];
+      if (shape.rejected) continue;
+      if (shape.body && shape.body.velocity.y <= 0) continue;
+
+      const dx = (shape.x - head.x) / this.feedZone.radiusX;
+      const dy = (shape.y - head.y) / this.feedZone.radiusY;
+      if (dx * dx + dy * dy > 1) continue;
+
+      this.resolveCatch(shape);
+    }
+  }
+
+  // First-time entry into the catch zone fires the rear-up, plus the eye cue.
+  // Kept separate from the catch itself so the animation is driven by approach
+  // (which is the "catching" moment the child sees) while the resolution is
+  // driven by contact.
+  checkAnticipation() {
+    if (this.phase !== 'playing') return;
+
+    const head = this.catchCentre();
+    this.shapes.forEach((shape) => {
+      // A rejected shape was already knocked away; it must not re-arm the
+      // eat pose on its way out, or the monster would lunge at the food it
+      // just refused.
+      if (shape.rejected) return;
+
+      // A rising shape is on its way UP past the monster and has no chance of
+      // being eaten — it's the throw, not the catch. Reacting to it made the
+      // monster gape at the start of every single arc, which read as it being
+      // startled by its own food rather than waiting for it.
+      if (shape.body && shape.body.velocity.y < 0) return;
+
+      // Wider than the catch zone itself, so the monster starts opening before
+      // the shape is close enough to be eaten rather than at the same instant.
+      const dx = (shape.x - head.x) / (this.feedZone.radiusX * 1.5);
+      const dy = (shape.y - head.y) / (this.feedZone.radiusY * 1.5);
+      const near = dx * dx + dy * dy <= 1;
+
+      if (near && !shape.anticipating) {
+        shape.anticipating = true;
+        this.monster.anticipate();
+        this.monster.lookAt(shape.x, shape.y);
+      } else if (!near && shape.anticipating) {
+        shape.anticipating = false;
+      }
+    });
   }
 
   // -----------------------------------------------------------------------
   // Feeding
   // -----------------------------------------------------------------------
 
-  resolveFeedAttempt(sprite) {
+  resolveCatch(sprite) {
     if (sprite.shapeId === this.round.shape) {
       this.feedsThisRound += 1;
       this.feedsTotal += 1;
@@ -743,24 +1034,53 @@ export default class GameScene extends BaseScene {
 
       if (this.feedsThisRound >= FEEDS_PER_ROUND) this.completeRound();
     } else {
-      // Wrong shape — visual + mistake only. The sprite survives (it's still
-      // catchable) and the round/progress bar do NOT advance.
+      // Wrong shape: the monster rejects it and knocks it away rather than
+      // swallowing it. It has to be removed from play here — the catch test is
+      // a per-frame sweep, so a shape left inside the zone would be caught
+      // again on the very next frame and rack up a mistake per frame.
       this.mistakes += 1;
       this.streak = 0;
       this.flashRed();
       this.shake(this.promptContainer);
       this.playSound('wrong', 0.8);
       this.rejectMonster();
-      // Booted back up and to the LEFT, into the play area — a positive vx
-      // here would just carry it off the right edge behind the monster.
-      this.releaseToFlight(sprite, Phaser.Math.Between(-260, -140), -320, true);
+      this.monster.sulk();
+      this.knockAway(sprite);
     }
+  }
+
+  // Bounces a rejected shape up and away from the monster, then lets it fall
+  // out of play normally. Direction is away from the monster so it always
+  // clears the catch zone instead of re-entering it.
+  //
+  // Deliberately stays in `this.shapes`: update()'s loop is what tracks the
+  // ground shadow and despawns anything that falls off the bottom, so pulling
+  // it out of the list here would leave the sprite and its shadow frozen on
+  // screen forever. `rejected` is what excludes it from catch/anticipation.
+  knockAway(sprite) {
+    if (!sprite.body) {
+      this.removeShapeFromList(sprite);
+      this.destroyShape(sprite);
+      return;
+    }
+
+    // Direction of the knock is measured from the head, since that's what the
+    // shape just collided with — not the mouth, which sits lower down.
+    const head = this.catchCentre();
+    const away = sprite.x >= head.x ? 1 : -1;
+
+    sprite.rejected = true;
+    sprite.anticipating = false;
+    sprite.body.setAllowGravity(true);
+    sprite.body.setVelocity(away * Phaser.Math.Between(180, 300), -420);
+    sprite.setAngularVelocity(Phaser.Math.Between(-320, 320));
   }
 
   // Small reward beat near the monster on each correct feed.
   showFeedPop() {
+    const mouth = this.mouthPos();
     const label = this.add
-      .text(this.feedZone.x, this.feedZone.y - 90, '+1', {
+      .text(mouth.x, mouth.y - 90, '+1', {
         fontSize: '40px',
         fontFamily: 'Fredoka, sans-serif',
         fontStyle: 'bold',
@@ -781,15 +1101,19 @@ export default class GameScene extends BaseScene {
     });
   }
 
+  // Sucks the shape into the mouth. Reads the mouth's live position rather than
+  // a cached one, because the monster may still be walking as this fires.
   popIntoMonster(sprite) {
     this.removeShapeFromList(sprite);
     if (sprite.body) sprite.body.enable = false;
     sprite.disableInteractive();
 
+    const mouth = this.mouthPos();
+
     this.tweens.add({
       targets: sprite,
-      x: this.feedZone.x,
-      y: this.feedZone.y,
+      x: mouth.x,
+      y: mouth.y,
       scaleX: 0.1,
       scaleY: 0.1,
       alpha: 0,
@@ -810,23 +1134,8 @@ export default class GameScene extends BaseScene {
     if (i !== -1) this.shapes.splice(i, 1);
   }
 
-  // Tears down the held shape's glow + lift shadow. Shared by release and by
-  // the round/level teardown, so neither path can leave a stray shadow behind.
-  clearHeldVisuals() {
-    if (this.heldGlow) {
-      this.heldGlow.destroy();
-      this.heldGlow = null;
-    }
-    if (this.liftShadow) {
-      this.liftShadow.destroy();
-      this.liftShadow = null;
-    }
-  }
-
   // Clears anything still in flight, e.g. between rounds.
   clearShapes() {
-    this.heldShape = null;
-    this.clearHeldVisuals();
     this.shapes.forEach((sprite) => this.destroyShape(sprite));
     this.shapes = [];
   }
@@ -931,76 +1240,36 @@ export default class GameScene extends BaseScene {
   // Per-frame bookkeeping
   // -----------------------------------------------------------------------
 
-  update() {
-    const pointer = this.input.activePointer;
-
-    // Held shape follows the pointer with a light lerp — snapping exactly to
-    // the cursor reads badly on touch. Clamped to the canvas so a finger that
-    // strays off the edge doesn't park the shape outside it.
-    if (this.heldShape) {
-      const halfW = (this.heldShape.displayWidth || 0) / 2;
-      const halfH = (this.heldShape.displayHeight || 0) / 2;
-      const grabX = this.toWorldX(pointer.x);
-      const targetX = Phaser.Math.Clamp(
-        grabX - this.grabOffset.x,
-        halfW,
-        this.scale.width - halfW
-      );
-      const targetY = Phaser.Math.Clamp(
-        pointer.y - this.grabOffset.y,
-        halfH,
-        this.scale.height - halfH
-      );
-
-      // Track movement so onPointerUp() can tell a deliberate drop from a tap
-      // that merely landed near a shape.
-      const step = Phaser.Math.Distance.Between(
-        targetX, targetY, this.heldShape.x, this.heldShape.y
-      );
-      if (step > 3) this.heldDragged = true;
-
-      this.heldShape.x += (targetX - this.heldShape.x) * 0.35;
-      this.heldShape.y += (targetY - this.heldShape.y) * 0.35;
-      if (this.heldGlow) {
-        this.heldGlow.setPosition(this.heldShape.x, this.heldShape.y);
-      }
-      if (this.liftShadow) {
-        // Trails the shape slightly so a quick drag reads as the shape
-        // swinging above its shadow rather than dragging it rigidly along.
-        this.liftShadow.x += (this.heldShape.x - this.liftShadow.x) * 0.2;
-        this.liftShadow.y +=
-          (this.heldShape.y + LIFT_HEIGHT - this.liftShadow.y) * 0.2;
-      }
-
-      // Eyes track the held shape as it's dragged around.
-      this.monster.lookAt(this.heldShape.x, this.heldShape.y);
-    }
-
+  update(time, delta) {
     const { height } = this.scale;
 
+    // Steering first: it decides where the mouth is, and the catch test below
+    // reads that position through mouthPos().
+    this.updateSteering(delta);
+
+    // Approach cue + catch resolution, in that order — a shape that has just
+    // entered the zone should already be reared-up for by the time it lands.
+    this.checkAnticipation();
+    this.checkCatches();
+
     // Shadows track their shape's simulated height, and anything that falls
-    // past the bottom edge simply despawns — no penalty, no mistake.
+    // past the bottom edge simply despawns — no penalty, no mistake. A missed
+    // shape is its own punishment: the monster just doesn't get fed.
     for (let i = this.shapes.length - 1; i >= 0; i -= 1) {
       const sprite = this.shapes[i];
 
       if (sprite.shadow) {
-        // While held, fade the ground shadow out — the lift shadow created in
-        // onShapeGrabbed() takes over as the only shadow on screen.
-        if (sprite === this.heldShape) {
-          sprite.shadow.setAlpha(0);
-        } else {
-          // Lower on screen = closer to the ground = bigger, darker shadow.
-          const t = Phaser.Math.Clamp((sprite.y - 200) / (height - 200), 0, 1);
-          sprite.shadow.x = sprite.x;
-          sprite.shadow.setScale(0.55 + t * 0.75, 0.55 + t * 0.75);
-          sprite.shadow.setAlpha(0.08 + t * 0.18);
-        }
+        // Lower on screen = closer to the ground = bigger, darker shadow.
+        const t = Phaser.Math.Clamp((sprite.y - 200) / (height - 200), 0, 1);
+        sprite.shadow.x = sprite.x;
+        sprite.shadow.setScale(0.55 + t * 0.75, 0.55 + t * 0.75);
+        sprite.shadow.setAlpha(0.08 + t * 0.18);
       }
 
       // A world-bounds bounce only reverses on the next physics step, by which
       // point the sprite can be a few pixels outside the canvas — clamp it back
       // so it never actually leaves the visible area.
-      if (sprite.body && sprite !== this.heldShape) {
+      if (sprite.body) {
         const halfW = (sprite.displayWidth || 0) / 2;
         const halfH = (sprite.displayHeight || 0) / 2;
         if (sprite.x < halfW) sprite.x = halfW;
@@ -1008,7 +1277,7 @@ export default class GameScene extends BaseScene {
         if (sprite.y < halfH) sprite.y = halfH;
       }
 
-      if (sprite !== this.heldShape && sprite.y > height + 90) {
+      if (sprite.y > height + 90) {
         this.despawn(sprite);
       }
     }

@@ -11,7 +11,7 @@
 import { MONSTER_IMAGE_URLS } from './monster';
 
 export const IMAGES = {
-  'background': 'https://res.cloudinary.com/hijmipga/image/upload/v1789297946/background_2_odlkx2.png', // 2:3 portrait scene backdrop (wood grain + the four foods in the corners) — cover-fit full-screen, not a sprite
+  'background': 'https://res.cloudinary.com/hijmipga/image/upload/v1789378890/background_2_odlkx2.jpg', // 2:3 portrait scene backdrop (wood grain + the four foods in the corners) — cover-fit full-screen, not a sprite
   'cookie-circle': 'https://res.cloudinary.com/hijmipga/image/upload/v1789297282/cookie_hjnlx5.png',// original size 250x250
   'pizza-triangle': 'https://res.cloudinary.com/hijmipga/image/upload/v1789297278/pizza_zt7peq.png',// original size 250x225
   'cracker-square': 'https://res.cloudinary.com/hijmipga/image/upload/v1789297278/cracker_eah9fl.png',// original size 250x250
