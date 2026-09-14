@@ -25,6 +25,8 @@ import {
   addGameForClass,
   fetchGameAccessForClass,
   GAME_CATALOG,
+  GAME_TERMS,
+  groupGamesByTerm,
   mergeRows,
   removeGameForClass,
   setGameOrderForClass,
@@ -1176,6 +1178,12 @@ function GameCatalogue({ classId, teacherCode, isAdmin = false }) {
   const [error, setError] = useState(null);
   const [query, setQuery] = useState('');
   const [savingKey, setSavingKey] = useState(null);
+  // Term ids currently collapsed in the grouped catalogue. Stored as a Set of
+  // ids (not booleans per term). Starts with every term folded so the catalogue
+  // opens as a compact set of folders; a teacher expands the term they want.
+  const [collapsedTerms, setCollapsedTerms] = useState(
+    () => new Set(GAME_TERMS.map((term) => term.id))
+  );
 
   // An admin has NO class of their own — playerStore.classId is null for them —
   // so this tab has to ask which class it is editing. Without a class the fetch
@@ -1231,15 +1239,34 @@ function GameCatalogue({ classId, teacherCode, isAdmin = false }) {
 
   // Match against the title and the description so a teacher can search either
   // by game name or by what the game teaches (e.g. "number bonds", "counting").
-  const filteredGames = useMemo(() => {
+  // The catalogue is grouped by academic term. Matching is still run across the
+  // whole catalogue first, then grouped, so a term with no matches collapses
+  // cleanly rather than leaving an empty heading behind.
+  const filteredGroups = useMemo(() => {
     const term = query.trim().toLowerCase();
-    if (!term) return GAME_CATALOG;
-    return GAME_CATALOG.filter((game) => {
-      const haystack = `${game.title} ${game.label} ${game.subtitle} ${game.description || ''}`
-        .toLowerCase();
-      return haystack.includes(term);
-    });
+    const matches = !term
+      ? GAME_CATALOG
+      : GAME_CATALOG.filter((game) => {
+          const haystack = `${game.title} ${game.label} ${game.subtitle} ${game.description || ''}`
+            .toLowerCase();
+          return haystack.includes(term);
+        });
+    return groupGamesByTerm(matches);
   }, [query]);
+
+  const filteredCount = useMemo(
+    () => filteredGroups.reduce((sum, group) => sum + group.games.length, 0),
+    [filteredGroups]
+  );
+
+  const toggleTerm = (id) => {
+    setCollapsedTerms((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
   const toggle = async (game) => {
     if (!addedKeys || savingKey || !effectiveClassId) return;
@@ -1336,65 +1363,111 @@ function GameCatalogue({ classId, teacherCode, isAdmin = false }) {
       )}
 
       {status === 'ready' && (
-        <ul className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-          {filteredGames.map((game) => {
-            const isAdded = addedKeys.has(game.key);
-            const isSavingThis = savingKey === game.key;
-            const isBusy = Boolean(savingKey);
+        <div className="flex flex-col gap-3">
+          {filteredGroups.map((group) => {
+            const isCollapsed = collapsedTerms.has(group.id);
             return (
-              <li
-                key={game.key}
-                className="flex flex-col gap-3 rounded-2xl aura-card p-3.5 sm:p-4"
+              <section
+                key={group.id}
+                aria-label={group.label}
+                className="overflow-hidden rounded-2xl border border-white/15 bg-white/5"
               >
-                <div className="flex items-start gap-3">
-                  <span
-                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-xl leading-none"
-                    style={{ background: game.tint }}
-                  >
-                    {game.emoji}
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-start justify-between gap-2">
-                      <p className="min-w-0 flex-1 text-sm font-black leading-snug aura-text">
-                        {game.label}
-                      </p>
-                      <span
-                        className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-black ${
-                          isAdded
-                            ? 'bg-emerald-500/25 text-emerald-100'
-                            : 'bg-white/10 text-white/60'
-                        }`}
-                      >
-                        {isAdded ? 'Added' : 'Not added'}
-                      </span>
-                    </div>
-                    <p className="mt-0.5 whitespace-pre-line text-[11px] font-semibold leading-snug aura-muted">
-                      {game.subtitle}
-                    </p>
-                  </div>
-                </div>
-
-                <p className="text-xs font-semibold leading-snug aura-soft">{game.description}</p>
-
                 <button
                   type="button"
-                  onClick={() => toggle(game)}
-                  disabled={isBusy}
-                  className={`min-h-10 w-full rounded-xl px-3 text-xs font-black transition disabled:cursor-not-allowed disabled:opacity-55 ${
-                    isAdded
-                      ? 'bg-rose-500/25 text-rose-100 hover:bg-rose-500/40'
-                      : 'bg-indigo-600 text-white hover:bg-indigo-500'
-                  }`}
+                  onClick={() => toggleTerm(group.id)}
+                  aria-expanded={!isCollapsed}
+                  aria-controls={`catalogue-term-${group.id}`}
+                  className="flex w-full items-center gap-2.5 px-4 py-3 text-left transition hover:bg-white/5"
                 >
-                  {isSavingThis ? 'Saving…' : isAdded ? 'Remove' : '+ Add'}
+                  <span
+                    className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-xs font-black text-white/70 transition-transform duration-200 ${
+                      isCollapsed ? '' : 'rotate-90'
+                    }`}
+                    aria-hidden="true"
+                  >
+                    ▸
+                  </span>
+                  <span className="flex items-center gap-2">
+                    <span className="text-lg leading-none" aria-hidden="true">
+                      📁
+                    </span>
+                    <h3 className="text-sm font-black uppercase tracking-wide text-indigo-100">
+                      {group.label}
+                    </h3>
+                  </span>
+                  <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-black text-white/60">
+                    {group.games.length}
+                  </span>
                 </button>
-              </li>
+
+                <div
+                  id={`catalogue-term-${group.id}`}
+                  className={isCollapsed ? 'hidden' : ''}
+                >
+                  <ul className="grid grid-cols-1 gap-2.5 p-3 pt-0 sm:grid-cols-2">
+                {group.games.map((game) => {
+                  const isAdded = addedKeys.has(game.key);
+                  const isSavingThis = savingKey === game.key;
+                  const isBusy = Boolean(savingKey);
+                  return (
+                    <li
+                      key={game.key}
+                      className="flex flex-col gap-3 rounded-2xl aura-card p-3.5 sm:p-4"
+                    >
+                      <div className="flex items-start gap-3">
+                        <span
+                          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-xl leading-none"
+                          style={{ background: game.tint }}
+                        >
+                          {game.emoji}
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-start justify-between gap-2">
+                            <p className="min-w-0 flex-1 text-sm font-black leading-snug aura-text">
+                              {game.label}
+                            </p>
+                            <span
+                              className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-black ${
+                                isAdded
+                                  ? 'bg-emerald-500/25 text-emerald-100'
+                                  : 'bg-white/10 text-white/60'
+                              }`}
+                            >
+                              {isAdded ? 'Added' : 'Not added'}
+                            </span>
+                          </div>
+                          <p className="mt-0.5 whitespace-pre-line text-[11px] font-semibold leading-snug aura-muted">
+                            {game.subtitle}
+                          </p>
+                        </div>
+                      </div>
+
+                      <p className="text-xs font-semibold leading-snug aura-soft">{game.description}</p>
+
+                      <button
+                        type="button"
+                        onClick={() => toggle(game)}
+                        disabled={isBusy}
+                        className={`min-h-10 w-full rounded-xl px-3 text-xs font-black transition disabled:cursor-not-allowed disabled:opacity-55 ${
+                          isAdded
+                            ? 'bg-rose-500/25 text-rose-100 hover:bg-rose-500/40'
+                            : 'bg-indigo-600 text-white hover:bg-indigo-500'
+                        }`}
+                      >
+                        {isSavingThis ? 'Saving…' : isAdded ? 'Remove' : '+ Add'}
+                      </button>
+                    </li>
+                  );
+                    })}
+                  </ul>
+                </div>
+              </section>
             );
           })}
-        </ul>
+        </div>
       )}
 
-      {status === 'ready' && filteredGames.length === 0 && (
+      {status === 'ready' && filteredCount === 0 && (
         <div className="rounded-2xl border border-dashed border-white/25 bg-white/10 px-5 py-8 text-center">
           <span className="text-4xl">🔍</span>
           <p className="mt-3 text-base font-black aura-text">No games found</p>

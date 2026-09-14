@@ -15,6 +15,7 @@ const FETCH_TIMEOUT_MS = 12_000; // 12 s — enough for a Render cold start
 export const GAME_CATALOG = [
   {
     key: '1',
+    term: 3,
     emoji: '🧶',
     label: 'Count & Win!',
     title: 'Count & Win!',
@@ -29,6 +30,7 @@ export const GAME_CATALOG = [
   },
   {
     key: '2',
+    term: 3,
     emoji: '🧸',
     label: 'Comparing Quantities',
     title: 'Comparing Quantities',
@@ -43,6 +45,7 @@ export const GAME_CATALOG = [
   },
   {
     key: '3',
+    term: 3,
     emoji: '🐙',
     label: 'Which Number?',
     title: 'Which Number?',
@@ -57,6 +60,7 @@ export const GAME_CATALOG = [
   },
   {
     key: '4',
+    term: 3,
     emoji: '🎲',
     label: 'Compare Die and Dominoes',
     title: 'Compare Die and Dominoes',
@@ -71,6 +75,7 @@ export const GAME_CATALOG = [
   },
   {
     key: '5',
+    term: 3,
     emoji: '🚀',
     label: 'Making & Splitting Groups',
     title: 'Making & Splitting Groups',
@@ -85,6 +90,7 @@ export const GAME_CATALOG = [
   },
   {
     key: '6',
+    term: 3,
     emoji: '🗝️',
     label: 'Part-Part-Whole!',
     title: 'Part-Part-Whole!',
@@ -99,6 +105,7 @@ export const GAME_CATALOG = [
   },
   {
     key: 'b1',
+    term: 3,
     emoji: '9️⃣',
     label: 'Number Pop! (Bonus)',
     title: 'Number Pop!',
@@ -114,6 +121,7 @@ export const GAME_CATALOG = [
   },
   {
     key: '7',
+    term: 3,
     emoji: '🥚',
     label: "Mama Bird's Eggs",
     title: "Mama Bird's Eggs",
@@ -128,6 +136,7 @@ export const GAME_CATALOG = [
   },
   {
     key: '8',
+    term: 3,
     emoji: '\uD83C\uDF55',
     label: 'Pizza Order!',
     title: 'Pizza Order!',
@@ -142,6 +151,7 @@ export const GAME_CATALOG = [
   },
   {
     key: '9',
+    term: 3,
     emoji: '\uD83E\uDD9C',
     label: "Polly's Treasure Quest",
     title: "Polly's Treasure Quest",
@@ -156,6 +166,7 @@ export const GAME_CATALOG = [
   },
   {
     key: '10',
+    term: 4,
     emoji: '\uD83C\uDF55',
     label: 'Feed the Shapes',
     title: 'Feed the Shapes',
@@ -171,6 +182,26 @@ export const GAME_CATALOG = [
 ];
 
 export const GAME_KEYS = GAME_CATALOG.map((game) => game.key);
+
+// Academic terms a game can belong to, in the order they should be presented.
+// `term` on each catalogue entry is the numeric id here. Kept as a single
+// source of truth so the catalogue grouping and any future term badge never
+// drift from each other.
+export const GAME_TERMS = [
+  { id: 3, label: 'Term 3' },
+  { id: 4, label: 'Term 4' },
+];
+
+// Groups a list of games by term for a grouped catalogue view. Preserves the
+// input order within each term (GAME_CATALOG order when called with the full
+// catalogue) and drops terms that have no games.
+export function groupGamesByTerm(games = GAME_CATALOG) {
+  const list = Array.isArray(games) ? games : [];
+  return GAME_TERMS.map((term) => ({
+    ...term,
+    games: list.filter((game) => game.term === term.id),
+  })).filter((group) => group.games.length > 0);
+}
 
 function normalizeKey(gameKey) {
   return String(gameKey);

@@ -7,6 +7,8 @@ import {
   useGameAccessStore,
   GAME_CATALOG,
   GAME_KEYS,
+  GAME_TERMS,
+  groupGamesByTerm,
 } from './gameAccess';
 
 // The homepage reads game access through a 7-day localStorage cache that is
@@ -151,6 +153,31 @@ describe('GAME_CATALOG', () => {
       expect(game.progressKey, `${game.label} has no progressKey`).toBeTruthy();
       expect(game.title, `${game.label} has no title`).toBeTruthy();
     }
+  });
+
+  it('tags every game with a known academic term', () => {
+    const termIds = new Set(GAME_TERMS.map((t) => t.id));
+    for (const game of GAME_CATALOG) {
+      expect(
+        termIds.has(game.term),
+        `${game.label} has an unknown term (${game.term})`
+      ).toBe(true);
+    }
+  });
+
+  it('groups games by term without reordering within a term', () => {
+    const groups = groupGamesByTerm();
+    const groupedKeys = groups.flatMap((g) => g.games.map((game) => game.key));
+
+    // Every game lands in exactly one term group, and the flattened order
+    // matches the catalogue order.
+    expect(groupedKeys).toEqual(GAME_KEYS);
+    expect(groups.map((g) => g.id).sort()).toEqual(GAME_TERMS.map((t) => t.id).sort());
+  });
+
+  it('drops terms that have no games in the input', () => {
+    const groups = groupGamesByTerm([{ key: '1', term: 3 }]);
+    expect(groups.map((g) => g.id)).toEqual([3]);
   });
 });
 
