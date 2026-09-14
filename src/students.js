@@ -1,7 +1,6 @@
 import { create } from 'zustand';
 import { usePlayerStore } from './playerStore';
-
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
+import { API_BASE, fetchWithTimeout } from './apiClient';
 
 // Generates a short, kid-friendly login code: 6 uppercase alphanumeric chars.
 // Collision probability is negligible for typical class sizes.
@@ -40,19 +39,14 @@ export const useStudentStore = create((set, get) => ({
 
     set({ loading: true, error: null });
 
-    // Abort if the server doesn't respond within 12 s — same window the
-    // game-access fetch uses. This prevents a hung request from permanently
-    // blocking the student roster tab.
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 12_000);
-
+    // Same 12 s window the game-access fetch uses, so a hung request can never
+    // permanently block the student roster tab.
     try {
-      const response = await fetch(
+      const response = await fetchWithTimeout(
         `${API_BASE}/api/students?teacherCode=${encodeURIComponent(teacherCode)}`,
-        { signal: controller.signal }
+        {},
+        12_000
       );
-
-      clearTimeout(timeoutId);
 
       if (!response.ok) throw new Error('Failed to load students');
 
@@ -65,10 +59,7 @@ export const useStudentStore = create((set, get) => ({
         loading: false,
       });
     } catch (error) {
-      clearTimeout(timeoutId);
-      const message = error.name === 'AbortError'
-        ? 'The server is taking too long. Please try again.'
-        : error.message;
+      const message = error.message || 'Failed to load students';
       console.error(error);
       set({ loading: false, error: message });
     }

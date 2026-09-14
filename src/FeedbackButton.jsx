@@ -2,10 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { usePlayerStore } from './playerStore';
 import { ICON_URL } from './brand';
-
-// The API that emails the feedback. Same env var every other helper in the app
-// uses, so it follows whichever target the frontend is built for.
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
+import { API_BASE, fetchWithTimeout } from './apiClient';
 
 // Best-effort public IP. The backend already knows the real client address from
 // the request itself and treats that as authoritative, so this is a secondary
@@ -177,7 +174,7 @@ export default function FeedbackButton() {
     };
 
     try {
-      const res = await fetch(`${API_BASE}/api/feedback`, {
+      const res = await fetchWithTimeout(`${API_BASE}/api/feedback`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),

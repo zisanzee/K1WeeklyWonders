@@ -30,7 +30,7 @@ import {
   TOTAL_ROUNDS,
   FEEDS_PER_ROUND,
 } from './levels';
-import { ensureBgMusic, addMuteButton } from './audioState';
+import { ensureBgMusic, addMuteButton } from '../../Phaser/common/audioState';
 import createMonster, {
   MONSTER_START_X,
   MONSTER_CATCH_RADIUS_X,

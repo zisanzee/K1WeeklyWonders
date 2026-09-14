@@ -393,6 +393,7 @@ function SortableGameSlot({
   onToggleAccess,
   onToggleShiny,
   onSchedule,
+  onCancelSchedule,
 }) {
   const {
     attributes,
@@ -518,24 +519,45 @@ function SortableGameSlot({
             {/* Scheduling only makes sense for a game that is still locked;
                 once it is unlocked the panel hides the control entirely. */}
             {!game.unlocked && (
-              <button
-                type="button"
-                onClick={() => onSchedule(game)}
-                disabled={disabled}
-                title={
-                  game.unlockAt
-                    ? `Scheduled for ${formatUnlockAt(game.unlockAt)} — tap to change`
-                    : 'Schedule unlock'
-                }
-                aria-label={`Schedule an unlock time for ${game.label}`}
-                className={`flex h-8 w-8 items-center justify-center rounded-lg transition disabled:cursor-not-allowed disabled:opacity-50 sm:h-10 sm:w-10 sm:rounded-xl ${
-                  game.unlockAt
-                    ? 'bg-gradient-to-br from-sky-400 to-blue-600 text-white shadow-sm'
-                    : 'bg-sky-500/25 text-sky-100 hover:bg-sky-500/40'
-                }`}
-              >
-                <ClockIcon className="h-4 w-4 sm:h-5 sm:w-5" />
-              </button>
+              <>
+                <button
+                  type="button"
+                  onClick={() => onSchedule(game)}
+                  disabled={disabled}
+                  title={
+                    game.unlockAt
+                      ? `Scheduled for ${formatUnlockAt(game.unlockAt)} — tap to change`
+                      : 'Schedule unlock'
+                  }
+                  aria-label={`Schedule an unlock time for ${game.label}`}
+                  className={`flex h-8 w-8 items-center justify-center rounded-lg transition disabled:cursor-not-allowed disabled:opacity-50 sm:h-10 sm:w-10 sm:rounded-xl ${
+                    game.unlockAt
+                      ? 'bg-gradient-to-br from-sky-400 to-blue-600 text-white shadow-sm'
+                      : 'bg-sky-500/25 text-sky-100 hover:bg-sky-500/40'
+                  }`}
+                >
+                  <ClockIcon className="h-4 w-4 sm:h-5 sm:w-5" />
+                </button>
+
+                {/* Only shown once something is actually scheduled — there is
+                    nothing to cancel otherwise. Clears the schedule WITHOUT
+                    unlocking the game, which is why it is separate from the
+                    unlock toggle rather than a second click on it. */}
+                {game.unlockAt && (
+                  <button
+                    type="button"
+                    onClick={() => onCancelSchedule(game)}
+                    disabled={disabled}
+                    title={`Cancel the scheduled unlock for ${formatUnlockAt(game.unlockAt)}`}
+                    aria-label={`Cancel the scheduled unlock for ${game.label}`}
+                    className="flex h-8 w-8 items-center justify-center rounded-lg bg-rose-500/25 text-rose-100 transition hover:bg-rose-500/45 disabled:cursor-not-allowed disabled:opacity-50 sm:h-10 sm:w-10 sm:rounded-xl"
+                  >
+                    <svg viewBox="0 0 24 24" className="h-4 w-4 sm:h-5 sm:w-5" fill="currentColor" aria-hidden="true">
+                      <path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
+                    </svg>
+                  </button>
+                )}
+              </>
             )}
 
             <button
@@ -736,6 +758,49 @@ function GameAccessEditor({
     }
   };
 
+  // Clears a pending schedule WITHOUT unlocking the game — the two are
+  // separate intents, which is why this calls the schedule endpoint with null
+  // rather than toggling `unlocked`. The game stays locked and simply has no
+  // countdown any more.
+  //
+  // Confirmed first: the row's cancel button sits directly beside the schedule
+  // and unlock buttons, so an accidental tap would silently drop a countdown
+  // the teacher deliberately set.
+  const handleCancelSchedule = async (game) => {
+    if (!game?.unlockAt) return;
+    const ok = await confirmDialog({
+      title: `Cancel the scheduled unlock for ${game.label}?`,
+      message: `It will no longer unlock on its own. The game stays locked until you unlock it yourself.`,
+      confirmLabel: 'Cancel schedule',
+      cancelLabel: 'Keep it',
+      danger: true,
+      icon: '⏰',
+    });
+    if (!ok) return;
+
+    setLocalError(null);
+    onGlobalError(null);
+    setLocalSaving(true);
+    onGlobalSavingChange(true);
+    try {
+      await setGameUnlockScheduleForClass(game.key, null, classId, teacherCode);
+      // unlockAt must be cleared in BOTH lists, or Reset would resurrect the
+      // cancelled schedule from the saved snapshot.
+      const patch = (list) =>
+        list.map((item) =>
+          item.key === game.key ? { ...item, unlockAt: null } : item
+        );
+      setDraftGames(patch);
+      setOriginalGames(patch);
+      setScheduleTarget(null);
+    } catch (err) {
+      setLocalError(err.message || 'Could not cancel this schedule.');
+    } finally {
+      setLocalSaving(false);
+      onGlobalSavingChange(false);
+    }
+  };
+
   const handleReset = () => {
     setDraftGames(copyGames(originalGames));
     setLastMove(null);
@@ -894,6 +959,7 @@ function GameAccessEditor({
                 onToggleAccess={handleToggleAccess}
                 onToggleShiny={handleToggleShiny}
                 onSchedule={setScheduleTarget}
+                onCancelSchedule={handleCancelSchedule}
               />
             ))}
           </ul>
@@ -965,6 +1031,7 @@ function GameAccessEditor({
             saving={localSaving || isSaving}
             onCancel={() => setScheduleTarget(null)}
             onConfirm={(iso) => handleSchedule(scheduleTarget.key, iso)}
+            onCancelSchedule={() => handleCancelSchedule(scheduleTarget)}
           />
         )}
       </AnimatePresence>
@@ -974,7 +1041,7 @@ function GameAccessEditor({
 
 // Modal for picking the unlock moment. Split out so its draft input state
 // resets naturally each time it is opened for a different game.
-function ScheduleUnlockDialog({ game, saving, onCancel, onConfirm }) {
+function ScheduleUnlockDialog({ game, saving, onCancel, onConfirm, onCancelSchedule }) {
   const [value, setValue] = useState(() =>
     game.unlockAt ? toLocalInput(game.unlockAt) : defaultUnlockInput()
   );
@@ -1055,8 +1122,8 @@ function ScheduleUnlockDialog({ game, saving, onCancel, onConfirm }) {
         </div>
 
         <p className="rounded-xl bg-white/10 px-3 py-2 text-[11px] font-semibold aura-soft">
-          The game stays locked and unlocks by itself at this time. Unlocking it early cancels the
-          schedule.
+          The game stays locked and unlocks by itself at this time. You can also unlock it early, or
+          cancel the schedule below to leave it locked with no set time.
         </p>
 
         <div className="flex gap-2">
@@ -1076,6 +1143,21 @@ function ScheduleUnlockDialog({ game, saving, onCancel, onConfirm }) {
             Cancel
           </button>
         </div>
+
+        {/* Offered here as well as in the row, because the most likely moment
+            to realise a schedule is wrong is while editing it. Changing a
+            schedule is a re-save; REMOVING one needs its own action, since
+            there is no valid time that means "none". */}
+        {game.unlockAt && (
+          <button
+            type="button"
+            onClick={onCancelSchedule}
+            disabled={saving}
+            className="aura-ghost-danger min-h-11 text-sm disabled:opacity-50"
+          >
+            {saving ? 'Working…' : 'Cancel scheduled unlock'}
+          </button>
+        )}
       </motion.form>
     </motion.div>
   );
@@ -1389,8 +1471,12 @@ function AddStudentForm({ classId, teacherCode, onAdded }) {
 }
 
 // One roster/identity row. Rostered students are fully editable; "light" names
-// (no Student record) are selectable for merging and can be deleted, but not
-// edited — there is no record to rename, only play history to remove.
+// (no Student record) are selectable for merging but not editable — there is no
+// record to rename, only play history to remove.
+//
+// Deleting, by contrast, applies to BOTH kinds. Each row is the only thing
+// keeping that entry alive (a Student document, or a set of play sessions), so
+// the delete control is deliberately not gated on `rostered`.
 function IdentityRow({
   identity,
   classId,
@@ -1536,61 +1622,60 @@ function IdentityRow({
             </p>
           </div>
 
-          {identity.rostered && (
-            <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
-              <button
-                type="button"
-                onClick={() => onBadge(identity)}
-                title="Generate badge with QR code"
-                aria-label={`Generate badge for ${identity.name}`}
-                className="aura-btn-gold aura-btn h-9 w-9 active:scale-95"
-              >
-                <svg viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor" aria-hidden="true">
-                  <path d="M3 11h8V3H3v8zm2-6h4v4H5V5zM13 3v8h8V3h-8zm6 6h-4V5h4v4zM3 21h8v-8H3v8zm2-6h4v4H5v-4zM18 13h-2v2h2v-2zM13 13h2v2h-2v-2zM18 18h2v2h-2v-2zM13 18h2v2h-2v-2z" />
-                </svg>
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setName(identity.name || '');
-                  setCode(identity.code || '');
-                  setError(null);
-                  setEditing(true);
-                }}
-                title="Edit student"
-                aria-label={`Edit ${identity.name}`}
-                className="aura-icon-btn h-9 w-9 active:scale-95"
-              >
-                <svg viewBox="0 0 24 24" className="h-[18px] w-[18px]" fill="currentColor" aria-hidden="true">
-                  <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34a.9959.9959 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z" />
-                </svg>
-              </button>
-            </div>
-          )}
-
-          {/* A light identity has no code, so the badge and edit buttons above
-              don't apply — but deleting it does, since its play history is the
-              only thing keeping the row alive. */}
-          {!identity.rostered && (
-            <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
-              <button
-                type="button"
-                onClick={handleDelete}
-                disabled={deleting}
-                title="Delete player"
-                aria-label={`Delete ${identity.name}`}
-                className="aura-icon-btn aura-ghost-danger h-9 w-9 active:scale-95 disabled:opacity-60"
-              >
-                {deleting ? (
-                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                ) : (
-                  <svg viewBox="0 0 24 24" className="h-[18px] w-[18px]" fill="currentColor" aria-hidden="true">
-                    <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" />
+          {/* Badge and edit both act on a Student record, so they are
+              rostered-only. Delete is NOT part of that gate — it is rendered
+              for every identity, because a rostered student and a light name
+              are each removable. */}
+          <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+            {identity.rostered && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => onBadge(identity)}
+                  title="Generate badge with QR code"
+                  aria-label={`Generate badge for ${identity.name}`}
+                  className="aura-btn-gold aura-btn h-9 w-9 active:scale-95"
+                >
+                  <svg viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor" aria-hidden="true">
+                    <path d="M3 11h8V3H3v8zm2-6h4v4H5V5zM13 3v8h8V3h-8zm6 6h-4V5h4v4zM3 21h8v-8H3v8zm2-6h4v4H5v-4zM18 13h-2v2h2v-2zM13 13h2v2h-2v-2zM18 18h2v2h-2v-2zM13 18h2v2h-2v-2z" />
                   </svg>
-                )}
-              </button>
-            </div>
-          )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setName(identity.name || '');
+                    setCode(identity.code || '');
+                    setError(null);
+                    setEditing(true);
+                  }}
+                  title="Edit student"
+                  aria-label={`Edit ${identity.name}`}
+                  className="aura-icon-btn h-9 w-9 active:scale-95"
+                >
+                  <svg viewBox="0 0 24 24" className="h-[18px] w-[18px]" fill="currentColor" aria-hidden="true">
+                    <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34a.9959.9959 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z" />
+                  </svg>
+                </button>
+              </>
+            )}
+
+            <button
+              type="button"
+              onClick={handleDelete}
+              disabled={deleting}
+              title="Delete player"
+              aria-label={`Delete ${identity.name}`}
+              className="aura-icon-btn aura-ghost-danger h-9 w-9 active:scale-95 disabled:opacity-60"
+            >
+              {deleting ? (
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+              ) : (
+                <svg viewBox="0 0 24 24" className="h-[18px] w-[18px]" fill="currentColor" aria-hidden="true">
+                  <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" />
+                </svg>
+              )}
+            </button>
+          </div>
         </div>
       )}
     </li>

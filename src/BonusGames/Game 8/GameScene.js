@@ -10,7 +10,7 @@
 import * as Phaser from 'phaser';
 import BaseScene from '../../Phaser/BaseScene';
 import { buildRoundSequence, TOTAL_ROUNDS, MODES, ROUNDS_PER_HALF } from './levels';
-import { ensureBgMusic, addMuteButton } from './audioState';
+import { ensureBgMusic, addMuteButton } from '../../Phaser/common/audioState';
 import { playNumberVoice } from '../../Phaser/common/numbersVoice';
 
 // Layout constants (720x1080 base resolution — see Phaser/config.js).

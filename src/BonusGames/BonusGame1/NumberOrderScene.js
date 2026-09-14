@@ -316,7 +316,7 @@ export default class NumberOrderScene extends BaseScene {
 
     const wordText = this.add.text(0, 3, '', {
       fontSize: '34px',
-      fontFamily: 'Nunito, sans-serif',
+      fontFamily: 'Fredoka, sans-serif',
       fontStyle: 'bold',
       color: '#4a6478',
     }).setOrigin(0, 0.5);
@@ -913,7 +913,7 @@ this.nextChip = this.createLastTappedChip(width / 2, 152);
 
     const leftPart = this.add.text(0, 0, 'You did it in ', {
       fontSize: '24px',
-      fontFamily: 'Nunito, sans-serif',
+      fontFamily: 'Fredoka, sans-serif',
       color: '#0f3d5c',
     }).setOrigin(0, 0.5);
 
@@ -933,7 +933,7 @@ this.nextChip = this.createLastTappedChip(width / 2, 152);
     const star = this.add.text(0, -panelH / 2 + 186, '⭐', { fontSize: '52px' }).setOrigin(0.5).setScale(0);
     const starLabel = this.add.text(0, -panelH / 2 + 232, `⭐ ${progress.totalStars()}/${LEVELS.length} stars total`, {
       fontSize: '22px',
-      fontFamily: 'Nunito, sans-serif',
+      fontFamily: 'Fredoka, sans-serif',
       fontStyle: 'bold',
       color: '#4a6478',
     }).setOrigin(0.5);

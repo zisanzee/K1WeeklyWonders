@@ -309,8 +309,6 @@ function Game2Inner() {
         @keyframes breathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.06); } }
         @keyframes sun-pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.06); } }
         @keyframes shimmer { 0% { transform: translateX(-100%); } 100% { transform: translateX(220%); } }
-        .font-heading { font-family: 'Fredoka', sans-serif; }
-        .font-body { font-family: 'Fredoka', sans-serif; }
         .animate-float-slow { animation: float-slow 6s ease-in-out infinite; will-change: transform; }
         .animate-float-slower { animation: float-slower 8s ease-in-out infinite; will-change: transform; }
         .animate-pop-in { animation: pop-in 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both; }

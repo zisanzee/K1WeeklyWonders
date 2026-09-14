@@ -264,8 +264,6 @@ function Game1Inner() {
         @keyframes glow-pulse { 0%, 100% { box-shadow: 0 0 0 rgba(255,217,61,0); } 50% { box-shadow: 0 0 0 10px rgba(255,217,61,0.35); } }
         @keyframes shimmer { 0% { transform: translateX(-100%); } 100% { transform: translateX(220%); } }
         @keyframes basket-rock { 0%, 100% { transform: rotate(-0.6deg); } 50% { transform: rotate(0.6deg); } }
-        .font-heading { font-family: 'Fredoka', sans-serif; }
-        .font-body { font-family: 'Fredoka', sans-serif; }
         .animate-float-slow { animation: float-slow 6s ease-in-out infinite; will-change: transform; }
         .animate-float-slower { animation: float-slower 8s ease-in-out infinite; will-change: transform; }
         .animate-pop-in { animation: pop-in 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both; }

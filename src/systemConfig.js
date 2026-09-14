@@ -1,6 +1,5 @@
 import { create } from 'zustand';
-
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
+import { requestJson } from './apiClient';
 
 // Maintenance mode is a rare, near-never toggle, but the app used to block its
 // ENTIRE first paint on a request to learn "maintenance is off" — one of three
@@ -59,9 +58,7 @@ export const useSystemConfigStore = create((set) => ({
 
   fetchConfig: async () => {
     try {
-      const response = await fetch(`${API_BASE}/api/system/config`);
-      if (!response.ok) throw new Error('Could not load system config');
-      const data = await response.json();
+      const data = await requestJson('/api/system/config', { timeoutMs: 8_000 });
       const next = {
         maintenanceMode: Boolean(data.maintenanceMode),
         maintenanceMessage: data.maintenanceMessage || '',
@@ -82,15 +79,11 @@ export const useSystemConfigStore = create((set) => ({
   // Admin-only. Optimistically reflects the response so the admin UI updates
   // immediately without waiting for the next poll.
   patchConfig: async (patch, teacherCode) => {
-    const response = await fetch(`${API_BASE}/api/system/config`, {
+    const data = await requestJson('/api/system/config', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ...patch, teacherCode }),
     });
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      throw new Error(data.error || 'Could not update system config');
-    }
     const next = {
       maintenanceMode: Boolean(data.maintenanceMode),
       maintenanceMessage: data.maintenanceMessage || '',

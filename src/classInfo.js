@@ -1,4 +1,4 @@
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
+import { requestJson } from './apiClient';
 
 // Thin fetch helper shared by every class/system endpoint. Always throws
 // Error(body.error) so callers can show the server's message verbatim.
@@ -7,15 +7,11 @@ async function request(path, { method = 'GET', body, teacherCode } = {}) {
   // Teacher/admin code rides in the body for writes; reads put it in the query.
   if (payload && teacherCode) payload.teacherCode = teacherCode;
 
-  const response = await fetch(`${API_BASE}${path}`, {
+  return requestJson(path, {
     method,
     headers: payload ? { 'Content-Type': 'application/json' } : undefined,
     body: payload ? JSON.stringify(payload) : undefined,
   });
-
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data.error || 'Request failed');
-  return data;
 }
 
 // Returns class detail: { classId, className, classAlias, classYear, classCode,

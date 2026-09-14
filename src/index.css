@@ -51,6 +51,12 @@ body,
   <link> to these families from a component: it cannot start until that lazy
   chunk has executed, so the font competes with the page for a round trip and
   text visibly re-flows on arrival.
+
+  Fredoka is deliberately used for BOTH roles. The app previously asked for a
+  "Nunito" body face in ~16 places, but Nunito was never requested in
+  index.html and no local copy exists, so every one of those silently fell back
+  to the OS sans-serif — and this file disagreed with them by declaring
+  .font-body as Fredoka anyway. One loaded family, one truth.
 */
 .font-heading {
   font-family: "Fredoka", sans-serif;

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'motion/react';
 import Confetti from 'react-confetti';
@@ -136,9 +136,6 @@ function getBlockIndex(roundIndex) {
   return Math.floor(roundIndex / 5);
 }
 
-function capitalize(s) {
-  return s.charAt(0).toUpperCase() + s.slice(1);
-}
 
 function shuffle(arr) {
   const a = [...arr];
@@ -568,8 +565,6 @@ function Game3Inner() {
         @keyframes sway { 0%, 100% { transform: rotate(-5deg); } 50% { transform: rotate(5deg); } }
         @keyframes rise-bubble { 0% { transform: translateY(0); opacity: 0; } 8% { opacity: 0.8; } 92% { opacity: 0.8; } 100% { transform: translateY(-115vh); opacity: 0; } }
         @keyframes swim-fish { 0% { transform: translateX(110vw); } 100% { transform: translateX(-110vw); } }
-        .font-heading { font-family: 'Fredoka', sans-serif; }
-        .font-body { font-family: 'Fredoka', sans-serif; }
         .animate-pop-in { animation: pop-in 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
         .animate-sparkle { animation: sparkle 1.8s ease-in-out infinite; will-change: transform, opacity; }
         .animate-shake { animation: shake 0.4s ease-in-out; }

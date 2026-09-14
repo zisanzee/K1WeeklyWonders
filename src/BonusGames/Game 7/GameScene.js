@@ -11,7 +11,7 @@
 import * as Phaser from 'phaser';
 import BaseScene from '../../Phaser/BaseScene';
 import { LEVELS, buildRounds, TOTAL_ROUNDS } from './levels';
-import { ensureBgMusic, addMuteButton } from './audioState';
+import { ensureBgMusic, addMuteButton } from '../../Phaser/common/audioState';
 import { playNumberVoice } from '../../Phaser/common/numbersVoice';
 
 // ---------------------------------------------------------------------------

@@ -37,7 +37,7 @@ function GameAccessPageContent() {
         <h1 style={{ fontFamily: "'Fredoka', sans-serif" }} className="aura-text text-2xl font-bold sm:text-3xl">
           Teachers only
         </h1>
-        <p style={{ fontFamily: "'Nunito', sans-serif" }} className="aura-soft max-w-xs text-sm font-semibold sm:text-base">
+        <p className="font-body aura-soft max-w-xs text-sm font-semibold sm:text-base">
           This page is for teacher accounts only.
         </p>
         <Link

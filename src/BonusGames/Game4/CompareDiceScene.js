@@ -7,7 +7,7 @@
 import * as Phaser from 'phaser';
 import BaseScene from '../../Phaser/BaseScene';
 import { LEVELS, buildRounds, progress } from './levels';
-import { ensureBgMusic, addMuteButton } from './audioState';
+import { ensureBgMusic, addMuteButton } from '../../Phaser/common/audioState';
 
 // Shared look for the big "on top" texts (title + prompt): bold, large,
 // with a white outline so they stay readable over the busy background art.

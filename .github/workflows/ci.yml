@@ -1,0 +1,31 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      # `npm ci` rather than `npm install`: the lockfile is the contract, and a
+      # CI run that silently resolves a different tree can pass here and fail
+      # on a deploy that does use it.
+      - run: npm ci
+
+      - run: npm run lint
+
+      - run: npm test
+
+      # The build is deliberately last and is not redundant with the two above:
+      # Vite 8 + rolldown fails on config shapes (e.g. an object-form
+      # manualChunks) that neither lint nor the unit tests would ever load.
+      - run: npm run build

@@ -337,8 +337,6 @@ function Game5Inner() {
         @keyframes flicker { 0%, 100% { transform: scaleY(1) translateY(0); opacity: 1; } 50% { transform: scaleY(1.25) translateY(2px); opacity: 0.8; } }
         @keyframes flame { 0%, 100% { transform: scaleY(1) scaleX(1) translateY(0); opacity: 1; } 30% { transform: scaleY(1.3) scaleX(0.9) translateY(-2px); opacity: 0.9; } 60% { transform: scaleY(0.85) scaleX(1.1) translateY(1px); opacity: 1; } }
         @keyframes flame2 { 0%, 100% { transform: scaleY(0.9) scaleX(1.1) translateY(0); opacity: 0.7; } 40% { transform: scaleY(1.2) scaleX(0.85) translateY(-3px); opacity: 0.5; } 70% { transform: scaleY(1) scaleX(1) translateY(1px); opacity: 0.75; } }
-        .font-heading { font-family: 'Fredoka', sans-serif; }
-        .font-body { font-family: 'Fredoka', sans-serif; }
         .animate-twinkle { animation: twinkle 2.4s ease-in-out infinite; will-change: opacity; }
         .animate-drift { animation: drift 7s ease-in-out infinite; will-change: transform; }
         .animate-pop-in { animation: pop-in 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both; }

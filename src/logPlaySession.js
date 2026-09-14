@@ -1,11 +1,10 @@
 import { usePlayerStore } from './playerStore';
+import { API_BASE, withQuery, fetchWithTimeout } from './apiClient';
+import { detectDevice } from './deviceFingerprint';
 
-// Copy this file into your React project, e.g. src/lib/logPlaySession.js
-//
-// Reads the server URL from Vite's env system:
-//   .env.local        VITE_API_BASE_URL=http://localhost:4000
-//   .env (deployed)   VITE_API_BASE_URL=https://your-server.onrender.com
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
+// The API origin, query-string building and the fetch timeout all come from
+// apiClient.js — this file used to redeclare its own copy of the first two and
+// a third, differently-timed version of the last.
 
 // Same default class NameGate.jsx falls back to for players who never see
 // a class picker. Anyone whose classId is missing — a very old cached
@@ -13,46 +12,8 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
 // attributed here instead of the server rejecting the session outright.
 const LEGACY_CLASS_ID = 'k12026-pny';
 
-function withQuery(path, params) {
-  const query = new URLSearchParams(
-    Object.entries(params).filter(([, value]) => value != null && value !== '')
-  );
-  return `${API_BASE}${path}?${query.toString()}`;
-}
-
-// Coarse, dependency-free device fingerprint — good enough to spot "this
-// game lags on Android tablets" patterns, not meant to be precise. Runs
-// client-side since the server never sees the browser directly.
-function detectDevice() {
-  if (typeof navigator === 'undefined') return null;
-  const ua = navigator.userAgent || '';
-
-  let os = 'Unknown OS';
-  // Modern iPadOS Safari reports itself as "Macintosh" — the touch-points
-  // check is the standard way to tell it apart from an actual Mac.
-  if (/iPad/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1)) os = 'iPadOS';
-  else if (/iPhone|iPod/.test(ua)) os = 'iOS';
-  else if (/Android/.test(ua)) os = 'Android';
-  else if (/Windows/.test(ua)) os = 'Windows';
-  else if (/Macintosh/.test(ua)) os = 'macOS';
-  else if (/CrOS/.test(ua)) os = 'ChromeOS';
-  else if (/Linux/.test(ua)) os = 'Linux';
-
-  let browser = 'Unknown browser';
-  if (/Edg\//.test(ua)) browser = 'Edge';
-  else if (/OPR\//.test(ua)) browser = 'Opera';
-  else if (/CriOS\//.test(ua)) browser = 'Chrome (iOS)';
-  else if (/FxiOS\//.test(ua)) browser = 'Firefox (iOS)';
-  else if (/Chrome\//.test(ua)) browser = 'Chrome';
-  else if (/Firefox\//.test(ua)) browser = 'Firefox';
-  else if (/Safari\//.test(ua) && /Version\//.test(ua)) browser = 'Safari';
-
-  let kind = 'desktop';
-  if (os === 'iPadOS' || /Tablet/.test(ua) || (os === 'Android' && !/Mobile/.test(ua))) kind = 'tablet';
-  else if (os === 'iOS' || /Mobile/.test(ua)) kind = 'mobile';
-
-  return { kind, os, browser, userAgent: ua.slice(0, 300) };
-}
+// The fingerprint itself lives in deviceFingerprint.js so it can be unit
+// tested against real user-agent strings without a DOM.
 
 export async function logPlaySession({
   game,
@@ -96,21 +57,6 @@ export async function logPlaySession({
   } catch (err) {
     // A logging failure should never break the game itself.
     console.warn('Could not log play session', err);
-  }
-}
-
-// Shared helper: fetch with a timeout so a hung request (Render cold-start,
-// network partition) doesn't leave the stats panel spinning forever.
-async function fetchWithTimeout(url, options = {}, timeoutMs = 15_000) {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const res = await fetch(url, { ...options, signal: controller.signal });
-    clearTimeout(timeoutId);
-    return res;
-  } catch (err) {
-    clearTimeout(timeoutId);
-    throw err;
   }
 }
 

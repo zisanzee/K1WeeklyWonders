@@ -3,8 +3,7 @@ import { useLocation } from 'react-router-dom';
 import { AnimatePresence, motion } from 'motion/react';
 import { usePlayerStore } from './playerStore';
 import ContactStrip from './ContactStrip';
-
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
+import { requestJson } from './apiClient';
 
 const inputClass =
   'aura-input w-full rounded-2xl px-4 py-3.5 text-base font-bold disabled:cursor-not-allowed disabled:opacity-60';
@@ -64,18 +63,30 @@ export default function NameGate({ gameLabel, children }) {
   };
 
   const classify = async (rawCode) => {
-    const response = await fetch(`${API_BASE}/api/code-lookup`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ code: rawCode }),
-    });
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) {
+    try {
+      return await requestJson('/api/code-lookup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: rawCode }),
+        timeoutMs: 12_000,
+      });
+    } catch (err) {
+      // /api/code-lookup is rate limited, and a 429 is NOT a bad code. Falling
+      // back to the generic message told a child their code was wrong and sent
+      // them off to find a teacher — when all they had to do was wait a minute.
+      if (err.status === 429) {
+        throw new Error('Too many tries just now. Please wait a minute and try again.', {
+          cause: err,
+        });
+      }
+      if (err.isTimeout) {
+        throw new Error('The server is taking too long. Please try again.', { cause: err });
+      }
       throw new Error(
-        data.error || "That code wasn't recognized. Try again or ask your teacher."
+        err?.body?.error || "That code wasn't recognized. Try again or ask your teacher.",
+        { cause: err }
       );
     }
-    return data;
   };
 
   // Auto-run the flow once when a code is present in the URL.

@@ -1,16 +1,19 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { postJson as postJsonRequest } from './apiClient';
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
-
+// "This code doesn't resolve" is a normal outcome here — the store signs the
+// user out in response — so a failed request is flattened to null instead of
+// being thrown. The shared client's timeout matters more on this path than
+// anywhere else: hydrate() runs inside AuthBootstrap and gates the whole app
+// render, so without one a hung /api/code-lookup left a child on the loading
+// screen indefinitely, with no error and nothing to retry.
 async function postJson(path, body) {
-  const response = await fetch(`${API_BASE}${path}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  if (!response.ok) return null;
-  return response.json().catch(() => null);
+  try {
+    return await postJsonRequest(path, body);
+  } catch {
+    return null;
+  }
 }
 
 // The persisted slice is intentionally tiny: ONLY the credential needed to

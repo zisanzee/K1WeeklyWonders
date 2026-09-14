@@ -56,9 +56,9 @@ export default function BaseGame({
   backgroundColor = 'transparent',
   transparent = true,
   physics,
-  // Wait for webfonts (Fredoka/Nunito etc.) to finish loading before the
-  // first Phaser frame, so in-game text doesn't briefly render in a
-  // fallback font before the webfont swaps in.
+  // Wait for webfonts (Fredoka, plus any a game loads itself) to finish
+  // loading before the first Phaser frame, so in-game text doesn't briefly
+  // render in a fallback font before the webfont swaps in.
   waitForFonts = true,
 }) {
   const wrapperRef = useRef(null);

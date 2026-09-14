@@ -17,12 +17,12 @@
 // everything blank and fill in one at a time. No other code changes are needed.
 
 export const ONBOARDING_GIFS = {
-  login: '',
-  games: '',
-  catalogue: '',
-  students: '',
-  stats: '',
-  settings: '',
+  login: 'https://res.cloudinary.com/hijmipga/image/upload/v1789398022/login_iry4yh.gif',
+  games: 'https://res.cloudinary.com/hijmipga/image/upload/v1789398030/GAMES_zyz7qf.gif',
+  catalogue: 'https://res.cloudinary.com/hijmipga/image/upload/v1789398456/catalogue_mbdf1i.gif',
+  students: 'https://res.cloudinary.com/hijmipga/image/upload/v1789398022/Students_gu2xpy.gif',
+  stats: 'https://res.cloudinary.com/hijmipga/image/upload/v1789398021/Stats_ka45p6.gif',
+  settings: 'https://res.cloudinary.com/hijmipga/image/upload/v1789398022/settings_wtwcdd.gif',
 };
 
 // Human-readable titles used for the placeholder caption + image alt text, so

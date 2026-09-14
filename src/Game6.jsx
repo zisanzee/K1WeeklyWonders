@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   DndContext,
@@ -92,16 +92,6 @@ function playUrl(url, onComplete) {
   audio.play().catch(() => {
     if (onComplete) onComplete();
   });
-}
-
-/** Play a number-word voice clip and call onComplete when done. */
-function playNumberWord(word, onComplete) {
-  const url = getNumberVoiceUrl(word);
-  if (!url) {
-    if (onComplete) onComplete();
-    return;
-  }
-  playUrl(url, onComplete);
 }
 
 /** Cancel any currently playing audio. */
@@ -481,10 +471,10 @@ function Game6Inner() {
     <div className="page-bleed-bg relative mx-auto h-[100dvh] w-full max-w-[1126px] overflow-hidden bg-gradient-to-b from-[#3FB6EA] via-[#8FE0FA] to-[#F4D9A0]">
       <Helmet>
         <title>Part-Part-Whole | EZ Wonders</title>
-      
+
           <meta
             name="description"
-            content="Practice counting through an interactive game designed for Kindergarten students."
+            content="Practise part-part-whole number bonds up to ten — fill each pirate chest with the keys that make its total."
           />
         </Helmet>
 
@@ -497,8 +487,6 @@ function Game6Inner() {
         @keyframes shimmer { 0% { transform: translateX(-100%); } 100% { transform: translateX(220%); } }
         @keyframes mascot-idle { 0%, 100% { transform: rotate(-4deg) translateY(0); } 50% { transform: rotate(4deg) translateY(-5px); } }
         @keyframes twinkle { 0%, 100% { opacity: 0.35; transform: scale(0.85); } 50% { opacity: 1; transform: scale(1.1); } }
-        .font-heading { font-family: 'Fredoka', sans-serif; }
-        .font-body { font-family: 'Fredoka', sans-serif; }
         .animate-float-slow { animation: float-slow 6s ease-in-out infinite; will-change: transform; }
         .animate-bob-slow { animation: bob-slow 4.5s ease-in-out infinite; will-change: transform; }
         .animate-pop-in { animation: pop-in 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
@@ -532,8 +520,11 @@ function Game6Inner() {
             <div className="mt-1 flex flex-none flex-col items-center gap-0.5 [@media(min-width:640px)_and_(min-height:560px)]:mt-2">
               <div className="flex items-center gap-1.5">
                 <span className="text-lg [@media(min-width:640px)_and_(min-height:560px)]:text-xl">🏴‍☠️</span>
+                {/* Named for the mechanic, not the mascot: Game 9 is the game
+                    called "Polly's Treasure Quest", and two entries sharing one
+                    name made them indistinguishable in the admin catalogue. */}
                 <p className="font-heading text-sm font-bold text-amber-900/90 drop-shadow-sm [@media(min-width:640px)_and_(min-height:560px)]:text-base">
-                  Polly's Treasure Quest
+                  Part-Part-Whole
                 </p>
               </div>
               <p className="font-body text-[11px] font-bold text-amber-900/70 [@media(min-width:640px)_and_(min-height:560px)]:text-xs">

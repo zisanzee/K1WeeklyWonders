@@ -5,7 +5,7 @@
 // — a gentle cue that the game is starting, rather than a hard cut.
 
 import BaseScene from '../../Phaser/BaseScene';
-import { ensureBgMusic, addMuteButton } from './audioState';
+import { ensureBgMusic, addMuteButton } from '../../Phaser/common/audioState';
 
 export default class StartScene extends BaseScene {
   constructor() {

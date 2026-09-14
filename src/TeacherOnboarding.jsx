@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { motion } from 'motion/react';
+import { AnimatePresence, motion } from 'motion/react';
+import { createPortal } from 'react-dom';
 import { Helmet } from 'react-helmet-async';
 import { usePlayerStore } from './playerStore';
 import ContactStrip from './ContactStrip';
@@ -74,6 +75,9 @@ function TeacherOnboardingContent() {
   const headerRef = useRef(null);
   const stickyOffset = useStickyOffset(headerRef);
   const activeId = useActiveSection(SECTION_IDS, stickyOffset);
+  // One lightbox for the whole page rather than one per section — only a single
+  // GIF can be enlarged at a time, and a page-level owner keeps that guaranteed.
+  const [lightbox, setLightbox] = useState(null);
 
   const scrollToSection = useCallback(
     (id, behavior = 'smooth') => {
@@ -231,7 +235,12 @@ function TeacherOnboardingContent() {
         {/* ---------------- Sections ---------------- */}
         <ol className="mt-6 flex flex-col gap-4 sm:mt-12 sm:gap-8 lg:gap-10">
           {ONBOARDING_SECTIONS.map((section, index) => (
-            <OnboardingSection key={section.id} section={section} flip={index % 2 === 1} />
+            <OnboardingSection
+              key={section.id}
+              section={section}
+              flip={index % 2 === 1}
+              onOpenGif={setLightbox}
+            />
           ))}
         </ol>
 
@@ -285,6 +294,8 @@ function TeacherOnboardingContent() {
           </div>
         </section>
       </main>
+
+      <GifLightbox image={lightbox} onClose={() => setLightbox(null)} />
     </div>
   );
 }
@@ -337,7 +348,7 @@ function useActiveSection(ids, stickyOffset) {
 // sides; below lg everything stacks. The visual is written FIRST in the DOM so
 // the stacked order is image-then-text on mobile, and `lg:order-*` moves it to
 // the right when flipped.
-function OnboardingSection({ section, flip }) {
+function OnboardingSection({ section, flip, onOpenGif }) {
   return (
     <li id={section.id} className="scroll-mt-32">
       <motion.div
@@ -355,7 +366,7 @@ function OnboardingSection({ section, flip }) {
           <div
             className={`w-full lg:w-[45%] lg:shrink-0 ${flip ? 'lg:order-2' : ''}`}
           >
-            <GifFrame section={section} />
+            <GifFrame section={section} onOpen={onOpenGif} />
           </div>
 
           <div className={`min-w-0 flex-1 ${flip ? 'lg:order-1' : ''}`}>
@@ -514,7 +525,7 @@ function Block({ block }) {
 // The visual half. Renders the GIF from ONBOARDING_GIFS when one is present and
 // a dashed placeholder otherwise, so the layout is already correct before any
 // artwork exists.
-function GifFrame({ section }) {
+function GifFrame({ section, onOpen }) {
   const src = ONBOARDING_GIFS[section.id];
   const label = ONBOARDING_GIF_LABELS[section.id] || section.title;
   const [failed, setFailed] = useState(false);
@@ -541,13 +552,128 @@ function GifFrame({ section }) {
   }
 
   return (
-    <img
-      src={src}
-      alt={label}
-      loading="lazy"
-      decoding="async"
-      onError={() => setFailed(true)}
-      className="w-full rounded-2xl border border-white/15 bg-white/5 object-cover shadow-[0_10px_30px_-18px_rgba(0,0,0,0.5)]"
-    />
+    // A button rather than a clickable <img>: it gives keyboard access and a
+    // real focus ring for free, which a bare onClick on the image would not.
+    <button
+      type="button"
+      onClick={() => onOpen?.({ src, label })}
+      aria-label={`Enlarge animation: ${label}`}
+      title="Tap to enlarge"
+      className="group relative block w-full cursor-zoom-in rounded-2xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/70"
+    >
+      <img
+        src={src}
+        alt={label}
+        loading="lazy"
+        decoding="async"
+        onError={() => setFailed(true)}
+        className="w-full rounded-2xl border border-white/15 bg-white/5 object-cover shadow-[0_10px_30px_-18px_rgba(0,0,0,0.5)] transition group-hover:brightness-105"
+      />
+
+      {/* Discoverability: nothing about a static GIF suggests it can be
+          enlarged, so the hint appears on hover/focus and stays visible on
+          touch devices that never hover. */}
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute bottom-2 right-2 flex h-8 w-8 items-center justify-center rounded-full border border-white/25 bg-black/45 text-white opacity-70 backdrop-blur-sm transition group-hover:opacity-100 group-focus-visible:opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
+      >
+        <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
+        </svg>
+      </span>
+    </button>
+  );
+}
+
+// Full-screen viewer for one GIF.
+//
+// Rendered through a portal on document.body rather than in place: the page's
+// sticky header is a positioned, z-indexed sibling, and an inline overlay would
+// have to out-rank it within #root's stacking context. Portalling to body
+// sidesteps that entirely and also keeps the overlay out of the page's layout.
+function GifLightbox({ image, onClose }) {
+  const closeRef = useRef(null);
+
+  useEffect(() => {
+    if (!image) return undefined;
+
+    const onKeyDown = (event) => {
+      if (event.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKeyDown);
+
+    // Focus the close button so Escape/Enter work immediately and screen
+    // readers announce the dialog. Restored on close so focus never lands on
+    // <body> and silently restarts tab order from the top.
+    const previouslyFocused = document.activeElement;
+    closeRef.current?.focus();
+
+    // #root is the real scroll container (html/body are overflow:hidden), so
+    // freezing IT is what stops the page scrolling behind the overlay.
+    const scroller = document.getElementById('root');
+    const prevOverflow = scroller?.style.overflowY;
+    if (scroller) scroller.style.overflowY = 'hidden';
+
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      if (scroller) scroller.style.overflowY = prevOverflow || '';
+      if (previouslyFocused instanceof HTMLElement) previouslyFocused.focus();
+    };
+  }, [image, onClose]);
+
+  if (typeof document === 'undefined') return null;
+
+  return createPortal(
+    <AnimatePresence>
+      {image && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.18 }}
+          role="dialog"
+          aria-modal="true"
+          aria-label={image.label}
+          // The overlay itself closes on click; the inner wrapper stops
+          // propagation so a click on the artwork (or its caption) does not.
+          onClick={onClose}
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-3 backdrop-blur-sm sm:p-6"
+        >
+          <button
+            ref={closeRef}
+            type="button"
+            onClick={onClose}
+            aria-label="Close enlarged animation"
+            className="absolute right-3 top-3 flex h-11 w-11 items-center justify-center rounded-full border border-white/25 bg-white/15 text-white shadow-lg backdrop-blur-md transition hover:bg-white/30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/70 sm:right-5 sm:top-5"
+          >
+            <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
+              <path d="M6 6l12 12M18 6L6 18" />
+            </svg>
+          </button>
+
+          <motion.div
+            initial={{ opacity: 0, scale: 0.94, y: 14 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.96, y: 10 }}
+            transition={{ type: 'spring', stiffness: 300, damping: 28 }}
+            onClick={(event) => event.stopPropagation()}
+            // A full-width caption block beneath the image; max-h is measured
+            // against the viewport (minus overlay padding) so a tall GIF can
+            // never push the close button off-screen.
+            className="flex max-h-full w-full max-w-[min(96vw,1100px)] flex-col items-center gap-2 sm:gap-3"
+          >
+            <img
+              src={image.src}
+              alt={image.label}
+              className="max-h-[calc(100dvh-7rem)] w-auto max-w-full rounded-2xl border border-white/20 bg-white/5 object-contain shadow-2xl"
+            />
+            <p className="max-w-2xl text-center text-xs font-bold text-white/85 sm:text-sm">
+              {image.label}
+            </p>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>,
+    document.body
   );
 }

@@ -1,13 +1,14 @@
 import { useMemo } from 'react';
 import { create } from 'zustand';
 import { usePlayerStore } from './playerStore';
+import { API_BASE, fetchWithTimeout } from './apiClient';
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
 let latestGameAccessRequest = 0;
 
-// Shared abort controller + timeout for the current in-flight fetchGameAccess
-// call, so we can cancel a hung request when a new one supersedes it or when
-// the network is unresponsive (e.g. Render cold-start).
+// Shared abort controller for the current in-flight fetchGameAccess call, so we
+// can cancel a hung request when a new one supersedes it. The timeout itself now
+// comes from the shared client; this path keeps the tighter 12 s budget because
+// the homepage grid is the thing waiting on it.
 let activeAbortController = null;
 const FETCH_TIMEOUT_MS = 12_000; // 12 s — enough for a Render cold start
 
@@ -303,12 +304,6 @@ export const useGameAccessStore = create((set, get) => ({
     const controller = new AbortController();
     activeAbortController = controller;
 
-    // Safety timeout: if the server doesn't respond within the window
-    // (Render cold-start can take 30-60 s, so we give a reasonable
-    // budget), abort the fetch and show an error so the user can retry
-    // instead of staring at a forever-spinner.
-    const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
-
     // Seed from cache BEFORE the request goes out, so the grid is already on
     // screen while the server is still being woken up. `loading` stays true:
     // this is a background refresh, not a first load, and the UI must not
@@ -334,12 +329,11 @@ export const useGameAccessStore = create((set, get) => ({
     // The client passes the player's classId as-is — game config is per-class
     // now, so there is no classType mapping anywhere in the read path.
     try {
-      const response = await fetch(
+      const response = await fetchWithTimeout(
         `${API_BASE}/api/game-access?classId=${encodeURIComponent(classId)}`,
-        { signal: controller.signal }
+        { signal: controller.signal },
+        FETCH_TIMEOUT_MS
       );
-
-      clearTimeout(timeoutId);
 
       if (!response.ok) {
         const body = await response.json().catch(() => ({}));
@@ -369,18 +363,16 @@ export const useGameAccessStore = create((set, get) => ({
         error: null,
       });
     } catch (error) {
-      clearTimeout(timeoutId);
-
+      // A superseded request is not a failure — a newer fetch owns the state
+      // now, and reporting its predecessor's error would clobber good data.
       if (requestId !== latestGameAccessRequest) return;
 
-      // Distinguish a deliberate abort (timeout or superseded) from a
-      // genuine network / server error so the UI can show a helpful message.
-      const isAbort = error.name === 'AbortError';
-      const message = isAbort
-        ? 'The server is taking too long to respond. Please try again.'
-        : (error.message || 'Failed to load game access');
+      // fetchWithTimeout reports an outlived budget as ApiError.isTimeout and
+      // everything else passes through with the server's own message, so the
+      // text below is already human-readable in both cases.
+      const message = error.message || 'Failed to load game access';
 
-      console.error(isAbort ? 'Game access fetch timed out' : 'Game access fetch failed', error);
+      console.error(error.isTimeout ? 'Game access fetch timed out' : 'Game access fetch failed', error);
 
       // If we already painted from cache, a failed refresh must NOT wipe the
       // games off the screen — the stale arrangement is far more useful than an
@@ -590,6 +582,40 @@ export function useIsGameUnlocked(gameNumber, isTeacher) {
   return Boolean(isTeacher) || Boolean(unlocked);
 }
 
+// The merged game object for one catalog key, or undefined while the current
+// class's arrangement is still loading. Callers use the `unlockAt` on it to
+// tell a merely-locked game apart from one the teacher has actually scheduled.
+export function useGameByKey(gameNumber) {
+  const key = normalizeKey(gameNumber);
+  return useGameAccessStore((state) =>
+    state.games.find((game) => game.key === key)
+  );
+}
+
+// "2d 4h" / "4h 12m" / "12m" / "under a minute", or null when the time is
+// missing, unparseable or already past.
+//
+// Deliberately coarse: the only question a child (or the teacher standing next
+// to them) is asking is "is this today or later?", and a seconds ticker on a
+// locked screen is noise. The banner's precise countdown already lives in
+// NextGameTimer; this is the one-line summary.
+export function formatUnlockCountdown(unlockAt, now = Date.now()) {
+  const target = Date.parse(unlockAt);
+  if (!Number.isFinite(target)) return null;
+
+  const remaining = target - now;
+  if (remaining <= 0) return null;
+
+  const minutes = Math.floor(remaining / 60_000);
+  const hours = Math.floor(minutes / 60);
+  const days = Math.floor(hours / 24);
+
+  if (days > 0) return `${days}d ${hours % 24}h`;
+  if (hours > 0) return `${hours}h ${minutes % 60}m`;
+  if (minutes > 0) return `${minutes}m`;
+  return 'under a minute';
+}
+
 export function isGameUnlockedNow(gameNumber, isTeacher) {
   const unlocked =
     useGameAccessStore.getState().unlocked[normalizeKey(gameNumber)];
@@ -691,8 +717,15 @@ export async function addGameForClass(gameKey, classId, teacherCode) {
   return response.json();
 }
 
-// Schedules a locked game to unlock at an ISO time. The server rejects an
-// already-unlocked game and a past time, so those errors are surfaced as-is.
+// Schedules a locked game to unlock at an ISO time, OR cancels a pending
+// schedule by passing `null`.
+//
+// A cancel is NOT sent as a past time — the server rejects past times, and
+// "unlock it now" is a different intent that also unlocks the game. Passing
+// null clears `unlockAt` and leaves the game locked exactly as it was.
+//
+// The server rejects an already-unlocked game and a past time, so those errors
+// are surfaced as-is.
 export async function setGameUnlockScheduleForClass(
   gameKey,
   unlockAt,
@@ -711,7 +744,10 @@ export async function setGameUnlockScheduleForClass(
 
   if (!response.ok) {
     const body = await response.json().catch(() => ({}));
-    throw new Error(body.error || 'Could not schedule this unlock');
+    throw new Error(
+      body.error ||
+        (unlockAt ? 'Could not schedule this unlock' : 'Could not cancel this schedule')
+    );
   }
 
   return response.json();

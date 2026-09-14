@@ -9,7 +9,6 @@ import {
   fetchAdminClassDetail,
 } from './logPlaySession';
 import { usePlayerStore } from './playerStore';
-import { confirmDialog } from './confirmDialog';
 
 const GAME_LABELS = {
   game1: '🧺 Count & Win',
@@ -294,7 +293,6 @@ function TeacherStatsPanel({ onClose, embedded = false }) {
   // only renders the Stats button for teachers) — this just reads who's in.
   const teacherName = usePlayerStore((s) => s.playerName);
   const teacherCode = usePlayerStore((s) => s.teacherCode);
-  const resetPlayer = usePlayerStore((s) => s.resetPlayer);
 
   const [statsStatus, setStatsStatus] = useState('loading'); // loading | error | ready
   const [slow, setSlow] = useState(false);
@@ -421,21 +419,6 @@ function TeacherStatsPanel({ onClose, embedded = false }) {
       window.removeEventListener('keydown', handleKey);
     };
   }, [onClose, embedded]);
-
-  const handleSwitchTeacher = async () => {
-    const ok = await confirmDialog({
-      title: 'Sign out?',
-      message: 'You will need your teacher code to sign back in.',
-      confirmLabel: 'Sign out',
-      cancelLabel: 'Stay',
-      danger: true,
-      icon: '👋',
-    });
-    if (ok) {
-      resetPlayer();
-      onClose?.();
-    }
-  };
 
   const handleSort = (key) => {
     if (key === sortKey) {
@@ -577,8 +560,7 @@ function TeacherStatsPanel({ onClose, embedded = false }) {
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder="Search a player…"
-                  style={{ fontFamily: "'Nunito', sans-serif" }}
-                  className="aura-input py-2.5 pl-9 pr-9 text-sm font-semibold"
+                  className="font-body aura-input py-2.5 pl-9 pr-9 text-sm font-semibold"
                 />
                 {search && (
                   <button
@@ -594,8 +576,7 @@ function TeacherStatsPanel({ onClose, embedded = false }) {
               <button
                 type="button"
                 onClick={handleToggleShowAll}
-                style={{ fontFamily: "'Nunito', sans-serif" }}
-                className={`flex h-10 w-full shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-full px-4 text-sm font-bold transition-all active:scale-95 sm:h-11 sm:w-auto ${
+                className={`font-body flex h-10 w-full shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-full px-4 text-sm font-bold transition-all active:scale-95 sm:h-11 sm:w-auto ${
                   showAll
                     ? 'bg-gradient-to-r from-pink-500 to-purple-500 text-white shadow-md'
                     : 'bg-white/10 text-white active:bg-white/20 sm:hover:bg-white/20'
@@ -612,7 +593,7 @@ function TeacherStatsPanel({ onClose, embedded = false }) {
           </div>
         )}
 
-        <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5" style={{ fontFamily: "'Nunito', sans-serif" }}>
+        <div className="font-body flex-1 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
           {statsStatus === 'loading' && !slow && (
             <div className="flex flex-col items-center justify-center gap-2 py-10 aura-muted sm:py-16">
               <span className="animate-bounce text-4xl">⏳</span>
@@ -1278,10 +1259,7 @@ function AdminStatsView({ onClose, embedded }) {
         </div>
       </div>
 
-      <div
-        className="flex-1 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5"
-        style={{ fontFamily: "'Nunito', sans-serif" }}
-      >
+      <div className="font-body flex-1 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
         {!selected && (
           <>
             {status === 'loading' && <LoadingBlock label="Loading classes…" />}
