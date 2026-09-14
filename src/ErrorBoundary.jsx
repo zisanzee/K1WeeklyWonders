@@ -1,4 +1,5 @@
 import { Component } from 'react';
+import { isChunkLoadError, recoverFromStaleChunk } from './staleChunkRecovery';
 
 // React error boundaries must be class components — there is still no hook
 // equivalent. This one exists because every game route is lazy()-loaded: a
@@ -12,8 +13,6 @@ import { Component } from 'react';
 // reset. The realistic causes are a stale chunk hash or a dropped
 // connection, and re-mounting the same broken module just re-throws; a
 // reload re-fetches the current deploy.
-const CHUNK_ERROR_RE =
-  /ChunkLoadError|Loading chunk|Failed to fetch dynamically imported module|error loading dynamically imported module|Importing a module script failed/i;
 
 export default class ErrorBoundary extends Component {
   constructor(props) {
@@ -31,7 +30,21 @@ export default class ErrorBoundary extends Component {
     console.error('ErrorBoundary caught:', error, info?.componentStack);
   }
 
-  handleReload = () => {
+  handleReload = async () => {
+    const { error } = this.state;
+
+    // Only a stale-chunk failure benefits from wiping the service worker and
+    // caches; an ordinary render error should not pay for it, since those
+    // caches are what make a repeat play instant for a child on school wifi.
+    if (isChunkLoadError(error)) {
+      // Rate-limited internally, so a genuinely missing chunk cannot put the
+      // browser into a reload loop. If recovery was refused (already tried
+      // recently) fall through to a plain reload, which is still better than
+      // a dead button.
+      const recovered = await recoverFromStaleChunk();
+      if (recovered) return;
+    }
+
     window.location.reload();
   };
 
@@ -46,7 +59,7 @@ export default class ErrorBoundary extends Component {
 
     // A failed dynamic import is worth its own copy: telling a teacher to
     // "reload" only makes sense when reloading can actually help.
-    const isChunkError = CHUNK_ERROR_RE.test(String(error?.message || error));
+    const isChunkError = isChunkLoadError(error);
 
     return (
       <div className="aura-page relative flex min-h-[100dvh] w-full flex-col items-center justify-center gap-4 px-4 py-10 text-center">

@@ -244,6 +244,24 @@ function writeAccessCache(store) {
 // `let`, not `const` — cacheRowSet replaces the whole map when it prunes.
 let accessCache = readAccessCache();
 
+// Drops one class's cached rows.
+//
+// MUST be called after every successful panel write. This cache is what makes
+// the homepage paint instantly on a warm load, but a stale entry wins over the
+// network response — `seedFromCache` paints first, and if the follow-up fetch
+// fails (a Render cold start is the normal case) the stale rows STAY on screen.
+// Without this, a teacher who locked/unlocked or added a game in the panel
+// would keep seeing their previous arrangement on the homepage for up to
+// ACCESS_CACHE_MAX_AGE_MS — which is exactly the "the lock list keeps being
+// wrong" and "the new game never shows up" report.
+export function invalidateClassAccessCache(classId) {
+  if (!classId || !accessCache[classId]) return;
+  const next = { ...accessCache };
+  delete next[classId];
+  accessCache = next;
+  writeAccessCache(next);
+}
+
 function cacheRowSet(classId, rows) {
   const next = {
     ...accessCache,
@@ -284,14 +302,19 @@ export const useGameAccessStore = create((set, get) => ({
   error: null,
 
   loadedClassId: null,
-  fetchGameAccess: async (classId = usePlayerStore.getState().classId) => {
+  fetchGameAccess: async (
+    classId = usePlayerStore.getState().classId,
+    { force = false } = {}
+  ) => {
     if (!classId) return;
 
     const state = get();
 
     // If a fetch for this classId is already in flight and hasn't been
     // stuck for too long, let it finish — don't pile on duplicate requests.
-    if (state.loading && state.loadingClassId === classId) return;
+    // A forced refresh (e.g. leaving the panel) deliberately bypasses this so
+    // its stale rows can never be what a returning user is left looking at.
+    if (!force && state.loading && state.loadingClassId === classId) return;
 
     // Cancel any in-flight request (different classId or stuck request)
     // so we never have two concurrent fetches racing to update state.
@@ -308,7 +331,7 @@ export const useGameAccessStore = create((set, get) => ({
     // screen while the server is still being woken up. `loading` stays true:
     // this is a background refresh, not a first load, and the UI must not
     // claim the data is fresh until the response actually lands.
-    const seeded = seedFromCache(classId);
+    const seeded = force ? null : seedFromCache(classId);
     if (seeded) {
       set({
         games: seeded,
@@ -660,6 +683,7 @@ export async function setGameUnlockedForClass(gameKey, unlocked, classId, teache
     throw new Error(body.error || 'Could not update game access');
   }
 
+  invalidateClassAccessCache(classId);
   return response.json();
 }
 
@@ -680,6 +704,7 @@ export async function setGameShinyForClass(gameKey, shiny, classId, teacherCode)
     throw new Error(body.error || 'Could not update featured game');
   }
 
+  invalidateClassAccessCache(classId);
   return response.json();
 }
 
@@ -695,6 +720,7 @@ export async function setGameOrderForClass(gameKeys, classId, teacherCode) {
     throw new Error(body.error || 'Could not save game order');
   }
 
+  invalidateClassAccessCache(classId);
   return response.json();
 }
 
@@ -714,6 +740,10 @@ export async function addGameForClass(gameKey, classId, teacherCode) {
     throw new Error(body.error || 'Could not add game to this class');
   }
 
+  // The single most important invalidation: adding a game is what makes a
+  // newly shipped game appear on the homepage, and a stale cache is precisely
+  // what made it look like it was never added.
+  invalidateClassAccessCache(classId);
   return response.json();
 }
 
@@ -750,6 +780,7 @@ export async function setGameUnlockScheduleForClass(
     );
   }
 
+  invalidateClassAccessCache(classId);
   return response.json();
 }
 
@@ -789,5 +820,6 @@ export async function removeGameForClass(gameKey, classId, teacherCode) {
     throw new Error(body.error || 'Could not remove game from this class');
   }
 
+  invalidateClassAccessCache(classId);
   return response.json();
 }

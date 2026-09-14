@@ -5,6 +5,7 @@ import "./index.css";
 
 import { HelmetProvider } from "react-helmet-async";
 import { warmupSpeech } from "./Phaser/common/speech";
+import { recoverFromStaleChunk } from "./staleChunkRecovery";
 import RotateHint from "./RotateHint";
 import MaintenanceGate from "./MaintenanceGate";
 import BrandLoader from "./BrandLoader";
@@ -13,6 +14,18 @@ import RouteSeo from "./seo";
 import { ConfirmHost } from "./confirmDialog";
 import { usePlayerStore } from "./playerStore";
 import { startSystemConfigPolling } from "./systemConfig";
+
+// Vite fires `vite:preloadError` when a lazy chunk fails to load, BEFORE React
+// ever sees the error — so this is the earliest and most reliable place to catch
+// the stale-deploy case (see staleChunkRecovery.js). Waiting for an
+// ErrorBoundary alone misses the module-preload path entirely.
+if (typeof window !== 'undefined') {
+  window.addEventListener('vite:preloadError', (event) => {
+    // Stop Vite rethrowing; recovery is handled here.
+    event.preventDefault();
+    recoverFromStaleChunk();
+  });
+}
 
 // Fires at module scope, before React has rendered anything, so the maintenance
 // config request races the auth hydrate in parallel instead of queueing behind

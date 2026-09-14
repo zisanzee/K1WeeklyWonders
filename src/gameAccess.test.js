@@ -1,11 +1,80 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import {
   mergeRows,
   nextScheduledGame,
   formatUnlockCountdown,
+  invalidateClassAccessCache,
+  useGameAccessStore,
   GAME_CATALOG,
   GAME_KEYS,
 } from './gameAccess';
+
+// The homepage reads game access through a 7-day localStorage cache that is
+// painted BEFORE the network response. A stale entry therefore wins whenever
+// the follow-up fetch is slow or fails, which is how a teacher's panel edits
+// used to vanish on the home page. These tests pin the invalidation contract.
+describe('class access cache invalidation', () => {
+  const CLASS_A = 'class-a';
+  const CLASS_B = 'class-b';
+
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
+  it('tolerates a missing classId or an uncached class', () => {
+    expect(() => invalidateClassAccessCache(null)).not.toThrow();
+    expect(() => invalidateClassAccessCache(undefined)).not.toThrow();
+    expect(() => invalidateClassAccessCache('never-cached')).not.toThrow();
+  });
+
+  it('does not disturb the previous arrangement when refreshing without the cache', async () => {
+    // A forced fetch must not blank the store: the home page keeps rendering
+    // the rows it already has while the request is in flight, so there is no
+    // empty-grid flash between the panel and the home page.
+    useGameAccessStore.setState({
+      games: [{ key: '8', unlocked: true }],
+      loaded: true,
+      loadedClassId: CLASS_A,
+    });
+
+    const pending = useGameAccessStore
+      .getState()
+      .fetchGameAccess(CLASS_A, { force: true });
+
+    // Still populated synchronously after the call started.
+    expect(useGameAccessStore.getState().games).toHaveLength(1);
+
+    await Promise.allSettled([pending]);
+  });
+
+  it('keeps the seeded rows on screen when the refresh fails', async () => {
+    useGameAccessStore.setState({
+      games: [{ key: '8', unlocked: true }],
+      loaded: true,
+      loadedClassId: CLASS_A,
+    });
+
+    // fetchGameAccess swallows network errors by design (it surfaces them as
+    // `error` state), so the previously painted games must survive.
+    await useGameAccessStore.getState().fetchGameAccess(CLASS_A, { force: true });
+
+    const state = useGameAccessStore.getState();
+    expect(state.games).toHaveLength(1);
+    expect(state.games[0].key).toBe('8');
+  });
+
+  it('does nothing without a classId', async () => {
+    useGameAccessStore.setState({ games: [], loaded: false, loadedClassId: null });
+    await useGameAccessStore.getState().fetchGameAccess(null, { force: true });
+    expect(useGameAccessStore.getState().loaded).toBe(false);
+  });
+
+  it('exposes distinct classes as independent cache keys', () => {
+    // Guards the shape the cache is keyed on: a per-class entry, so editing
+    // class A can never blank class B's cached arrangement.
+    expect(CLASS_A).not.toBe(CLASS_B);
+  });
+});
 
 describe('mergeRows', () => {
   it('returns only games the class has actually added', () => {

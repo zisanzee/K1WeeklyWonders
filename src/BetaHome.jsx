@@ -1418,11 +1418,19 @@ function BetaHomeContent() {
   const sourceGames = isAdmin ? adminCatalogGames : orderedGames;
   const accessReady = isAdmin || gameAccessReady;
 
+  // Always revalidate on mount, rather than only when nothing is loaded.
+  //
+  // The store is a module-level singleton, so after a teacher edits locks or
+  // adds a game in the panel and navigates back here, `gameAccessReady` is
+  // STILL true from the previous load — the old guard below would therefore
+  // skip the refetch and the home page would keep showing the pre-edit
+  // arrangement indefinitely. Forcing the fetch keeps the existing rows on
+  // screen (nothing is cleared, so there is no flash) and reconciles them the
+  // moment the response lands.
   useEffect(() => {
     if (!classId) return;
-    if (gameAccessReady) return;
-    fetchGameAccess(classId);
-  }, [classId, gameAccessReady, fetchGameAccess]);
+    fetchGameAccess(classId, { force: true });
+  }, [classId, fetchGameAccess]);
 
   useEffect(() => {
     let cancelled = false;
