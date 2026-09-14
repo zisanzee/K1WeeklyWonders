@@ -1168,25 +1168,60 @@ function ScheduleUnlockDialog({ game, saving, onCancel, onConfirm, onCancelSched
 // Split out of the game editor so a teacher browses (and opts into) the full
 // catalog on its own tab instead of scrolling past it every time they reorder.
 // ---------------------------------------------------------------------------
-function GameCatalogue({ classId, teacherCode }) {
+function GameCatalogue({ classId, teacherCode, isAdmin = false }) {
+  const [classes, setClasses] = useState(null);
+  const [pickedClassId, setPickedClassId] = useState('');
   const [addedKeys, setAddedKeys] = useState(null);
   const [status, setStatus] = useState('loading');
   const [error, setError] = useState(null);
   const [query, setQuery] = useState('');
   const [savingKey, setSavingKey] = useState(null);
 
+  // An admin has NO class of their own — playerStore.classId is null for them —
+  // so this tab has to ask which class it is editing. Without a class the fetch
+  // went out as `classId=null`, the server answered "Class not found", and the
+  // Catalogue was dead for every admin: the exact place a newly shipped game is
+  // meant to be added from.
+  const effectiveClassId = isAdmin ? pickedClassId : classId;
+
+  useEffect(() => {
+    if (!isAdmin) return undefined;
+    let cancelled = false;
+    fetchClasses(teacherCode)
+      .then((rows) => {
+        if (cancelled) return;
+        const list = Array.isArray(rows) ? rows : [];
+        setClasses(list);
+        // Default to the first class so the tab is immediately usable, but let
+        // the admin switch. `classId` is the stable identifier; className is
+        // only the label.
+        setPickedClassId((current) => current || (list[0]?.classId ?? ''));
+      })
+      .catch(() => {
+        if (!cancelled) setClasses([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isAdmin, teacherCode]);
+
   const load = useCallback(async () => {
+    // No class chosen yet (admin still loading, or there are no classes).
+    if (!effectiveClassId) return;
     setStatus('loading');
     setError(null);
+    // Drop the previous class's added-set, or its ticks would briefly show
+    // against a different class's catalogue.
+    setAddedKeys(null);
     try {
-      const rows = await fetchGameAccessForClass(classId, teacherCode);
+      const rows = await fetchGameAccessForClass(effectiveClassId, teacherCode);
       setAddedKeys(new Set(mergeRows(rows).map((game) => game.key)));
       setStatus('ready');
     } catch (err) {
       setError(err.message || 'Could not load the game catalogue.');
       setStatus('error');
     }
-  }, [classId, teacherCode]);
+  }, [effectiveClassId, teacherCode]);
 
   useEffect(() => {
     load();
@@ -1207,19 +1242,19 @@ function GameCatalogue({ classId, teacherCode }) {
   }, [query]);
 
   const toggle = async (game) => {
-    if (!addedKeys || savingKey) return;
+    if (!addedKeys || savingKey || !effectiveClassId) return;
     const isAdded = addedKeys.has(game.key);
     setSavingKey(game.key);
     setError(null);
     try {
       if (isAdded) {
-        await removeGameForClass(game.key, classId, teacherCode);
+        await removeGameForClass(game.key, effectiveClassId, teacherCode);
       } else {
-        await addGameForClass(game.key, classId, teacherCode);
+        await addGameForClass(game.key, effectiveClassId, teacherCode);
       }
       // Trust the server round-trip over optimistic state so two tabs can't
       // drift the "added" set.
-      const rows = await fetchGameAccessForClass(classId, teacherCode);
+      const rows = await fetchGameAccessForClass(effectiveClassId, teacherCode);
       setAddedKeys(new Set(mergeRows(rows).map((item) => item.key)));
     } catch (err) {
       setError(err.message || 'Could not update the catalogue. Please try again.');
@@ -1237,8 +1272,34 @@ function GameCatalogue({ classId, teacherCode }) {
             {addedCount} of {GAME_CATALOG.length} added
           </p>
         </div>
-        <p className="mt-1 text-xs font-semibold aura-soft">
-          Add a game to make it available to your class, or remove one to take it back out.
+
+        {/* Admins own no class, so they must pick the target here. A class is
+            the only thing these add/remove calls can act on. */}
+        {isAdmin && (
+          <div className="mt-3">
+            <label htmlFor="catalogue-class" className="mb-1 block text-[11px] font-black aura-soft">
+              Adding to
+            </label>
+            <select
+              id="catalogue-class"
+              value={pickedClassId}
+              onChange={(e) => setPickedClassId(e.target.value)}
+              disabled={!classes || classes.length === 0}
+              className="aura-input px-3 py-2.5 text-sm font-bold disabled:opacity-60"
+            >
+              {(classes || []).map((c) => (
+                <option key={c.classId} value={c.classId}>
+                  {c.className || c.classId}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        <p className="mt-2 text-xs font-semibold aura-soft">
+          {isAdmin
+            ? 'Pick a class above, then add a game to make it available there.'
+            : 'Add a game to make it available to your class, or remove one to take it back out.'}
         </p>
         <div className="relative mt-3">
           <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-sm aura-muted">
