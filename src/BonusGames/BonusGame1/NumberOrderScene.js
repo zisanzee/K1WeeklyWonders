@@ -2,8 +2,6 @@
 import * as Phaser from 'phaser';
 import BaseScene from '../../Phaser/BaseScene';
 import {
-  makeBackgroundTexture,
-  makeCloudTexture,
   makeSplatTexture,
   makeConfettiTexture,
   makeConfettiSquareTexture,
@@ -471,7 +469,6 @@ this.nextChip = this.createLastTappedChip(width / 2, 152);
     // width, which some browsers under-report for color emoji glyphs —
     // that was causing these to crowd/overlap each other.
     const ICON_BTN_SIZE = 96;
-    const ICON_BTN_GAP = 12;
 
     this.muteBtn = this.createPillButton(16, 16, this.sound.mute ? '🔇' : '🔊', {
       fontSize: '28px',

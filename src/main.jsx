@@ -49,12 +49,12 @@ const Game2 = lazy(() => import("./Game2"));
 const Game3 = lazy(() => import("./Game3"));
 const Game6 = lazy(() => import("./Game6"));
 const Game5 = lazy(() => import("./Game5"));
-const PhaserDemo = lazy(() => import("./BonusGames/BonusGame1/PhaserDemo"));
-const Game4 = lazy(() => import("./BonusGames/Game4/PhaserDemo"));
-const Game7 = lazy(() => import("./BonusGames/Game 7/PhaserDemo"));
-const Game8 = lazy(() => import("./BonusGames/Game 8/PhaserDemo"));
-const Game9 = lazy(() => import("./BonusGames/Game 9/PhaserDemo"));
-const Game10 = lazy(() => import("./BonusGames/Game 10/PhaserDemo"));
+const BonusGame1 = lazy(() => import("./BonusGames/BonusGame1/GamePage"));
+const Game4 = lazy(() => import("./BonusGames/Game4/GamePage"));
+const Game7 = lazy(() => import("./BonusGames/Game 7/GamePage"));
+const Game8 = lazy(() => import("./BonusGames/Game 8/GamePage"));
+const Game9 = lazy(() => import("./BonusGames/Game 9/GamePage"));
+const Game10 = lazy(() => import("./BonusGames/Game 10/GamePage"));
 const GameAccessPage = lazy(() => import("./GameAccessPage"));
 const TeacherOnboarding = lazy(() => import("./TeacherOnboarding"));
 const StudentLogin = lazy(() => import("./StudentLogin"));
@@ -111,7 +111,7 @@ function AppRoutes({ resetKey }) {
           <Route path="/game9" element={<Game9 />} />
           <Route path="/game10" element={<Game10 />} />
           <Route path="/game6" element={<Game6 />} />
-          <Route path="/bonus-game1" element={<PhaserDemo />} />
+          <Route path="/bonus-game1" element={<BonusGame1 />} />
           <Route path="/game-access" element={<GameAccessPage />} />
           <Route path="/teacher-onboarding" element={<TeacherOnboarding />} />
           <Route path="/p/:code" element={<StudentLogin />} />

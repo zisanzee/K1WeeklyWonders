@@ -35,10 +35,11 @@ export default function Game({ playerName }) {
       buildScenes={buildScenes}
       completeEventName="game10-complete"
       onComplete={handleComplete}
-      // Matches the background artwork's own palette. This replaces a
-      // full-screen gradient texture that GameScene used to build and draw
-      // underneath that artwork, where it could never actually be seen.
+      // The scene draws its own wood-grain artwork across the whole canvas, so
+      // the canvas is opaque here. Leaving it transparent would let the
+      // platform's purple gradient show through every gap in the art.
       backgroundColor={BACKGROUND_COLOR}
+      transparent={false}
     />
   );
 }

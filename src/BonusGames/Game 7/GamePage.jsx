@@ -1,25 +1,28 @@
-// PhaserDemo.jsx
+// GamePage.jsx
 import { Link } from 'react-router-dom';
 import Game from './Game';
 import NameGate from '../../NameGate';
 import GameAccessGate from '../../GameAccessGate';
 import { usePlayerStore } from '../../playerStore';
 
-export default function PhaserDemo() {
+export default function GamePage() {
   return (
-    <NameGate gameLabel="Game 4: Compare Die and Dominoes">
-      <GameAccessGate gameNumber={4} gameLabel="Game 4: Compare Die and Dominoes">
-        <PhaserDemoInner />
+    <NameGate gameLabel="Game 7">
+      <GameAccessGate gameNumber={7} gameLabel="Game 7">
+        <GamePageInner />
       </GameAccessGate>
     </NameGate>
   );
 }
 
-function PhaserDemoInner() {
+function GamePageInner() {
   const playerName = usePlayerStore((s) => s.playerName);
 
   return (
-    <div className="relative flex h-[100dvh] w-full flex-col items-center overflow-hidden bg-[linear-gradient(160deg,#1e1b5a_0%,#4338ca_22%,#7c3aed_46%,#9333ea_66%,#a21caf_84%,#be185d_100%)] px-0 pb-0 pt-0 sm:px-4 sm:pb-4 sm:pt-3">
+    // .aura-page paints the homepage's aurora backdrop (see aurora.css).
+    // NameGate returns children directly once signed in, so it never renders
+    // its own .aura-page around a game: this page has to provide one.
+    <div className="aura-page relative flex h-[100dvh] w-full flex-col items-center overflow-hidden px-0 pb-0 pt-0 sm:px-4 sm:pb-4 sm:pt-3">
 
       <style>{`
         @keyframes float-slow { 0%, 100% { transform: translateY(0px) translateX(0px); } 50% { transform: translateY(-14px) translateX(6px); } }
@@ -47,10 +50,10 @@ function PhaserDemoInner() {
       {/* Floating clouds + sparkles — zero layout cost, cheap GPU-composited
           animations, same pattern as BonusGame1 */}
       <div className="pointer-events-none absolute inset-0">
-        <div className="absolute left-[5%] top-[8%] animate-float-slow text-4xl opacity-90 sm:text-5xl">☁️</div>
-        <div className="absolute right-[14%] top-[14%] animate-float-slower text-3xl opacity-80 sm:text-4xl">☁️</div>
-        <div className="absolute left-[8%] top-[58%] animate-sparkle text-xl sm:text-2xl">✨</div>
-        <div className="absolute right-[10%] top-[65%] animate-sparkle text-2xl sm:text-3xl" style={{ animationDelay: '0.7s' }}>
+        <div className="absolute left-[7%] top-[9%] animate-float-slow text-4xl opacity-90 sm:text-5xl">☁️</div>
+        <div className="absolute right-[12%] top-[12%] animate-float-slower text-3xl opacity-80 sm:text-4xl">☁️</div>
+        <div className="absolute left-[12%] top-[54%] animate-sparkle text-xl sm:text-2xl">✨</div>
+        <div className="absolute right-[6%] top-[60%] animate-sparkle text-2xl sm:text-3xl" style={{ animationDelay: '0.7s' }}>
           ⭐
         </div>
       </div>

@@ -18,12 +18,21 @@ export function createGameConfig({
   scenes,
   width = DEFAULT_BASE_RESOLUTION.width,
   height = DEFAULT_BASE_RESOLUTION.height,
-  backgroundColor = '#1e1b5a',
+  backgroundColor = 'transparent',
+  transparent = true,
   physics = DEFAULT_PHYSICS,
 }) {
   return {
     type: Phaser.AUTO,
     parent,
+    // The canvas is see-through, so the platform's own background shows behind
+    // it instead of each game painting a second, competing backdrop.
+    //
+    // `transparent` is what actually enables alpha on the WebGL context;
+    // backgroundColor alone would still clear to an opaque colour. Games can
+    // opt back out by passing transparent: false, which is why both are
+    // threaded through rather than hardcoded.
+    transparent,
     // Base internal resolution. Phaser.Scale.FIT scales this to whatever
     // size the CSS container around the canvas ends up at (see
     // BaseGame.jsx), so the actual on-screen size is driven by that

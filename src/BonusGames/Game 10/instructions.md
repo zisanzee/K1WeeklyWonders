@@ -304,7 +304,7 @@ Keep the field meanings consistent with how `StatsPanel.jsx` /
 ### `audioState.js`
 Final shape already — no changes needed.
 
-### `Game.jsx` / `PhaserDemo.jsx`
+### `Game.jsx` / `GamePage.jsx`
 Final shape already — no changes needed. Don't touch the
 `NameGate` → `GameAccessGate(gameNumber={10})` wrapping or the
 `completeEventName="game10-complete"` wiring.

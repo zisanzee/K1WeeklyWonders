@@ -128,10 +128,8 @@ const TOTAL_FEEDS = TOTAL_ROUNDS * FEEDS_PER_ROUND;
 // The clear colour behind everything, sampled from the 'background' artwork's
 // own wood palette.
 //
-// This used to feed a full-screen gradient texture that sat UNDER that artwork
-// and was therefore never visible. Instead it's now handed to Phaser as the
-// scene's background colour via Game.jsx, which costs nothing per frame and
-// covers the one frame before the artwork's texture first draws.
+// This exists so the one frame before the artwork's texture draws isn't a bare
+// canvas as the scene fades in.
 export const BACKGROUND_COLOR = '#FBE7B4';
 
 // HUD colours for sitting on the cream artwork. The shared white/translucent
@@ -235,23 +233,22 @@ export default class GameScene extends BaseScene {
       }
     });
 
-    // 1. Background: just the 'background' artwork, cover-fit.
+    // 1. Background: the 'background' artwork, cover-fit.
     //
-    // There is deliberately no addSkyBackground() gradient underneath it. That
-    // would build a second full-screen 720x1080 canvas texture and draw it,
-    // blended, every frame — all of it permanently hidden behind this image,
-    // which covers the entire canvas by construction. It was pure cost for zero
-    // pixels, and two full-screen quads on a mobile GPU is not free.
+    // There is deliberately no addSkyBackground() gradient underneath it — that
+    // would build a second full-screen 720x1080 canvas texture and draw it
+    // blended every frame, all of it permanently hidden behind this image,
+    // which covers the canvas by construction.
     //
     // The art is a 2:3 portrait backdrop (wood grain with the four foods tucked
     // into the corners), which is exactly the canvas aspect, so cover-fit lands
     // it almost 1:1.
     this.bgArt = this.add.image(width / 2, height / 2, 'background').setDepth(1);
+    const cover = Math.max(width / this.bgArt.width, height / this.bgArt.height);
+    this.bgArt.setScale(cover);
 
     // A light wash. Without it the pale artwork leaves the white in-game text
     // (and the pale prompt bubble) with almost no contrast.
-    const cover = Math.max(width / this.bgArt.width, height / this.bgArt.height);
-    this.bgArt.setScale(cover);
     this.levelWash = this.add
       .rectangle(width / 2, height / 2, width, height, 0xffffff, 0.12)
       .setDepth(2);

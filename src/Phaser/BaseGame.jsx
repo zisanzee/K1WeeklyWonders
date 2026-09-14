@@ -49,7 +49,12 @@ export default function BaseGame({
   onPhaserReady,
   aspect = DEFAULT_ASPECT,
   baseResolution = DEFAULT_BASE_RESOLUTION,
-  backgroundColor = '#1e1b5a',
+  // Colour sitting behind the canvas. Transparent by default so the platform's
+  // background shows through — the canvas itself is transparent too (see
+  // createGameConfig), so painting a colour here as well would just be a second
+  // backdrop in front of the first.
+  backgroundColor = 'transparent',
+  transparent = true,
   physics,
   // Wait for webfonts (Fredoka/Nunito etc.) to finish loading before the
   // first Phaser frame, so in-game text doesn't briefly render in a
@@ -119,6 +124,7 @@ export default function BaseGame({
         width: baseResolution.width,
         height: baseResolution.height,
         backgroundColor,
+        transparent,
         physics,
       }));
 
@@ -156,15 +162,17 @@ export default function BaseGame({
       ref={wrapperRef}
       className="relative flex h-full w-full items-center justify-center"
       style={{
-        // Full-bleed backdrop that matches the game's own background colour.
-        // The canvas is a fixed aspect ratio, so on wide/short screens it's
-        // height-limited and centred — without this, the area either side would
-        // show an unrelated page gradient and the game would look "narrow". A
-        // soft radial highlight adds depth so it reads as one continuous scene
-        // rather than a flat panel.
-        backgroundColor,
-        backgroundImage:
-          'radial-gradient(120% 85% at 50% 18%, rgba(255,255,255,0.10), rgba(255,255,255,0) 62%)',
+        // Intentionally has NO background of its own, ever.
+        //
+        // This wrapper used to paint `backgroundColor` too — the same value
+        // handed to the Phaser canvas. That is one colour painted twice, one
+        // layer directly behind the other, and it was the duplicate that made
+        // every game look like it had two backdrops. It served no purpose:
+        // when the canvas is opaque the wrapper is hidden behind it, and when
+        // the canvas is transparent we want the platform's backdrop, not a
+        // second copy of the same flat colour.
+        //
+        // The canvas alone owns the background. See createGameConfig().
       }}
     >
       <div

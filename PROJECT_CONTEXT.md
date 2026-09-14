@@ -116,7 +116,7 @@ Scripts: `dev`, `build`, `lint`, `preview`.
                      · starProgress.js · uiHelpers.js)
 ```
 Each `BonusGames/<name>/` folder contains `assets.js · audioState.js ·
-levels.js · Game.jsx · PhaserDemo.jsx` plus game-specific scene files (§13).
+levels.js · Game.jsx · GamePage.jsx` plus game-specific scene files (§13).
 
 ## 4. Directory tree — backend (`D:\K1 games project\server`, actual)
 
@@ -209,7 +209,7 @@ teacher-code mirror was removed (an older revision of this doc referenced it).
 ## 7. Login system (current, in detail)
 
 [`NameGate.jsx`](src/NameGate.jsx) is the whole-app entry gate rendered by
-BetaHome and every `PhaserDemo`. It is **code-first**: one code field, classified
+BetaHome and every `GamePage`. It is **code-first**: one code field, classified
 server-side, branching into three outcomes.
 
 ### 7.1 Flow
@@ -261,11 +261,12 @@ RotateHint + ConfirmHost → AuthBootstrap → MaintenanceGate → Suspense`.
 | `/` | `BetaHome` — **the real production home** (public landing + NameGate) |
 | `/beta-ezwonders` | `Navigate to="/"` (legacy alias) |
 | `/game1` … `/game6` | `Game1` … `Game6` (React games) |
-| `/game4` | `BonusGames/Game4/PhaserDemo` |
-| `/game7` | `BonusGames/Game 7/PhaserDemo` |
-| `/game8` | `BonusGames/Game 8/PhaserDemo` — **Pizza Order!** |
-| `/game9` | `BonusGames/Game 9/PhaserDemo` — **Polly's Treasure Quest** |
-| `/bonus-game1` | `BonusGames/BonusGame1/PhaserDemo` — Number Pop! |
+| `/game10` | `BonusGames/Game 10/GamePage` — **Feed the Shapes** |
+| `/game4` | `BonusGames/Game4/GamePage` |
+| `/game7` | `BonusGames/Game 7/GamePage` |
+| `/game8` | `BonusGames/Game 8/GamePage` — **Pizza Order!** |
+| `/game9` | `BonusGames/Game 9/GamePage` — **Polly's Treasure Quest** |
+| `/bonus-game1` | `BonusGames/BonusGame1/GamePage` — Number Pop! |
 | `/game-access` | `GameAccessPage` |
 | `/teacher-onboarding` | `TeacherOnboarding` — the teacher guide |
 | `/p/:code` | `StudentLogin` |
@@ -274,9 +275,10 @@ RotateHint + ConfirmHost → AuthBootstrap → MaintenanceGate → Suspense`.
 been **deleted**. It was unrouted dead code, but it duplicated the game grid,
 `GameCard` and timer wiring, so every feature change cost edits in two places.
 
-Routing is not gated by the route itself — each Phaser `PhaserDemo.jsx` composes
+Routing is not gated by the route itself — each Phaser `GamePage.jsx` composes
 `NameGate → GameAccessGate`; React games are reached via the home grid (already
-inside NameGate).
+inside NameGate). Every one of them is named `GamePage.jsx` so the six Phaser
+entry points share a single name; only the folder distinguishes them.
 
 ---
 
@@ -662,7 +664,7 @@ Per-game folder shape: `assets.js`, `audioState.js` (`isMuted`,
 `ensureBgMusic`, `addMuteButton`), `levels.js` (`LEVELS`, `buildRounds`,
 `progress`), game-specific scene files (e.g. `GameScene.js` emits a run-complete
 event like `game8-complete`), `Game.jsx` (`BaseGame` mount whose `handleComplete`
-calls `logPlaySession({ game: '<slug>', ... })`), and `PhaserDemo.jsx`
+calls `logPlaySession({ game: '<slug>', ... })`), and `GamePage.jsx`
 (`NameGate → GameAccessGate` wrapper + page shell).
 
 ---

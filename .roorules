@@ -110,8 +110,12 @@ for the overhaul. New game routes still need both gates, in that order.
 - `students.js` / `classInfo.js` — roster + class-info API, classId-scoped,
   available to any teacher for their own class.
 - `main.jsx` — all game routes lazy-loaded. Phaser-based games live under
-  `BonusGames/<name>/PhaserDemo.jsx` even when not labeled "bonus" in the
-  catalog (e.g. Game4).
+  `BonusGames/<name>/GamePage.jsx` even when not labeled "bonus" in the
+  catalog (e.g. Game4). It wraps the canvas in the page chrome (Home link,
+  floating decor) and composes `NameGate` -> `GameAccessGate` -> `Game`. The
+  page itself paints no background, so the platform's page backdrop shows
+  through around the canvas; each game's own artwork is painted inside the
+  canvas by its scene.
 - `TeacherOnboarding.jsx` (`/teacher-onboarding`) — the teacher guide. Copy and
   imagery are NOT in the component: everything lives in
   `teacherOnboardingContent.js` (`ONBOARDING_SECTIONS` blocks + `ONBOARDING_GIFS`).

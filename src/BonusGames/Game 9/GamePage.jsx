@@ -1,25 +1,28 @@
-// PhaserDemo.jsx
+// GamePage.jsx
 import { Link } from 'react-router-dom';
 import Game from './Game';
 import NameGate from '../../NameGate';
 import GameAccessGate from '../../GameAccessGate';
 import { usePlayerStore } from '../../playerStore';
 
-export default function PhaserDemo() {
+export default function GamePage() {
   return (
-    <NameGate gameLabel="Game 8">
-      <GameAccessGate gameNumber={8} gameLabel="Game 8">
-        <PhaserDemoInner />
+    <NameGate gameLabel="Game 9: Polly's Treasure Quest">
+      <GameAccessGate gameNumber={9} gameLabel="Polly's Treasure Quest">
+        <GamePageInner />
       </GameAccessGate>
     </NameGate>
   );
 }
 
-function PhaserDemoInner() {
+function GamePageInner() {
   const playerName = usePlayerStore((s) => s.playerName);
 
   return (
-    <div className="relative flex h-[100dvh] w-full flex-col items-center overflow-hidden bg-[linear-gradient(160deg,#1e1b5a_0%,#4338ca_22%,#7c3aed_46%,#9333ea_66%,#a21caf_84%,#be185d_100%)] px-0 pb-0 pt-0 sm:px-4 sm:pb-4 sm:pt-3">
+    // .aura-page paints the homepage's aurora backdrop (see aurora.css).
+    // NameGate returns children directly once signed in, so it never renders
+    // its own .aura-page around a game: this page has to provide one.
+    <div className="aura-page relative flex h-[100dvh] w-full flex-col items-center overflow-hidden px-0 pb-0 pt-0 sm:px-4 sm:pb-4 sm:pt-3">
 
       <style>{`
         @keyframes float-slow { 0%, 100% { transform: translateY(0px) translateX(0px); } 50% { transform: translateY(-14px) translateX(6px); } }

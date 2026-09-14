@@ -15,7 +15,7 @@ export default class LevelSelectScene extends BaseScene {
   }
 
   create() {
-    const { width, height } = this.scale;
+    const { width } = this.scale;
 
     // Background music starts here, at the menu, so it's the very first
     // thing a player hears rather than staying silent until they've
