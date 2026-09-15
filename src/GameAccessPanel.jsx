@@ -2196,6 +2196,11 @@ function TeacherSettings({ classId, teacherCode, teacherName, onClose, resetPlay
   const [savingTeacherCode, setSavingTeacherCode] = useState(false);
   const [teacherCodeError, setTeacherCodeError] = useState(null);
   const [teacherCodeSaved, setTeacherCodeSaved] = useState(false);
+  // The change-code fields live in a modal now rather than always being on the
+  // page: the details are only relevant once the teacher has decided to change
+  // their code, and the always-visible password fields made the Settings page
+  // read as more complicated (and more alarming) than it is.
+  const [codeModalOpen, setCodeModalOpen] = useState(false);
 
   const adoptCredential = usePlayerStore((s) => s.adoptCredential);
 
@@ -2216,6 +2221,28 @@ function TeacherSettings({ classId, teacherCode, teacherName, onClose, resetPlay
       setStatus('error');
     }
   }, [classId, teacherCode]);
+
+  const closeCodeModal = () => {
+    if (savingTeacherCode) return;
+    setCodeModalOpen(false);
+    // Clear the credential fields on every close — leaving a typed code sitting
+    // in an unmounted-but-remembered field is exactly what we don't want.
+    setCurrentCodeDraft('');
+    setNewCodeDraft('');
+    setConfirmCodeDraft('');
+    setTeacherCodeError(null);
+  };
+
+  // Escape closes the dialog, matching the other modals in this panel.
+  useEffect(() => {
+    if (!codeModalOpen) return undefined;
+    const onKey = (event) => {
+      if (event.key === 'Escape') closeCodeModal();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [codeModalOpen, savingTeacherCode]);
 
   // Fetch ONCE per class, not on every teacherCode change. After a teacher
   // changes their own code the parent hands down the new teacherCode, which
@@ -2341,17 +2368,9 @@ function TeacherSettings({ classId, teacherCode, teacherName, onClose, resetPlay
   const saveTeacherCode = async () => {
     if (!canSubmitTeacherCode) return;
 
-    const ok = await confirmDialog({
-      title: 'Change your code?',
-      message:
-        'This becomes your new sign-in code. Any device or bookmark still using the old code will stop working.',
-      confirmLabel: 'Change code',
-      cancelLabel: 'Cancel',
-      danger: true,
-      icon: '🔑',
-    });
-    if (!ok) return;
-
+    // No confirmDialog here: the modal itself is the deliberate step (it spells
+    // out the consequence and has its own Cancel), so a second confirm on top
+    // would just be a double prompt for one action.
     setSavingTeacherCode(true);
     setTeacherCodeError(null);
     setTeacherCodeSaved(false);
@@ -2371,6 +2390,8 @@ function TeacherSettings({ classId, teacherCode, teacherName, onClose, resetPlay
       setNewCodeDraft('');
       setConfirmCodeDraft('');
       setTeacherCodeSaved(true);
+      // Close on success so the confirmation is visible on the page behind.
+      setCodeModalOpen(false);
     } catch (err) {
       setTeacherCodeError(err.message || 'Could not change your code.');
     } finally {
@@ -2607,111 +2628,29 @@ function TeacherSettings({ classId, teacherCode, teacherName, onClose, resetPlay
           </div>
 
           <div className="rounded-2xl aura-card p-4 sm:p-5">
-            <p className="text-sm font-black aura-text">Your access code</p>
-            <p className="mt-1 text-xs font-semibold aura-soft">
-              This is your own sign-in code. Changing it signs out every other device still using
-              the old one, including printed badges or shared links that contain it.
-            </p>
-
-            <div className="mt-3 flex flex-col gap-3">
-              <div>
-                <label htmlFor="tc-current" className="mb-1 block text-[11px] font-black aura-soft">
-                  Your current code
-                </label>
-                <input
-                  id="tc-current"
-                  type="password"
-                  value={currentCodeDraft}
-                  autoComplete="off"
-                  onChange={(e) => {
-                    setCurrentCodeDraft(e.target.value);
-                    setTeacherCodeSaved(false);
-                    setTeacherCodeError(null);
-                  }}
-                  disabled={savingTeacherCode}
-                  className={textInputCls}
-                />
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-sm font-black aura-text">Your access code</p>
+                <p className="mt-1 text-xs font-semibold aura-soft">
+                  This is your own sign-in code, used to sign in on any device.
+                </p>
               </div>
-
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <div>
-                  <label htmlFor="tc-new" className="mb-1 block text-[11px] font-black aura-soft">
-                    New code
-                  </label>
-                  <input
-                    id="tc-new"
-                    type="password"
-                    value={newCodeDraft}
-                    autoComplete="off"
-                    onChange={(e) => {
-                      setNewCodeDraft(e.target.value);
-                      setTeacherCodeSaved(false);
-                      setTeacherCodeError(null);
-                    }}
-                    disabled={savingTeacherCode}
-                    className={textInputCls}
-                  />
-                  <div className="mt-1 min-h-[1rem]">
-                    {newCodeTooShort ? (
-                      <span className="text-[11px] font-black text-amber-200">
-                        ✕ At least 4 characters
-                      </span>
-                    ) : newCodeSameAsOld ? (
-                      <span className="text-[11px] font-black text-amber-200">
-                        ✕ That is already your code
-                      </span>
-                    ) : (
-                      <CodeCheckBadge state={newCodeCheck} />
-                    )}
-                  </div>
-                </div>
-                <div>
-                  <label htmlFor="tc-confirm" className="mb-1 block text-[11px] font-black aura-soft">
-                    Repeat new code
-                  </label>
-                  <input
-                    id="tc-confirm"
-                    type="password"
-                    value={confirmCodeDraft}
-                    autoComplete="off"
-                    onChange={(e) => {
-                      setConfirmCodeDraft(e.target.value);
-                      setTeacherCodeSaved(false);
-                      setTeacherCodeError(null);
-                    }}
-                    disabled={savingTeacherCode}
-                    className={textInputCls}
-                  />
-                  <div className="mt-1 min-h-[1rem]">
-                    {newCodeMismatch ? (
-                      <span className="text-[11px] font-black text-amber-200">
-                        ✕ The two codes do not match
-                      </span>
-                    ) : confirmCodeDraft.length > 0 ? (
-                      <span className="text-[11px] font-black text-emerald-200">✓ Match</span>
-                    ) : null}
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <button
-                  type="button"
-                  onClick={saveTeacherCode}
-                  disabled={!canSubmitTeacherCode}
-                  className="aura-btn aura-btn-violet min-h-10 px-4 text-xs disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {savingTeacherCode ? 'Changing…' : 'Change code'}
-                </button>
+              <div className="flex shrink-0 items-center gap-3">
                 {teacherCodeSaved && (
                   <span className="text-[11px] font-black text-emerald-200">✓ Code changed</span>
                 )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTeacherCodeError(null);
+                    setTeacherCodeSaved(false);
+                    setCodeModalOpen(true);
+                  }}
+                  className="aura-btn aura-btn-violet min-h-10 px-4 text-xs"
+                >
+                  🔑 Change code
+                </button>
               </div>
-              {teacherCodeError && (
-                <p className="rounded-xl bg-rose-500/20 px-3 py-2 text-xs font-bold text-rose-100">
-                  ⚠️ {teacherCodeError}
-                </p>
-              )}
             </div>
           </div>
 
@@ -2798,6 +2737,156 @@ function TeacherSettings({ classId, teacherCode, teacherName, onClose, resetPlay
           </div>
         </>
       )}
+
+      {/* Change-code dialog. Kept off the page itself so the always-visible
+          password fields don't make Settings read as more alarming than it is;
+          the credential fields only exist while a change is actually underway. */}
+      <AnimatePresence>
+        {codeModalOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[60] flex items-center justify-center overflow-y-auto bg-black/60 px-4 py-6 backdrop-blur-sm"
+            onClick={closeCodeModal}
+          >
+            <motion.div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="change-code-title"
+              initial={{ opacity: 0, scale: 0.94, y: 16 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.94, y: 16 }}
+              transition={{ type: 'spring', stiffness: 300, damping: 26 }}
+              onClick={(event) => event.stopPropagation()}
+              className="aura-card relative my-auto w-full max-w-md rounded-[1.5rem] p-5 text-left sm:p-6"
+            >
+              <button
+                type="button"
+                onClick={closeCodeModal}
+                disabled={savingTeacherCode}
+                aria-label="Close"
+                className="absolute right-3 top-3 rounded-full px-2.5 py-1 text-lg leading-none aura-muted transition hover:bg-white/10 hover:aura-text disabled:opacity-50"
+              >
+                ✕
+              </button>
+
+              <p id="change-code-title" className="pr-8 text-base font-black aura-text">
+                🔑 Change your access code
+              </p>
+              <p className="mt-1 text-xs font-semibold aura-soft">
+                Confirm your current code, then choose a new one. Every other device still using
+                the old code will be signed out.
+              </p>
+
+              <div className="mt-4 flex flex-col gap-3">
+                <div>
+                  <label htmlFor="tc-current" className="mb-1 block text-[11px] font-black aura-soft">
+                    Your current code
+                  </label>
+                  <input
+                    id="tc-current"
+                    type="password"
+                    value={currentCodeDraft}
+                    autoComplete="off"
+                    autoFocus
+                    onChange={(e) => {
+                      setCurrentCodeDraft(e.target.value);
+                      setTeacherCodeError(null);
+                    }}
+                    disabled={savingTeacherCode}
+                    className={textInputCls}
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div>
+                    <label htmlFor="tc-new" className="mb-1 block text-[11px] font-black aura-soft">
+                      New code
+                    </label>
+                    <input
+                      id="tc-new"
+                      type="password"
+                      value={newCodeDraft}
+                      autoComplete="off"
+                      onChange={(e) => {
+                        setNewCodeDraft(e.target.value);
+                        setTeacherCodeError(null);
+                      }}
+                      disabled={savingTeacherCode}
+                      className={textInputCls}
+                    />
+                    <div className="mt-1 min-h-[1rem]">
+                      {newCodeTooShort ? (
+                        <span className="text-[11px] font-black text-amber-200">
+                          ✕ At least 4 characters
+                        </span>
+                      ) : newCodeSameAsOld ? (
+                        <span className="text-[11px] font-black text-amber-200">
+                          ✕ That is already your code
+                        </span>
+                      ) : (
+                        <CodeCheckBadge state={newCodeCheck} />
+                      )}
+                    </div>
+                  </div>
+                  <div>
+                    <label htmlFor="tc-confirm" className="mb-1 block text-[11px] font-black aura-soft">
+                      Repeat new code
+                    </label>
+                    <input
+                      id="tc-confirm"
+                      type="password"
+                      value={confirmCodeDraft}
+                      autoComplete="off"
+                      onChange={(e) => {
+                        setConfirmCodeDraft(e.target.value);
+                        setTeacherCodeError(null);
+                      }}
+                      disabled={savingTeacherCode}
+                      className={textInputCls}
+                    />
+                    <div className="mt-1 min-h-[1rem]">
+                      {newCodeMismatch ? (
+                        <span className="text-[11px] font-black text-amber-200">
+                          ✕ The two codes do not match
+                        </span>
+                      ) : confirmCodeDraft.length > 0 ? (
+                        <span className="text-[11px] font-black text-emerald-200">✓ Match</span>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+
+                {teacherCodeError && (
+                  <p className="rounded-xl bg-rose-500/20 px-3 py-2 text-xs font-bold text-rose-100">
+                    ⚠️ {teacherCodeError}
+                  </p>
+                )}
+
+                <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                  <button
+                    type="button"
+                    onClick={closeCodeModal}
+                    disabled={savingTeacherCode}
+                    className="aura-ghost min-h-10 justify-center rounded-xl px-4 text-xs disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={saveTeacherCode}
+                    disabled={!canSubmitTeacherCode}
+                    className="aura-btn aura-btn-violet min-h-10 px-4 text-xs disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {savingTeacherCode ? 'Changing…' : 'Change code'}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
