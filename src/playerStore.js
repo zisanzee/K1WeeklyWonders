@@ -2,19 +2,22 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { postJson as postJsonRequest } from './apiClient';
 
-// "This code doesn't resolve" is a normal outcome here — the store signs the
-// user out in response — so a failed request is flattened to null instead of
-// being thrown. The shared client's timeout matters more on this path than
-// anywhere else: hydrate() runs inside AuthBootstrap and gates the whole app
-// render, so without one a hung /api/code-lookup left a child on the loading
-// screen indefinitely, with no error and nothing to retry.
-async function postJson(path, body) {
-  try {
-    return await postJsonRequest(path, body);
-  } catch {
-    return null;
-  }
+// A failed validation request used to be flattened to null and treated as
+// "this code no longer resolves", which signed the user out. That is only
+// correct for a DEFINITIVE rejection — the server answered and the code really
+// is gone. A timeout, a dropped network, or a 5xx from a cold Render instance
+// (which can take longer than the client's 15s budget to wake) says nothing
+// about whether the credential is still valid, and signing out on one is what
+// logged people out at random, before any deploy. Those transient failures are
+// distinguished here so the credential survives them.
+export function isTransientFailure(err) {
+  if (!err) return false;
+  if (err.isTimeout) return true;
+  const status = err.status || 0;
+  return status === 0 || status >= 500;
 }
+
+const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 // The persisted slice is intentionally tiny: ONLY the credential needed to
 // re-resolve the identity from the database on every load. Nothing else — no
@@ -87,56 +90,91 @@ export const usePlayerStore = create(
           mode,
         }),
 
-      // Re-resolve the stored code into a full identity. If the code no longer
-      // resolves (student/teacher removed, class deleted or made private), the
-      // session is cleared and the user is signed out.
-      hydrate: async () => {
+      // Re-resolve the stored code into a full identity.
+      //
+      //  - A DEFINITIVE rejection (the server answered and the code maps to no
+      //    usable session) clears the session and signs the user out.
+      //  - A TRANSIENT failure (timeout / network / 5xx) is retried, and if it
+      //    still fails, the credential is KEPT and the session is simply left
+      //    unresolved — so the next load tries again instead of logging the
+      //    user out over a backend that was merely asleep.
+      //
+      // Returns `{ ok, reason }` so a caller (AuthBootstrap) can tell the two
+      // apart. `reason` is one of: 'ok' | 'no-code' | 'invalid' | 'transient'.
+      hydrate: async ({ retries = 1, retryDelayMs = 900 } = {}) => {
         const { code, name, mode } = get();
         if (!code) {
           set({ status: 'idle' });
-          return;
+          return { ok: false, reason: 'no-code' };
         }
 
         set({ status: 'loading' });
-        try {
+
+        // One validation round trip. Throws on transport/HTTP failure; returns
+        // false when the request succeeded but the code is no longer usable.
+        const attempt = async () => {
           if (mode === 'light') {
-            const data = await postJson('/api/student-login', {
+            const data = await postJsonRequest('/api/student-login', {
               name,
               classCode: code,
             });
-            if (data) {
-              get()._applyStudent(data.student, data.classInfo, 'light', name);
-            } else {
-              get().signOut();
-            }
-          } else {
-            const data = await postJson('/api/code-lookup', { code });
-            if (!data) {
-              get().signOut();
-            } else if (data.kind === 'teacherCode' || data.kind === 'adminCode') {
-              get()._applyTeacher(data, code);
-            } else if (data.kind === 'studentCode') {
-              get()._applyStudent(
-                { studentId: data.studentId, name: data.studentName, code },
-                {
-                  classId: data.classId,
-                  className: data.className,
-                  classAlias: data.classAlias,
-                  classCode: data.classCode,
-                },
-                'code'
-              );
-            } else {
-              // A bare class code can't stand alone as a session.
-              get().signOut();
-            }
+            get()._applyStudent(data.student, data.classInfo, 'light', name);
+            return true;
           }
-        } catch {
-          get().signOut();
+
+          const data = await postJsonRequest('/api/code-lookup', { code });
+          if (data.kind === 'teacherCode' || data.kind === 'adminCode') {
+            get()._applyTeacher(data, code);
+            return true;
+          }
+          if (data.kind === 'studentCode') {
+            get()._applyStudent(
+              { studentId: data.studentId, name: data.studentName, code },
+              {
+                classId: data.classId,
+                className: data.className,
+                classAlias: data.classAlias,
+                classCode: data.classCode,
+              },
+              'code'
+            );
+            return true;
+          }
+          // A bare class code can't stand alone as a session.
+          return false;
+        };
+
+        for (let attemptIndex = 0; attemptIndex <= retries; attemptIndex += 1) {
+          try {
+            const resolved = await attempt();
+            if (resolved) {
+              set({ status: 'ready' });
+              return { ok: true, reason: 'ok' };
+            }
+            // Server answered and rejected the code — sign out for real.
+            get().signOut();
+            return { ok: false, reason: 'invalid' };
+          } catch (err) {
+            const transient = isTransientFailure(err);
+            if (transient && attemptIndex < retries) {
+              await delay(retryDelayMs);
+              continue;
+            }
+            if (transient) {
+              // Keep the credential; leave the session unresolved so a later
+              // load retries. Deliberately NOT signOut().
+              set({ status: 'idle' });
+              return { ok: false, reason: 'transient', error: err };
+            }
+            // A definitive HTTP rejection (e.g. 401/404).
+            get().signOut();
+            return { ok: false, reason: 'invalid' };
+          }
         }
 
-        // signOut() clears `code`; otherwise the session is valid.
+        // Unreachable, but keeps the shape consistent if `retries` is negative.
         set({ status: get().code ? 'ready' : 'idle' });
+        return { ok: Boolean(get().identityKind), reason: 'ok' };
       },
 
       // Sign in with a student / teacher / admin code. Returns the resolved
