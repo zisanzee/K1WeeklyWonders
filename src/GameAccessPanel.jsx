@@ -104,7 +104,8 @@ const TEACHER_TABS = [
     key: 'settings',
     label: 'Settings',
     icon: '⚙️',
-    description: 'Your class details, privacy, class code, and your own name and access code.',
+    description:
+      'Your class code and share link, class details, privacy, and your own name and access code.',
   },
 ];
 
@@ -2202,6 +2203,15 @@ function TeacherSettings({ classId, teacherCode, teacherName, onClose, resetPlay
   // read as more complicated (and more alarming) than it is.
   const [codeModalOpen, setCodeModalOpen] = useState(false);
 
+  // View/edit toggles. Each box shows its values as read-only text until the
+  // teacher taps Edit, which keeps the page readable (and short on a phone)
+  // instead of presenting a wall of always-open inputs.
+  const [editingDetails, setEditingDetails] = useState(false);
+  const [editingOwnName, setEditingOwnName] = useState(false);
+  const [editingCode, setEditingCode] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
+  const [linkError, setLinkError] = useState(null);
+
   const adoptCredential = usePlayerStore((s) => s.adoptCredential);
 
   const load = useCallback(async () => {
@@ -2221,6 +2231,43 @@ function TeacherSettings({ classId, teacherCode, teacherName, onClose, resetPlay
       setStatus('error');
     }
   }, [classId, teacherCode]);
+
+  // The shareable student link for this class, built from the live origin so it
+  // works on localhost, the preview URL and ezwonders.com alike. Printed badges
+  // use the same /?code= entry point.
+  const classLink = info?.classCode
+    ? `${
+        (typeof window !== 'undefined' && window.location?.origin) || 'https://ezwonders.com'
+      }/?code=${encodeURIComponent(info.classCode)}`
+    : '';
+
+  const copyClassLink = async () => {
+    if (!classLink) return;
+    setLinkError(null);
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(classLink);
+      } else {
+        // clipboard API needs a secure context; this fallback covers http and
+        // older browsers the way StudentBadge's copy already does.
+        const textarea = document.createElement('textarea');
+        textarea.value = classLink;
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.select();
+        try {
+          document.execCommand('copy');
+        } finally {
+          document.body.removeChild(textarea);
+        }
+      }
+      setCopiedLink(true);
+      window.setTimeout(() => setCopiedLink(false), 2000);
+    } catch {
+      setLinkError('Could not copy automatically — select the link above to copy it.');
+    }
+  };
 
   const closeCodeModal = () => {
     if (savingTeacherCode) return;
@@ -2331,6 +2378,7 @@ function TeacherSettings({ classId, teacherCode, teacherName, onClose, resetPlay
         setYearDraft(year);
       }
       setDetailsSaved(true);
+      setEditingDetails(false);
     } catch (err) {
       setDetailsError(err.message || 'Could not update class information.');
     } finally {
@@ -2358,6 +2406,7 @@ function TeacherSettings({ classId, teacherCode, teacherName, onClose, resetPlay
         setOwnNameDraft(identity.name ?? ownNameDraft.trim());
       }
       setOwnNameSaved(true);
+      setEditingOwnName(false);
     } catch (err) {
       setOwnNameError(err.message || 'Could not update your name.');
     } finally {
@@ -2437,6 +2486,7 @@ function TeacherSettings({ classId, teacherCode, teacherName, onClose, resetPlay
       setInfo((cur) => ({ ...cur, classCode: updated?.classCode || next }));
       setCodeDraft(updated?.classCode || next);
       setCodeSaved(true);
+      setEditingCode(false);
     } catch (err) {
       setCodeError(err.message || 'Could not update the class code.');
     } finally {
@@ -2488,142 +2538,305 @@ function TeacherSettings({ classId, teacherCode, teacherName, onClose, resetPlay
 
       {status === 'ready' && info && (
         <>
+          {/* The class code is the one thing a teacher reads off this page most
+              often, so it is rendered oversized and given the copy-link action
+              right next to it, with renaming tucked behind Edit. */}
           <div className="rounded-2xl aura-card p-4 sm:p-5">
-            <p className="text-sm font-black aura-text">Class information</p>
-            <p className="mt-1 text-xs font-semibold aura-soft">
-              Rename your class and set how it is labelled. The class ID is fixed and cannot be
-              changed.
-            </p>
-
-            <div className="mt-3 flex flex-col gap-3">
-              <div>
-                <label htmlFor="cls-name" className="mb-1 block text-[11px] font-black aura-soft">
-                  Class name
-                </label>
-                <input
-                  id="cls-name"
-                  type="text"
-                  value={nameDraft}
-                  maxLength={80}
-                  onChange={(e) => {
-                    setNameDraft(e.target.value);
-                    setDetailsSaved(false);
-                    setDetailsError(null);
-                  }}
-                  disabled={savingDetails}
-                  className={textInputCls}
-                />
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0">
+                <p className="text-[10px] font-black uppercase tracking-wide aura-muted">
+                  Class code
+                </p>
+                <p className="mt-1 font-mono text-4xl font-black leading-none tracking-[0.12em] aura-text break-all sm:text-5xl">
+                  {info.classCode || '—'}
+                </p>
+                <p className="mt-2 text-xs font-semibold aura-soft">
+                  {info.isPublic
+                    ? 'Students join with this code and their name.'
+                    : 'Each student needs their own code — share this with staff only.'}
+                </p>
               </div>
 
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <div>
-                  <label htmlFor="cls-alias" className="mb-1 block text-[11px] font-black aura-soft">
-                    Short label (alias)
-                  </label>
-                  <input
-                    id="cls-alias"
-                    type="text"
-                    value={aliasDraft}
-                    maxLength={80}
-                    placeholder={nameDraft || 'e.g. Sunflower'}
-                    onChange={(e) => {
-                      setAliasDraft(e.target.value);
-                      setDetailsSaved(false);
-                      setDetailsError(null);
+              <button
+                type="button"
+                onClick={() => {
+                  setCodeError(null);
+                  setCodeSaved(false);
+                  setEditingCode((v) => !v);
+                }}
+                className="aura-ghost min-h-10 shrink-0 rounded-xl px-4 text-xs font-black"
+              >
+                {editingCode ? 'Cancel' : '✏️ Edit code'}
+              </button>
+            </div>
+
+            <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+              <button
+                type="button"
+                onClick={copyClassLink}
+                disabled={!classLink}
+                className="aura-btn aura-btn-violet min-h-11 flex-1 px-4 text-sm disabled:cursor-not-allowed disabled:opacity-50 sm:flex-none"
+              >
+                {copiedLink ? '✓ Link copied' : '🔗 Copy class link'}
+              </button>
+            </div>
+            {classLink && (
+              <p className="mt-2 break-all font-mono text-[11px] font-bold aura-muted">
+                {classLink}
+              </p>
+            )}
+            {linkError && (
+              <p className="mt-2 rounded-xl bg-rose-500/20 px-3 py-2 text-xs font-bold text-rose-100">
+                ⚠️ {linkError}
+              </p>
+            )}
+
+            {editingCode && (
+              <div className="mt-4 border-t border-white/15 pt-4">
+                <p className="text-xs font-semibold aura-soft">
+                  Renaming breaks any printed badges or shared links that use the old code.
+                </p>
+                <div className="mt-3">
+                  <CodeField
+                    id="class-code"
+                    label="New class code"
+                    value={codeDraft}
+                    onChange={(v) => {
+                      setCodeDraft(v);
+                      setCodeSaved(false);
+                      setCodeError(null);
                     }}
-                    disabled={savingDetails}
-                    className={textInputCls}
+                    placeholder="e.g. C4KD2M"
+                    check={codeChanged ? codeCheck : { status: 'idle' }}
+                    disabled={savingCode}
                   />
                 </div>
-                <div>
-                  <label htmlFor="cls-year" className="mb-1 block text-[11px] font-black aura-soft">
-                    Year
-                  </label>
-                  <input
-                    id="cls-year"
-                    type="text"
-                    value={yearDraft}
-                    maxLength={20}
-                    placeholder="e.g. 2026"
-                    onChange={(e) => {
-                      setYearDraft(e.target.value);
-                      setDetailsSaved(false);
-                      setDetailsError(null);
-                    }}
-                    disabled={savingDetails}
-                    className={textInputCls}
-                  />
+                <div className="mt-2 flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={saveCode}
+                    disabled={!codeChanged || savingCode || codeCheck.status === 'taken'}
+                    className="aura-btn aura-btn-violet min-h-10 px-4 text-xs disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {savingCode ? 'Saving…' : 'Save class code'}
+                  </button>
+                  {codeSaved && (
+                    <span className="text-[11px] font-black text-emerald-200">✓ Saved</span>
+                  )}
                 </div>
-              </div>
-
-              <dl className="grid grid-cols-1 gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
-                <div className="flex justify-between gap-4">
-                  <dt className="font-bold aura-muted">Class ID</dt>
-                  <dd className="font-mono text-xs font-bold aura-soft">{info.classId}</dd>
-                </div>
-                <div className="flex justify-between gap-4">
-                  <dt className="font-bold aura-muted">Class code</dt>
-                  <dd className="font-mono text-xs font-black aura-text">{info.classCode || '—'}</dd>
-                </div>
-              </dl>
-
-              <div className="flex items-center gap-3">
-                <button
-                  type="button"
-                  onClick={saveDetails}
-                  disabled={!detailsChanged || savingDetails}
-                  className="aura-btn aura-btn-violet min-h-10 px-4 text-xs disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {savingDetails ? 'Saving…' : 'Save class information'}
-                </button>
-                {detailsSaved && (
-                  <span className="text-[11px] font-black text-emerald-200">✓ Saved</span>
+                {codeError && (
+                  <p className="mt-2 rounded-xl bg-rose-500/20 px-3 py-2 text-xs font-bold text-rose-100">
+                    ⚠️ {codeError}
+                  </p>
                 )}
               </div>
-              {detailsError && (
-                <p className="rounded-xl bg-rose-500/20 px-3 py-2 text-xs font-bold text-rose-100">
-                  ⚠️ {detailsError}
-                </p>
-              )}
-            </div>
+            )}
           </div>
 
           <div className="rounded-2xl aura-card p-4 sm:p-5">
-            <p className="text-sm font-black aura-text">Your name</p>
-            <p className="mt-1 text-xs font-semibold aura-soft">
-              This is what students, other teachers and admin see next to your activity.
-            </p>
-            <div className="mt-3">
-              <input
-                type="text"
-                value={ownNameDraft}
-                maxLength={80}
-                onChange={(e) => {
-                  setOwnNameDraft(e.target.value);
-                  setOwnNameSaved(false);
-                  setOwnNameError(null);
-                }}
-                disabled={savingOwnName}
-                className={textInputCls}
-              />
-            </div>
-            <div className="mt-2 flex items-center gap-3">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-sm font-black aura-text">Class information</p>
+                <p className="mt-1 text-xs font-semibold aura-soft">
+                  How your class is labelled across the app.
+                </p>
+              </div>
               <button
                 type="button"
-                onClick={saveOwnName}
-                disabled={!ownNameChanged || savingOwnName}
-                className="aura-btn aura-btn-violet min-h-10 px-4 text-xs disabled:cursor-not-allowed disabled:opacity-50"
+                onClick={() =>
+                  setEditingDetails((v) => {
+                    // Re-entering edit always starts from the saved values, so a
+                    // discarded edit can't leak into the next one.
+                    if (!v) {
+                      setNameDraft(info.className || '');
+                      setAliasDraft(info.classAlias || '');
+                      setYearDraft(info.classYear || '');
+                      setDetailsError(null);
+                    }
+                    return !v;
+                  })
+                }
+                className="aura-ghost min-h-10 shrink-0 rounded-xl px-4 text-xs font-black"
               >
-                {savingOwnName ? 'Saving…' : 'Save name'}
+                {editingDetails ? 'Cancel' : '✏️ Edit'}
               </button>
-              {ownNameSaved && (
-                <span className="text-[11px] font-black text-emerald-200">✓ Saved</span>
-              )}
             </div>
-            {ownNameError && (
-              <p className="mt-2 rounded-xl bg-rose-500/20 px-3 py-2 text-xs font-bold text-rose-100">
-                ⚠️ {ownNameError}
+
+            {!editingDetails ? (
+              <dl className="mt-3 grid grid-cols-1 gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
+                <div className="flex justify-between gap-4">
+                  <dt className="font-bold aura-muted">Name</dt>
+                  <dd className="min-w-0 truncate text-right font-black aura-text">
+                    {info.className}
+                  </dd>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <dt className="font-bold aura-muted">Short label</dt>
+                  <dd className="min-w-0 truncate text-right font-black aura-text">
+                    {info.classAlias || '—'}
+                  </dd>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <dt className="font-bold aura-muted">Year</dt>
+                  <dd className="min-w-0 truncate text-right font-black aura-text">
+                    {info.classYear || '—'}
+                  </dd>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <dt className="font-bold aura-muted">Class ID</dt>
+                  <dd className="min-w-0 truncate text-right font-mono text-xs font-bold aura-soft">
+                    {info.classId}
+                  </dd>
+                </div>
+              </dl>
+            ) : (
+              <div className="mt-3 flex flex-col gap-3">
+                <div>
+                  <label htmlFor="cls-name" className="mb-1 block text-[11px] font-black aura-soft">
+                    Class name
+                  </label>
+                  <input
+                    id="cls-name"
+                    type="text"
+                    value={nameDraft}
+                    maxLength={80}
+                    onChange={(e) => {
+                      setNameDraft(e.target.value);
+                      setDetailsSaved(false);
+                      setDetailsError(null);
+                    }}
+                    disabled={savingDetails}
+                    className={textInputCls}
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div>
+                    <label htmlFor="cls-alias" className="mb-1 block text-[11px] font-black aura-soft">
+                      Short label (alias)
+                    </label>
+                    <input
+                      id="cls-alias"
+                      type="text"
+                      value={aliasDraft}
+                      maxLength={80}
+                      placeholder={nameDraft || 'e.g. Sunflower'}
+                      onChange={(e) => {
+                        setAliasDraft(e.target.value);
+                        setDetailsSaved(false);
+                        setDetailsError(null);
+                      }}
+                      disabled={savingDetails}
+                      className={textInputCls}
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="cls-year" className="mb-1 block text-[11px] font-black aura-soft">
+                      Year
+                    </label>
+                    <input
+                      id="cls-year"
+                      type="text"
+                      value={yearDraft}
+                      maxLength={20}
+                      placeholder="e.g. 2026"
+                      onChange={(e) => {
+                        setYearDraft(e.target.value);
+                        setDetailsSaved(false);
+                        setDetailsError(null);
+                      }}
+                      disabled={savingDetails}
+                      className={textInputCls}
+                    />
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+                  <button
+                    type="button"
+                    onClick={saveDetails}
+                    disabled={!detailsChanged || savingDetails}
+                    className="aura-btn aura-btn-violet min-h-11 px-4 text-xs disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {savingDetails ? 'Saving…' : 'Save class information'}
+                  </button>
+                  {detailsSaved && (
+                    <span className="text-[11px] font-black text-emerald-200">✓ Saved</span>
+                  )}
+                </div>
+                {detailsError && (
+                  <p className="rounded-xl bg-rose-500/20 px-3 py-2 text-xs font-bold text-rose-100">
+                    ⚠️ {detailsError}
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-2xl aura-card p-4 sm:p-5">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-sm font-black aura-text">Your name</p>
+                <p className="mt-1 text-xs font-semibold aura-soft">
+                  Shown to students, other teachers and admin next to your activity.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() =>
+                  setEditingOwnName((v) => {
+                    if (!v) {
+                      setOwnNameDraft(liveTeacherName ?? teacherName ?? '');
+                      setOwnNameError(null);
+                    }
+                    return !v;
+                  })
+                }
+                className="aura-ghost min-h-10 shrink-0 rounded-xl px-4 text-xs font-black"
+              >
+                {editingOwnName ? 'Cancel' : '✏️ Edit'}
+              </button>
+            </div>
+
+            {!editingOwnName ? (
+              <p className="mt-3 truncate text-lg font-black aura-text">
+                {(liveTeacherName ?? teacherName) || '—'}
               </p>
+            ) : (
+              <>
+                <div className="mt-3">
+                  <input
+                    type="text"
+                    value={ownNameDraft}
+                    maxLength={80}
+                    onChange={(e) => {
+                      setOwnNameDraft(e.target.value);
+                      setOwnNameSaved(false);
+                      setOwnNameError(null);
+                    }}
+                    disabled={savingOwnName}
+                    className={textInputCls}
+                  />
+                </div>
+                <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+                  <button
+                    type="button"
+                    onClick={saveOwnName}
+                    disabled={!ownNameChanged || savingOwnName}
+                    className="aura-btn aura-btn-violet min-h-11 px-4 text-xs disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {savingOwnName ? 'Saving…' : 'Save name'}
+                  </button>
+                  {ownNameSaved && (
+                    <span className="text-[11px] font-black text-emerald-200">✓ Saved</span>
+                  )}
+                </div>
+                {ownNameError && (
+                  <p className="mt-2 rounded-xl bg-rose-500/20 px-3 py-2 text-xs font-bold text-rose-100">
+                    ⚠️ {ownNameError}
+                  </p>
+                )}
+              </>
             )}
           </div>
 
@@ -2697,44 +2910,8 @@ function TeacherSettings({ classId, teacherCode, teacherName, onClose, resetPlay
             )}
           </div>
 
-          <div className="rounded-2xl aura-card p-4 sm:p-5">
-            <p className="text-sm font-black aura-text">Class code</p>
-            <p className="mt-1 text-xs font-semibold aura-soft">
-              You can rename your own class code. Changing it breaks any printed badges or shared
-              links that contain the old code.
-            </p>
-            <div className="mt-3">
-              <CodeField
-                id="class-code"
-                label="Class code"
-                value={codeDraft}
-                onChange={(v) => {
-                  setCodeDraft(v);
-                  setCodeSaved(false);
-                  setCodeError(null);
-                }}
-                placeholder="e.g. C4KD2M"
-                check={codeChanged ? codeCheck : { status: 'idle' }}
-                disabled={savingCode}
-              />
-            </div>
-            <div className="mt-1 flex items-center gap-3">
-              <button
-                type="button"
-                onClick={saveCode}
-                disabled={!codeChanged || savingCode || codeCheck.status === 'taken'}
-                className="aura-btn aura-btn-violet min-h-10 px-4 text-xs disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {savingCode ? 'Saving…' : 'Save class code'}
-              </button>
-              {codeSaved && <span className="text-[11px] font-black text-emerald-200">✓ Saved</span>}
-            </div>
-            {codeError && (
-              <p className="mt-2 rounded-xl bg-rose-500/20 px-3 py-2 text-xs font-bold text-rose-100">
-                ⚠️ {codeError}
-              </p>
-            )}
-          </div>
+          {/* The class-code editor now lives in the big code box at the top of
+              this tab, so there is no second copy of it down here. */}
         </>
       )}
 
