@@ -1874,6 +1874,9 @@ function StudentsTab({ classId, teacherCode, className }) {
   const [deletedStatus, setDeletedStatus] = useState('idle');
   const [lastRemoved, setLastRemoved] = useState(null);
   const [undoBusy, setUndoBusy] = useState(false);
+  // Anchors the trash panel so opening it can bring it into view. Without this
+  // it rendered below a long roster and looked like the button had done nothing.
+  const trashRef = useRef(null);
 
   const load = useCallback(async () => {
     if (!classId || !teacherCode) return;
@@ -1942,6 +1945,13 @@ function StudentsTab({ classId, teacherCode, className }) {
     const timer = window.setTimeout(() => setLastRemoved(null), UNDO_TOAST_MS);
     return () => window.clearTimeout(timer);
   }, [lastRemoved]);
+
+  // Bring the trash into view when it opens. Centred rather than 'start' so a
+  // short list isn't pinned awkwardly to the very top behind the sticky header.
+  useEffect(() => {
+    if (!showDeleted) return;
+    trashRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [showDeleted]);
 
   const undoLastRemoval = async () => {
     if (!lastRemoved || undoBusy) return;
@@ -2074,6 +2084,96 @@ function StudentsTab({ classId, teacherCode, className }) {
     }
   };
 
+  // The trash panel, rendered inline right after whichever control toggles it so
+  // it opens in view. It used to sit below the roster <ul>, so on a full class
+  // the panel appeared far below the fold and opening it looked like a no-op.
+  const renderTrash = () =>
+    showDeleted ? (
+      <div
+        ref={trashRef}
+        className="mt-3 rounded-2xl border border-amber-400/30 bg-amber-500/5 p-3 sm:p-4"
+      >
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-sm font-black aura-text">🗑️ Deleted students</p>
+            <p className="mt-0.5 text-[11px] font-semibold aura-soft">
+              Hidden from the roster and from stats. Restore to bring them back, or delete
+              forever.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowDeleted(false)}
+            className="aura-ghost shrink-0 rounded-xl px-3 py-2 text-xs"
+          >
+            Close
+          </button>
+        </div>
+
+        {deletedStatus === 'loading' && (
+          <p className="mt-3 text-xs font-bold aura-soft">Loading…</p>
+        )}
+
+        {deletedStatus === 'error' && (
+          <div className="mt-3 flex flex-wrap items-center gap-3">
+            <p className="text-xs font-bold text-rose-100">
+              ⚠️ Could not load deleted students.
+            </p>
+            <button
+              type="button"
+              onClick={loadDeleted}
+              className="aura-ghost rounded-xl px-3 py-2 text-xs font-black"
+            >
+              ↻ Try again
+            </button>
+          </div>
+        )}
+
+        {deletedStatus === 'ready' && deleted.length === 0 && (
+          <p className="mt-3 text-xs font-semibold aura-soft">
+            Nothing here — deleted students will appear in this list.
+          </p>
+        )}
+
+        {deletedStatus === 'ready' && deleted.length > 0 && (
+          <ul className="mt-3 flex flex-col gap-2">
+            {deleted.map((row) => (
+              <li
+                key={row.studentId}
+                className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-white/15 bg-white/5 p-3"
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-black aura-text">{row.name}</p>
+                  <p className="mt-0.5 text-[11px] font-semibold aura-soft">
+                    {row.code ? <span className="font-mono">{row.code}</span> : 'No code'}
+                    {row.deletedAt
+                      ? ` · deleted ${new Date(row.deletedAt).toLocaleDateString()}`
+                      : ''}
+                  </p>
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => restoreDeleted(row)}
+                    className="aura-ghost rounded-xl px-3 py-2 text-xs font-black"
+                  >
+                    ↩️ Restore
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => purgeDeleted(row)}
+                    className="aura-ghost aura-ghost-danger rounded-xl px-3 py-2 text-xs font-black"
+                  >
+                    Delete forever
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    ) : null;
+
   return (
     <div>
       <AddStudentForm classId={classId} teacherCode={teacherCode} onAdded={load} />
@@ -2151,6 +2251,10 @@ function StudentsTab({ classId, teacherCode, className }) {
               🗑️ Deleted ({deleted.length}) {showDeleted ? '▴' : '▾'}
             </button>
           )}
+
+          {/* Opens right beneath its own button, so an empty roster can still
+              reach deleted students without hunting down the page. */}
+          <div className="mx-auto max-w-xl text-left">{renderTrash()}</div>
         </div>
       )}
 
@@ -2189,6 +2293,10 @@ function StudentsTab({ classId, teacherCode, className }) {
             </div>
           </div>
 
+          {/* The trash opens immediately below its toggle — above the roster —
+              so it is always on screen the moment it is opened. */}
+          {renderTrash()}
+
           <div className="mb-3">
             <Suspense fallback={null}>
               <PrintAllBadgesButton students={rosterForBadges} classInfo={{ className }} />
@@ -2212,95 +2320,6 @@ function StudentsTab({ classId, teacherCode, className }) {
             ))}
           </ul>
         </>
-      )}
-
-      {/* Trash. Kept behind a toggle so the common roster view stays uncluttered,
-          and only fetching it while open keeps the normal path cheap. */}
-      {showDeleted && (
-        <div className="mt-6 rounded-2xl border border-amber-400/30 bg-amber-500/5 p-3 sm:p-4">
-          <div className="flex items-center justify-between gap-3">
-            <div className="min-w-0">
-              <p className="text-sm font-black aura-text">🗑️ Deleted students</p>
-              <p className="mt-0.5 text-[11px] font-semibold aura-soft">
-                Hidden from the roster and from stats. Restore to bring them back, or delete
-                forever.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setShowDeleted(false)}
-              className="aura-ghost shrink-0 rounded-xl px-3 py-2 text-xs"
-            >
-              Close
-            </button>
-          </div>
-
-          {deletedStatus === 'loading' && (
-            <p className="mt-3 text-xs font-bold aura-soft">Loading…</p>
-          )}
-
-          {deletedStatus === 'error' && (
-            <div className="mt-3 flex flex-wrap items-center gap-3">
-              <p className="text-xs font-bold text-rose-100">
-                ⚠️ Could not load deleted students.
-              </p>
-              <button
-                type="button"
-                onClick={loadDeleted}
-                className="aura-ghost rounded-xl px-3 py-2 text-xs font-black"
-              >
-                ↻ Try again
-              </button>
-            </div>
-          )}
-
-          {deletedStatus === 'ready' && deleted.length === 0 && (
-            <p className="mt-3 text-xs font-semibold aura-soft">
-              Nothing here — deleted students will appear in this list.
-            </p>
-          )}
-
-          {deletedStatus === 'ready' && deleted.length > 0 && (
-            <ul className="mt-3 flex flex-col gap-2">
-              {deleted.map((row) => (
-                <li
-                  key={row.studentId}
-                  className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-white/15 bg-white/5 p-3"
-                >
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-black aura-text">{row.name}</p>
-                    <p className="mt-0.5 text-[11px] font-semibold aura-soft">
-                      {row.code ? (
-                        <span className="font-mono">{row.code}</span>
-                      ) : (
-                        'No code'
-                      )}
-                      {row.deletedAt
-                        ? ` · deleted ${new Date(row.deletedAt).toLocaleDateString()}`
-                        : ''}
-                    </p>
-                  </div>
-                  <div className="flex shrink-0 items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => restoreDeleted(row)}
-                      className="aura-ghost rounded-xl px-3 py-2 text-xs font-black"
-                    >
-                      ↩️ Restore
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => purgeDeleted(row)}
-                      className="aura-ghost aura-ghost-danger rounded-xl px-3 py-2 text-xs font-black"
-                    >
-                      Delete forever
-                    </button>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
       )}
 
       {status === 'ready' && mergedMembers.length > 0 && (
