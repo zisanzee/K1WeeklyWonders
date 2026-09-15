@@ -218,6 +218,27 @@ export const usePlayerStore = create(
           identityKind: null,
         }),
 
+      // Swap the stored credential after a teacher changes THEIR OWN code, so
+      // the device stays signed in instead of being signed out on the next
+      // validation (the old code no longer resolves). Identity is re-applied
+      // from the server payload returned by the update, so it can't drift.
+      adoptCredential: (newCode, identity) =>
+        set({
+          code: newCode || get().code,
+          mode: 'code',
+          name: null,
+          playerName: identity?.name ?? get().playerName,
+          classId: identity?.classId ?? get().classId,
+          className: identity?.className ?? get().className,
+          classAlias: identity?.classAlias ?? get().classAlias,
+          classCode: identity?.classCode ?? get().classCode,
+          classType: identity?.classType ?? get().classType,
+          isTeacher: true,
+          isAdmin: identity?.role === 'admin',
+          teacherCode: newCode || get().teacherCode,
+          identityKind: identity?.role === 'admin' ? 'admin' : 'teacher',
+        }),
+
       // Back-compat alias: several components call resetPlayer() to log out.
       resetPlayer: () => get().signOut(),
     }),

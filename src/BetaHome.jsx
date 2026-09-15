@@ -1596,6 +1596,13 @@ function BetaHomeContent() {
                 setControlsLoading(true);
                 requestAnimationFrame(() => navigate("/game-access"));
               }}
+              // Warm the panel chunk on the way in, so the click is instant on
+              // the common path (hover/focus precedes the tap). Same module
+              // specifier as GameAccessPage's import(), so it is the same chunk;
+              // failures are ignored and simply fall back to loading on click.
+              onMouseEnter={() => import("./GameAccessPanel").catch(() => {})}
+              onFocus={() => import("./GameAccessPanel").catch(() => {})}
+              onTouchStart={() => import("./GameAccessPanel").catch(() => {})}
               whileHover={{ y: -2, scale: 1.03 }}
               whileTap={{ y: 0, scale: 0.98 }}
               className="flex items-center gap-1.5 sm:gap-2 rounded-full px-3.5 py-1.5 sm:px-5 sm:py-2.5 text-xs sm:text-base font-black text-white shadow-md sm:shadow-xl ring-2 sm:ring-4 ring-white/70"

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { AnimatePresence, motion } from 'motion/react';
 import {
@@ -40,8 +40,10 @@ import {
   fetchClassInfo,
   fetchClasses,
   setClassCode,
+  setClassDetails,
   setClassPublic,
   updateClass,
+  updateOwnTeacher,
 } from './classInfo';
 import {
   addStudentToClass,
@@ -54,9 +56,18 @@ import {
   updateStudentInClass,
 } from './students';
 import { useSystemConfigStore } from './systemConfig';
-import StudentBadge, { PrintAllBadgesButton } from './StudentBadge';
-import StatsPanel from './StatsPanel';
-import MissionHeroes from './MissionHeroes';
+
+// Badge printing drags in jsPDF + html-to-image (~600KB combined) and the stats
+// surfaces are ~64KB, but NONE of that is needed to paint the panel's default
+// tab. Loading them on demand keeps "Teacher controls" gated on the roster and
+// game list only, instead of on the whole badge/PDF toolchain. Both StudentBadge
+// exports share a single chunk because they come from the same import().
+const StudentBadge = lazy(() => import('./StudentBadge'));
+const PrintAllBadgesButton = lazy(() =>
+  import('./StudentBadge').then((m) => ({ default: m.PrintAllBadgesButton }))
+);
+const StatsPanel = lazy(() => import('./StatsPanel'));
+const MissionHeroes = lazy(() => import('./MissionHeroes'));
 
 // ---------------------------------------------------------------------------
 // Role-split navigation
@@ -93,7 +104,7 @@ const TEACHER_TABS = [
     key: 'settings',
     label: 'Settings',
     icon: '⚙️',
-    description: 'Class privacy, your class code, and your signed-in session.',
+    description: 'Your class details, privacy, class code, and your own name and access code.',
   },
 ];
 
@@ -199,7 +210,19 @@ function useCodeCheck(code, exclude) {
     const timer = setTimeout(async () => {
       try {
         const parsed = JSON.parse(excludeKey);
-        const res = await checkCodeAvailable(trimmed, parsed || undefined);
+        // The server reads excludeTeacherId / excludeClassId / excludeStudentId.
+        // Callers pass the shorter { teacherId }/{ classId }/{ studentId }, so
+        // map them across — without this the exclusion was silently dropped and
+        // an entity's OWN code came back "taken", which disabled the save button
+        // on every student/class edit.
+        const exclude = parsed
+          ? {
+              excludeTeacherId: parsed.teacherId,
+              excludeClassId: parsed.classId,
+              excludeStudentId: parsed.studentId,
+            }
+          : undefined;
+        const res = await checkCodeAvailable(trimmed, exclude);
         if (cancelled) return;
         setState(
           res.available
@@ -1976,7 +1999,9 @@ function StudentsTab({ classId, teacherCode, className }) {
           </div>
 
           <div className="mb-3">
-            <PrintAllBadgesButton students={rosterForBadges} classInfo={{ className }} />
+            <Suspense fallback={null}>
+              <PrintAllBadgesButton students={rosterForBadges} classInfo={{ className }} />
+            </Suspense>
           </div>
 
           <ul className="flex flex-col gap-2">
@@ -2039,16 +2064,18 @@ function StudentsTab({ classId, teacherCode, className }) {
       )}
 
       {badgeIdentity && (
-        <StudentBadge
-          student={{
-            studentId: badgeIdentity.studentId,
-            code: badgeIdentity.code,
-            nickname: badgeIdentity.name,
-            fullName: badgeIdentity.name,
-          }}
-          classInfo={{ className: className || 'EZ Wonders' }}
-          onClose={() => setBadgeIdentity(null)}
-        />
+        <Suspense fallback={null}>
+          <StudentBadge
+            student={{
+              studentId: badgeIdentity.studentId,
+              code: badgeIdentity.code,
+              nickname: badgeIdentity.name,
+              fullName: badgeIdentity.name,
+            }}
+            classInfo={{ className: className || 'EZ Wonders' }}
+            onClose={() => setBadgeIdentity(null)}
+          />
+        </Suspense>
       )}
 
       <AnimatePresence>
@@ -2148,6 +2175,30 @@ function TeacherSettings({ classId, teacherCode, teacherName, onClose, resetPlay
   const [codeError, setCodeError] = useState(null);
   const [codeSaved, setCodeSaved] = useState(false);
 
+  // Editable class details (name / alias / year).
+  const [nameDraft, setNameDraft] = useState('');
+  const [aliasDraft, setAliasDraft] = useState('');
+  const [yearDraft, setYearDraft] = useState('');
+  const [savingDetails, setSavingDetails] = useState(false);
+  const [detailsError, setDetailsError] = useState(null);
+  const [detailsSaved, setDetailsSaved] = useState(false);
+
+  // Own profile: display name, plus a credential change that needs the current
+  // code and a twice-typed new one.
+  const [ownNameDraft, setOwnNameDraft] = useState(teacherName || '');
+  const [savingOwnName, setSavingOwnName] = useState(false);
+  const [ownNameError, setOwnNameError] = useState(null);
+  const [ownNameSaved, setOwnNameSaved] = useState(false);
+
+  const [currentCodeDraft, setCurrentCodeDraft] = useState('');
+  const [newCodeDraft, setNewCodeDraft] = useState('');
+  const [confirmCodeDraft, setConfirmCodeDraft] = useState('');
+  const [savingTeacherCode, setSavingTeacherCode] = useState(false);
+  const [teacherCodeError, setTeacherCodeError] = useState(null);
+  const [teacherCodeSaved, setTeacherCodeSaved] = useState(false);
+
+  const adoptCredential = usePlayerStore((s) => s.adoptCredential);
+
   const load = useCallback(async () => {
     if (!classId) return;
     setStatus('loading');
@@ -2156,6 +2207,9 @@ function TeacherSettings({ classId, teacherCode, teacherName, onClose, resetPlay
       const data = await fetchClassInfo(classId, teacherCode);
       setInfo(data);
       setCodeDraft(data.classCode || '');
+      setNameDraft(data.className || '');
+      setAliasDraft(data.classAlias || '');
+      setYearDraft(data.classYear || '');
       setStatus('ready');
     } catch (err) {
       setError(err.message || 'Could not load class information.');
@@ -2163,13 +2217,166 @@ function TeacherSettings({ classId, teacherCode, teacherName, onClose, resetPlay
     }
   }, [classId, teacherCode]);
 
+  // Fetch ONCE per class, not on every teacherCode change. After a teacher
+  // changes their own code the parent hands down the new teacherCode, which
+  // would re-run load(), flip the panel back to 'loading' and unmount this
+  // whole form — destroying the "✓ Code changed" confirmation mid-flight. The
+  // class data doesn't depend on the code, so a ref guard is the right scope.
+  const loadedForClassRef = useRef(null);
   useEffect(() => {
+    if (!classId || loadedForClassRef.current === classId) return;
+    loadedForClassRef.current = classId;
     load();
-  }, [load]);
+  }, [classId, load]);
 
   const codeChanged =
     info && (codeDraft.trim().toUpperCase() !== (info.classCode || '').toUpperCase());
   const codeCheck = useCodeCheck(codeChanged ? codeDraft : '', { classId });
+
+  const detailsChanged =
+    Boolean(info) &&
+    (nameDraft.trim() !== (info.className || '') ||
+      aliasDraft.trim() !== (info.classAlias || '') ||
+      yearDraft.trim() !== (info.classYear || ''));
+
+  // Compare against the LIVE store name, not the `teacherName` prop. After a
+  // code change the prop is refreshed from the server identity, but so is the
+  // store — reading the store here keeps the two in step and means the button
+  // reads correctly instead of staying enabled against a stale baseline.
+  const liveTeacherName = usePlayerStore((s) => s.playerName);
+  const ownNameChanged =
+    ownNameDraft.trim() !== (liveTeacherName ?? teacherName ?? '').trim();
+
+  // Availability check for the NEW teacher code, excluding nothing: a change
+  // here frees the old code and must not collide with anything else. Skipped
+  // until the field holds something, so an empty box reads as idle, not taken.
+  const newCodeCheck = useCodeCheck(newCodeDraft, undefined);
+
+  const newCodeTooShort =
+    newCodeDraft.length > 0 && newCodeDraft.trim().length < 4;
+  const newCodeSameAsOld =
+    newCodeDraft.trim().length > 0 && newCodeDraft.trim() === currentCodeDraft.trim();
+  const newCodeMismatch =
+    confirmCodeDraft.length > 0 && confirmCodeDraft.trim() !== newCodeDraft.trim();
+  const canSubmitTeacherCode =
+    !savingTeacherCode &&
+    currentCodeDraft.trim().length > 0 &&
+    newCodeDraft.trim().length >= 4 &&
+    confirmCodeDraft.trim() === newCodeDraft.trim() &&
+    !newCodeTooShort &&
+    !newCodeSameAsOld &&
+    !newCodeMismatch &&
+    newCodeCheck.status !== 'taken';
+
+  const saveDetails = async () => {
+    if (!detailsChanged || savingDetails) return;
+    setSavingDetails(true);
+    setDetailsError(null);
+    setDetailsSaved(false);
+    try {
+      const updated = await setClassDetails(
+        classId,
+        {
+          className: nameDraft.trim(),
+          classAlias: aliasDraft.trim(),
+          classYear: yearDraft.trim(),
+        },
+        teacherCode
+      );
+      const next = updated?.classInfo;
+      if (next) {
+        const name = next.className || nameDraft.trim();
+        // The server falls back to the class name when the alias is cleared, so
+        // mirror that rather than leaving a stale alias in the form.
+        const alias = next.classAlias || name;
+        // `classYear` is only trusted when the key is actually present; an older
+        // server omits it, and reading that as null would silently wipe the year
+        // the teacher just typed.
+        const year = 'classYear' in next ? next.classYear || '' : yearDraft.trim();
+        setInfo((cur) => ({
+          ...cur,
+          className: name,
+          classAlias: alias,
+          classYear: year || null,
+        }));
+        setNameDraft(name);
+        setAliasDraft(alias);
+        setYearDraft(year);
+      }
+      setDetailsSaved(true);
+    } catch (err) {
+      setDetailsError(err.message || 'Could not update class information.');
+    } finally {
+      setSavingDetails(false);
+    }
+  };
+
+  const saveOwnName = async () => {
+    if (!ownNameChanged || savingOwnName) return;
+    setSavingOwnName(true);
+    setOwnNameError(null);
+    setOwnNameSaved(false);
+    try {
+      const res = await updateOwnTeacher(
+        { name: ownNameDraft.trim() },
+        teacherCode
+      );
+      const identity = res?.teacher;
+      // Keep the stored identity in step without touching the credential.
+      if (identity) {
+        adoptCredential(teacherCode, identity);
+        // Adopt the server's (possibly length-trimmed) name so the field's
+        // baseline matches what was actually saved — otherwise a >80-char input
+        // would leave the Save button permanently enabled.
+        setOwnNameDraft(identity.name ?? ownNameDraft.trim());
+      }
+      setOwnNameSaved(true);
+    } catch (err) {
+      setOwnNameError(err.message || 'Could not update your name.');
+    } finally {
+      setSavingOwnName(false);
+    }
+  };
+
+  const saveTeacherCode = async () => {
+    if (!canSubmitTeacherCode) return;
+
+    const ok = await confirmDialog({
+      title: 'Change your code?',
+      message:
+        'This becomes your new sign-in code. Any device or bookmark still using the old code will stop working.',
+      confirmLabel: 'Change code',
+      cancelLabel: 'Cancel',
+      danger: true,
+      icon: '🔑',
+    });
+    if (!ok) return;
+
+    setSavingTeacherCode(true);
+    setTeacherCodeError(null);
+    setTeacherCodeSaved(false);
+    try {
+      const res = await updateOwnTeacher(
+        {
+          currentCode: currentCodeDraft.trim(),
+          newCode: newCodeDraft.trim(),
+        },
+        teacherCode
+      );
+      const nextCode = newCodeDraft.trim();
+      // Adopt the new credential so this device stays signed in; the response's
+      // identity is authoritative, so re-apply it rather than guessing.
+      adoptCredential(nextCode, res?.teacher);
+      setCurrentCodeDraft('');
+      setNewCodeDraft('');
+      setConfirmCodeDraft('');
+      setTeacherCodeSaved(true);
+    } catch (err) {
+      setTeacherCodeError(err.message || 'Could not change your code.');
+    } finally {
+      setSavingTeacherCode(false);
+    }
+  };
 
   const togglePublic = async (value) => {
     if (!info || savingPublic || info.isPublic === value) return;
@@ -2261,26 +2468,251 @@ function TeacherSettings({ classId, teacherCode, teacherName, onClose, resetPlay
       {status === 'ready' && info && (
         <>
           <div className="rounded-2xl aura-card p-4 sm:p-5">
-            <p className="text-[10px] font-black uppercase tracking-wide aura-muted">Class</p>
-            <p className="mt-1 text-lg font-black aura-text">{info.className}</p>
-            <dl className="mt-3 grid grid-cols-1 gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
-              <div className="flex justify-between gap-4">
-                <dt className="font-bold aura-muted">Alias</dt>
-                <dd className="font-black aura-text">{info.classAlias || '—'}</dd>
+            <p className="text-sm font-black aura-text">Class information</p>
+            <p className="mt-1 text-xs font-semibold aura-soft">
+              Rename your class and set how it is labelled. The class ID is fixed and cannot be
+              changed.
+            </p>
+
+            <div className="mt-3 flex flex-col gap-3">
+              <div>
+                <label htmlFor="cls-name" className="mb-1 block text-[11px] font-black aura-soft">
+                  Class name
+                </label>
+                <input
+                  id="cls-name"
+                  type="text"
+                  value={nameDraft}
+                  maxLength={80}
+                  onChange={(e) => {
+                    setNameDraft(e.target.value);
+                    setDetailsSaved(false);
+                    setDetailsError(null);
+                  }}
+                  disabled={savingDetails}
+                  className={textInputCls}
+                />
               </div>
-              <div className="flex justify-between gap-4">
-                <dt className="font-bold aura-muted">Year</dt>
-                <dd className="font-black aura-text">{info.classYear || '—'}</dd>
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div>
+                  <label htmlFor="cls-alias" className="mb-1 block text-[11px] font-black aura-soft">
+                    Short label (alias)
+                  </label>
+                  <input
+                    id="cls-alias"
+                    type="text"
+                    value={aliasDraft}
+                    maxLength={80}
+                    placeholder={nameDraft || 'e.g. Sunflower'}
+                    onChange={(e) => {
+                      setAliasDraft(e.target.value);
+                      setDetailsSaved(false);
+                      setDetailsError(null);
+                    }}
+                    disabled={savingDetails}
+                    className={textInputCls}
+                  />
+                </div>
+                <div>
+                  <label htmlFor="cls-year" className="mb-1 block text-[11px] font-black aura-soft">
+                    Year
+                  </label>
+                  <input
+                    id="cls-year"
+                    type="text"
+                    value={yearDraft}
+                    maxLength={20}
+                    placeholder="e.g. 2026"
+                    onChange={(e) => {
+                      setYearDraft(e.target.value);
+                      setDetailsSaved(false);
+                      setDetailsError(null);
+                    }}
+                    disabled={savingDetails}
+                    className={textInputCls}
+                  />
+                </div>
               </div>
-              <div className="flex justify-between gap-4">
-                <dt className="font-bold aura-muted">Class ID</dt>
-                <dd className="font-mono text-xs font-bold aura-soft">{info.classId}</dd>
+
+              <dl className="grid grid-cols-1 gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
+                <div className="flex justify-between gap-4">
+                  <dt className="font-bold aura-muted">Class ID</dt>
+                  <dd className="font-mono text-xs font-bold aura-soft">{info.classId}</dd>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <dt className="font-bold aura-muted">Class code</dt>
+                  <dd className="font-mono text-xs font-black aura-text">{info.classCode || '—'}</dd>
+                </div>
+              </dl>
+
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={saveDetails}
+                  disabled={!detailsChanged || savingDetails}
+                  className="aura-btn aura-btn-violet min-h-10 px-4 text-xs disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {savingDetails ? 'Saving…' : 'Save class information'}
+                </button>
+                {detailsSaved && (
+                  <span className="text-[11px] font-black text-emerald-200">✓ Saved</span>
+                )}
               </div>
-              <div className="flex justify-between gap-4">
-                <dt className="font-bold aura-muted">Class code</dt>
-                <dd className="font-mono text-xs font-black aura-text">{info.classCode || '—'}</dd>
+              {detailsError && (
+                <p className="rounded-xl bg-rose-500/20 px-3 py-2 text-xs font-bold text-rose-100">
+                  ⚠️ {detailsError}
+                </p>
+              )}
+            </div>
+          </div>
+
+          <div className="rounded-2xl aura-card p-4 sm:p-5">
+            <p className="text-sm font-black aura-text">Your name</p>
+            <p className="mt-1 text-xs font-semibold aura-soft">
+              This is what students, other teachers and admin see next to your activity.
+            </p>
+            <div className="mt-3">
+              <input
+                type="text"
+                value={ownNameDraft}
+                maxLength={80}
+                onChange={(e) => {
+                  setOwnNameDraft(e.target.value);
+                  setOwnNameSaved(false);
+                  setOwnNameError(null);
+                }}
+                disabled={savingOwnName}
+                className={textInputCls}
+              />
+            </div>
+            <div className="mt-2 flex items-center gap-3">
+              <button
+                type="button"
+                onClick={saveOwnName}
+                disabled={!ownNameChanged || savingOwnName}
+                className="aura-btn aura-btn-violet min-h-10 px-4 text-xs disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {savingOwnName ? 'Saving…' : 'Save name'}
+              </button>
+              {ownNameSaved && (
+                <span className="text-[11px] font-black text-emerald-200">✓ Saved</span>
+              )}
+            </div>
+            {ownNameError && (
+              <p className="mt-2 rounded-xl bg-rose-500/20 px-3 py-2 text-xs font-bold text-rose-100">
+                ⚠️ {ownNameError}
+              </p>
+            )}
+          </div>
+
+          <div className="rounded-2xl aura-card p-4 sm:p-5">
+            <p className="text-sm font-black aura-text">Your access code</p>
+            <p className="mt-1 text-xs font-semibold aura-soft">
+              This is your own sign-in code. Changing it signs out every other device still using
+              the old one, including printed badges or shared links that contain it.
+            </p>
+
+            <div className="mt-3 flex flex-col gap-3">
+              <div>
+                <label htmlFor="tc-current" className="mb-1 block text-[11px] font-black aura-soft">
+                  Your current code
+                </label>
+                <input
+                  id="tc-current"
+                  type="password"
+                  value={currentCodeDraft}
+                  autoComplete="off"
+                  onChange={(e) => {
+                    setCurrentCodeDraft(e.target.value);
+                    setTeacherCodeSaved(false);
+                    setTeacherCodeError(null);
+                  }}
+                  disabled={savingTeacherCode}
+                  className={textInputCls}
+                />
               </div>
-            </dl>
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div>
+                  <label htmlFor="tc-new" className="mb-1 block text-[11px] font-black aura-soft">
+                    New code
+                  </label>
+                  <input
+                    id="tc-new"
+                    type="password"
+                    value={newCodeDraft}
+                    autoComplete="off"
+                    onChange={(e) => {
+                      setNewCodeDraft(e.target.value);
+                      setTeacherCodeSaved(false);
+                      setTeacherCodeError(null);
+                    }}
+                    disabled={savingTeacherCode}
+                    className={textInputCls}
+                  />
+                  <div className="mt-1 min-h-[1rem]">
+                    {newCodeTooShort ? (
+                      <span className="text-[11px] font-black text-amber-200">
+                        ✕ At least 4 characters
+                      </span>
+                    ) : newCodeSameAsOld ? (
+                      <span className="text-[11px] font-black text-amber-200">
+                        ✕ That is already your code
+                      </span>
+                    ) : (
+                      <CodeCheckBadge state={newCodeCheck} />
+                    )}
+                  </div>
+                </div>
+                <div>
+                  <label htmlFor="tc-confirm" className="mb-1 block text-[11px] font-black aura-soft">
+                    Repeat new code
+                  </label>
+                  <input
+                    id="tc-confirm"
+                    type="password"
+                    value={confirmCodeDraft}
+                    autoComplete="off"
+                    onChange={(e) => {
+                      setConfirmCodeDraft(e.target.value);
+                      setTeacherCodeSaved(false);
+                      setTeacherCodeError(null);
+                    }}
+                    disabled={savingTeacherCode}
+                    className={textInputCls}
+                  />
+                  <div className="mt-1 min-h-[1rem]">
+                    {newCodeMismatch ? (
+                      <span className="text-[11px] font-black text-amber-200">
+                        ✕ The two codes do not match
+                      </span>
+                    ) : confirmCodeDraft.length > 0 ? (
+                      <span className="text-[11px] font-black text-emerald-200">✓ Match</span>
+                    ) : null}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={saveTeacherCode}
+                  disabled={!canSubmitTeacherCode}
+                  className="aura-btn aura-btn-violet min-h-10 px-4 text-xs disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {savingTeacherCode ? 'Changing…' : 'Change code'}
+                </button>
+                {teacherCodeSaved && (
+                  <span className="text-[11px] font-black text-emerald-200">✓ Code changed</span>
+                )}
+              </div>
+              {teacherCodeError && (
+                <p className="rounded-xl bg-rose-500/20 px-3 py-2 text-xs font-bold text-rose-100">
+                  ⚠️ {teacherCodeError}
+                </p>
+              )}
+            </div>
           </div>
 
           <div className="rounded-2xl aura-card p-4 sm:p-5">
@@ -3341,13 +3773,15 @@ export default function GameAccessPanel({ onClose, initialTab }) {
               </div>
             )}
 
-            {isAdmin ? (
-              <StatsPanel embedded adminMode />
-            ) : statsView === 'mission' ? (
-              <MissionHeroes teacherCode={teacherCode} />
-            ) : (
-              <StatsPanel embedded />
-            )}
+            <Suspense fallback={null}>
+              {isAdmin ? (
+                <StatsPanel embedded adminMode />
+              ) : statsView === 'mission' ? (
+                <MissionHeroes teacherCode={teacherCode} />
+              ) : (
+                <StatsPanel embedded />
+              )}
+            </Suspense>
           </div>
         )}
 

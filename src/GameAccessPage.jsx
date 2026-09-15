@@ -1,8 +1,19 @@
+import { lazy, Suspense } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
 import NameGate from './NameGate';
-import GameAccessPanel from './GameAccessPanel';
 import { usePlayerStore } from './playerStore';
+import BrandLoader from './BrandLoader';
+
+// The panel is a ~120KB source module. Keeping it behind its own import() means
+// the route's own chunk (the small gated shell below) resolves instantly, and
+// BetaHome warms the panel chunk on hover — so by the time the teacher taps
+// "Teacher controls" there is usually nothing left to download. See the
+// matching dynamic import in the teacher nav bar on BetaHome.
+//
+// Both sites MUST use the identical specifier ('./GameAccessPanel') or the
+// bundler emits two chunks and the prefetch warms the wrong one.
+const GameAccessPanel = lazy(() => import('./GameAccessPanel'));
 
 // Standalone route for the game access panel (was previously a modal
 // toggled from Home). Still gated behind NameGate so classId/teacherCode
@@ -55,5 +66,9 @@ function GameAccessPageContent() {
   // works fine as a page body too. Its close button / backdrop click /
   // Escape key all call onClose, so routing that to "/" instead of a
   // setState toggle is the only change needed to make it feel like a page.
-  return <GameAccessPanel onClose={() => navigate('/')} initialTab={initialTab} />;
+  return (
+    <Suspense fallback={<BrandLoader />}>
+      <GameAccessPanel onClose={() => navigate('/')} initialTab={initialTab} />
+    </Suspense>
+  );
 }
