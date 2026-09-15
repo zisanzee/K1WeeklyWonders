@@ -347,8 +347,35 @@ generators in the `levels.js` files, and the device fingerprint. `vite build` an
 
 ## Pushing code
 
-Only push when the user explicitly says so. Trigger phrases: "push the code",
-"push it", "push both ends", "push everything", or any "push" command.
+**DEFAULT: DO NOT PUSH. EVER.** Finish the work, run the checks, report what
+changed, and STOP. Leave the changes uncommitted in the working tree. The user
+reviews and decides when to ship.
+
+### The ONLY thing that authorises a push
+
+An explicit, unambiguous instruction to push **in the user's most recent
+message**. Treat it as a one-shot key that is consumed by the push it authorises
+— it does NOT carry over to later work. After pushing once, the next change is
+unpushed again until they say so again.
+
+Valid: "push the code", "push it", "push both ends", "push everything", "push",
+"push front end", "push both". Any message whose actual instruction is to push.
+
+### These are NOT push triggers — no matter how complete the work looks
+
+- Finishing a task, feature, fix, or plan. Completing work is **not** consent.
+- Being asked to "fix", "implement", "add", "update", "clean up", or "optimize".
+- A message that merely *mentions* git, commits, deploys, or pushing as context,
+  e.g. "I don't want to push yet", "will this need a push?", "before we push…".
+- `attempt_completion`. Wrapping up is NEVER a cue to push.
+- Your own judgement that the change is "ready" or "should be deployed".
+- A push instruction from an *earlier* turn. Consent does not persist.
+
+**When in doubt, do not push, and ask.** Ending with the work uncommitted and a
+note that it is ready to push is always the correct outcome. Pushing something
+the user did not explicitly ask for in that message is a serious error.
+
+### How to push, once authorised
 
 Run the three commands **as three separate `execute_command` calls, never chained**
 (chaining with `;` breaks `git commit -m`). In each repo, in order:

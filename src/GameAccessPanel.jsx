@@ -325,6 +325,10 @@ function defaultUnlockInput() {
 const textInputCls =
   'aura-input px-3 py-2.5 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-60';
 
+// How long the post-delete undo toast stays on screen. Long enough to notice
+// and react to a mis-tap, short enough that it never becomes permanent chrome.
+const UNDO_TOAST_MS = 7000;
+
 // ---------------------------------------------------------------------------
 // Games editor — class-scoped (teacher's own class, or any class for an admin).
 // Reads/writes go through the classId mutators in gameAccess.js.
@@ -1890,12 +1894,22 @@ function StudentsTab({ classId, teacherCode, className }) {
     setDeletedStatus('loading');
     try {
       const rows = await fetchDeletedStudents(classId, teacherCode);
-      setDeleted(Array.isArray(rows) ? rows : []);
+      // Tolerate either shape: the endpoint has returned a bare array, and a
+      // `{ students: [...] }` wrapper is the other natural contract. Reading
+      // both means a server-side shape change can't silently empty the list.
+      const list = Array.isArray(rows)
+        ? rows
+        : Array.isArray(rows?.students)
+          ? rows.students
+          : [];
+      setDeleted(list);
       setDeletedStatus('ready');
     } catch (err) {
       setDeleted([]);
       setDeletedStatus('error');
-      setError(err.message || 'Could not load deleted students.');
+      // Deliberately NOT surfaced as the tab-level error: a missing trash list
+      // must not look like the whole roster failed to load.
+      console.error('[students] could not load deleted students:', err);
     }
   }, [classId, teacherCode]);
 
@@ -1921,10 +1935,17 @@ function StudentsTab({ classId, teacherCode, className }) {
     [load, loadDeleted]
   );
 
+  // The undo affordance is a toast: it retires itself so it can never pile up
+  // or linger as a permanent fixture of the page.
+  useEffect(() => {
+    if (!lastRemoved) return undefined;
+    const timer = window.setTimeout(() => setLastRemoved(null), UNDO_TOAST_MS);
+    return () => window.clearTimeout(timer);
+  }, [lastRemoved]);
+
   const undoLastRemoval = async () => {
     if (!lastRemoved || undoBusy) return;
     setUndoBusy(true);
-    setError(null);
     try {
       if (lastRemoved.kind === 'student') {
         await restoreStudentInClass(classId, lastRemoved.studentId, teacherCode);
@@ -1933,9 +1954,11 @@ function StudentsTab({ classId, teacherCode, className }) {
       }
       setLastRemoved(null);
       await load();
-      if (showDeleted) await loadDeleted();
+      // Always: the toggle's count comes from this list.
+      await loadDeleted();
     } catch (err) {
       setError(err.message || 'Could not undo that.');
+      setLastRemoved(null);
     } finally {
       setUndoBusy(false);
     }
@@ -2055,28 +2078,42 @@ function StudentsTab({ classId, teacherCode, className }) {
     <div>
       <AddStudentForm classId={classId} teacherCode={teacherCode} onAdded={load} />
 
-      {/* Quick undo for a mis-tap. Only the most recent removal is offered,
-          since that is the one someone would actually be reacting to. */}
+      {/* Quick-undo TOAST for a mis-tap — fixed to the bottom of the viewport so
+          it is visible regardless of scroll position, and auto-dismissed by the
+          timer effect above. Only the most recent removal is offered, since
+          that is the one someone would actually be reacting to. */}
       <AnimatePresence>
         {lastRemoved && (
           <motion.div
-            initial={{ opacity: 0, y: -8 }}
+            key={`undo-${lastRemoved.name}`}
+            initial={{ opacity: 0, y: 24 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
-            className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-amber-400/40 bg-amber-500/15 px-3 py-2.5"
+            exit={{ opacity: 0, y: 24 }}
+            transition={{ type: 'spring', stiffness: 320, damping: 28 }}
+            role="status"
+            className="fixed inset-x-0 bottom-4 z-[80] mx-auto flex w-[min(94vw,30rem)] flex-wrap items-center justify-between gap-2 rounded-2xl border border-amber-400/40 bg-[#3a2c05]/95 px-4 py-3 shadow-2xl backdrop-blur-md"
           >
             <p className="min-w-0 text-xs font-bold text-amber-100">
-              Removed <span className="font-black">{lastRemoved.name}</span>. It can still be
-              restored.
+              Removed <span className="font-black">{lastRemoved.name}</span>
             </p>
-            <button
-              type="button"
-              onClick={undoLastRemoval}
-              disabled={undoBusy}
-              className="aura-btn aura-btn-violet min-h-9 shrink-0 px-3 text-xs disabled:opacity-50"
-            >
-              {undoBusy ? 'Restoring…' : '↩️ Undo'}
-            </button>
+            <div className="flex shrink-0 items-center gap-1">
+              <button
+                type="button"
+                onClick={undoLastRemoval}
+                disabled={undoBusy}
+                className="aura-btn aura-btn-violet min-h-9 px-3 text-xs disabled:opacity-50"
+              >
+                {undoBusy ? 'Restoring…' : '↩️ Undo'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setLastRemoved(null)}
+                aria-label="Dismiss"
+                className="rounded-lg px-2 py-1.5 text-sm font-black text-amber-200/80 transition hover:bg-white/10"
+              >
+                ✕
+              </button>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -2101,6 +2138,19 @@ function StudentsTab({ classId, teacherCode, className }) {
           <p className="mt-1 text-sm font-semibold aura-soft">
             Add your first student using the form above.
           </p>
+          {/* An emptied roster can still be hiding students in the trash, so the
+              way back to them has to exist here too — not only alongside the
+              roster controls. */}
+          {deleted.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setShowDeleted((v) => !v)}
+              aria-expanded={showDeleted}
+              className="aura-ghost mt-4 gap-1.5 rounded-xl px-3 py-2 text-xs"
+            >
+              🗑️ Deleted ({deleted.length}) {showDeleted ? '▴' : '▾'}
+            </button>
+          )}
         </div>
       )}
 
@@ -2109,6 +2159,7 @@ function StudentsTab({ classId, teacherCode, className }) {
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
             <p className="text-sm font-black aura-soft">
               {identities.length} student{identities.length === 1 ? '' : 's'}
+              {deleted.length > 0 ? ` · ${deleted.length} deleted` : ''}
             </p>
             <div className="flex flex-wrap items-center gap-2">
               <button
@@ -2118,15 +2169,15 @@ function StudentsTab({ classId, teacherCode, className }) {
               >
                 ↻ Refresh
               </button>
-              {deleted.length > 0 && (
-                <button
-                  type="button"
-                  onClick={() => setShowDeleted((v) => !v)}
-                  className="aura-ghost gap-1.5 px-3 py-2 text-xs"
-                >
-                  🗑️ Deleted ({deleted.length}) {showDeleted ? '▴' : '▾'}
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={() => setShowDeleted((v) => !v)}
+                aria-expanded={showDeleted}
+                className="aura-ghost gap-1.5 px-3 py-2 text-xs"
+              >
+                🗑️ Deleted{deleted.length > 0 ? ` (${deleted.length})` : ''}{' '}
+                {showDeleted ? '▴' : '▾'}
+              </button>
               <button
                 type="button"
                 onClick={openMerge}
@@ -2186,6 +2237,21 @@ function StudentsTab({ classId, teacherCode, className }) {
 
           {deletedStatus === 'loading' && (
             <p className="mt-3 text-xs font-bold aura-soft">Loading…</p>
+          )}
+
+          {deletedStatus === 'error' && (
+            <div className="mt-3 flex flex-wrap items-center gap-3">
+              <p className="text-xs font-bold text-rose-100">
+                ⚠️ Could not load deleted students.
+              </p>
+              <button
+                type="button"
+                onClick={loadDeleted}
+                className="aura-ghost rounded-xl px-3 py-2 text-xs font-black"
+              >
+                ↻ Try again
+              </button>
+            </div>
           )}
 
           {deletedStatus === 'ready' && deleted.length === 0 && (
