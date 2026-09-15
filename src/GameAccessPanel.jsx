@@ -50,8 +50,12 @@ import {
   deleteIdentityInClass,
   deleteStudentInClass,
   fetchClassIdentities,
+  fetchDeletedStudents,
   generateStudentCode,
   mergeIdentities,
+  permanentlyDeleteStudentInClass,
+  restoreIdentityInClass,
+  restoreStudentInClass,
   unmergeIdentity,
   updateStudentInClass,
 } from './students';
@@ -1643,6 +1647,7 @@ function IdentityRow({
   selected,
   onToggleSelected,
   onChanged,
+  onRemoved,
   onBadge,
 }) {
   const [editing, setEditing] = useState(false);
@@ -1700,6 +1705,12 @@ function IdentityRow({
       }
       // Leave `deleting` true — the parent reload drops this row from the list,
       // so the spinner stays until the row actually disappears.
+      // Report WHAT was removed so the parent can offer a targeted undo.
+      onRemoved?.({
+        kind: identity.rostered ? 'student' : 'identity',
+        name: identity.name,
+        studentId: identity.studentId || null,
+      });
       onChanged?.();
     } catch (err) {
       setError(err.message || 'Could not delete this player.');
@@ -1852,6 +1863,14 @@ function StudentsTab({ classId, teacherCode, className }) {
   const [busy, setBusy] = useState(false);
   const [badgeIdentity, setBadgeIdentity] = useState(null);
 
+  // Trash view + the single most recent removal, kept so a mis-tap can be
+  // undone without opening the trash list.
+  const [showDeleted, setShowDeleted] = useState(false);
+  const [deleted, setDeleted] = useState([]);
+  const [deletedStatus, setDeletedStatus] = useState('idle');
+  const [lastRemoved, setLastRemoved] = useState(null);
+  const [undoBusy, setUndoBusy] = useState(false);
+
   const load = useCallback(async () => {
     if (!classId || !teacherCode) return;
     setError(null);
@@ -1866,11 +1885,96 @@ function StudentsTab({ classId, teacherCode, className }) {
     }
   }, [classId, teacherCode]);
 
+  const loadDeleted = useCallback(async () => {
+    if (!classId || !teacherCode) return;
+    setDeletedStatus('loading');
+    try {
+      const rows = await fetchDeletedStudents(classId, teacherCode);
+      setDeleted(Array.isArray(rows) ? rows : []);
+      setDeletedStatus('ready');
+    } catch (err) {
+      setDeleted([]);
+      setDeletedStatus('error');
+      setError(err.message || 'Could not load deleted students.');
+    }
+  }, [classId, teacherCode]);
+
   useEffect(() => {
     setStatus('loading');
     setSelected(new Set());
     load();
-  }, [load]);
+    // Loaded up front as well, because the "🗑️ Deleted (n)" toggle only appears
+    // when there is something in the trash — so the count has to be known
+    // before the teacher opens it.
+    loadDeleted();
+  }, [load, loadDeleted]);
+
+  const handleRemoved = useCallback(
+    (info) => {
+      // `info` comes from IdentityRow: { kind, name, studentId }.
+      setLastRemoved(info);
+      load();
+      // Always refresh the trash: `deleted` drives the "🗑️ Deleted (n)" toggle
+      // count, so it must stay accurate even while the list is closed.
+      loadDeleted();
+    },
+    [load, loadDeleted]
+  );
+
+  const undoLastRemoval = async () => {
+    if (!lastRemoved || undoBusy) return;
+    setUndoBusy(true);
+    setError(null);
+    try {
+      if (lastRemoved.kind === 'student') {
+        await restoreStudentInClass(classId, lastRemoved.studentId, teacherCode);
+      } else {
+        await restoreIdentityInClass(classId, lastRemoved.name, teacherCode);
+      }
+      setLastRemoved(null);
+      await load();
+      if (showDeleted) await loadDeleted();
+    } catch (err) {
+      setError(err.message || 'Could not undo that.');
+    } finally {
+      setUndoBusy(false);
+    }
+  };
+
+  const restoreDeleted = async (row) => {
+    setError(null);
+    try {
+      await restoreStudentInClass(classId, row.studentId, teacherCode);
+      // If the just-restored student is the one the undo bar offers, drop the
+      // bar — it would otherwise undo something that no longer needs undoing.
+      if (lastRemoved?.studentId === row.studentId) setLastRemoved(null);
+      await load();
+      await loadDeleted();
+    } catch (err) {
+      setError(err.message || 'Could not restore this student.');
+    }
+  };
+
+  const purgeDeleted = async (row) => {
+    const ok = await confirmDialog({
+      title: `Permanently delete ${row.name}?`,
+      message:
+        'This cannot be undone. Their record and every play they ever logged will be gone for good.',
+      confirmLabel: 'Delete forever',
+      cancelLabel: 'Keep',
+      danger: true,
+      icon: '🗑️',
+    });
+    if (!ok) return;
+    setError(null);
+    try {
+      await permanentlyDeleteStudentInClass(classId, row.studentId, teacherCode);
+      if (lastRemoved?.studentId === row.studentId) setLastRemoved(null);
+      await loadDeleted();
+    } catch (err) {
+      setError(err.message || 'Could not permanently delete this student.');
+    }
+  };
 
   const mergedMembers = useMemo(
     () =>
@@ -1951,6 +2055,32 @@ function StudentsTab({ classId, teacherCode, className }) {
     <div>
       <AddStudentForm classId={classId} teacherCode={teacherCode} onAdded={load} />
 
+      {/* Quick undo for a mis-tap. Only the most recent removal is offered,
+          since that is the one someone would actually be reacting to. */}
+      <AnimatePresence>
+        {lastRemoved && (
+          <motion.div
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-amber-400/40 bg-amber-500/15 px-3 py-2.5"
+          >
+            <p className="min-w-0 text-xs font-bold text-amber-100">
+              Removed <span className="font-black">{lastRemoved.name}</span>. It can still be
+              restored.
+            </p>
+            <button
+              type="button"
+              onClick={undoLastRemoval}
+              disabled={undoBusy}
+              className="aura-btn aura-btn-violet min-h-9 shrink-0 px-3 text-xs disabled:opacity-50"
+            >
+              {undoBusy ? 'Restoring…' : '↩️ Undo'}
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {error && (
         <p className="mb-3 rounded-2xl border border-rose-500/30 bg-rose-500/20 px-3 py-3 text-sm font-bold text-rose-100">
           ⚠️ {error}
@@ -1980,7 +2110,7 @@ function StudentsTab({ classId, teacherCode, className }) {
             <p className="text-sm font-black aura-soft">
               {identities.length} student{identities.length === 1 ? '' : 's'}
             </p>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
                 onClick={load}
@@ -1988,6 +2118,15 @@ function StudentsTab({ classId, teacherCode, className }) {
               >
                 ↻ Refresh
               </button>
+              {deleted.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setShowDeleted((v) => !v)}
+                  className="aura-ghost gap-1.5 px-3 py-2 text-xs"
+                >
+                  🗑️ Deleted ({deleted.length}) {showDeleted ? '▴' : '▾'}
+                </button>
+              )}
               <button
                 type="button"
                 onClick={openMerge}
@@ -2016,11 +2155,86 @@ function StudentsTab({ classId, teacherCode, className }) {
                 selected={selected.has(identity.name)}
                 onToggleSelected={toggleSelected}
                 onChanged={load}
+                onRemoved={handleRemoved}
                 onBadge={setBadgeIdentity}
               />
             ))}
           </ul>
         </>
+      )}
+
+      {/* Trash. Kept behind a toggle so the common roster view stays uncluttered,
+          and only fetching it while open keeps the normal path cheap. */}
+      {showDeleted && (
+        <div className="mt-6 rounded-2xl border border-amber-400/30 bg-amber-500/5 p-3 sm:p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-sm font-black aura-text">🗑️ Deleted students</p>
+              <p className="mt-0.5 text-[11px] font-semibold aura-soft">
+                Hidden from the roster and from stats. Restore to bring them back, or delete
+                forever.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowDeleted(false)}
+              className="aura-ghost shrink-0 rounded-xl px-3 py-2 text-xs"
+            >
+              Close
+            </button>
+          </div>
+
+          {deletedStatus === 'loading' && (
+            <p className="mt-3 text-xs font-bold aura-soft">Loading…</p>
+          )}
+
+          {deletedStatus === 'ready' && deleted.length === 0 && (
+            <p className="mt-3 text-xs font-semibold aura-soft">
+              Nothing here — deleted students will appear in this list.
+            </p>
+          )}
+
+          {deletedStatus === 'ready' && deleted.length > 0 && (
+            <ul className="mt-3 flex flex-col gap-2">
+              {deleted.map((row) => (
+                <li
+                  key={row.studentId}
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-white/15 bg-white/5 p-3"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-black aura-text">{row.name}</p>
+                    <p className="mt-0.5 text-[11px] font-semibold aura-soft">
+                      {row.code ? (
+                        <span className="font-mono">{row.code}</span>
+                      ) : (
+                        'No code'
+                      )}
+                      {row.deletedAt
+                        ? ` · deleted ${new Date(row.deletedAt).toLocaleDateString()}`
+                        : ''}
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => restoreDeleted(row)}
+                      className="aura-ghost rounded-xl px-3 py-2 text-xs font-black"
+                    >
+                      ↩️ Restore
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => purgeDeleted(row)}
+                      className="aura-ghost aura-ghost-danger rounded-xl px-3 py-2 text-xs font-black"
+                    >
+                      Delete forever
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       )}
 
       {status === 'ready' && mergedMembers.length > 0 && (

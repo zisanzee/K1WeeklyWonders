@@ -250,10 +250,45 @@ export async function updateStudentInClass(classId, studentId, patch, teacherCod
   );
 }
 
+// Soft-removes a student. The row and its play history are only marked, so this
+// stays reversible via restoreStudentInClass until it is permanently deleted.
 export async function deleteStudentInClass(classId, studentId, teacherCode) {
   return jsonRequest(
     `/api/classes/${encodeURIComponent(classId)}/students/${encodeURIComponent(studentId)}`,
     { method: 'DELETE', body: { teacherCode } }
+  );
+}
+
+// The trash list for a class — students that have been removed but not purged.
+export async function fetchDeletedStudents(classId, teacherCode) {
+  return jsonRequest(
+    `/api/classes/${encodeURIComponent(classId)}/students/deleted?teacherCode=${encodeURIComponent(teacherCode)}`
+  );
+}
+
+// Undo a removal. Reappears in the roster and in every stats view.
+export async function restoreStudentInClass(classId, studentId, teacherCode) {
+  return jsonRequest(
+    `/api/classes/${encodeURIComponent(classId)}/students/${encodeURIComponent(studentId)}/restore`,
+    { method: 'POST', body: { teacherCode } }
+  );
+}
+
+// Irreversibly removes a student and their play history. Only valid once they
+// are already in the trash (the server enforces this too).
+export async function permanentlyDeleteStudentInClass(classId, studentId, teacherCode) {
+  return jsonRequest(
+    `/api/classes/${encodeURIComponent(classId)}/students/${encodeURIComponent(studentId)}/permanent`,
+    { method: 'DELETE', body: { teacherCode } }
+  );
+}
+
+// Undo removing a name-only ("light") identity, for the same reason: an
+// accidental tap on a child's name must be recoverable.
+export async function restoreIdentityInClass(classId, name, teacherCode) {
+  return jsonRequest(
+    `/api/classes/${encodeURIComponent(classId)}/identities/${encodeURIComponent(name)}/restore`,
+    { method: 'POST', body: { teacherCode } }
   );
 }
 
