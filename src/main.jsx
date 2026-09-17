@@ -34,36 +34,6 @@ if (typeof window !== 'undefined') {
 // the second request paid its own share of the wake-up.
 startSystemConfigPolling();
 
-// When the service worker installs a NEW build while this page is already open,
-// reload so the page stops running the previous bundle.
-//
-// The worker itself is `registerType: 'autoUpdate'` (skipWaiting + clientsClaim),
-// so a new build does take over — but "takes over" only means the *worker*
-// changed. The already-executing page keeps its old JS, and the old JS was built
-// against the old asset URLs, which is why a user can sit on a stale build until
-// they happen to close every tab. A controllerchange event fires exactly when a
-// new worker has claimed this page, so this is the correct moment to swap.
-//
-// Guarded to reload at most once per build: `controllerchange` can fire more than
-// once (multiple tabs, a re-claim), and each reload restarts the app, so an
-// unguarded handler here would be a reload loop.
-if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
-  let reloadedForBuild = false;
-  let hadController = !!navigator.serviceWorker.controller;
-
-  navigator.serviceWorker.addEventListener('controllerchange', () => {
-    // The very first claim (no worker → this build's worker) is the normal first
-    // visit; reloading there would be a pointless extra load for every new user.
-    if (!hadController) {
-      hadController = true;
-      return;
-    }
-    if (reloadedForBuild) return;
-    reloadedForBuild = true;
-    window.location.reload();
-  });
-}
-
 // Prime the TTS engine so a game's first utterance plays with no delay — but
 // do it at idle time so it never blocks the first paint / loading screen.
 // The landing route's chunk is prefetched in the same window: `/` is the route

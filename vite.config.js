@@ -3,27 +3,7 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { VitePWA } from "vite-plugin-pwa";
 
-// A value that changes on every deploy, folded into asset URLs at build time so
-// unhashed `public/` files (see src/assetVersion.js) get a new cache key each
-// release. Netlify/Render/Railway all expose a commit SHA; the timestamp is the
-// fallback for local builds. `Date.now()` is here deliberately — this runs in
-// the build process, not in the browser, so it is evaluated once per build.
-// Read through globalThis rather than a bare `process`: this file is linted with
-// the browser-ish default globals, where `process` is undefined.
-const env = globalThis.process?.env ?? {};
-const BUILD_ID =
-  env.COMMIT_REF ||
-  env.GITHUB_SHA ||
-  env.VERCEL_GIT_COMMIT_SHA ||
-  `local-${Date.now()}`;
-
 export default defineConfig({
-  // Surfaced to the app as a compile-time constant rather than an env var, so it
-  // is inlined into the bundle and can't be missing at runtime.
-  define: {
-    __EZ_BUILD_ID__: JSON.stringify(BUILD_ID),
-  },
-
   plugins: [
     react(),
     tailwindcss(),
@@ -71,56 +51,20 @@ export default defineConfig({
           {
             // Game art/audio are immutable per deploy and identical across
             // users — ideal cache-first candidates.
-            //
-            // The trailing `(?:[?#].*)?$` is load-bearing: these assets are
-            // requested with a `?v=<build id>` cache-buster (src/assetVersion.js),
-            // and an anchored `/\.png$/` would fail to match a URL ending in
-            // `?v=…` — the rule would silently stop applying and every asset
-            // would fall through to an uncached network fetch.
-            urlPattern: /\/PhaserAssets\/.*\.(?:m4a|wav|mp3|png|jpg|jpeg|webp)(?:[?#].*)?$/i,
+            urlPattern: /\/PhaserAssets\/.*\.(?:m4a|wav|mp3|png|jpg|jpeg|webp)$/i,
             handler: "CacheFirst",
             options: {
-              // `-v2` abandons the entries cached under the old unversioned URLs,
-              // which are now unreachable. They would otherwise sit in a 120-entry
-              // cache until they aged out, evicting live entries as new builds
-              // arrive.
-              cacheName: "ezw-phaser-assets-v2",
+              cacheName: "ezw-phaser-assets",
               expiration: { maxEntries: 120, maxAgeSeconds: 60 * 60 * 24 * 30 },
             },
           },
           {
             // Brand/font art is similarly static.
-            urlPattern: /\.(?:png|svg|woff2?)(?:[?#].*)?$/i,
+            urlPattern: /\.(?:png|svg|woff2?)$/i,
             handler: "StaleWhileRevalidate",
             options: {
               cacheName: "ezw-static-images",
               expiration: { maxEntries: 60, maxAgeSeconds: 60 * 60 * 24 * 30 },
-            },
-          },
-          {
-            // The Cloudinary-hosted game media (every food sprite, monster part,
-            // voice clip and hint illustration — the bulk of this game's art).
-            //
-            // CacheFirst, and that is only correct BECAUSE every request carries a
-            // `?v=<build id>` suffix (src/assetVersion.js). The URL is therefore
-            // immutable per build in the true sense, so a cache hit can never be
-            // stale — which is what lets this keep the offline-replay benefit for
-            // school tablets.
-            //
-            // The earlier versions of this rule could not be CacheFirst: the
-            // unversioned URL was reused for new bytes, so it had to revalidate —
-            // and revalidation was the trap. Workbox's revalidation is a plain
-            // `fetch()`, which the browser may answer from its HTTP cache, and
-            // Cloudinary serves `Cache-Control: immutable, max-age=2592000`. The
-            // "fresh" response was the stale bytes, which then got written into
-            // this cache. Bumping the cache name abandons those poisoned entries
-            // (the old keys are unreachable now anyway).
-            urlPattern: /^https:\/\/res\.cloudinary\.com\/.*\/upload\/.*/i,
-            handler: "CacheFirst",
-            options: {
-              cacheName: "ezw-cloudinary-media-v3",
-              expiration: { maxEntries: 300, maxAgeSeconds: 60 * 60 * 24 * 60 },
-              cacheableResponse: { statuses: [0, 200] },
             },
           },
         ],
