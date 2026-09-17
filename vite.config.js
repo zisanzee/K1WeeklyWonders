@@ -1,83 +1,43 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
-import { VitePWA } from "vite-plugin-pwa";
 
+// ---------------------------------------------------------------------------
+// NO SERVICE WORKER. This is deliberate — please read before re-adding one.
+//
+// `vite-plugin-pwa` used to precache the whole build: 65 files / ~3.0 MB,
+// downloaded eagerly on every service-worker install *and update*. That
+// included things most visitors never touch — the jsPDF/html2canvas badge
+// exporter (613 KB combined), the background music (388 KB) and the brand
+// logos (187 KB). A hard reload triggers the update check, so the browser
+// re-downloaded all of it every time: that was the "loads super slow on
+// Ctrl+Shift+R" symptom.
+//
+// It also caused a worse, intermittent failure. A worker precaching a
+// build-specific `index-<hash>.js` keeps serving that filename from its cache.
+// When a new deploy replaced it, devices that still had the old worker went
+// into a state where the shell could not boot — a permanent loading screen
+// that clearing the browser cache did NOT fix, because the worker and its
+// caches are a separate store that survives it. That is what made the site
+// appear "broken on Firefox, stale on Chrome". Only unregistering the worker
+// rescued those devices.
+//
+// The cost of removing it is losing offline play. That is a far smaller
+// problem than either of the above, and the browser's own HTTP cache already
+// handles repeat loads: Vite content-hashes every bundle, so `/assets/*` is
+// immutable by name and naturally cached.
+//
+// If offline support is ever wanted back:
+//   - precache ONLY `index.html` and the entry chunk, never the game chunks,
+//     the badge exporter, the music or the logos;
+//   - use `registerType: 'prompt'` with an explicit in-app update button, so
+//     a new worker never seizes control mid-session;
+//   - never call `location.reload()` from a worker lifecycle event. A reload
+//     reconstructs the page, so any "already reloaded" guard resets and the
+//     page can reload forever.
+// ---------------------------------------------------------------------------
 export default defineConfig({
-  plugins: [
-    react(),
-    tailwindcss(),
-
-    // Offline-capable service worker. The audience is largely 4-6 year olds on
-    // school tablets and shared wifi, replaying the same handful of games — so
-    // caching the heavy, rarely-changing assets (Phaser chunks, textures,
-    // sound effects) turns repeat plays from "download everything again" into
-    // "instant", and keeps them working when the connection drops.
-    VitePWA({
-      registerType: "autoUpdate",
-      // Precaching the full app shell is safe here: it is a small SPA and the
-      // point is that a warm visit needs no network at all.
-      workbox: {
-        // Raised above the 2MiB default so no individual asset is silently
-        // skipped.
-        maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,
-        globPatterns: ["**/*.{js,css,html,ico,png,svg,webmanifest,m4a,wav,mp3}"],
-        // Phaser (~1.4MB, the single largest asset) is deliberately NOT
-        // precached. Precaching happens eagerly on service-worker install, so
-        // including it would push a multi-megabyte background download onto
-        // every visitor — including a phone on cellular who opens the landing
-        // page and leaves. Instead it is cached at runtime the first time a
-        // child actually opens a game (see runtimeCaching below), which still
-        // gives instant, offline-capable repeat plays for the kids who
-        // genuinely use it.
-        globIgnores: ["**/phaser-*.js"],
-        // The API is deliberately NOT cached: play results and unlock state
-        // must always be live, and a stale cached 5xx is exactly the failure
-        // the server's own `Cache-Control: no-store` exists to prevent.
-        navigateFallbackDenylist: [/^\/api\//],
-        runtimeCaching: [
-          {
-            // The Phaser engine chunk, cached the first time any game is
-            // opened. CacheFirst is safe because the filename is content
-            // hashed — a new build produces a new URL, so a cache hit can
-            // never serve stale code.
-            urlPattern: /\/assets\/phaser-[^/]+\.js$/i,
-            handler: "CacheFirst",
-            options: {
-              cacheName: "ezw-phaser-engine",
-              expiration: { maxEntries: 4, maxAgeSeconds: 60 * 60 * 24 * 60 },
-            },
-          },
-          {
-            // Game art/audio are immutable per deploy and identical across
-            // users — ideal cache-first candidates.
-            urlPattern: /\/PhaserAssets\/.*\.(?:m4a|wav|mp3|png|jpg|jpeg|webp)$/i,
-            handler: "CacheFirst",
-            options: {
-              cacheName: "ezw-phaser-assets",
-              expiration: { maxEntries: 120, maxAgeSeconds: 60 * 60 * 24 * 30 },
-            },
-          },
-          {
-            // Brand/font art is similarly static.
-            urlPattern: /\.(?:png|svg|woff2?)$/i,
-            handler: "StaleWhileRevalidate",
-            options: {
-              cacheName: "ezw-static-images",
-              expiration: { maxEntries: 60, maxAgeSeconds: 60 * 60 * 24 * 30 },
-            },
-          },
-        ],
-      },
-      // The manifest already lives in public/site.webmanifest and is linked
-      // from index.html — don't let the plugin generate a second one.
-      manifest: false,
-      // Disabled in dev so the service worker can never serve a stale chunk
-      // while developing. (A stale module graph is a mistake we already hit
-      // once in this project.)
-      devOptions: { enabled: false },
-    }),
-  ],
+  plugins: [react(), tailwindcss()],
 
   // SPA fallback — lets direct URL access to /p/:code work in dev and
   // preview by serving index.html for any path the router handles.

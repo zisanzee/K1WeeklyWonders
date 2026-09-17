@@ -3,17 +3,18 @@
 // survive on its own.
 //
 // The mechanism: the browsed HTML references the previous deploy's hashed chunk
-// filenames. A new deploy ships new hashes, and the service worker's
-// cleanupOutdatedCaches() deletes the old precache entries. Any lazy import the
-// still-open page has not yet made now goes to the network, misses, and fails
-// with "Failed to fetch dynamically imported module". It is per-device, because
-// it depends on which build that device had cached — which is why the same
-// teacher saw it on her phone and not her laptop.
+// filenames. A new deploy ships new hashes, so any lazy import the still-open
+// page has not yet made now goes to the network, misses, and fails with
+// "Failed to fetch dynamically imported module". It is per-device, because it
+// depends on which build that device had loaded — which is why the same teacher
+// saw it on her phone and not her laptop.
 //
-// A plain reload does NOT fix this while the service worker is still in control:
-// the browser re-serves the stale shell from the precache, which asks for the
-// same dead filenames, and the error repeats. The worker and its caches have to
-// go first so the next load comes from the network.
+// This still unregisters any service worker it finds, and that is now the main
+// reason to keep it: the project no longer ships a worker (see vite.config.js),
+// so on a device that still has the old one this is what removes it. A stale
+// worker serves its own precached shell and chunks, so without this the page
+// would keep requesting dead filenames no matter how many times it was reloaded.
+// For a device with no worker this is a complete no-op and it just reloads.
 
 // Matches every phrasing the browsers actually produce for this class of fault.
 const CHUNK_ERROR_RE =
