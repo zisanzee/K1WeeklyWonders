@@ -1,31 +1,37 @@
 // assetVersion.js
 //
-// Cache-busting for SAME-ORIGIN assets that have no content hash in their name.
+// Cache-busting for game assets, which have NO content hash in their names.
 //
 // Vite fingerprints everything it bundles (`index-BHdgavyA.js`), so a new build
-// produces a new URL for those and no cache can serve the old one. Files in
-// `public/` are NOT bundled — they are copied verbatim, so `/PhaserAssets/wrong.wav`
-// keeps that exact URL across every deploy, and several layers cache by URL:
+// produces a new URL and no cache can serve the old one. Game media is not
+// bundled — it is either copied verbatim from `public/` or fetched from
+// Cloudinary — so its URL is identical across every deploy:
 //
-//   - the service worker's `ezw-phaser-assets` CacheFirst entry;
-//   - the browser's own HTTP cache.
+//   /PhaserAssets/wrong.wav
+//   https://res.cloudinary.com/hijmipga/image/upload/v1789297282/cookie_hjnlx5.png
 //
-// Clearing the browser cache does not help, because the service worker cache is
-// a separate store that survives it, and the worker keeps being re-installed
-// with the SAME asset URLs.
+// That URL stability is the entire bug. Several layers cache by URL:
 //
-// Versioning the URL by build makes a redeploy change the key: the old entry
-// simply becomes unreachable and the file is refetched. A query string does not
-// affect how a static file is served, only how it is cached.
+//   - the service worker's CacheFirst / StaleWhileRevalidate entries;
+//   - the browser's own HTTP cache;
+//   - Cloudinary's CDN edge.
 //
-// Deliberately NOT applied to absolute URLs (the Cloudinary media). Cloudinary
-// parses query parameters as transformation options, so an unrecognised one
-// there risks an error response rather than a cache-busted image — far too
-// dangerous a way to fix a caching bug, since a 400 would break every food
-// sprite in the game. Cloudinary is handled in the service worker instead, by
-// forcing its revalidation fetch to bypass the HTTP cache (see vite.config.js,
-// the `ezw-cloudinary-media` rule). The two together cover both origins without
-// changing any third-party URL.
+// Critically, Cloudinary serves uploads with:
+//
+//   Cache-Control: public, no-transform, immutable, max-age=2592000
+//
+// The **immutable** directive means the browser must NOT revalidate that URL,
+// even on a normal reload — Chrome enforces this strictly, which is why this
+// only ever reproduced on Chrome and why clearing the browser cache and
+// reopening did not help. Only a hard reload bypasses it. That directive lives
+// on Cloudinary's response, so the only fix available to us is to request a
+// DIFFERENT URL: a cache cannot serve a response for a URL it has never seen,
+// and `immutable` cannot protect a URL that has not been fetched yet.
+//
+// Versioning every asset URL by build does exactly that. Appending a query
+// string changes nothing about how the file is served — confirmed against the
+// live CDN, which returns 200 with byte-identical content for the versioned URL
+// — only how it is cached.
 //
 // Injected by vite.config.js `define`. Falls back to 'dev' so unit tests and any
 // non-Vite context still work (they simply never match a cached production URL).
@@ -34,18 +40,21 @@ export const BUILD_ID =
   typeof __EZ_BUILD_ID__ !== 'undefined' ? __EZ_BUILD_ID__ : 'dev';
 
 /**
- * Appends this build's id to a same-origin asset URL.
+ * Appends this build's id to an asset URL.
  *
- * Absolute URLs, protocol-relative URLs and inline (data/blob) URIs are returned
- * untouched — only paths served from this deployment need busting.
+ * Applied to absolute URLs as well as same-origin paths, because Cloudinary's
+ * `immutable` header is precisely the thing that cannot be worked around from
+ * our side — see the header comment.
+ *
+ * Skipped only for inline (`data:`/`blob:`) URIs, which carry their bytes and are
+ * never fetched, so there is nothing to cache and nothing to bust.
  *
  * @param {string} url
  * @returns {string}
  */
 export function withAssetVersion(url) {
   if (typeof url !== 'string' || url.length === 0) return url;
-  // Must be a root-relative path: '/' but not '//' (protocol-relative).
-  if (url[0] !== '/' || url[1] === '/') return url;
+  if (url.startsWith('data:') || url.startsWith('blob:')) return url;
 
   const separator = url.includes('?') ? '&' : '?';
   return `${url}${separator}v=${BUILD_ID}`;
