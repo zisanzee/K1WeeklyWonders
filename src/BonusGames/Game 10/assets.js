@@ -1,5 +1,5 @@
 // assets.js
-// Asset manifest for Game 10 ("Feed the Shapes"). Every image and voice
+// Asset manifest for Game 10 ("Feed Me Shapes"). Every image and voice
 // clip below is linked; levels.js / GameScene.js reference keys by name.
 //
 // Note on the round-4 voice clip: rounds 1-4 name the shape, and "VA-I want
@@ -31,7 +31,7 @@ export const IMAGES = {
   'donut-circle': 'https://res.cloudinary.com/hijmipga/image/upload/v1789382158/Donut_voemzc.png',// 
   'waffle-square': 'https://res.cloudinary.com/hijmipga/image/upload/v1789382158/waffle_tzzoso.png',//
   'sandwich-triangle': 'https://res.cloudinary.com/hijmipga/image/upload/v1789382157/sandwich_wgdx4z.png',// 
-  'game-start':'https://res.cloudinary.com/hijmipga/image/upload/v1789644018/game-start_lce0zl.png',
+  'game-start':'https://res.cloudinary.com/hijmipga/image/upload/v1789675559/start_x6w1vv.png',
   'level-2':'https://res.cloudinary.com/hijmipga/image/upload/v1789645047/level-2_hj2kuu.png',
 
   ...HINT_IMAGES,

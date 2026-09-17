@@ -21,6 +21,7 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { usePlayerStore } from './playerStore';
 import { confirmDialog } from './confirmDialog';
+import GameIcon from './GameIcon';
 import {
   addGameForClass,
   fetchGameAccessForClass,
@@ -345,7 +346,14 @@ function addSlotLabels(games) {
   }));
 }
 
-function GameIcon({ game }) {
+// The panel's game tile. This is a game CARD row, so it shows the game's icon
+// IMAGE where one exists (GameIcon) and the catalogue emoji otherwise — the
+// compact text-only surfaces elsewhere (the stats tables, the weekly-mission
+// chips) deliberately keep the emoji instead, because loading this art once per
+// row there would cost more than it's worth. The tile's own gradient stays as
+// the frame behind the art, and the grayscale/opacity dimming for a locked game
+// applies to the image too (a CSS filter on the parent covers the child).
+function GameTileIcon({ game }) {
   return (
     <span
       className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-base shadow-sm sm:h-10 sm:w-10 sm:text-lg"
@@ -357,7 +365,11 @@ function GameIcon({ game }) {
         opacity: game.unlocked ? 1 : 0.65,
       }}
     >
-      {game.emoji}
+      {/* The emoji fallback keeps the tile's own text scale (text-base →
+          sm:text-lg, and text-xl in the bigger catalogue/dialog tiles), NOT a
+          font-size derived from the image size — otherwise a game with no art
+          would render a visibly mis-sized glyph. */}
+      <GameIcon game={game} emoji={game.emoji} size="72%" emojiClassName="text-[1em]" />
     </span>
   );
 }
@@ -521,7 +533,7 @@ function SortableGameSlot({
             ⠿
           </button>
 
-          <GameIcon game={game} />
+          <GameTileIcon game={game} />
 
           <div className="min-w-0 flex-1">
             {game.isBonus && (
@@ -626,7 +638,7 @@ function DragPreview({ game }) {
       transition={{ duration: 0.12 }}
       className="flex w-[min(380px,calc(100vw-1.5rem))] items-center gap-3 rounded-2xl border border-white/25 aura-card px-3 py-3 shadow-[0_20px_50px_rgba(11,8,40,0.55)]"
     >
-      <GameIcon game={game} />
+      <GameTileIcon game={game} />
       <div className="min-w-0">
         <p className="text-[10px] font-black uppercase tracking-[0.1em] text-indigo-200">
           Moving game
@@ -1121,12 +1133,7 @@ function ScheduleUnlockDialog({ game, saving, onCancel, onConfirm, onCancelSched
         className="flex w-full max-w-md flex-col gap-4 rounded-[2rem] aura-card p-5 sm:p-6"
       >
         <div className="flex items-start gap-3">
-          <span
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-xl"
-            style={{ background: game.tint || '#EFF6FF' }}
-          >
-            {game.emoji || '🎮'}
-          </span>
+          <GameTileIcon game={game} />
           <div className="min-w-0">
             <h3 className="text-lg font-black aura-text">Schedule unlock</h3>
             <p className="mt-0.5 truncate text-sm font-semibold aura-soft">{game.label}</p>
@@ -1447,12 +1454,7 @@ function GameCatalogue({ classId, teacherCode, isAdmin = false }) {
                       className="flex flex-col gap-3 rounded-2xl aura-card p-3.5 sm:p-4"
                     >
                       <div className="flex items-start gap-3">
-                        <span
-                          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-xl leading-none"
-                          style={{ background: game.tint }}
-                        >
-                          {game.emoji}
-                        </span>
+                        <GameTileIcon game={game} />
                         <div className="min-w-0 flex-1">
                           <div className="flex items-start justify-between gap-2">
                             <p className="min-w-0 flex-1 text-sm font-black leading-snug aura-text">

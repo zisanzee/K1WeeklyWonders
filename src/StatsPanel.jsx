@@ -10,6 +10,11 @@ import {
 } from './logPlaySession';
 import { usePlayerStore } from './playerStore';
 
+// Compact "emoji name" labels for the stats chrome (dropdown trigger, row
+// captions). These are deliberately text-only: the per-game ICON IMAGES are
+// ~medium/large art, and loading a dozen of them into the stats tables and
+// filter dropdown would cost far more than the clarity it buys. Game CARDS use
+// GameIcon; these compact labels stay as emoji.
 const GAME_LABELS = {
   game1: '🧺 Count & Win',
   game2: '🧸 Compare Quantities',
@@ -20,7 +25,7 @@ const GAME_LABELS = {
   game7: "🥚 Mama Bird's Eggs",
   game8: "🍕 Pizza Order!",
   game9: "🦜 Polly's Treasure Quest",
-  game10: "🍕 Feed the Shapes",
+  game10: "🍕 Feed Me Shapes",
   bonusGame1: "9️⃣ Number Pop",
 };
 

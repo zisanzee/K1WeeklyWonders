@@ -1,5 +1,5 @@
 // levels.js
-// Round script for Game 10 ("Feed the Shapes").
+// Round script for Game 10 ("Feed Me Shapes").
 //
 // The 10 rounds are FIXED CURRICULUM, not generated: Level 1 (rounds 1-4)
 // names the shape, Level 2 (rounds 5-10) describes a geometric property. The

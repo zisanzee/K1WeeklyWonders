@@ -15,6 +15,7 @@ import {
 import { fetchSummary, fetchLeaderboard } from "./logPlaySession";
 import { confirmDialog } from "./confirmDialog";
 import BrandLoader from "./BrandLoader";
+import GameIcon from "./GameIcon";
 import WeeklyGoals from "./WeeklyGoals";
 import { LOGO_URL } from "./brand";
 import PublicLanding from "./PublicLanding";
@@ -516,22 +517,34 @@ function LockOverlay() {
 }
 
 // ---------------------------------------------------------------------------
-// WobbleEmoji — playful game emoji with a gentle bob. Game cards keep their
-// catalog emoji (more expressive than generic glyphs); vector icons are used
-// everywhere else in the chrome.
+// WobbleIcon — the game card's art with a gentle bob. Renders the game's icon
+// IMAGE when it has one (see gameIcons.js) and falls back to its catalogue
+// emoji otherwise, so a game without art still reads. Vector icons are used
+// everywhere else in the page chrome.
 // ---------------------------------------------------------------------------
-function WobbleEmoji({ emoji, size = "text-5xl sm:text-6xl", isOpen = true }) {
+// Card art box for the IMAGE. It tracks the 48px→72px range the old emoji
+// occupied across the breakpoints. The emoji fallback keeps that original
+// responsive text scale (CARD_EMOJI_SIZE) rather than this single width — an
+// emoji is a glyph, so it is sized in text units, not a box.
+const CARD_ICON_SIZE = "clamp(3rem, 11vw, 4.5rem)";
+const CARD_EMOJI_SIZE = "text-5xl sm:text-6xl md:text-7xl";
+
+function WobbleIcon({ game, isOpen = true }) {
   // The perpetual bob is a CSS transform animation (compositor-driven, one
   // per card but off the JS thread); hover/tap stay as transient Framer
   // gestures on an inner element so they don't fight the idle bob.
   return (
     <span className={cn("inline-block", isOpen && "animate-[bh-card-bob_4s_ease-in-out_infinite]")}>
       <motion.span
-        className={cn(size, "drop-shadow-[0_4px_6px_rgba(0,0,0,0.16)] sm:drop-shadow-[0_8px_12px_rgba(0,0,0,0.18)]")}
+        className="inline-block drop-shadow-[0_4px_6px_rgba(0,0,0,0.16)] sm:drop-shadow-[0_8px_12px_rgba(0,0,0,0.18)]"
         whileHover={isOpen ? { scale: 1.08 } : {}}
         whileTap={isOpen ? { scale: 0.92 } : {}}
       >
-        {emoji}
+        <GameIcon
+          game={game}
+          size={CARD_ICON_SIZE}
+          emojiClassName={CARD_EMOJI_SIZE}
+        />
       </motion.span>
     </span>
   );
@@ -979,7 +992,7 @@ const GameCard = motion.create(function GameCard({
           <div className="absolute inset-0 flex items-center justify-center">
             <div className="h-16 w-16 sm:h-28 sm:w-28 rounded-full bg-white/20 sm:bg-white/25 blur-xl sm:blur-2xl" />
           </div>
-          <WobbleEmoji emoji={game.emoji} size="text-5xl sm:text-6xl md:text-7xl" isOpen={isOpen} />
+          <WobbleIcon game={game} isOpen={isOpen} />
         </div>
 
         {/* Title */}

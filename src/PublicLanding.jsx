@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { GAME_CATALOG } from './gameAccess';
 import { ICON_URL, LOGO_URL } from './brand';
+import GameIcon from './GameIcon';
 
 // Public, crawlable page copy rendered UNDER the sign-in card on the root
 // route for signed-out visitors.
@@ -52,7 +53,8 @@ const SKILLS = [
 ];
 
 // Rendered from GAME_CATALOG so the public list can never drift from the games
-// the app actually ships.
+// the app actually ships. Each row is a game card, so it shows the game's icon
+// image where one exists (GameIcon falls back to the emoji otherwise).
 function GameList() {
   return (
     <ul className="mt-4 grid gap-3 sm:grid-cols-2">
@@ -62,9 +64,13 @@ function GameList() {
             to={game.to}
             className="aura-card flex h-full items-start gap-3 rounded-2xl px-4 py-3 transition hover:-translate-y-0.5"
           >
-            <span aria-hidden="true" className="text-2xl leading-none">
-              {game.emoji}
-            </span>
+            <GameIcon
+              game={game}
+              alt=""
+              size="1.75rem"
+              className="mt-0.5 shrink-0"
+              emojiClassName="text-2xl"
+            />
             <span className="min-w-0">
               <span className="block text-sm font-black text-white">{game.title}</span>
               <span className="aura-muted mt-0.5 block text-xs font-semibold leading-snug">

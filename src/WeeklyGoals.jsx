@@ -6,6 +6,12 @@ import { GAME_CATALOG } from './gameAccess';
 // Maps a PlaySession game slug (game1…game9, bonusGame1) to a friendly
 // emoji + title so the mission tiles can show *which* games were played.
 // Unknown/legacy slugs fall back to a generic gamepad so nothing breaks.
+//
+// DELIBERATELY EMOJI, NOT THE ICON IMAGE: the mission tiles are a compact
+// secondary surface (small chips inside a weekly summary, often several at
+// once), so pulling the per-game icon art in here would be a lot of decoding
+// for very little — the same call the stats tables make. Game CARDS use
+// GameIcon; these chips stay text-only.
 const SLUG_INFO = Object.fromEntries(
   GAME_CATALOG.map((g) => [g.progressKey, { emoji: g.emoji, label: g.title }])
 );

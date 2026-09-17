@@ -1,0 +1,57 @@
+# Netlify cache policy.
+#
+# WHY THIS FILE EXISTS: Netlify's default for every response is
+# `Cache-Control: public, max-age=0, must-revalidate`. Vite content-hashes
+# every filename in /assets (`index-cFgRCxn4.js`), so those bytes can never
+# change for a given URL — yet the default forced the browser to revalidate
+# all ~69 build files on every single navigation. That is what made the site
+# crawl after the service worker was removed: the worker had been masking a
+# terrible cache policy by serving those files from its own cache.
+#
+# IMPORTANT: there is deliberately NO `/*` catch-all. The SPA fallback in
+# _redirects serves index.html for arbitrary paths (/game1, /p/:code), so a
+# catch-all would cache the app shell for a day under those URLs and a deploy
+# would stop reaching anyone. Only /index.html itself is listed, and it must
+# revalidate.
+#
+# `immutable` is only ever safe on a CONTENT-HASHED url. Never move it off
+# /assets/* — that is what once pinned a stale index.html in place.
+
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# Game art/audio: identical bytes across deploys, but the filenames are NOT
+# hashed, so this is a week rather than a year. Long enough to avoid
+# re-fetching on every round, short enough that replacing an asset takes
+# effect without a manual purge.
+/PhaserAssets/*
+  Cache-Control: public, max-age=604800
+
+# Per-game icon art (see src/gameIcons.js). Not content-hashed, so a week — the
+# same reasoning as /PhaserAssets. Bumping an icon means its bytes change; the
+# week's bound means a replaced icon is never stuck for a year.
+/game-icons/*
+  Cache-Control: public, max-age=604800
+
+# Brand art referenced by non-hashed names. Listed explicitly rather than with
+# an extension glob (/*.png), which Netlify's matcher does not reliably support.
+/logo.png
+  Cache-Control: public, max-age=86400
+/og-image.png
+  Cache-Control: public, max-age=86400
+/chest_open.png
+  Cache-Control: public, max-age=86400
+/chest_closed.png
+  Cache-Control: public, max-age=86400
+/qr-icon.png
+  Cache-Control: public, max-age=86400
+/android-chrome-192x192.png
+  Cache-Control: public, max-age=86400
+/android-chrome-512x512.png
+  Cache-Control: public, max-age=86400
+/apple-touch-icon.png
+  Cache-Control: public, max-age=86400
+
+# The app shell must always revalidate, or a deploy would never reach anyone.
+/index.html
+  Cache-Control: public, max-age=0, must-revalidate

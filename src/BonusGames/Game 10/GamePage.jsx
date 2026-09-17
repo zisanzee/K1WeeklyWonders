@@ -7,8 +7,8 @@ import { usePlayerStore } from '../../playerStore';
 
 export default function GamePage() {
   return (
-    <NameGate gameLabel="Game 10: Feed the Shapes">
-      <GameAccessGate gameNumber={10} gameLabel="Feed the Shapes">
+    <NameGate gameLabel="Game 10: Feed Me Shapes">
+      <GameAccessGate gameNumber={10} gameLabel="Feed Me Shapes">
         <GamePageInner />
       </GameAccessGate>
     </NameGate>

@@ -1,5 +1,5 @@
 // GameScene.js
-// Game 10 — "Feed the Shapes".
+// Game 10 — "Feed Me Shapes".
 //
 // Fruit-ninja-style food shapes launch up from the bottom of the canvas and
 // arc back down under gravity. A monster stands on the ground and calls out a
@@ -130,13 +130,18 @@ const HINT_BUTTON_MARGIN = 24;
 // Clear space kept between the prompt pill and the Hint button.
 const PROMPT_HINT_GAP = 24;
 const PROMPT_FONT_SIZE = 32;
-// Level 1 shows the target shape just right of the prompt. Drawn as a geometry
-// glyph (not a food sprite) so it states the shape itself — a triangle reads as
-// a triangle — rather than one of the many foods that happen to be that shape.
+// Horizontal padding between the pill's edge and the text it holds.
+const PROMPT_PAD_X = 24;
+// Level 1 shows the target shape INSIDE the prompt pill, to the right of the
+// wording. Drawn as a geometry glyph (not a food sprite) so it states the shape
+// itself — a triangle reads as a triangle — rather than one of the many foods
+// that happen to be that shape.
 const PROMPT_SHAPE_GAP = 18;
 const PROMPT_SHAPE_H = 64;
 const SHAPE_GLYPH_FILL = 0xffd93d;
-const SHAPE_GLYPH_STROKE = 0xf59e0b;
+// A dark brown outline, not the amber the fill nearly matched: an amber stroke
+// over a yellow fill was invisible, so the glyph read as a flat blob.
+const SHAPE_GLYPH_STROKE = 0x7c4a03;
 // The hint art is 272x304, flush against the left edge. Scale 1.125 is half, up
 // 50% (to 0.75), up a further 50%. Its rendered width drives the slide-in
 // distance; the height follows from the art's aspect ratio.
@@ -670,47 +675,48 @@ export default class GameScene extends BaseScene {
     this.hintRightX = this.scale.width - HINT_BUTTON_MARGIN - hintW / 2;
     this.hintButton.container.setX(this.hintRightX);
 
-    // Level 1 shows the target shape just right of the pill; Level 2 relies on
-    // the wording and the hint art instead. Its width is measured here (before
-    // the wrap) because the whole group — pill + shape — must fit the space to
-    // the left of the Hint button.
+    // Level 1 shows the target shape inside the pill, right of the wording;
+    // Level 2 relies on the wording and the hint art instead. Its width is
+    // measured here (before the wrap) because the pill — text column + shape
+    // slot — must fit the space to the left of the Hint button.
     const showShape = !!round && round.level === 1;
     // The glyph is drawn at a fixed square footprint, so the wrap only has to
     // reserve that plus the gap.
     const shapeW = PROMPT_SHAPE_H;
     const shapeSpace = showShape ? PROMPT_SHAPE_GAP + shapeW : 0;
 
-    // Cap the prompt so the centred pill (plus the shape hanging off its right)
-    // can never grow under the Hint button. Wrapping to this width rather than
+    // Cap the prompt so the centred pill (which now holds the shape too) can
+    // never grow under the Hint button. Wrapping to this width rather than
     // letting the text run wide and then clipping it is what keeps the text
     // style intact: it wraps to a second line instead of colliding with the
-    // button. The pill is centred, so its right edge is at (width + w)/2, and
-    // the shape sits beyond that — both must clear the button's left edge.
-    // The 48 is the pill's own horizontal padding (24 each side), which adds to
-    // the group width but not to the wrap width — leaving it out would let the
-    // group's right edge land exactly on the button's left edge.
+    // button. The pill is centred, so its right edge is at (width + w)/2 and
+    // must clear the button's left edge.
+    // PROMPT_PAD_X * 2 is the pill's own horizontal padding, which adds to the
+    // pill width but not to the wrap width — leaving it out would let the pill's
+    // right edge land exactly on the button's left edge.
     const promptMaxWidth = Math.max(
       120,
       2 * (this.hintRightX - hintW / 2 - PROMPT_HINT_GAP - this.scale.width / 2) -
-        48 -
+        PROMPT_PAD_X * 2 -
         shapeSpace
     );
     this.promptText.setWordWrapWidth(promptMaxWidth);
     this.promptText.setText(text);
 
-    // The pill is sized to the widest WRAPPED line plus 48 (24px of padding each
-    // side). Phaser's `align: 'center'` centres each wrapped line against that
-    // widest line, so centring the text object on the pill's centre is enough to
-    // centre every line — no fixed size needed (and it would be actively wrong:
-    // a fixed width would be re-reported as the content width next round).
+    // The pill is sized to the widest WRAPPED line, plus the shape slot when
+    // Level 1 shows one, plus PROMPT_PAD_X on each side. Phaser's `align:
+    // 'center'` centres each wrapped line against the widest line, so anchoring
+    // the text at the pill's left padding is enough to centre every line within
+    // its own column — no fixed size needed (and it would be actively wrong: a
+    // fixed width would be re-reported as the content width next round).
     const textW = this.promptText.width;
     const h = this.promptText.height + 28;
-    const w = textW + 48;
+    const w = textW + shapeSpace + PROMPT_PAD_X * 2;
 
-    // Centre the text object on the pill's centre (origin 0.5) — it is built
-    // left-anchored so the box math above stays readable.
-    this.promptText.setOrigin(0.5, 0.5);
-    this.promptText.setPosition(w / 2, 0);
+    // Origin 0 x keeps the text's left edge exactly at the pill's padding, which
+    // is what leaves the shape slot clear on the right.
+    this.promptText.setOrigin(0, 0.5);
+    this.promptText.setPosition(PROMPT_PAD_X, 0);
 
     this.promptBg.clear();
     this.promptBg.fillStyle(0x000000, 0.18);
@@ -720,29 +726,31 @@ export default class GameScene extends BaseScene {
     this.promptBg.lineStyle(4, 0xf59e0b, 1);
     this.promptBg.strokeRoundedRect(0, -h / 2, w, h, h / 2);
 
-    // Draw the glyph at the pill's right, vertically centred with it. Drawn here
-    // (rather than as a texture) so a triangle is a triangle, not whichever food
-    // happens to carry that shape.
+    // Draw the glyph inside the pill, just right of the text and vertically
+    // centred with it. Drawn here (rather than as a texture) so a triangle is a
+    // triangle, not whichever food happens to carry that shape.
     if (showShape) {
-      this.drawShapeGlyph(round.shape, w + PROMPT_SHAPE_GAP + shapeW / 2, 0, shapeW);
+      this.drawShapeGlyph(
+        round.shape,
+        PROMPT_PAD_X + textW + PROMPT_SHAPE_GAP + shapeW / 2,
+        0,
+        shapeW
+      );
       this.promptShape.setVisible(true);
     } else {
       this.promptShape.clear();
       this.promptShape.setVisible(false);
     }
 
-    // The whole group (pill + shape) is centred on the canvas when there is a
-    // shape; with no shape that reduces to centring the pill. Only the slide-out
-    // destination changes when the hint opens, so this restores it to the
-    // resting position.
+    // The pill is the whole visual footprint now that the shape is inside it, so
+    // centring the pill centres the group. Only the slide-out destination changes
+    // when the hint opens, so this restores it to the resting position.
     //
-    // promptW is the full visual footprint (pill + shape) and is what the
-    // slide/transition use, while promptBaseX is the container origin (the
-    // group's left edge).
-    const groupW = w + shapeSpace;
-    this.promptBaseX = (this.scale.width - groupW) / 2; // shake() restores to this
+    // promptW is the full visual footprint and is what the slide/transition use,
+    // while promptBaseX is the container origin (the pill's left edge).
+    this.promptBaseX = (this.scale.width - w) / 2; // shake() restores to this
     this.promptContainer.setX(this.promptBaseX);
-    this.promptW = groupW;
+    this.promptW = w;
 
     // The row is UI: the play-area steering handler ignores presses that land on
     // it (see onPointerDown). Two tight rects — the prompt group and the Hint
@@ -752,7 +760,7 @@ export default class GameScene extends BaseScene {
     const rowBottom = PROMPT_ROW_Y + h / 2 + 6;
     this.promptRowHit = {
       left: this.promptBaseX - 6,
-      right: this.promptBaseX + groupW + 6,
+      right: this.promptBaseX + w + 6,
       top: rowTop,
       bottom: rowBottom,
     };

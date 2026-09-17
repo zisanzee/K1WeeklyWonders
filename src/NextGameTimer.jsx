@@ -91,6 +91,9 @@ export default function NextGameTimer({ withTopOffset = false }) {
               New game unlocks
             </span>
             <span className="flex min-w-0 items-center gap-1.5 text-base font-bold text-slate-700">
+              {/* Emoji, not the icon image: this is a one-line banner beside the
+                  countdown, so the art would load a whole image for a glyph-sized
+                  slot. Game cards use GameIcon; this stays text-only. */}
               <span className="truncate">{game.emoji || '🎮'}</span>
               <span className="max-w-[10rem] truncate sm:max-w-[14rem]">{game.title}</span>
             </span>

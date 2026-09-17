@@ -27,6 +27,14 @@ if (typeof window !== 'undefined') {
   });
 }
 
+// The retired PWA worker is NOT re-registered from here on purpose. Devices
+// that still carry it get evicted by the browser's own service-worker update
+// check on navigation: because `public/sw.js` now differs from the old
+// workbox bundle, the browser refetches it, and that copy deletes its caches
+// and unregisters itself. That happens natively, without page JavaScript, so
+// calling register() would only install a worker on devices that never had
+// one — new background work for no benefit. See public/sw.js.
+
 // Fires at module scope, before React has rendered anything, so the maintenance
 // config request races the auth hydrate in parallel instead of queueing behind
 // it. These two round trips are independent, and running them in sequence used

@@ -6,6 +6,10 @@ import { GAME_CATALOG } from './gameAccess';
 // Map a PlaySession game slug (game1…game9, bonusGame1) to a friendly emoji +
 // title for the "which games they played" chips. Unknown slugs fall back to a
 // generic gamepad so nothing ever breaks on legacy or renamed games.
+//
+// DELIBERATELY EMOJI, NOT THE ICON IMAGE: these are tiny inline chips packed
+// into a leaderboard row, sometimes a dozen per screen, so the icon art would
+// be pure decoding cost. Game CARDS use GameIcon; these chips stay text-only.
 const SLUG_INFO = Object.fromEntries(
   GAME_CATALOG.map((g) => [g.progressKey, { emoji: g.emoji, label: g.title }])
 );
