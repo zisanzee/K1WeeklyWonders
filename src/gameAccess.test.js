@@ -99,7 +99,7 @@ describe('mergeRows', () => {
     expect(game.unlocked).toBe(true);
     expect(game.shiny).toBe(true);
     expect(game.order).toBe(4);
-    expect(game.to).toBe('/Game3');
+    expect(game.to).toBe('/25814');
     expect(game.emoji).toBe('🐙');
   });
 

@@ -51,7 +51,11 @@ if (circle) {
 }
 
 const radius = h / 2;
-  let currentBg = bgColor;
+let currentBg = bgColor;
+// `let`, and not just destructured, so setBorder() below can restyle the
+// outline — the pill needs a full colour swap (not just a fill) for an
+// "active" state like Game 10's open hint button.
+let currentBorderColor = borderColor;
 
   // ox/oy = where the pill's CENTER sits, relative to the container's
   // origin (x,y), given which corner/edge that origin represents.
@@ -78,8 +82,8 @@ const radius = h / 2;
     bgGfx.fillStyle(currentBg, 1);
     bgGfx.fillCircle(ox, oy, w / 2);
 
-    if (borderColor !== null) {
-      bgGfx.lineStyle(3, borderColor, 1);
+    if (currentBorderColor !== null) {
+      bgGfx.lineStyle(3, currentBorderColor, 1);
       bgGfx.strokeCircle(ox, oy, w / 2 - 1.5);
     }
   } else {
@@ -100,8 +104,8 @@ const radius = h / 2;
       radius
     );
 
-    if (borderColor !== null) {
-      bgGfx.lineStyle(3, borderColor, 1);
+    if (currentBorderColor !== null) {
+      bgGfx.lineStyle(3, currentBorderColor, 1);
       bgGfx.strokeRoundedRect(
         ox - w / 2,
         oy - h / 2,
@@ -184,6 +188,15 @@ if (circle) {
     setBg: (colorHex) => {
       currentBg = colorHex;
       redraw();
+    },
+    // null removes the outline entirely, matching how `borderColor` is passed
+    // at creation.
+    setBorder: (colorHex) => {
+      currentBorderColor = colorHex;
+      redraw();
+    },
+    setTextColor: (cssColor) => {
+      text.setColor(cssColor);
     },
     on: (evt, cb) => container.on(evt, cb),
     destroy: () => container.destroy(),

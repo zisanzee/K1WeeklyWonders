@@ -9,6 +9,17 @@
 // Level 2 phrasing into Level 1.
 
 import { MONSTER_IMAGE_URLS } from './monster';
+import { ROUND_SCRIPT } from './levels';
+
+// Each Level 2 round's `hintImage` is loaded here under a per-round key rather
+// than added to IMAGES by hand, so the hint art stays co-located with the round
+// it belongs to in levels.js — the two can't drift. Keyed by round index so it
+// is unique even where two rounds share the same illustration.
+const HINT_IMAGES = Object.fromEntries(
+  ROUND_SCRIPT.map((round, i) => [round.hintImage ? `hint-${i}` : null, round.hintImage]).filter(
+    ([key]) => key
+  )
+);
 
 export const IMAGES = {
   'background': 'https://res.cloudinary.com/hijmipga/image/upload/v1789378890/background_2_odlkx2.jpg', // 2:3 portrait scene backdrop (wood grain + the four foods in the corners) — cover-fit full-screen, not a sprite
@@ -20,7 +31,10 @@ export const IMAGES = {
   'donut-circle': 'https://res.cloudinary.com/hijmipga/image/upload/v1789382158/Donut_voemzc.png',// 
   'waffle-square': 'https://res.cloudinary.com/hijmipga/image/upload/v1789382158/waffle_tzzoso.png',//
   'sandwich-triangle': 'https://res.cloudinary.com/hijmipga/image/upload/v1789382157/sandwich_wgdx4z.png',// 
-  'game-start':'https://res.cloudinary.com/hijmipga/image/upload/v1789381833/game-start_lce0zl.png',
+  'game-start':'https://res.cloudinary.com/hijmipga/image/upload/v1789644018/game-start_lce0zl.png',
+  'level-2':'https://res.cloudinary.com/hijmipga/image/upload/v1789645047/level-2_hj2kuu.png',
+
+  ...HINT_IMAGES,
   // Monster parts are declared in monster.js next to the code that assembles
   // and poses them, then merged in here so there's still one manifest.
   ...MONSTER_IMAGE_URLS,
@@ -34,17 +48,17 @@ export const AUDIO = {
   'eating_sound': 'https://res.cloudinary.com/hijmipga/video/upload/v1789297278/eating_sound_kpxszi.wav',
   // Shared cross-game SFX, referenced by URL exactly like BonusGame1 does.
   'wrong': '/PhaserAssets/wrong.wav',
-  'VA-I want shape that has 4 corners and 4 equal sides': 'https://res.cloudinary.com/hijmipga/video/upload/v1789297279/I_want_shape_that_has_4_corners_and_4_equal_sides_evltbs.mp3',
-  'VA-I want triangle': 'https://res.cloudinary.com/hijmipga/video/upload/v1789297279/I_want_triangle_pakodn.mp3',
-  'VA-I want square': 'https://res.cloudinary.com/hijmipga/video/upload/v1789297279/I_want_square_l5s2mm.mp3',
-  'VA-I want shape with 3 sides': 'https://res.cloudinary.com/hijmipga/video/upload/v1789297279/I_want_shape_with_3_sides_yvp8tu.mp3',
-  'VA-I want rectangle': 'https://res.cloudinary.com/hijmipga/video/upload/v1789297278/I_want_rectangle_k5ntgo.mp3',
-  'VA-I want circle': 'https://res.cloudinary.com/hijmipga/video/upload/v1789297277/I_want_circle_bgabrm.mp3',
+  'VA-I want shape that has 4 corners and 4 equal sides': 'https://res.cloudinary.com/hijmipga/video/upload/v1789642163/I_want_shape_that_has_4_corners_and_4_equal_sides_evltbs.mp3',
+  'VA-I want triangle': 'https://res.cloudinary.com/hijmipga/video/upload/v1789642114/I_want_triangle_pakodn.mp3',
+  'VA-I want square': 'https://res.cloudinary.com/hijmipga/video/upload/v1789642076/I_want_square_l5s2mm.mp3',
+  'VA-I want shape with 3 sides': 'https://res.cloudinary.com/hijmipga/video/upload/v1789642250/I_want_shape_with_3_sides_yvp8tu.mp3',
+  'VA-I want rectangle': 'https://res.cloudinary.com/hijmipga/video/upload/v1789642092/I_want_rectangle_k5ntgo.mp3',
+  'VA-I want circle': 'https://res.cloudinary.com/hijmipga/video/upload/v1789642052/I_want_circle_bgabrm.mp3',
   'VA-I want shape that is round with no corners': 'https://res.cloudinary.com/hijmipga/video/upload/v1789297278/I_want_shape_that_is_round_with_no_corners_ch5oim.mp3',
-  'VA-I want shape that has 4 equal sides': 'https://res.cloudinary.com/hijmipga/video/upload/v1789297278/I_want_shape_that_has_4_equal_sides_pb5eux.mp3',
-  'VA-I want shape that has 3 corners': 'https://res.cloudinary.com/hijmipga/video/upload/v1789297277/I_want_shape_that_has_3_corners_pp5atv.mp3',
-  'VA-I want shape that has 2 long sides and 2 short sides': 'https://res.cloudinary.com/hijmipga/video/upload/v1789297277/I_want_shape_that_has_2_long_sides_and_2_short_sides_sgg3zj.mp3',
-  'VA-Welcome': 'https://res.cloudinary.com/hijmipga/video/upload/v1789390771/welcome_walk_me_side_to_side_with_the_arrows_and_help_me_eat_the_shapes_I_want_ozfonx.mp3',
+  'VA-I want shape that has 4 equal sides': 'https://res.cloudinary.com/hijmipga/video/upload/v1789642192/I_want_shape_that_has_4_equal_sides_pb5eux.mp3',
+  'VA-I want shape that has 3 corners': 'https://res.cloudinary.com/hijmipga/video/upload/v1789642223/I_want_shape_that_has_3_corners_pp5atv.mp3',
+  'VA-I want shape that has 2 long sides and 2 short sides': 'https://res.cloudinary.com/hijmipga/video/upload/v1789642279/I_want_shape_that_has_2_long_sides_and_2_short_sides_sgg3zj.mp3',
+  'VA-Welcome': 'https://res.cloudinary.com/hijmipga/video/upload/v1789644368/I_want_shape_that_is_round_with_no_corners_ch5oim.mp3',
 };
 
 // Phaser's audio loader picks a codec/extension to trust from the URL itself,

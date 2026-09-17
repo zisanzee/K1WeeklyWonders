@@ -8,7 +8,9 @@
 // is shuffled or randomized. Keep this file Phaser-free.
 
 export const TOTAL_ROUNDS = 10;
-export const FEEDS_PER_ROUND = 3;
+// Two feeds per round (was 3). Everything else — round completion and the
+// TOTAL_FEEDS progress denominator in GameScene — derives from this constant.
+export const FEEDS_PER_ROUND = 2;
 
 // Single source of truth for "what is a triangle" — its display label and the
 // foods that ARE that shape. GameScene never hardcodes an image-key string; it
@@ -52,10 +54,10 @@ export const ROUND_SCRIPT = [
   { level: 1, shape: 'circle', prompt: 'Feed me circles!', voiceKey: 'VA-I want circle' },
 
   // --- Level 2 — called by geometric property -----------------------------
-  { level: 2, shape: 'triangle', prompt: 'I want a shape with 3 sides!', voiceKey: 'VA-I want shape with 3 sides' },
-  { level: 2, shape: 'circle', prompt: 'I want a shape that is round with no corners!', voiceKey: 'VA-I want shape that is round with no corners' },
-  { level: 2, shape: 'square', prompt: 'I want a shape with 4 equal sides!', voiceKey: 'VA-I want shape that has 4 equal sides' },
-  { level: 2, shape: 'rectangle', prompt: 'I want a shape with 2 long sides and 2 short sides!', voiceKey: 'VA-I want shape that has 2 long sides and 2 short sides' },
-  { level: 2, shape: 'triangle', prompt: 'I want a shape with 3 corners!', voiceKey: 'VA-I want shape that has 3 corners' },
-  { level: 2, shape: 'square', prompt: 'I want a shape with 4 corners and 4 equal sides!', voiceKey: 'VA-I want shape that has 4 corners and 4 equal sides' },
+  { level: 2, shape: 'triangle', prompt: 'I want shapes with 3 sides!', voiceKey: 'VA-I want shape with 3 sides', hintImage: 'https://res.cloudinary.com/hijmipga/image/upload/v1789636147/hint-3-sides_jw3zem.png' },
+  { level: 2, shape: 'circle', prompt: 'I want shapes that are round with no corners!', voiceKey: 'VA-I want shape that is round with no corners', hintImage: 'https://res.cloudinary.com/hijmipga/image/upload/v1789636147/hint-round-no-corners_n9upfd.png' },
+  { level: 2, shape: 'square', prompt: 'I want shapes with 4 equal sides!', voiceKey: 'VA-I want shape that has 4 equal sides', hintImage: 'https://res.cloudinary.com/hijmipga/image/upload/v1789636146/hint-4-equal-sides_floncs.png' },
+  { level: 2, shape: 'rectangle', prompt: 'I want shapes with 2 long sides and 2 short sides!', voiceKey: 'VA-I want shape that has 2 long sides and 2 short sides', hintImage: 'https://res.cloudinary.com/hijmipga/image/upload/v1789636146/hint-2-long-sides-2-short-sides_lda127.png' },
+  { level: 2, shape: 'triangle', prompt: 'I want shapes with 3 corners!', voiceKey: 'VA-I want shape that has 3 corners', hintImage: 'https://res.cloudinary.com/hijmipga/image/upload/v1789636148/hint-3-corners_rlvm0q.png' },
+  { level: 2, shape: 'square', prompt: 'I want shapes with 4 corners and 4 equal sides!', voiceKey: 'VA-I want shape that has 4 corners and 4 equal sides', hintImage: 'https://res.cloudinary.com/hijmipga/image/upload/v1789636147/hint-4-corners-4-equal-sides_eucpjz.png' },
 ];

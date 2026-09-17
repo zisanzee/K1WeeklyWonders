@@ -346,11 +346,11 @@ export const MONSTER_TAP_HALF_W = (HEAD_ART_W / 2) * MONSTER_POSE.head.scale * M
 // How far in from each canvas edge the monster's centre may be steered, i.e.
 // the walk range is [MONSTER_TRAVEL_MARGIN, width - MONSTER_TRAVEL_MARGIN].
 //
-// Scaled with the monster so a shrunk monster isn't needlessly forbidden from
-// reaching the edges. It also has to stay SMALL enough to reach every spawn
-// lane: at 140 the range is x 140..580, and the catch radius covers the full
-// 150..570 spawn band.
-export const MONSTER_TRAVEL_MARGIN = Math.round(200 * MONSTER_POSE.scale);
+// Derived from the HEAD's own half-width, not a round number: the constraint
+// the player can actually see is the head reaching the edge, so the head — not
+// the wider body behind it — is what stops the walk. A tiny gap keeps the art
+// just clear of the wall rather than clipping into it.
+export const MONSTER_TRAVEL_MARGIN = Math.round(MONSTER_CATCH_RADIUS_X) + 4;
 
 // Draw order relative to the rest of the scene. Above the flying shapes (6) so
 // they pass behind it, below the HUD (20+) and the red flash (85).
@@ -485,28 +485,40 @@ export default function createMonster(scene) {
   //
   //   container       → x, y        the monster's position, set by GameScene
   //                                 as it steers left/right
-  //   bobGroup        → y           idle breathing loop
   //   hopGroup        → y           tap reaction / sulk hop
   //   walkGroup       → y           the step bob, one dip per footfall
   //   stretchGroup    → y, scaleX/Y the rear-up as a shape arrives
   //   leanGroup       → x           lean into the direction of travel
-  //     bodyGroup     → scaleX/Y    body breathing + squash pulses
-  //     faceGroup     → x, y, scale head + mouth + eyes, incl. refusal shake
+  //     breatheGroup  → y           idle breathing loop (body + head ONLY)
+  //       bodyGroup   → scaleX/Y    body breathing + squash pulses
+  //       faceGroup   → x, y, scale head + mouth + eyes, incl. refusal shake
+  //     legLeft/legRight             siblings of breatheGroup, so the breathing
+  //                                  never lifts the feet off the floor
+  //
+  // The breathing group deliberately does NOT wrap the legs. As a full-assembly
+  // lift it read as the monster floating, because the planted feet rose with
+  // everything else.
   //
   // The lean deliberately sits INSIDE the stretch so the two transforms
   // compose cleanly: leaning shifts the whole monster's inner assembly, while
   // stretching scales it about its own feet.
   const container = scene.add.container(pose.x, pose.y).setDepth(MONSTER_DEPTH);
-  const bobGroup = scene.add.container(0, 0);
   const hopGroup = scene.add.container(0, 0);
   const walkGroup = scene.add.container(0, 0);
   const stretchGroup = scene.add.container(0, 0);
   const leanGroup = scene.add.container(0, 0);
-  container.add(bobGroup);
-  bobGroup.add(hopGroup);
+  // The idle-breathing group, inside the lean so the lean still carries the
+  // whole monster. Only the body + face are parented to it — see the chain
+  // comment above for why the legs are not.
+  const breatheGroup = scene.add.container(0, 0);
+  container.add(hopGroup);
   hopGroup.add(walkGroup);
   walkGroup.add(stretchGroup);
   stretchGroup.add(leanGroup);
+  // NOTE: breatheGroup is added to leanGroup further down, AFTER the legs —
+  // children draw in add order, and the legs must sit behind the body. Adding
+  // it here (before the legs existed) put the whole body+face on top of the
+  // feet instead.
 
   // Draw order back to front: legs, body, then the head group on top. The legs
   // are added first so the body covers where they meet — without that overlap
@@ -569,9 +581,16 @@ export default function createMonster(scene) {
   mouthGroup.add(mouth);
 
   faceGroup.add([head, eyeLeft, eyeRight, mouthGroup]);
-  // Legs first so the body covers where they meet — without that overlap the
-  // two hard edges read as the feet being glued on rather than attached.
-  leanGroup.add([legLeft, legRight, bodyGroup, faceGroup]);
+
+  // Add order IS draw order, so the legs go into leanGroup FIRST and the
+  // breathing group (body + face) second — that's what tucks the legs' tops
+  // behind the body instead of gluing them on top of it.
+  //
+  // The legs are children of the LEAN but deliberately NOT of breatheGroup, so
+  // they stay planted while the body rises and falls above them.
+  leanGroup.add([legLeft, legRight]);
+  leanGroup.add(breatheGroup);
+  breatheGroup.add([bodyGroup, faceGroup]);
 
   // --- mouth ---------------------------------------------------------------
   // Expressions are opaque art on transparent canvases, so there's nothing to
@@ -752,6 +771,11 @@ export default function createMonster(scene) {
   // that jumps across the screen doesn't snap the eyes over in one frame.
   const EYE_MAX_SPEED = 340;
 
+  // Cache for the frame-rate ease, so the pow() below only runs when the frame
+  // time actually changes — see updateEyes.
+  let lastEyeDt = -1;
+  let eyeStep = EYE_EASE_PER_FRAME;
+
   function moveEyesTo(x, y, _duration, force = false) {
     // `force` only ever means "ignore the ease and go now", used by
     // stopLooking() — everything else wants the same smooth glide.
@@ -771,26 +795,37 @@ export default function createMonster(scene) {
   function updateEyes(delta) {
     const dt = Math.min(delta, 50) / 1000;
 
-    let dx = eyeTarget.x - eyeOffset.x;
-    let dy = eyeTarget.y - eyeOffset.y;
+    const dx = eyeTarget.x - eyeOffset.x;
+    const dy = eyeTarget.y - eyeOffset.y;
     if (Math.abs(dx) < 0.2 && Math.abs(dy) < 0.2) return;
 
     // Frame-rate independent form of "cover EYE_EASE_PER_FRAME each frame":
     // 1 - (1 - k)^(fps) produces the same motion at any refresh rate.
-    const step = 1 - Math.pow(1 - EYE_EASE_PER_FRAME, dt * 60);
+    //
+    // Rate-aware. At a steady refresh (the overwhelmingly common case) delta is
+    // constant, so dt*60 is the same every frame and pow() was being evaluated
+    // with identical arguments 60 times a second for no reason. Recomputing only
+    // when the frame time actually moves keeps the math identical while cutting
+    // that call out of the steady-state path.
+    if (dt !== lastEyeDt) {
+      lastEyeDt = dt;
+      eyeStep = 1 - Math.pow(1 - EYE_EASE_PER_FRAME, dt * 60);
+    }
+    const step = eyeStep;
 
-    dx *= step;
-    dy *= step;
-
-    const dist = Math.hypot(dx, dy);
     const maxStep = EYE_MAX_SPEED * dt;
+    // Snap-free clamp: hypot() avoids the sqrt-per-axis and gives the true
+    // distance in one call. Only taken when the step actually overshoots.
+    const dist = Math.hypot(dx, dy);
     if (dist > maxStep) {
-      dx = (dx / dist) * maxStep;
-      dy = (dy / dist) * maxStep;
+      const k = maxStep / dist;
+      eyeOffset.x += dx * k;
+      eyeOffset.y += dy * k;
+    } else {
+      eyeOffset.x += dx * step;
+      eyeOffset.y += dy * step;
     }
 
-    eyeOffset.x += dx;
-    eyeOffset.y += dy;
     applyEyeOffset();
   }
 
@@ -957,26 +992,37 @@ export default function createMonster(scene) {
   // standing" without re-deriving them.
   const LEG_REST = LEG_HOME.map((h) => ({ x: h.restX, y: pose.leg.y }));
 
+  // Two reusable slots, one per leg, so legPoseFor can write its result in place
+  // instead of allocating a fresh object twice per walking frame.
+  const legPoseOut = [{}, {}];
+
   // `stride` runs 0..1 through one leg's cycle. 0 is the moment the foot has
   // planted at the front; 0.5 is when it has been left behind and starts
   // reaching again. The foot never leaves the floor — the leg extends and
   // compresses instead.
-  function legPoseFor(stride) {
+  //
+  // `out` is filled and returned rather than a new object: this runs twice per
+  // walking frame for the life of the scene.
+  function legPoseFor(stride, out) {
     // Reaching through the first half, dragging back through the second. A
     // raised cosine rather than a triangle, so the transition at each end is
     // smooth instead of snapping the direction of travel.
-    const reachPhase = 0.5 - 0.5 * Math.cos(stride * Math.PI * 2);
+    const phase2 = stride * Math.PI * 2;
+    const reachPhase = 0.5 - 0.5 * Math.cos(phase2);
 
     // Both the sideways travel and the downward extension are driven by the same
     // phase, so the leg reaches out and down together — which is what a leg
     // planting its foot ahead of the body actually does.
-    const reach = (pose.walkLeadOut * reachPhase + pose.walkTrailIn * (1 - reachPhase)) * reachPhase;
+    out.reach =
+      (pose.walkLeadOut * reachPhase + pose.walkTrailIn * (1 - reachPhase)) *
+      reachPhase;
 
     // Longest at the plant, shortest when trailing.
-    const stretchY = pose.trailSquash + (pose.reachStretch - pose.trailSquash) * reachPhase;
+    out.stretchY =
+      pose.trailSquash + (pose.reachStretch - pose.trailSquash) * reachPhase;
 
     // Thins as it extends — a stretched leg is a thinner leg.
-    const thin = pose.reachThin + (1 - pose.reachThin) * reachPhase;
+    out.thin = pose.reachThin + (1 - pose.reachThin) * reachPhase;
 
     // Toes lead the reach and flatten on the plant; the trailing leg leans the
     // other way, so the pair scissor rather than tilting as one.
@@ -985,18 +1031,19 @@ export default function createMonster(scene) {
     // mid-drag, and goes to zero at the plant so the foot lands flat. That
     // removes the need for a separate "how tilted should it be" multiplier —
     // the phase already says it.
-    const pitch =
+    out.pitch =
       (reachPhase >= 0.5 ? pose.walkPitch : -pose.walkPitchTrail) *
       (1 - Math.abs(reachPhase - 1));
 
     // Arcs sideways rather than travelling in a straight line, the way a leg
-    // swinging from a hip does.
-    const sway = Math.sin(stride * Math.PI * 2);
+    // swinging from a hip does. The cosine is already computed above, so this
+    // is the sine of the same angle — no second trig call.
+    out.sway = Math.sin(phase2);
 
     // The off-ground half stretches along its travel, as if peeling off it.
-    const dragStretch = 1 + (pose.walkDragStretch - 1) * (1 - reachPhase);
+    out.dragStretch = 1 + (pose.walkDragStretch - 1) * (1 - reachPhase);
 
-    return { reach, stretchY, thin, pitch, sway, dragStretch };
+    return out;
   }
 
   function updateWalk(delta, speed) {
@@ -1044,37 +1091,11 @@ export default function createMonster(scene) {
     const legW = legBaseW * pose.leg.scale;
     const legH = legBaseH * pose.leg.scale;
 
-    const applyLeg = (home, sprite, stride) => {
-      const { restX, reach, towards } = home;
-      const p = legPoseFor(stride);
-
-      // Each leg swings TOWARD the centre line, so the pair crosses — the
-      // defining read of a front-facing sideways walk.
-      const travel = p.reach * reach * towards;
-
-      sprite.x = restX + (travel + p.sway * legW * 0.18) * walkAmount;
-      // p.pitch is already faded down to zero at the plant, so there's no
-      // separate strength term to multiply in here.
-      sprite.angle = p.pitch * walkAmount;
-
-      // Interpolated from exactly 1 (the authored scale), so a standing monster
-      // keeps its proportions untouched — walkAmount of 0 is a true no-op.
-      const scaleX = pose.leg.scale * (1 + (p.thin - 1) * walkAmount);
-      const scaleYBase = pose.leg.scale * (1 + (p.stretchY - 1) * walkAmount);
-      const scaleY = scaleYBase * (1 + (p.dragStretch - 1) * walkAmount * 0.5);
-
-      sprite.setScale(scaleX, scaleY);
-
-      // The leg ANCHOR stays put and the art stretches downward from it. The
-      // sprite's y is its centre, so extending the art by (scaleY - authored)
-      // moves that centre down by half as much — offsetting that keeps the anchor
-      // (and therefore the foot's contact with the floor) fixed while the leg
-      // visibly reaches further down.
-      sprite.y = pose.leg.y + (scaleY - pose.leg.scale) * legH * 0.5;
-    };
-
-    applyLeg(LEG_HOME[0], legLeft, strideL);
-    applyLeg(LEG_HOME[1], legRight, strideR);
+    // Hoisted out of the frame: `applyLeg` was a fresh closure allocated on every
+    // frame the monster walked. Same body, just owned by the monster instead of
+    // recreated per call.
+    applyLeg(LEG_HOME[0], legLeft, strideL, legW, legH, legPoseOut[0]);
+    applyLeg(LEG_HOME[1], legRight, strideR, legW, legH, legPoseOut[1]);
 
     // One dip per FOOTFALL, hence the doubled frequency: two steps happen per
     // cycle, so the body sinks twice. Applied to the whole monster rather than
@@ -1085,6 +1106,38 @@ export default function createMonster(scene) {
     // the anticipation tweens also own that property.
     walkGroup.y =
       -Math.abs(Math.sin(walkPhase * Math.PI)) * pose.walkBob * walkAmount;
+  }
+
+  // Per-leg walk pose. Hoisted out of updateWalk's body (it used to be a closure
+  // allocated on every walking frame); it still reads the walk state through the
+  // enclosing scope.
+  function applyLeg(home, sprite, stride, legW, legH, poseSlot) {
+    const { restX, reach, towards } = home;
+    const p = legPoseFor(stride, poseSlot);
+
+    // Each leg swings TOWARD the centre line, so the pair crosses — the
+    // defining read of a front-facing sideways walk.
+    const travel = p.reach * reach * towards;
+
+    sprite.x = restX + (travel + p.sway * legW * 0.18) * walkAmount;
+    // p.pitch is already faded down to zero at the plant, so there's no
+    // separate strength term to multiply in here.
+    sprite.angle = p.pitch * walkAmount;
+
+    // Interpolated from exactly 1 (the authored scale), so a standing monster
+    // keeps its proportions untouched — walkAmount of 0 is a true no-op.
+    const scaleX = pose.leg.scale * (1 + (p.thin - 1) * walkAmount);
+    const scaleYBase = pose.leg.scale * (1 + (p.stretchY - 1) * walkAmount);
+    const scaleY = scaleYBase * (1 + (p.dragStretch - 1) * walkAmount * 0.5);
+
+    sprite.setScale(scaleX, scaleY);
+
+    // The leg ANCHOR stays put and the art stretches downward from it. The
+    // sprite's y is its centre, so extending the art by (scaleY - authored)
+    // moves that centre down by half as much — offsetting that keeps the anchor
+    // (and therefore the foot's contact with the floor) fixed while the leg
+    // visibly reaches further down.
+    sprite.y = pose.leg.y + (scaleY - pose.leg.scale) * legH * 0.5;
   }
 
   // The eat pose: rear up, gape, and squeeze the head and eyes — one gesture
@@ -1450,7 +1503,7 @@ export default function createMonster(scene) {
   // Idle "breathing" of the whole monster. The body has its own squash loop on
   // top of this, so the two read as layered rather than one rigid motion.
   const idleTween = scene.tweens.add({
-    targets: bobGroup,
+    targets: breatheGroup,
     y: -pose.idleBob,
     duration: pose.idleDuration,
     yoyo: true,
@@ -1466,11 +1519,13 @@ export default function createMonster(scene) {
   // Deliberately ignores the bob/lean/anticipate offsets: those move the head
   // by at most ~30px, while the catch zone is ~150px across, so folding them in
   // would add wobble to an otherwise steady target without changing the result.
-  function getCatchCentre() {
-    return {
-      x: container.x + pose.head.x,
-      y: container.y + pose.head.y,
-    };
+  // Writes into a scene-owned object rather than returning a fresh one: this is
+  // called twice per frame (the catch sweep and the approach sweep) for the whole
+  // session, and the returned object was immediate garbage each time.
+  function getCatchCentre(out) {
+    out.x = container.x + pose.head.x;
+    out.y = container.y + pose.head.y;
+    return out;
   }
 
   // World position of the mouth. Used to aim the swallow and the "+1" pop —

@@ -114,17 +114,33 @@ function AppRoutes({ resetKey }) {
           <Route path="/" element={<BetaHome />} />
           {/* Keep the old URL working as an alias, but never as the primary. */}
           <Route path="/beta-ezwonders" element={<Navigate to="/" replace />} />
-          <Route path="/game1" element={<Game1 />} />
-          <Route path="/game2" element={<Game2 />} />
-          <Route path="/game3" element={<Game3 />} />
-          <Route path="/game4" element={<Game4 />} />
-          <Route path="/game5" element={<Game5 />} />
-          <Route path="/game7" element={<Game7 />} />
-          <Route path="/game8" element={<Game8 />} />
-          <Route path="/game9" element={<Game9 />} />
-          <Route path="/game10" element={<Game10 />} />
-          <Route path="/game6" element={<Game6 />} />
-          <Route path="/bonus-game1" element={<BonusGame1 />} />
+          {/* Game URLs are opaque 5-digit codes so the path never reveals the
+              game number (the on-screen labels still do). These fixed codes are
+              the single source of `to` in GAME_CATALOG. */}
+          <Route path="/47182" element={<Game1 />} />
+          <Route path="/90365" element={<Game2 />} />
+          <Route path="/25814" element={<Game3 />} />
+          <Route path="/61947" element={<Game4 />} />
+          <Route path="/83026" element={<Game5 />} />
+          <Route path="/59283" element={<Game7 />} />
+          <Route path="/36501" element={<Game8 />} />
+          <Route path="/72048" element={<Game9 />} />
+          <Route path="/98416" element={<Game10 />} />
+          <Route path="/14759" element={<Game6 />} />
+          <Route path="/20475" element={<BonusGame1 />} />
+          {/* Legacy /gameN paths stay as redirects so existing bookmarks and
+              printed links keep working instead of hitting the SPA catch-all. */}
+          <Route path="/game1" element={<Navigate to="/47182" replace />} />
+          <Route path="/game2" element={<Navigate to="/90365" replace />} />
+          <Route path="/game3" element={<Navigate to="/25814" replace />} />
+          <Route path="/game4" element={<Navigate to="/61947" replace />} />
+          <Route path="/game5" element={<Navigate to="/83026" replace />} />
+          <Route path="/game6" element={<Navigate to="/14759" replace />} />
+          <Route path="/game7" element={<Navigate to="/59283" replace />} />
+          <Route path="/game8" element={<Navigate to="/36501" replace />} />
+          <Route path="/game9" element={<Navigate to="/72048" replace />} />
+          <Route path="/game10" element={<Navigate to="/98416" replace />} />
+          <Route path="/bonus-game1" element={<Navigate to="/20475" replace />} />
           <Route path="/game-access" element={<GameAccessPage />} />
           <Route path="/teacher-onboarding" element={<TeacherOnboarding />} />
           <Route path="/p/:code" element={<StudentLogin />} />

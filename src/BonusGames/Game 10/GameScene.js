@@ -118,16 +118,40 @@ const PAD_BUTTON_MARGIN = 30;
 // (12), below the HUD (20+) and the red flash (85).
 const PAD_DEPTH = 45;
 
-// Top-left, left-anchored so the bubble grows away from the screen edge. The
-// left edge plus the wrap width caps the widest bubble at ~436px, which keeps
-// it clear of the progress bar running along the top.
-const PROMPT_X = 24;
-const PROMPT_Y = 196;
-const PROMPT_WRAP = 340;
+// The prompt pill is CENTRED along the top row and the Hint button sits
+// top-right. The pill's width adapts to its wording but is capped so the centred
+// pill still clears the button — see setPrompt, which wraps to that cap before
+// measuring. Tapping Hint slides the whole prompt off the left edge and brings
+// the hint card in to the top-left.
+const PROMPT_ROW_Y = 158;
+// Distance the prompt travels past the left edge when it slides out.
+const PROMPT_MARGIN_X = 24;
+const HINT_BUTTON_MARGIN = 24;
+// Clear space kept between the prompt pill and the Hint button.
+const PROMPT_HINT_GAP = 24;
+const PROMPT_FONT_SIZE = 32;
+// Level 1 shows the target shape just right of the prompt. Drawn as a geometry
+// glyph (not a food sprite) so it states the shape itself — a triangle reads as
+// a triangle — rather than one of the many foods that happen to be that shape.
+const PROMPT_SHAPE_GAP = 18;
+const PROMPT_SHAPE_H = 64;
+const SHAPE_GLYPH_FILL = 0xffd93d;
+const SHAPE_GLYPH_STROKE = 0xf59e0b;
+// The hint art is 272x304, flush against the left edge. Scale 1.125 is half, up
+// 50% (to 0.75), up a further 50%. Its rendered width drives the slide-in
+// distance; the height follows from the art's aspect ratio.
+const HINT_CARD_X = 0;
+const HINT_IMAGE_SCALE = 1.125;
 
-// Shares the top row with the mute button. The prompt bubble moved up to the
-// top-left, so the bar starts to the right of the mute button (which ends at
-// x=60) rather than at the far left, and runs to just short of the right edge.
+// Presses above this y never steer the monster — that strip holds the mute
+// button and the progress bar, so a tap there is UI input. The prompt row below
+// it is excluded by rect instead (see isInPromptRow), so growing the prompt pill
+// doesn't turn a whole horizontal band of the play area into dead space.
+const HUD_TOP_GUARD = 110;
+
+// Shares the top row with the mute button. The bar starts to the right of the
+// mute button (which ends at x=60) rather than at the far left, and runs to
+// just short of the right edge.
 const PROGRESS_W = 600;
 const PROGRESS_H = 26;
 const PROGRESS_Y = 52;
@@ -234,6 +258,26 @@ export default class GameScene extends BaseScene {
 
     this.progressFraction = 0;
 
+    // Cached per-frame values. These are all pure functions of things that only
+    // change on a resize (which cancels the scene), so recomputing them every
+    // frame in the catch/anticipation sweep was pure waste.
+    // The reused output object for the catch-centre query, so the per-frame
+    // sweeps never allocate.
+    this.catchPoint = { x: 0, y: 0 };
+    // Reciprocal radii: the catch test divides by them twice per shape, and a
+    // multiply by the reciprocal is cheaper than a divide.
+    this.invFeedRx = 1 / MONSTER_CATCH_RADIUS_X;
+    this.invFeedRy = 1 / MONSTER_CATCH_RADIUS_Y;
+    // The anticipation zone is the catch zone widened by 1.5 (see
+    // checkAnticipation), so its reciprocals are precomputed too.
+    this.invAnticipateRx = 1 / (MONSTER_CATCH_RADIUS_X * 1.5);
+    this.invAnticipateRy = 1 / (MONSTER_CATCH_RADIUS_Y * 1.5);
+    // Floor for the shadow ramp, cached so it isn't recomputed per shape.
+    this.shadowRampRange = Math.max(1, height - 200);
+    // Narrower half-extents used by the per-frame bounds clamp.
+    this.clampHalfW = 0;
+    this.clampHalfH = 0;
+
     // Gravity is set on this scene's own world rather than the shared
     // DEFAULT_PHYSICS, which stays gravity-free for the other bonus games.
     this.physics.world.gravity.y = GRAVITY;
@@ -304,9 +348,23 @@ export default class GameScene extends BaseScene {
     // represent the same shape at very different aspect ratios). Measuring each
     // texture once here is both correct and cheaper than measuring on spawn.
     this.foodScales = {};
+    // Widest normalised footprint across every food, so the per-frame bounds
+    // clamp can use one cached half-width instead of reading each sprite's
+    // displayWidth every frame. Every food is normalised to SHAPE_HEIGHT, but
+    // their aspect ratios differ, so the width takes the max rather than
+    // assuming a square. The height is SHAPE_HEIGHT by construction.
+    let widest = 0;
     FOOD_KEYS.forEach((key) => {
-      this.foodScales[key] = SHAPE_HEIGHT / measureTexture(this, key).h;
+      const { w, h } = measureTexture(this, key);
+      const scale = SHAPE_HEIGHT / h;
+      this.foodScales[key] = scale;
+      const displayW = w * scale;
+      if (displayW > widest) widest = displayW;
     });
+    // The arcade body is set from display size at spawn and the sprite is never
+    // scaled afterwards, so these match the old per-sprite displayWidth/2 reads.
+    this.clampHalfW = widest / 2;
+    this.clampHalfH = SHAPE_HEIGHT / 2;
 
     // Input: the monster follows a held finger anywhere in the play area, and
     // the round's line is replayed by tapping the monster itself (see
@@ -364,14 +422,15 @@ export default class GameScene extends BaseScene {
     );
     card.setScale(fit);
 
-    // The button sits near the bottom of the card, over the artwork's flat blue
-    // cloud area and clear of its own instruction text.
+    // The button sits low on the card, over the artwork's flat blue cloud area
+    // and clear of its own instruction text. Raised from the very bottom edge so
+    // it reads as part of the card rather than hanging off it.
     //
     // Positioned in the OVERLAY's coordinates, like the card — not the canvas's.
     // The overlay is centred on the canvas, so a canvas-space y here would be
     // read as an offset from that centre and land the button half a screen too
     // low.
-    const btnY = (card.height * fit) / 2 - 58;
+    const btnY = (card.height * fit) / 2 - 104;
     const startBtn = this.createPillButton(0, btnY, 'Start \u25B6', {
       fontSize: '38px',
       paddingX: 56,
@@ -516,10 +575,11 @@ export default class GameScene extends BaseScene {
 
   // Animates the fill rather than snapping it, so each feed reads as progress.
   // Driven off one monotonic counter of correct feeds, so it fills smoothly
-  // across all 30 feeds and reaches exactly 100% on round 10's 3rd feed —
+  // across every feed and reaches exactly 100% on the last round's final feed —
   // deriving it from rounds+feedsThisRound instead would double-count the
-  // third feed of a round (it's counted both as "this round" and as part of
-  // the now-completed round).
+  // last feed of a round (it's counted both as "this round" and as part of
+  // the now-completed round). TOTAL_FEEDS tracks FEEDS_PER_ROUND, so this stays
+  // correct if the per-round count changes again.
   advanceProgressBar() {
     const target = Math.min(1, this.feedsTotal / TOTAL_FEEDS);
 
@@ -542,36 +602,115 @@ export default class GameScene extends BaseScene {
   }
 
   buildPromptBubble() {
-    this.promptContainer = this.add.container(PROMPT_X, PROMPT_Y).setDepth(20);
+    // The pill is sized, wrapped and centred per round in setPrompt(); this only
+    // builds the objects.
+    this.promptContainer = this.add
+      .container(PROMPT_MARGIN_X, PROMPT_ROW_Y)
+      .setDepth(20);
     this.promptBg = this.add.graphics();
-    // Left-aligned: the bubble is anchored at its own left edge in setPrompt(),
-    // so the word-wrap width is the real constraint on how wide it gets.
     this.promptText = this.add
       .text(0, 0, '', {
-        fontSize: '26px',
+        fontSize: `${PROMPT_FONT_SIZE}px`,
         fontFamily: 'Fredoka, sans-serif',
         fontStyle: 'bold',
         color: '#7c4a03',
-        align: 'left',
-        wordWrap: { width: PROMPT_WRAP },
+        // Centre-aligned so every wrapped line is centred within the pill
+        // rather than ragged-right against its left inset.
+        align: 'center',
+        wordWrap: { width: 0 },
       })
       .setOrigin(0, 0.5);
-    this.promptContainer.add([this.promptBg, this.promptText]);
+    // Level 1 shows the target shape right of the prompt. Drawn as a geometry
+    // glyph per round in setPrompt(); hidden by default so Level 2 (and the
+    // frames before round 1) never show a stale shape. Sits inside the prompt
+    // container, so it travels with the prompt on the slide and the shake.
+    this.promptShape = this.add.graphics().setVisible(false);
+    this.promptShapeW = 0;
+    this.promptContainer.add([this.promptBg, this.promptText, this.promptShape]);
+    this.promptBaseX = PROMPT_MARGIN_X; // shake() restores to this
+
+    // The hint image is a card hugging the top-left corner. It slides in from the
+    // left while the prompt slides out off the same edge, so the illustration
+    // takes the prompt's place instead of covering it. Built empty here; filled
+    // in setPrompt() (Level 1 rounds have no hint).
+    this.hintPanel = this.add.container(0, PROMPT_ROW_Y).setDepth(22).setVisible(false);
+    this.hintImage = null;
+    this.hintOpen = false;
+    this.hintTargetX = 0;
+    this.hintStartX = -1000;
+
+    // The Hint button sits in the top-right corner of the row — the opposite
+    // end from the prompt, so the two never compete for space.
+    this.hintButton = this.createPillButton(0, PROMPT_ROW_Y, 'Hint \uD83D\uDCA1', {
+      fontSize: '26px',
+      paddingX: 20,
+      paddingY: 12,
+      bgColor: 0xffd93d,
+      textColor: '#7c4a03',
+      borderColor: 0xf59e0b,
+      depth: 21,
+    });
+    this.hintButton.on('pointerup', () => this.toggleHint());
+    // Hidden until the first setPrompt() decides whether this round has a hint;
+    // otherwise a stray "Hint" pill would sit above the start overlay's veil.
+    this.hintButton.container.setVisible(false);
+    this.hintRightX = 0;
+
+    // The row is UI, never a steering zone. Set for real in setPrompt(); these
+    // defaults only cover the frames before the first round.
+    this.promptRowHit = { left: 0, right: 0, top: 0, bottom: 0 };
+    this.hintRowHit = { left: 0, right: 0, top: 0, bottom: 0 };
+    this.hintCardHit = { left: 0, right: 0, top: 0, bottom: 0 };
   }
 
-  setPrompt(text) {
+  setPrompt(text, round, hintKey = null) {
+    const hintW = this.hintButton.width();
+    // Place the button BEFORE wrapping the prompt, because its width sets the
+    // space the prompt must leave for it.
+    this.hintRightX = this.scale.width - HINT_BUTTON_MARGIN - hintW / 2;
+    this.hintButton.container.setX(this.hintRightX);
+
+    // Level 1 shows the target shape just right of the pill; Level 2 relies on
+    // the wording and the hint art instead. Its width is measured here (before
+    // the wrap) because the whole group — pill + shape — must fit the space to
+    // the left of the Hint button.
+    const showShape = !!round && round.level === 1;
+    // The glyph is drawn at a fixed square footprint, so the wrap only has to
+    // reserve that plus the gap.
+    const shapeW = PROMPT_SHAPE_H;
+    const shapeSpace = showShape ? PROMPT_SHAPE_GAP + shapeW : 0;
+
+    // Cap the prompt so the centred pill (plus the shape hanging off its right)
+    // can never grow under the Hint button. Wrapping to this width rather than
+    // letting the text run wide and then clipping it is what keeps the text
+    // style intact: it wraps to a second line instead of colliding with the
+    // button. The pill is centred, so its right edge is at (width + w)/2, and
+    // the shape sits beyond that — both must clear the button's left edge.
+    // The 48 is the pill's own horizontal padding (24 each side), which adds to
+    // the group width but not to the wrap width — leaving it out would let the
+    // group's right edge land exactly on the button's left edge.
+    const promptMaxWidth = Math.max(
+      120,
+      2 * (this.hintRightX - hintW / 2 - PROMPT_HINT_GAP - this.scale.width / 2) -
+        48 -
+        shapeSpace
+    );
+    this.promptText.setWordWrapWidth(promptMaxWidth);
     this.promptText.setText(text);
 
-    // The old box was built as "text width + 48" and the text pinned at x=0,
-    // which is the wrong frame: the box grows from the LEFT edge, so the text
-    // ended up jammed against the left rounded cap with all the slack stranded
-    // on the right. Centring the text inside the finished box is what actually
-    // aligns it — 24px of padding then falls on each side automatically.
+    // The pill is sized to the widest WRAPPED line plus 48 (24px of padding each
+    // side). Phaser's `align: 'center'` centres each wrapped line against that
+    // widest line, so centring the text object on the pill's centre is enough to
+    // centre every line — no fixed size needed (and it would be actively wrong:
+    // a fixed width would be re-reported as the content width next round).
     const textW = this.promptText.width;
     const h = this.promptText.height + 28;
     const w = textW + 48;
 
-    this.promptText.setPosition((w - textW) / 2, 0);
+    // Centre the text object on the pill's centre (origin 0.5) — it is built
+    // left-anchored so the box math above stays readable.
+    this.promptText.setOrigin(0.5, 0.5);
+    this.promptText.setPosition(w / 2, 0);
 
     this.promptBg.clear();
     this.promptBg.fillStyle(0x000000, 0.18);
@@ -580,6 +719,216 @@ export default class GameScene extends BaseScene {
     this.promptBg.fillRoundedRect(0, -h / 2, w, h, h / 2);
     this.promptBg.lineStyle(4, 0xf59e0b, 1);
     this.promptBg.strokeRoundedRect(0, -h / 2, w, h, h / 2);
+
+    // Draw the glyph at the pill's right, vertically centred with it. Drawn here
+    // (rather than as a texture) so a triangle is a triangle, not whichever food
+    // happens to carry that shape.
+    if (showShape) {
+      this.drawShapeGlyph(round.shape, w + PROMPT_SHAPE_GAP + shapeW / 2, 0, shapeW);
+      this.promptShape.setVisible(true);
+    } else {
+      this.promptShape.clear();
+      this.promptShape.setVisible(false);
+    }
+
+    // The whole group (pill + shape) is centred on the canvas when there is a
+    // shape; with no shape that reduces to centring the pill. Only the slide-out
+    // destination changes when the hint opens, so this restores it to the
+    // resting position.
+    //
+    // promptW is the full visual footprint (pill + shape) and is what the
+    // slide/transition use, while promptBaseX is the container origin (the
+    // group's left edge).
+    const groupW = w + shapeSpace;
+    this.promptBaseX = (this.scale.width - groupW) / 2; // shake() restores to this
+    this.promptContainer.setX(this.promptBaseX);
+    this.promptW = groupW;
+
+    // The row is UI: the play-area steering handler ignores presses that land on
+    // it (see onPointerDown). Two tight rects — the prompt group and the Hint
+    // button — rather than a full-width band, so the rest of the strip stays
+    // playable.
+    const rowTop = PROMPT_ROW_Y - h / 2 - 6;
+    const rowBottom = PROMPT_ROW_Y + h / 2 + 6;
+    this.promptRowHit = {
+      left: this.promptBaseX - 6,
+      right: this.promptBaseX + groupW + 6,
+      top: rowTop,
+      bottom: rowBottom,
+    };
+    this.hintRowHit = {
+      left: this.hintRightX - hintW / 2 - 6,
+      right: this.hintRightX + hintW / 2 + 6,
+      top: rowTop,
+      bottom: rowBottom,
+    };
+
+    this.configureHint(hintKey, h);
+  }
+
+  // Draws one of the four shapes as actual geometry into this.promptShape.
+  // Coordinates are container-local; (cx, cy) is the glyph's centre and `size`
+  // its bounding square. The rectangle is drawn wider than tall — that
+  // proportion IS what distinguishes it from a square, so the two must not come
+  // out looking alike.
+  drawShapeGlyph(shapeId, cx, cy, size) {
+    const g = this.promptShape;
+    g.clear();
+    g.fillStyle(SHAPE_GLYPH_FILL, 1);
+    g.lineStyle(4, SHAPE_GLYPH_STROKE, 1);
+
+    // One pass per path. Phaser's Graphics batches by fill/stroke state, so a
+    // fill+stroke pair per primitive preserves the draw order AND stays a single
+    // geometry pass — issuing all fills and then all strokes would double that.
+    if (shapeId === 'circle') {
+      g.fillCircle(cx, cy, size / 2);
+      g.strokeCircle(cx, cy, size / 2);
+      return;
+    }
+
+    if (shapeId === 'triangle') {
+      const half = size / 2;
+      g.beginPath();
+      g.moveTo(cx, cy - half);
+      g.lineTo(cx + half, cy + half);
+      g.lineTo(cx - half, cy + half);
+      g.closePath();
+      g.fillPath();
+      g.strokePath();
+      return;
+    }
+
+    // A rectangle is drawn clearly wider than tall — that difference in
+    // proportions is exactly the contrast the Level 1 rounds are teaching, so
+    // the two must not read as the same glyph. The square is inset slightly so
+    // it sits visually the same size as the others.
+    const isRect = shapeId === 'rectangle';
+    const rw = isRect ? size : size * 0.82;
+    const rh = isRect ? size * 0.6 : size * 0.82;
+    g.fillRect(cx - rw / 2, cy - rh / 2, rw, rh);
+    g.strokeRect(cx - rw / 2, cy - rh / 2, rw, rh);
+  }
+
+  // Builds this round's hint card (272x304 art, scaled by HINT_IMAGE_SCALE) in
+  // the top-left corner, or hides the button entirely when the round has no
+  // hint. Top-aligned with the prompt so the illustration's top edge sits level
+  // with the pill and the Hint button.
+  configureHint(key, bubbleH) {
+    if (this.hintImage) {
+      this.hintImage.destroy();
+      this.hintImage = null;
+    }
+    this.hintOpen = false;
+    this.hintPanel.setVisible(false);
+    this.promptContainer.setX(this.promptBaseX);
+    // Back to the closed (amber, lightbulb) look — a round starting while the
+    // previous hint was open would otherwise inherit the red ✕ state.
+    this.setHintButtonState(false);
+
+    const usable = key && this.textures.exists(key);
+    this.hintButton.container.setVisible(!!usable);
+    if (!usable) return;
+
+    // The image is top-left anchored at the panel's own origin, so the panel's
+    // x IS the card's left edge — that's what lets HINT_CARD_X sit it flush
+    // against the canvas edge. (Anchoring by centre here was the bug that left
+    // the card stranded half its width in from the edge.)
+    const img = this.add.image(0, 0, key).setOrigin(0, 0);
+    img.setScale(HINT_IMAGE_SCALE);
+    // Top edge level with the prompt pill.
+    img.setPosition(0, -bubbleH / 2);
+    this.hintPanel.add(img);
+    this.hintImage = img;
+
+    const cardW = img.displayWidth;
+    const cardTop = PROMPT_ROW_Y - bubbleH / 2;
+    // Open: left edge at HINT_CARD_X. Closed: a full card-width further left,
+    // i.e. entirely off-canvas.
+    this.hintTargetX = HINT_CARD_X;
+    this.hintStartX = HINT_CARD_X - cardW;
+    // The card is sizeable enough to reach down into the play area, so while
+    // it's open it's treated as UI too — a tap on it must not walk the monster.
+    this.hintCardHit = {
+      left: HINT_CARD_X,
+      right: HINT_CARD_X + cardW,
+      top: cardTop,
+      bottom: cardTop + img.displayHeight,
+    };
+    // The prompt slides out until its centred pill is entirely past the left
+    // edge — its own left edge must travel a full pill-width past 0.
+    this.promptOpenX = -this.promptW - PROMPT_MARGIN_X;
+    this.hintPanel.setX(this.hintStartX);
+  }
+
+  toggleHint() {
+    if (!this.hintImage) return; // no hint for this round (Level 1)
+    if (this.phase !== 'playing') return;
+    if (this.hintOpen) this.closeHint();
+    else this.openHint();
+  }
+
+  openHint() {
+    this.hintOpen = true;
+    this.setHintButtonState(true);
+    this.tweens.killTweensOf(this.hintPanel);
+    this.tweens.killTweensOf(this.promptContainer);
+    this.hintPanel.setVisible(true).setX(this.hintStartX);
+    // The card slides in from the left while the prompt slides out off the left
+    // edge, handing the top row over to the illustration.
+    this.tweens.add({
+      targets: this.hintPanel,
+      x: this.hintTargetX,
+      duration: 320,
+      ease: 'Back.easeOut',
+    });
+    this.tweens.add({
+      targets: this.promptContainer,
+      x: this.promptOpenX,
+      duration: 320,
+      ease: 'Back.easeOut',
+    });
+  }
+
+  closeHint() {
+    this.hintOpen = false;
+    this.setHintButtonState(false);
+    this.tweens.killTweensOf(this.hintPanel);
+    this.tweens.killTweensOf(this.promptContainer);
+    this.tweens.add({
+      targets: this.hintPanel,
+      x: this.hintStartX,
+      duration: 260,
+      ease: 'Sine.easeIn',
+      onComplete: () => this.hintPanel.setVisible(false),
+    });
+    this.tweens.add({
+      targets: this.promptContainer,
+      x: this.promptBaseX,
+      duration: 260,
+      ease: 'Sine.easeIn',
+    });
+  }
+
+  // The Hint button while the hint is open reads as "tap to close": red, with
+  // an ✕ in place of the lightbulb. Leaving it looking like the closed state
+  // would imply a second tap opens another hint rather than putting this one
+  // away.
+  setHintButtonState(open) {
+    this.hintButton.setText(open ? 'Hint \u2715' : 'Hint \uD83D\uDCA1');
+    this.hintButton.setBg(open ? 0xef4444 : 0xffd93d);
+    this.hintButton.setBorder(open ? 0xb91c1c : 0xf59e0b);
+    this.hintButton.setTextColor(open ? '#ffffff' : '#7c4a03');
+
+    // setText() re-measures the pill, so the two labels can differ in width by
+    // a few px — re-derive the tap row from the live width rather than leaving
+    // the old rect behind.
+    const hintW = this.hintButton.width();
+    this.hintRowHit = {
+      left: this.hintRightX - hintW / 2 - 6,
+      right: this.hintRightX + hintW / 2 + 6,
+      top: this.hintRowHit.top,
+      bottom: this.hintRowHit.bottom,
+    };
   }
 
   // -----------------------------------------------------------------------
@@ -649,7 +998,8 @@ export default class GameScene extends BaseScene {
   // is only the lower part of the face, so centring the zone there would let
   // the monster miss anything that lands on its forehead.
   catchCentre() {
-    return this.monster.getCatchCentre();
+    // Filled into the scene's own reused object — see monster.getCatchCentre.
+    return this.monster.getCatchCentre(this.catchPoint);
   }
 
   // World-space mouth position, used only for aiming the swallow animation and
@@ -843,11 +1193,28 @@ export default class GameScene extends BaseScene {
     // has been absent for the last few spawns it must come back even if it was
     // also the previous shape.
     const forceTarget = this.spawnsSinceTarget >= 3;
-    const pool = SHAPE_IDS.filter(
-      (id) => id !== this.lastSpawnShape || (forceTarget && id === target)
-    );
 
-    const id = forceTarget ? target : Phaser.Utils.Array.GetRandom(pool);
+    let id;
+    if (forceTarget) {
+      id = target;
+    } else {
+      // Rejection-sample the 4 shapes instead of building a filtered array every
+      // spawn: the pool is `SHAPE_IDS minus lastSpawnShape`, so re-rolling until
+      // it differs is the same distribution with no allocation. Bounded so a
+      // pathological RNG still terminates.
+      const n = SHAPE_IDS.length;
+      let guard = 0;
+      do {
+        id = SHAPE_IDS[Math.floor(Math.random() * n)];
+        guard += 1;
+      } while (id === this.lastSpawnShape && guard < 12);
+
+      // Fell through the guard (only reachable if lastSpawnShape repeats
+      // pathologically) — step to the next shape so it always differs.
+      if (id === this.lastSpawnShape) {
+        id = SHAPE_IDS[(SHAPE_IDS.indexOf(id) + 1) % n];
+      }
+    }
 
     if (id === target) this.spawnsSinceTarget = 0;
     else this.spawnsSinceTarget += 1;
@@ -929,8 +1296,12 @@ export default class GameScene extends BaseScene {
 
     // Never steer from the top strip: that row holds the mute button and the
     // progress bar, so a tap there is UI input, and leaning on it would drag
-    // the monster to whichever edge the child happened to touch.
-    if (py < 110) return;
+    // the monster to whichever edge the child happened to touch. Two rects are
+    // excluded rather than the whole strip: the mute/progress HUD above, and the
+    // prompt row. Blocking the entire top band would have grown into dead space
+    // as the prompt pill got taller.
+    if (py < HUD_TOP_GUARD) return;
+    if (this.isInPromptRow(px, py)) return;
 
     // The tap target is the monster's whole body, not just the head. A child
     // reaching out to poke it aims at whatever they can see, so restricting the
@@ -947,6 +1318,18 @@ export default class GameScene extends BaseScene {
     }
 
     this.pressSide(this.sideFor(px), pointer);
+  }
+
+  // Does a world-space point fall on the prompt pill or the Hint button? Those
+  // are UI, so a press there must not steer the monster — but each exclusion is
+  // a tight rect, so the row's empty gaps and the rest of that strip stay
+  // playable.
+  isInPromptRow(x, y) {
+    const rects = [this.promptRowHit, this.hintRowHit];
+    if (this.hintOpen) rects.push(this.hintCardHit);
+    return rects.some(
+      (r) => x >= r.left && x <= r.right && y >= r.top && y <= r.bottom
+    );
   }
 
   // Is a world-space point anywhere on the monster?
@@ -1066,16 +1449,21 @@ export default class GameScene extends BaseScene {
   mostImminentShape() {
     let best = null;
     let bestY = -Infinity;
-    this.shapes.forEach((shape) => {
-      if (shape.rejected) return;
+    // Index loop, not forEach — this runs every frame and forEach allocates a
+    // closure per call. At most MAX_SHAPES (2) iterations, so it's also cheaper
+    // than the iterator machinery.
+    const shapes = this.shapes;
+    for (let i = 0; i < shapes.length; i += 1) {
+      const shape = shapes[i];
+      if (shape.rejected) continue;
       // Ignore shapes still on the way up: they're nowhere near the monster's
       // reach, and letting them win would point the eyes at every fresh throw.
-      if (shape.body && shape.body.velocity.y < 0) return;
+      if (shape.body && shape.body.velocity.y < 0) continue;
       if (shape.y > bestY) {
         bestY = shape.y;
         best = shape;
       }
-    });
+    }
     return best;
   }
 
@@ -1096,14 +1484,17 @@ export default class GameScene extends BaseScene {
     if (this.phase !== 'playing') return;
 
     const head = this.catchCentre();
+    // Read the cached reciprocals into locals — this loop runs every frame.
+    const invRx = this.invFeedRx;
+    const invRy = this.invFeedRy;
 
     for (let i = this.shapes.length - 1; i >= 0; i -= 1) {
       const shape = this.shapes[i];
       if (shape.rejected) continue;
       if (shape.body && shape.body.velocity.y <= 0) continue;
 
-      const dx = (shape.x - head.x) / this.feedZone.radiusX;
-      const dy = (shape.y - head.y) / this.feedZone.radiusY;
+      const dx = (shape.x - head.x) * invRx;
+      const dy = (shape.y - head.y) * invRy;
       if (dx * dx + dy * dy > 1) continue;
 
       this.resolveCatch(shape);
@@ -1118,22 +1509,32 @@ export default class GameScene extends BaseScene {
     if (this.phase !== 'playing') return;
 
     const head = this.catchCentre();
-    this.shapes.forEach((shape) => {
+    // Wide-zone reciprocals, cached — see the constructor values.
+    const invRx = this.invAnticipateRx;
+    const invRy = this.invAnticipateRy;
+    const shapes = this.shapes;
+
+    // An index loop, not forEach: this runs every frame and forEach allocates a
+    // closure each time, which is exactly the kind of steady garbage that shows
+    // up as periodic stutter on phones.
+    for (let i = 0; i < shapes.length; i += 1) {
+      const shape = shapes[i];
+
       // A rejected shape was already knocked away; it must not re-arm the
       // eat pose on its way out, or the monster would lunge at the food it
       // just refused.
-      if (shape.rejected) return;
+      if (shape.rejected) continue;
 
       // A rising shape is on its way UP past the monster and has no chance of
       // being eaten — it's the throw, not the catch. Reacting to it made the
       // monster gape at the start of every single arc, which read as it being
       // startled by its own food rather than waiting for it.
-      if (shape.body && shape.body.velocity.y < 0) return;
+      if (shape.body && shape.body.velocity.y < 0) continue;
 
       // Wider than the catch zone itself, so the monster starts opening before
       // the shape is close enough to be eaten rather than at the same instant.
-      const dx = (shape.x - head.x) / (this.feedZone.radiusX * 1.5);
-      const dy = (shape.y - head.y) / (this.feedZone.radiusY * 1.5);
+      const dx = (shape.x - head.x) * invRx;
+      const dy = (shape.y - head.y) * invRy;
       const near = dx * dx + dy * dy <= 1;
 
       if (near && !shape.anticipating) {
@@ -1143,7 +1544,7 @@ export default class GameScene extends BaseScene {
       } else if (!near && shape.anticipating) {
         shape.anticipating = false;
       }
-    });
+    }
   }
 
   // -----------------------------------------------------------------------
@@ -1172,7 +1573,14 @@ export default class GameScene extends BaseScene {
       this.mistakes += 1;
       this.streak = 0;
       this.flashRed();
-      this.shake(this.promptContainer);
+      // Shake whichever the child is actually looking at: with the hint open the
+      // prompt is off-screen, so shake the hint card instead — but shake the
+      // PANEL, not the image inside it. The image's x is local to the panel, so
+      // the canvas-space base used here would fling it sideways within it.
+      this.shake(
+        this.hintOpen && this.hintImage ? this.hintPanel : this.promptContainer,
+        this.hintOpen
+      );
       this.playSound('wrong', 0.8);
       this.rejectMonster();
       this.monster.sulk();
@@ -1275,11 +1683,15 @@ export default class GameScene extends BaseScene {
   // Round / level progression
   // -----------------------------------------------------------------------
 
-  startRound(roundIndex) {
+  // `skipSpawn` exists for the mid-transition hand-off in playRoundTransition:
+  // that path rebuilds the prompt while the slide-in is still running, so the
+  // round must stay held back (phase 'transition') and the caller schedules the
+  // first spawn once the animation actually finishes.
+  startRound(roundIndex, { skipSpawn = false } = {}) {
     this.roundIndex = roundIndex;
     this.round = ROUND_SCRIPT[roundIndex];
     this.feedsThisRound = 0;
-    this.phase = 'playing';
+    this.phase = skipSpawn ? 'transition' : 'playing';
 
     // A finger can be mid-press across a round change, and a held button is
     // ignored outside 'playing'. Releasing here means the press the child was
@@ -1290,11 +1702,17 @@ export default class GameScene extends BaseScene {
       this.walkPad.right.release(null);
     }
 
-    this.setPrompt(this.round.prompt);
+    // The hint texture is preloaded under a per-round key (see assets.js); the
+    // round's `hintImage` URL in levels.js is only the source for that key.
+    this.setPrompt(
+      this.round.prompt,
+      this.round,
+      this.round.hintImage ? `hint-${roundIndex}` : null
+    );
     this.popIn(this.promptContainer, 1);
     playVoice(this, this.round.voiceKey);
 
-    this.scheduleSpawn(500);
+    if (!skipSpawn) this.scheduleSpawn(500);
   }
 
   popIn(target, toScale, delay = 0) {
@@ -1329,49 +1747,153 @@ export default class GameScene extends BaseScene {
       const finishingLevel = this.round.level;
 
       if (ROUND_SCRIPT[nextIndex].level !== finishingLevel) {
+        // The level banner is its own transition, so the slide would just fight
+        // it for attention.
         this.showLevelBanner(`Level ${ROUND_SCRIPT[nextIndex].level}! 🎉`, () => {
           this.startRound(nextIndex);
         });
       } else {
-        this.startRound(nextIndex);
+        this.playRoundTransition(() => this.startRound(nextIndex));
       }
     });
   }
 
-  // Automatic, no player input — matches the brief's "no level-select screen".
-  showLevelBanner(text, onDone) {
-    const { width } = this.scale;
-    const c = this.add.container(width / 2, 540).setDepth(60).setScale(0);
+  // The beat between two rounds of the same level. The old prompt is pushed off
+  // the right edge and the next one slides back in from the left, with a soft
+  // white sweep crossing the canvas — so the hand-off reads as a change of
+  // question rather than the same bubble silently swapping its words.
+  playRoundTransition(onSwap) {
+    const { width, height } = this.scale;
 
-    const bg = this.add.graphics();
-    bg.fillStyle(0x000000, 0.25);
-    bg.fillRoundedRect(-230, -75, 460, 150, 34);
-    bg.fillStyle(0xffffff, 1);
-    bg.fillRoundedRect(-230, -81, 460, 150, 34);
-    bg.lineStyle(6, 0x8b5cf6, 1);
-    bg.strokeRoundedRect(-230, -81, 460, 150, 34);
-
-    const label = this.add
-      .text(0, -6, text, {
-        fontSize: '46px',
-        fontFamily: 'Fredoka, sans-serif',
-        fontStyle: 'bold',
-        color: '#4c1d95',
-      })
-      .setOrigin(0.5);
-
-    c.add([bg, label]);
-
-    this.tweens.add({ targets: c, scale: 1, duration: 320, ease: 'Back.easeOut' });
+    // Alpha kept low: a full-screen wipe at high opacity reads as a flash to a
+    // 5-year-old, this is meant to be a soft hand-off.
+    const sweep = this.add
+      .rectangle(-width / 2, height / 2, width, height, 0xffffff, 0.55)
+      .setDepth(58);
     this.tweens.add({
-      targets: c,
+      targets: sweep,
+      x: width * 1.5,
+      duration: 560,
+      ease: 'Sine.easeInOut',
+      onComplete: () => sweep.destroy(),
+    });
+
+    // Off the right edge, i.e. its left edge past the canvas.
+    const outX = width + this.promptW;
+    this.tweens.add({
+      targets: this.promptContainer,
+      x: outX,
       alpha: 0,
-      delay: 1150,
-      duration: 300,
+      duration: 240,
       ease: 'Sine.easeIn',
       onComplete: () => {
-        c.destroy();
-        onDone();
+        // Rebuild the bubble for the new round (this sets x back to its centred
+        // resting place), then re-park it off the LEFT edge and slide it in.
+        // The round is started with skipSpawn so it stays in 'transition' —
+        // otherwise the spawner would begin dropping shapes while the prompt is
+        // still sliding in, which is exactly the overlap this is meant to avoid.
+        onSwap();
+        // startRound also runs popIn(), which would scale the bubble up at the
+        // same time as this slide — cancel it so the slide is the only motion.
+        this.tweens.killTweensOf(this.promptContainer);
+        this.promptContainer.setScale(1);
+        this.promptContainer.setAlpha(0);
+        this.promptContainer.setX(-this.promptW - PROMPT_MARGIN_X);
+        this.tweens.add({
+          targets: this.promptContainer,
+          x: this.promptBaseX,
+          alpha: 1,
+          duration: 320,
+          ease: 'Back.easeOut',
+          onComplete: () => {
+            // The transition is over: flip to 'playing' and let the round begin.
+            // Nothing could spawn before this point, so the slide is guaranteed
+            // to finish before the first shape.
+            this.phase = 'playing';
+            this.scheduleSpawn(450);
+          },
+        });
+      },
+    });
+  }
+
+  // Automatic, no player input — matches the brief's "no level-select screen".
+  //
+  // The 'level-2' artwork flies up from below the canvas and decelerates into a
+  // stop dead centre: the rise uses a power ease-out so the motion is fastest at
+  // the bottom and eases in over the last stretch, which is what reads as the
+  // card "arriving" rather than sliding past. `onDone` fires only after the hold
+  // AND the fade have finished, so the next round cannot overlap the transition.
+  showLevelBanner(text, onDone) {
+    const { width, height } = this.scale;
+    const centreY = height / 2;
+
+    // Same artwork for both level changes; the passed `text` is kept as a
+    // fallback for any future level that has no art.
+    const hasArt = this.textures.exists('level-2');
+    const c = this.add.container(width / 2, centreY).setDepth(60);
+
+    // Assigned in both branches below — declared uninitialised so there's no
+    // dead `= 0` write.
+    let cardH;
+    if (hasArt) {
+      const art = this.add.image(0, 0, 'level-2').setOrigin(0.5);
+      // Fit within the canvas with margin, same rule the start card uses.
+      const margin = 40;
+      const fit = Math.min(
+        (width - margin * 2) / art.width,
+        (height - margin * 2) / art.height,
+        1
+      );
+      art.setScale(fit);
+      cardH = art.displayHeight;
+      c.add(art);
+    } else {
+      const bg = this.add.graphics();
+      bg.fillStyle(0x000000, 0.25);
+      bg.fillRoundedRect(-230, -75, 460, 150, 34);
+      bg.fillStyle(0xffffff, 1);
+      bg.fillRoundedRect(-230, -81, 460, 150, 34);
+      bg.lineStyle(6, 0x8b5cf6, 1);
+      bg.strokeRoundedRect(-230, -81, 460, 150, 34);
+      const label = this.add
+        .text(0, -6, text, {
+          fontSize: '46px',
+          fontFamily: 'Fredoka, sans-serif',
+          fontStyle: 'bold',
+          color: '#4c1d95',
+        })
+        .setOrigin(0.5);
+      c.add([bg, label]);
+      cardH = 162;
+    }
+
+    // Start fully below the canvas — bottom edge at or past the viewport bottom.
+    const startY = centreY + cardH / 2 + height / 2;
+    c.setY(startY);
+
+    this.tweens.add({
+      targets: c,
+      y: centreY,
+      duration: 900,
+      // Power2 out: quick off the mark at the bottom, long glide to a stop at the
+      // middle. (Sine is gentler at both ends and reads as a drift, not an
+      // arrival.)
+      ease: 'Power2.easeOut',
+      onComplete: () => {
+        // Hold, then fade and hand off. Chained rather than a single delayedCall
+        // so the round can never start while the card is still on screen.
+        this.tweens.add({
+          targets: c,
+          alpha: 0,
+          delay: 700,
+          duration: 280,
+          ease: 'Sine.easeIn',
+          onComplete: () => {
+            c.destroy();
+            onDone();
+          },
+        });
       },
     });
   }
@@ -1381,7 +1903,10 @@ export default class GameScene extends BaseScene {
   // -----------------------------------------------------------------------
 
   update(time, delta) {
-    const { height } = this.scale;
+    // Cached once per frame rather than read per shape — update() already
+    // touches this.scale several times and each read is a property hop.
+    const height = this.scale.height;
+    const maxX = this.scale.width - this.clampHalfW;
 
     // Resolve a press that landed on the monster before steering reads the pad,
     // so a press that has just become a walk is already held this frame.
@@ -1403,21 +1928,30 @@ export default class GameScene extends BaseScene {
       const sprite = this.shapes[i];
 
       if (sprite.shadow) {
-        // Lower on screen = closer to the ground = bigger, darker shadow.
-        const t = Phaser.Math.Clamp((sprite.y - 200) / (height - 200), 0, 1);
+        // Lower on screen = closer to the ground = bigger, darker shadow. The
+        // ramp denominator is cached (see create) instead of recomputed per
+        // shape per frame.
+        let t = (sprite.y - 200) / this.shadowRampRange;
+        if (t < 0) t = 0;
+        else if (t > 1) t = 1;
+        const shadowScale = 0.55 + t * 0.75;
         sprite.shadow.x = sprite.x;
-        sprite.shadow.setScale(0.55 + t * 0.75, 0.55 + t * 0.75);
+        sprite.shadow.setScale(shadowScale, shadowScale);
         sprite.shadow.setAlpha(0.08 + t * 0.18);
       }
 
       // A world-bounds bounce only reverses on the next physics step, by which
       // point the sprite can be a few pixels outside the canvas — clamp it back
       // so it never actually leaves the visible area.
+      //
+      // Every shape is normalised to the same on-screen size by foodScales, so
+      // the half-extents are the same for all of them and are cached in create()
+      // rather than read off each sprite (displayWidth/Height) every frame.
       if (sprite.body) {
-        const halfW = (sprite.displayWidth || 0) / 2;
-        const halfH = (sprite.displayHeight || 0) / 2;
+        const halfW = this.clampHalfW;
+        const halfH = this.clampHalfH;
         if (sprite.x < halfW) sprite.x = halfW;
-        else if (sprite.x > this.scale.width - halfW) sprite.x = this.scale.width - halfW;
+        else if (sprite.x > maxX) sprite.x = maxX;
         if (sprite.y < halfH) sprite.y = halfH;
       }
 
@@ -1449,25 +1983,31 @@ export default class GameScene extends BaseScene {
   // Feedback + finish
   // -----------------------------------------------------------------------
 
-  // Shakes the prompt bubble on a wrong feed.
+  // Shakes the prompt (or the hint card when it is open) on a wrong feed.
   //
-  // Restores to PROMPT_X rather than to whatever x the target had when this was
-  // called, and kills any shake already running first. Reading the live x is a
-  // trap: a second wrong feed landing mid-shake captures the DISPLACED position
-  // and then restores the prompt to that, nudging it sideways a little further
-  // on every mistake until it drifts off the edge.
-  shake(target) {
+  // Restores to a fixed resting x rather than to whatever x the target had when
+  // this was called, and kills any shake already running first. Reading the live
+  // x is a trap: a second wrong feed landing mid-shake captures the DISPLACED
+  // position and then restores to that, nudging it sideways a little further on
+  // every mistake until it drifts off. Shaking the container (not a child) is
+  // what keeps the base in canvas space — a child's x is local to its parent.
+  shake(target, isHint = false) {
+    // The hint panel is positioned by its centre (so `base` is its centre x); the
+    // prompt container by its left edge. The nudge is small either way so it
+    // reads as a reaction rather than the element wandering.
+    const base = isHint ? this.hintTargetX : this.promptBaseX;
+
     this.tweens.killTweensOf(target);
-    target.setX(PROMPT_X);
+    target.setX(base);
 
     this.tweens.add({
       targets: target,
-      x: PROMPT_X + 8,
+      x: base + 8,
       duration: 55,
       yoyo: true,
       repeat: 4,
       ease: 'Sine.easeInOut',
-      onComplete: () => target.setX(PROMPT_X),
+      onComplete: () => target.setX(base),
     });
   }
 
