@@ -104,17 +104,36 @@ export default defineConfig({
             // version path, so a device that had fetched it once kept serving its
             // own copy regardless of what was deployed.
             //
-            // StaleWhileRevalidate, not CacheFirst: Cloudinary URLs here have a
-            // version segment (`/v1789645047/`), and when the SAME version URL is
-            // reused for new bytes, CacheFirst would pin the old bytes forever.
-            // Revalidating in the background means a replaced file is picked up
-            // on the next load without ever blocking the current one.
+            // StaleWhileRevalidate, not CacheFirst: the same `/v1789…/` path is
+            // reused for new bytes when a file is re-uploaded, so CacheFirst
+            // would pin the old bytes forever.
+            //
+            // `fetchOptions.cache: 'reload'` is the load-bearing part, and the
+            // reason the first version of this fix did not work: workbox's
+            // revalidation is an ordinary `fetch()`, which is allowed to answer
+            // from the browser's HTTP cache. With Cloudinary's long max-age that
+            // means the "fresh" response is the stale bytes, which then get
+            // written INTO the workbox cache — turning a transient HTTP-cache
+            // problem into a sticky one. Forcing `reload` bypasses the HTTP cache
+            // so the revalidation genuinely hits the network.
             urlPattern: /^https:\/\/res\.cloudinary\.com\/.*\/upload\/.*/i,
             handler: "StaleWhileRevalidate",
             options: {
-              cacheName: "ezw-cloudinary-media",
+              // `-v2` is load-bearing, not cosmetic. The previous version of this
+              // rule (no `fetchOptions`) let workbox's revalidation read the
+              // browser's HTTP cache, so the STALE bytes were written into the
+              // `ezw-cloudinary-media` cache — every affected device now has a
+              // poisoned copy that a corrected rule would keep serving, because
+              // StaleWhileRevalidate returns the cached response first.
+              //
+              // Bumping the name abandons that cache entirely and workbox deletes
+              // it as outdated, so devices start from a clean one. Without this,
+              // the fix would take a second load (or never land, for a user who
+              // only opens the game once per session).
+              cacheName: "ezw-cloudinary-media-v2",
               expiration: { maxEntries: 300, maxAgeSeconds: 60 * 60 * 24 * 60 },
               cacheableResponse: { statuses: [0, 200] },
+              fetchOptions: { cache: "reload" },
             },
           },
         ],
