@@ -1,0 +1,38 @@
+# --- Service worker ---------------------------------------------------------
+# Must never be cached. If a CDN or browser serves a stale sw.js, the worker is
+# never re-installed and the device stays pinned to the previous deploy's
+# precache forever, no matter how many times the page is reloaded — which is the
+# "some users still see the old version after a redeploy" failure.
+/sw.js
+  Cache-Control: public, max-age=0, must-revalidate
+
+# --- App shell --------------------------------------------------------------
+# The HTML is the thing that names the hashed chunks, so it must always be
+# revalidated. A cached index.html keeps asking for the previous build's
+# filenames even after a new build has shipped.
+/
+  Cache-Control: public, max-age=0, must-revalidate
+
+/index.html
+  Cache-Control: public, max-age=0, must-revalidate
+
+# --- Hashed build output ----------------------------------------------------
+# Vite fingerprints these, so the filename changes whenever the content does.
+# Safe (and optimal) to cache them permanently.
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# --- Unhashed public assets -------------------------------------------------
+# `/PhaserAssets/*` and the brand images keep their names across deploys, so they
+# are requested with a `?v=<build id>` query (see src/assetVersion.js). That makes
+# the URL itself the cache key, so these can be cached hard too: a new build is a
+# new URL.
+/PhaserAssets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# --- Non-app paths ----------------------------------------------------------
+/sitemap.xml
+  Cache-Control: public, max-age=3600
+
+/robots.txt
+  Cache-Control: public, max-age=3600

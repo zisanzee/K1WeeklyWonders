@@ -1,5 +1,6 @@
 // Phaser/BasePreloadScene.js
 import * as Phaser from 'phaser';
+import { withAssetVersion } from '../assetVersion';
 
 // Generic loading scene shared by every bonus game: draws the same
 // 3-stop sky gradient + bouncing emoji + real (loader-driven) progress
@@ -96,11 +97,21 @@ export default class BasePreloadScene extends Phaser.Scene {
       }
     });
 
+    // Every URL goes through withAssetVersion() so same-origin `public/` assets
+    // (which Vite copies verbatim, with no content hash) get a new cache key each
+    // deploy. Without it, a service-worker CacheFirst entry or the HTTP cache
+    // keeps serving the previous build's file to a device that already has it —
+    // the "users still see the old audio/images after a redeploy" bug.
     this.assetManifest.forEach(({ type, key, url, config }) => {
-      if (type === 'audio') this.load.audio(key, url);
-      else if (type === 'image') this.load.image(key, url);
-      else if (type === 'spritesheet') this.load.spritesheet(key, url, config);
-      else if (type === 'atlas') this.load.atlas(key, url, config);
+      if (type === 'audio') {
+        // A typed url (`[{ type, url }]`) is an array; version the inner url.
+        const versioned = Array.isArray(url)
+          ? url.map((entry) => ({ ...entry, url: withAssetVersion(entry.url) }))
+          : withAssetVersion(url);
+        this.load.audio(key, versioned);
+      } else if (type === 'image') this.load.image(key, withAssetVersion(url));
+      else if (type === 'spritesheet') this.load.spritesheet(key, withAssetVersion(url), config);
+      else if (type === 'atlas') this.load.atlas(key, withAssetVersion(url), config);
     });
   }
 

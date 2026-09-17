@@ -3,7 +3,27 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { VitePWA } from "vite-plugin-pwa";
 
+// A value that changes on every deploy, folded into asset URLs at build time so
+// unhashed `public/` files (see src/assetVersion.js) get a new cache key each
+// release. Netlify/Render/Railway all expose a commit SHA; the timestamp is the
+// fallback for local builds. `Date.now()` is here deliberately — this runs in
+// the build process, not in the browser, so it is evaluated once per build.
+// Read through globalThis rather than a bare `process`: this file is linted with
+// the browser-ish default globals, where `process` is undefined.
+const env = globalThis.process?.env ?? {};
+const BUILD_ID =
+  env.COMMIT_REF ||
+  env.GITHUB_SHA ||
+  env.VERCEL_GIT_COMMIT_SHA ||
+  `local-${Date.now()}`;
+
 export default defineConfig({
+  // Surfaced to the app as a compile-time constant rather than an env var, so it
+  // is inlined into the bundle and can't be missing at runtime.
+  define: {
+    __EZ_BUILD_ID__: JSON.stringify(BUILD_ID),
+  },
+
   plugins: [
     react(),
     tailwindcss(),
@@ -51,7 +71,13 @@ export default defineConfig({
           {
             // Game art/audio are immutable per deploy and identical across
             // users — ideal cache-first candidates.
-            urlPattern: /\/PhaserAssets\/.*\.(?:m4a|wav|mp3|png|jpg|jpeg|webp)$/i,
+            //
+            // The trailing `(?:[?#].*)?$` is load-bearing: these assets are
+            // requested with a `?v=<build id>` cache-buster (src/assetVersion.js),
+            // and an anchored `/\.png$/` would fail to match a URL ending in
+            // `?v=…` — the rule would silently stop applying and every asset
+            // would fall through to an uncached network fetch.
+            urlPattern: /\/PhaserAssets\/.*\.(?:m4a|wav|mp3|png|jpg|jpeg|webp)(?:[?#].*)?$/i,
             handler: "CacheFirst",
             options: {
               cacheName: "ezw-phaser-assets",
@@ -60,11 +86,35 @@ export default defineConfig({
           },
           {
             // Brand/font art is similarly static.
-            urlPattern: /\.(?:png|svg|woff2?)$/i,
+            urlPattern: /\.(?:png|svg|woff2?)(?:[?#].*)?$/i,
             handler: "StaleWhileRevalidate",
             options: {
               cacheName: "ezw-static-images",
               expiration: { maxEntries: 60, maxAgeSeconds: 60 * 60 * 24 * 30 },
+            },
+          },
+          {
+            // The Cloudinary-hosted game media (every food sprite, monster part,
+            // voice clip and hint illustration — the bulk of this game's art).
+            //
+            // This is the rule whose ABSENCE caused "some users still see the old
+            // audio and images": those files were uncached by workbox, so they
+            // were served from the browser's own HTTP cache, and Cloudinary
+            // serves uploads with a long max-age. Replacing a file keeps its
+            // version path, so a device that had fetched it once kept serving its
+            // own copy regardless of what was deployed.
+            //
+            // StaleWhileRevalidate, not CacheFirst: Cloudinary URLs here have a
+            // version segment (`/v1789645047/`), and when the SAME version URL is
+            // reused for new bytes, CacheFirst would pin the old bytes forever.
+            // Revalidating in the background means a replaced file is picked up
+            // on the next load without ever blocking the current one.
+            urlPattern: /^https:\/\/res\.cloudinary\.com\/.*\/upload\/.*/i,
+            handler: "StaleWhileRevalidate",
+            options: {
+              cacheName: "ezw-cloudinary-media",
+              expiration: { maxEntries: 300, maxAgeSeconds: 60 * 60 * 24 * 60 },
+              cacheableResponse: { statuses: [0, 200] },
             },
           },
         ],
