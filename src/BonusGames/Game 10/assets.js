@@ -58,7 +58,7 @@ export const AUDIO = {
   'VA-I want shape that has 4 equal sides': 'https://res.cloudinary.com/hijmipga/video/upload/v1789642192/I_want_shape_that_has_4_equal_sides_pb5eux.mp3',
   'VA-I want shape that has 3 corners': 'https://res.cloudinary.com/hijmipga/video/upload/v1789642223/I_want_shape_that_has_3_corners_pp5atv.mp3',
   'VA-I want shape that has 2 long sides and 2 short sides': 'https://res.cloudinary.com/hijmipga/video/upload/v1789642279/I_want_shape_that_has_2_long_sides_and_2_short_sides_sgg3zj.mp3',
-  'VA-Welcome': 'https://res.cloudinary.com/hijmipga/video/upload/v1789644368/I_want_shape_that_is_round_with_no_corners_ch5oim.mp3',
+  'VA-Welcome': 'https://res.cloudinary.com/hijmipga/video/upload/v1789656373/welcome_walk_me_side_to_side_with_the_arrows_and_help_me_eat_the_shapes_I_want_ozfonx.mp3',
 };
 
 // Phaser's audio loader picks a codec/extension to trust from the URL itself,
