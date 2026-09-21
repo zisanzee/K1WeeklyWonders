@@ -24,6 +24,7 @@ import {
   usePwaStore,
   useInstallOffer,
   isInstallRoute,
+  shouldShowUpdatePrompt,
   applyUpdate,
   promptInstall,
 } from './pwa';
@@ -90,9 +91,13 @@ function BottomToast({ children }) {
 }
 
 export function UpdateToast() {
+  // An update is waiting. It stays waiting until the page reloads onto the new
+  // build, so `needRefresh` is true for the rest of the session — the toast's
+  // visibility is additionally gated on the user not having pressed "Later".
   const needRefresh = usePwaStore((s) => s.needRefresh);
-  const setNeedRefresh = usePwaStore((s) => s.setNeedRefresh);
-  if (!needRefresh) return null;
+  const refreshSnoozed = usePwaStore((s) => s.refreshSnoozed);
+  const snoozeRefresh = usePwaStore((s) => s.snoozeRefresh);
+  if (!shouldShowUpdatePrompt({ needRefresh, refreshSnoozed })) return null;
 
   return (
     <BottomToast>
@@ -109,10 +114,16 @@ export function UpdateToast() {
       >
         Refresh
       </button>
+      {/* "Later" snoozes rather than dismisses. It must NOT clear needRefresh:
+          the worker is still waiting, and a later update() check returns a
+          byte-identical script so onNeedRefresh would never fire again —
+          clearing it would strand the update until the tab was closed. Snoozing
+          hides the toast now and brings it back on its own (or on returning to
+          the tab). */}
       <button
         type="button"
-        onClick={() => setNeedRefresh(false)}
-        aria-label="Dismiss update"
+        onClick={() => snoozeRefresh()}
+        aria-label="Show the update prompt again later"
         className="shrink-0 rounded-xl bg-white/10 px-3 py-2 text-xs font-black text-white/80 transition hover:bg-white/20"
       >
         Later

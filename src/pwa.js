@@ -138,6 +138,12 @@ function detectLowPower() {
   }
 }
 
+// How long "Later" hides the update prompt before it offers itself again. Long
+// enough to mean "not right now", short enough that the update is not stranded
+// for the rest of the session. Returning to the tab clears it sooner.
+const REFRESH_SNOOZE_MS = 30 * 60 * 1000; // 30 minutes
+let snoozeTimer = null;
+
 const initialOnline =
   typeof navigator === 'undefined' ? true : navigator.onLine !== false;
 
@@ -155,7 +161,12 @@ export const usePwaStore = create((set) => ({
   lowPower: false,
 
   // --- update / offline readiness ---
+  // needRefresh is TRUE for as long as a new worker is installed and waiting —
+  // it is a statement of fact, not of whether the toast is on screen. The
+  // toast's visibility is needRefresh AND NOT refreshSnoozed.
   needRefresh: false,
+  // The user pressed "Later": hide the toast, but do NOT forget the update.
+  refreshSnoozed: false,
   offlineReady: false,
 
   setOnline: (online) => set({ online }),
@@ -176,6 +187,18 @@ export const usePwaStore = create((set) => ({
   setInstallEvent: (installEvent) =>
     set({ installEvent, nativePromptReady: Boolean(installEvent) }),
   setNeedRefresh: (needRefresh) => set({ needRefresh }),
+  // Snooze the toast WITHOUT forgetting that an update is waiting. It comes
+  // back on its own if the user stays on the page (see REFRESH_SNOOZE_MS) and
+  // sooner if they leave and return to the tab.
+  snoozeRefresh: () => {
+    set({ refreshSnoozed: true });
+    if (snoozeTimer) clearTimeout(snoozeTimer);
+    snoozeTimer = setTimeout(() => {
+      snoozeTimer = null;
+      usePwaStore.getState().clearRefreshSnooze();
+    }, REFRESH_SNOOZE_MS);
+  },
+  clearRefreshSnooze: () => set({ refreshSnoozed: false }),
   setOfflineReady: (offlineReady) => set({ offlineReady }),
   dismissOfflineReady: () => set({ offlineReady: false }),
 }));
@@ -208,6 +231,13 @@ export function shouldOfferInstall({
 // corrects it synchronously at boot.
 export function useLowPower() {
   return usePwaStore((s) => s.lowPower);
+}
+
+// The pure rule for whether the update prompt is on screen: an update must be
+// waiting, and the user must not have snoozed it. Kept separate (and tested) so
+// the "Later" behaviour cannot silently regress to forgetting the update.
+export function shouldShowUpdatePrompt({ needRefresh, refreshSnoozed }) {
+  return Boolean(needRefresh) && !refreshSnoozed;
 }
 
 // The single source of truth for whether the install button renders.
@@ -312,14 +342,20 @@ function scheduleWorkerRegistration() {
 
 // A deploy landing while a tab is open does NOT surface itself: the browser
 // only checks for a new worker on a navigation by default. Since this project
-// deploys often, that would mean a tab quietly plays yesterday's build for
-// hours. So we poll registration.update() — but ONLY while the tab is visible,
-// and throttled to hourly. An update check that happens during a game could
-// hand the page a fresh worker mid-round, which is exactly what the prompt
-// model exists to avoid; a background tab is a safe moment (JS is throttled
-// and the child cannot be interacting), so checks are deliberately skipped
-// while hidden and run on return to the foreground.
-const UPDATE_CHECK_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
+// deploys often, waiting for the browser's own check would mean an open tab
+// quietly plays yesterday's build for up to an hour — the "the update prompt
+// only shows if I refresh" symptom. So we poll registration.update() ourselves.
+//
+// 15 minutes is the balance: frequent enough that an actively-used tab learns
+// about a deploy on its own without a refresh, cheap enough to ignore (a
+// conditional GET of the ~2 KB sw.js). It is checked strictly while the tab is
+// VISIBLE and additionally on every return to the foreground, so a tab that is
+// backgrounded most of the time still gets a check the moment it is looked at.
+//
+// Discovering the update is deliberately kept non-disruptive: because the
+// worker uses registerType 'prompt', a found update installs and then WAITS.
+// It never takes over a running game — the user is asked first.
+const UPDATE_CHECK_INTERVAL_MS = 15 * 60 * 1000; // 15 minutes
 
 async function registerWorker() {
   try {
@@ -360,13 +396,24 @@ async function registerWorker() {
         // the callback ever fired twice. The flag makes that impossible.
         if (!visibilityListenerAdded) {
           visibilityListenerAdded = true;
-          document.addEventListener('visibilitychange', () => {
-            if (document.visibilityState === 'visible') checkForUpdate();
-          });
+          const onVisible = () => {
+            if (document.visibilityState !== 'visible') return;
+            checkForUpdate();
+            // Coming back to the tab is also the right moment to stop hiding a
+            // snoozed prompt: the user's attention is here now, and an update
+            // they dismissed an hour ago is still waiting.
+            usePwaStore.getState().clearRefreshSnooze();
+          };
+          document.addEventListener('visibilitychange', onVisible);
+          // `focus` as well: a window that was only partially covered never
+          // became hidden, so visibilitychange would not fire.
+          window.addEventListener('focus', onVisible);
         }
       },
 
       onNeedRefresh() {
+        // A NEW update supersedes any snooze on an older one.
+        usePwaStore.getState().clearRefreshSnooze();
         usePwaStore.getState().setNeedRefresh(true);
       },
 
@@ -402,6 +449,12 @@ export function applyUpdate() {
   if (!updateSW || applyingUpdate) return;
   applyingUpdate = true;
   updateSW(true);
+  // Safety net: updateSW(true) reloads the page, so this never runs — but if
+  // the worker fails to activate and no reload happens, a permanently disabled
+  // button would be worse than a second attempt. Re-arm after a few seconds.
+  setTimeout(() => {
+    applyingUpdate = false;
+  }, 5000);
 }
 
 // Trigger the saved install prompt. Returns 'accepted', 'dismissed', or null

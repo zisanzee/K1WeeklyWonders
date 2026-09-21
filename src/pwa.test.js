@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { shouldOfferInstall, isInstallRoute, classifyLowPower } from './pwa';
+import {
+  shouldOfferInstall,
+  isInstallRoute,
+  classifyLowPower,
+  shouldShowUpdatePrompt,
+} from './pwa';
 
 const base = {
   standalone: false,
@@ -71,6 +76,38 @@ describe('shouldOfferInstall', () => {
         nativePromptReady: true,
       })
     ).toBe(false);
+  });
+});
+
+describe('shouldShowUpdatePrompt', () => {
+  it('shows while an update is waiting and not snoozed', () => {
+    expect(
+      shouldShowUpdatePrompt({ needRefresh: true, refreshSnoozed: false })
+    ).toBe(true);
+  });
+
+  it('hides while snoozed, but the update is still remembered', () => {
+    // The regression this guards: "Later" must hide the toast WITHOUT clearing
+    // needRefresh. If it cleared needRefresh, a later update() check would find
+    // a byte-identical worker, onNeedRefresh would never fire again, and the
+    // update would be stranded until the tab was closed.
+    expect(
+      shouldShowUpdatePrompt({ needRefresh: true, refreshSnoozed: true })
+    ).toBe(false);
+    // The fact survives — only the presentation is suppressed.
+    expect(
+      shouldShowUpdatePrompt({ needRefresh: true, refreshSnoozed: false })
+    ).toBe(true);
+  });
+
+  it('hides when nothing is waiting', () => {
+    expect(
+      shouldShowUpdatePrompt({ needRefresh: false, refreshSnoozed: false })
+    ).toBe(false);
+  });
+
+  it('is false when the flags are missing', () => {
+    expect(shouldShowUpdatePrompt({})).toBe(false);
   });
 });
 
