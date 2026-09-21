@@ -20,6 +20,7 @@ import WeeklyGoals from "./WeeklyGoals";
 import { LOGO_URL } from "./brand";
 import PublicLanding from "./PublicLanding";
 import FeedbackButton from "./FeedbackButton";
+import { useInstallOffer } from "./pwa";
 import ContactStrip from "./ContactStrip";
 
 // ---------------------------------------------------------------------------
@@ -1398,6 +1399,11 @@ function BetaHomeContent() {
   const classId = usePlayerStore((s) => s.classId);
   const isTeacher = usePlayerStore((s) => s.isTeacher);
   const isAdmin = usePlayerStore((s) => s.isAdmin);
+  // The install button is a fixed top-right bar (see PwaBadges.jsx). It shares
+  // the teacher bar's line, so the hero must reserve the same top offset for it
+  // even when the teacher bar is not rendered — otherwise a non-teacher's
+  // "Install app" would sit on top of the header card.
+  const showInstall = useInstallOffer();
   const resetPlayer = usePlayerStore((s) => s.resetPlayer);
   const reduceMotion = useReducedMotion();
 
@@ -1635,7 +1641,9 @@ function BetaHomeContent() {
       <div
         className={cn(
           "relative z-10 mx-auto w-full max-w-4xl px-3 sm:px-6",
-          isTeacher ? "pt-16 sm:pt-20 md:pt-24" : "pt-8 sm:pt-12 md:pt-14"
+          isTeacher || showInstall
+            ? "pt-16 sm:pt-20 md:pt-24"
+            : "pt-8 sm:pt-12 md:pt-14"
         )}
       >
         <motion.div

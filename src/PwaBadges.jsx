@@ -200,28 +200,37 @@ export function InstallButton() {
   // consumed.
   if (!offer || !isInstallRoute(pathname)) return null;
 
+  // LAYOUT: this mirrors the teacher nav bar in BetaHome.jsx EXACTLY — same
+  // fixed full-width bar, same `mx-auto max-w-4xl px-3 py-3 sm:px-6` container,
+  // same button padding/ring — but justified to the END. That puts it on the
+  // opposite side of the screen from the "Teacher controls" button while
+  // keeping the two buttons on the same horizontal line and the same content
+  // edge (a plain `right-3` would not have lined up with the bar's grid).
   return (
     <div
-      className="fixed right-3 z-[115] sm:right-5"
+      className="fixed left-0 right-0 z-[115]"
       style={{
-        // Clear the maintenance ribbon (var), the phone status bar when running
-        // installed (safe-area), and a little breathing room.
+        // Same offset the teacher bar uses, plus the phone status bar when
+        // running installed. The bar itself is not rendered for non-teachers,
+        // but the maths is identical, so the two always share a baseline.
         top:
-          'calc(var(--maint-banner-h, 0px) + env(safe-area-inset-top, 0px) + 0.75rem)',
+          'calc(var(--maint-banner-h, 0px) + env(safe-area-inset-top, 0px))',
+        fontFamily: "'Fredoka', system-ui, sans-serif",
       }}
     >
-      <button
-        type="button"
-        onClick={() => promptInstall()}
-        aria-label="Install EZ Wonders"
-        className="flex items-center gap-1.5 rounded-full bg-white/95 px-3 py-2 text-xs font-black text-violet-700 shadow-lg ring-1 ring-black/5 backdrop-blur transition hover:-translate-y-0.5 active:translate-y-0 sm:gap-2 sm:px-4 sm:py-2.5 sm:text-sm"
-        style={{ fontFamily: "'Fredoka', system-ui, sans-serif" }}
-      >
-        <span aria-hidden="true" className="text-base sm:text-lg">
-          {INSTALL_ICON}
-        </span>
-        Install app
-      </button>
+      <div className="mx-auto flex w-full max-w-4xl items-center justify-end px-3 py-3 sm:px-6">
+        <button
+          type="button"
+          onClick={() => promptInstall()}
+          aria-label="Install EZ Wonders"
+          className="flex items-center gap-1.5 rounded-full bg-white/95 px-3.5 py-1.5 text-xs font-black text-violet-700 shadow-md ring-2 ring-white/70 backdrop-blur transition hover:-translate-y-0.5 active:translate-y-0 sm:gap-2 sm:px-5 sm:py-2.5 sm:text-base sm:shadow-xl sm:ring-4"
+        >
+          <span aria-hidden="true" className="text-base sm:text-lg">
+            {INSTALL_ICON}
+          </span>
+          Install app
+        </button>
+      </div>
     </div>
   );
 }
