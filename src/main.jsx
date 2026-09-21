@@ -14,7 +14,7 @@ import RouteSeo from "./seo";
 import { ConfirmHost } from "./confirmDialog";
 import { usePlayerStore } from "./playerStore";
 import { startSystemConfigPolling } from "./systemConfig";
-import PwaBadges from "./PwaBadges";
+import PwaBadges, { InstallButton } from "./PwaBadges";
 import { initPwa } from "./pwa";
 
 // Vite fires `vite:preloadError` when a lazy chunk fails to load, BEFORE React
@@ -175,6 +175,9 @@ function AppShell() {
       {/* Offline strip + update/offline-ready toasts. Rendered above everything
           so a route-level crash cannot take the offline indicator with it. */}
       <PwaBadges />
+      {/* Top-right install affordance. Self-hides unless the browser can install
+          right now, the app isn't already installed, and we're on an entry route. */}
+      <InstallButton />
       <RotateHint />
       <ConfirmHost />
       <AuthBootstrap>

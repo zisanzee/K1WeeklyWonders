@@ -10,16 +10,23 @@
 //                      than swapping the app out from under a child mid-game.
 //   - OfflineReady   — a one-off "ready to play offline" confirmation.
 //
-// InstallPrompt is exported separately and rendered on the home route, not
-// globally — offering to install the app on the login screen of every game
-// would be noise.
+// InstallButton is the one install affordance. It is exported separately and
+// rendered by main.jsx. It self-hides unless the browser can install natively
+// right now and the route is an entry surface (not inside a game).
 //
 // DELIBERATELY DEPENDENCY-FREE. This component is rendered from the entry
 // graph (main.jsx), so importing `motion` here would pull ~100KB of animation
 // runtime into the first-paint bundle that the whole platform works to keep
 // small. The entrance motion is a few lines of CSS instead.
 import { useEffect } from 'react';
-import { usePwaStore, applyUpdate, promptInstall } from './pwa';
+import { useLocation } from 'react-router-dom';
+import {
+  usePwaStore,
+  useInstallOffer,
+  isInstallRoute,
+  applyUpdate,
+  promptInstall,
+} from './pwa';
 
 // How long the "ready offline" confirmation lingers before hiding itself.
 const OFFLINE_READY_MS = 6000;
@@ -156,40 +163,65 @@ export default function PwaBadges() {
   );
 }
 
-// Shown only on the home route. Two very different paths to the same outcome:
-//  - Chromium fires beforeinstallprompt and we show a button that triggers it.
-//  - iOS Safari never does, so the user has to use Share → Add to Home Screen.
-// In both cases it disappears once the app is running standalone.
-export function InstallPrompt() {
-  const standalone = usePwaStore((s) => s.standalone);
-  const iosInstallable = usePwaStore((s) => s.iosInstallable);
-  const installEvent = usePwaStore((s) => s.installEvent);
+// A compact, top-right install affordance.
+//
+// It renders NOTHING unless the browser can install natively right now:
+//   - already installed (standalone, or a recorded install) → hidden
+//   - Chromium with a deferred prompt ready → a button that fires it
+//   - Safari / Firefox / any browser without beforeinstallprompt → hidden
+//   - Chromium that supports it but has not granted it yet → hidden
+// That last case is deliberate. A visible-but-dead "Install" button is worse
+// than none; useInstallOffer() is true only when the button will do something.
+const INSTALL_ICON = (
+  <svg
+    aria-hidden="true"
+    viewBox="0 0 24 24"
+    width="1em"
+    height="1em"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2.4"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="M12 3v11" />
+    <path d="m7.5 9.5 4.5 4.5 4.5-4.5" />
+    <path d="M4.5 19.5h15" />
+  </svg>
+);
 
-  if (standalone) return null;
-  if (!installEvent && !iosInstallable) return null;
+export function InstallButton() {
+  const { pathname } = useLocation();
+  const offer = useInstallOffer();
+
+  // Self-hiding: `offer` is true only when the browser can install natively and
+  // a prompt is ready. No local state is needed — the component unmounts on
+  // navigation and renders null once the app is installed or the prompt is
+  // consumed.
+  if (!offer || !isInstallRoute(pathname)) return null;
 
   return (
-    <div className="aura-card mx-auto flex w-full max-w-3xl items-center gap-3 rounded-2xl px-4 py-3">
-      <span aria-hidden="true" className="text-2xl">
-        📲
-      </span>
-      <div className="min-w-0 flex-1">
-        <p className="text-sm font-black text-white">Install EZ Wonders</p>
-        <p className="aura-muted text-xs font-semibold leading-snug">
-          {installEvent
-            ? 'Add it to your home screen or desktop for one-tap play — no browser needed.'
-            : 'Tap Share, then “Add to Home Screen” to keep EZ Wonders one tap away.'}
-        </p>
-      </div>
-      {installEvent && (
-        <button
-          type="button"
-          onClick={() => promptInstall()}
-          className="shrink-0 rounded-xl bg-white px-4 py-2 text-xs font-black text-violet-700 transition hover:-translate-y-0.5 active:translate-y-0"
-        >
-          Install
-        </button>
-      )}
+    <div
+      className="fixed right-3 z-[115] sm:right-5"
+      style={{
+        // Clear the maintenance ribbon (var), the phone status bar when running
+        // installed (safe-area), and a little breathing room.
+        top:
+          'calc(var(--maint-banner-h, 0px) + env(safe-area-inset-top, 0px) + 0.75rem)',
+      }}
+    >
+      <button
+        type="button"
+        onClick={() => promptInstall()}
+        aria-label="Install EZ Wonders"
+        className="flex items-center gap-1.5 rounded-full bg-white/95 px-3 py-2 text-xs font-black text-violet-700 shadow-lg ring-1 ring-black/5 backdrop-blur transition hover:-translate-y-0.5 active:translate-y-0 sm:gap-2 sm:px-4 sm:py-2.5 sm:text-sm"
+        style={{ fontFamily: "'Fredoka', system-ui, sans-serif" }}
+      >
+        <span aria-hidden="true" className="text-base sm:text-lg">
+          {INSTALL_ICON}
+        </span>
+        Install app
+      </button>
     </div>
   );
 }

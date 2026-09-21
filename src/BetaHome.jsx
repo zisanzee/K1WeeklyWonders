@@ -20,7 +20,6 @@ import WeeklyGoals from "./WeeklyGoals";
 import { LOGO_URL } from "./brand";
 import PublicLanding from "./PublicLanding";
 import FeedbackButton from "./FeedbackButton";
-import { InstallPrompt } from "./PwaBadges";
 import ContactStrip from "./ContactStrip";
 
 // ---------------------------------------------------------------------------
@@ -2065,15 +2064,6 @@ export default function BetaHome() {
       <NameGate gameLabel="EZ Wonders">
         <BetaHomeContent />
       </NameGate>
-
-      {/* Install offer, signed-out only: a child who is already playing has no
-          use for it, and it would sit under their game list. Self-hides once
-          installed. See PwaBadges.jsx. */}
-      {!signedIn && (
-        <div className="relative z-10 px-4 pb-10 sm:px-6">
-          <InstallPrompt />
-        </div>
-      )}
 
       {/* Public, crawlable copy — see PublicLanding.jsx for why it lives here. */}
       {!signedIn && <PublicLanding />}

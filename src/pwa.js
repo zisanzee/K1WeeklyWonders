@@ -10,9 +10,65 @@
 //   - exposing "a new version is ready" so the UI can offer an explicit refresh
 //     instead of the worker seizing control mid-lesson (registerType 'prompt'),
 //   - tracking online/offline so the app can say so,
-//   - capturing the install event so we can show our own install button
-//     (iOS never fires it — see the hint in PwaBadges.jsx).
+//   - the INSTALL capability model (see below).
 import { create } from 'zustand';
+
+// ---------------------------------------------------------------------------
+// INSTALL CAPABILITY — NATIVE PROMPT ONLY
+//
+// The install button is shown ONLY when the browser can install natively:
+//
+//   installed        running as an installed app (standalone), OR we recorded an
+//                    install on this device. Hides the affordance.
+//   nativePromptSupported   the browser implements beforeinstallprompt at all
+//                    (Chromium family). Safari and Firefox do NOT, so they get
+//                    no button — there is no native install to offer them.
+//   nativePromptReady  the browser has actually handed us a deferred
+//                    BeforeInstallPromptEvent, so prompt() will do something
+//                    right now.
+//
+// Both flags are required. Support alone is not enough: Chrome fires
+// beforeinstallprompt only after an engagement heuristic, so a supported browser
+// can have no prompt ready yet — showing a button then would give a dead
+// control. Ready alone is also insufficient as a guard (it implies support, but
+// gating on both states the intent). iOS is deliberately NOT handled: Safari has
+// no native install API, so per product decision an iOS user sees no button
+// rather than a manual "Add to Home Screen" walkthrough.
+// ---------------------------------------------------------------------------
+
+const INSTALLED_KEY = 'ezw.pwa.installed.v1';
+
+// Surfaces where an install offer makes sense. Deliberately NOT global: every
+// game paints its own top-right chrome inside the canvas, so a floating button
+// there could sit on top of it. These are the entry points a visitor lands on.
+export const INSTALL_ROUTES = new Set(['/', '/teacher-onboarding']);
+
+// True when the current pathname is an entry surface. Normalises a trailing
+// slash and strips the query/hash so "/teacher-onboarding/" and
+// "/teacher-onboarding?x=1" both match.
+export function isInstallRoute(pathname) {
+  const raw = pathname || '/';
+  const path = raw.split('?')[0].split('#')[0];
+  const normalised = path.length > 1 ? path.replace(/\/$/, '') : path;
+  return INSTALL_ROUTES.has(normalised);
+}
+
+function readInstalledHint() {
+  try {
+    return window.localStorage.getItem(INSTALLED_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+function writeInstalledHint(value) {
+  try {
+    if (value) window.localStorage.setItem(INSTALLED_KEY, '1');
+    else window.localStorage.removeItem(INSTALLED_KEY);
+  } catch {
+    /* private mode / storage disabled — the hint is only an optimisation */
+  }
+}
 
 // Running as an installed app rather than a browser tab. Two checks because
 // iOS Safari predates the display-mode media query and uses navigator.standalone
@@ -21,28 +77,18 @@ function detectStandalone() {
   if (typeof window === 'undefined') return false;
   try {
     if (window.matchMedia?.('(display-mode: standalone)').matches) return true;
+    // Also true when launched from the OS app switcher on Android.
+    if (window.matchMedia?.('(display-mode: fullscreen)').matches) return true;
+    if (window.matchMedia?.('(display-mode: minimal-ui)').matches) return true;
   } catch {
     /* media query unsupported — fall through */
   }
   return window.navigator?.standalone === true;
 }
 
-// iOS Safari never fires `beforeinstallprompt`, so the only way to add the app
-// to the home screen there is the manual Share → Add to Home Screen flow. We
-// detect iOS so we can show a hint in place of the button — but only while the
-// app is NOT already installed.
-function detectIosInstallable() {
-  if (typeof navigator === 'undefined' || typeof window === 'undefined') {
-    return false;
-  }
-  const ua = navigator.userAgent || '';
-  // iPadOS 13+ reports a desktop "Macintosh" user agent, so a plain /iPad/
-  // test misses modern iPads. The touch-points check separates a real iPad
-  // from an actual Mac.
-  const isIos =
-    /iPad|iPhone|iPod/.test(ua) ||
-    (ua.includes('Macintosh') && navigator.maxTouchPoints > 1);
-  return isIos && !detectStandalone();
+function detectNativePromptSupported() {
+  if (typeof window === 'undefined') return false;
+  return 'onbeforeinstallprompt' in window;
 }
 
 const initialOnline =
@@ -50,25 +96,76 @@ const initialOnline =
 
 export const usePwaStore = create((set) => ({
   online: initialOnline,
+
+  // --- install capability ---
   standalone: false,
-  // iOS only: worth showing the "Add to Home Screen" hint.
-  iosInstallable: false,
-  // A new service worker is installed and waiting; offer a refresh.
+  installedHint: false,
+  nativePromptSupported: false,
+  nativePromptReady: false, // a deferred prompt is captured and usable
+  installEvent: null, // the deferred BeforeInstallPromptEvent (Chromium)
+
+  // --- update / offline readiness ---
   needRefresh: false,
-  // The shell is now cached — the app can be opened offline. Shown once.
   offlineReady: false,
-  // The deferred BeforeInstallPromptEvent (Chromium only). Not serialisable,
-  // so it lives only in memory and is never persisted.
-  installEvent: null,
 
   setOnline: (online) => set({ online }),
   setStandalone: (standalone) => set({ standalone }),
-  setIosInstallable: (iosInstallable) => set({ iosInstallable }),
+  markInstalled: () => {
+    writeInstalledHint(true);
+    set({ installedHint: true, nativePromptReady: false, installEvent: null });
+  },
+  resetInstalled: () => {
+    // The browser offering install again means it is NOT installed.
+    writeInstalledHint(false);
+    set({ installedHint: false });
+  },
+  setInstalledHint: (installedHint) => set({ installedHint }),
+  setNativePromptSupported: (nativePromptSupported) =>
+    set({ nativePromptSupported }),
+  setInstallEvent: (installEvent) =>
+    set({ installEvent, nativePromptReady: Boolean(installEvent) }),
   setNeedRefresh: (needRefresh) => set({ needRefresh }),
   setOfflineReady: (offlineReady) => set({ offlineReady }),
   dismissOfflineReady: () => set({ offlineReady: false }),
-  setInstallEvent: (installEvent) => set({ installEvent }),
 }));
+
+// The pure decision behind the install affordance. Kept separate from the hook
+// so it can be unit-tested without a DOM (see pwa.test.js).
+//
+// Returns true only when ALL of these hold:
+//   - the app is not already installed,
+//   - the browser supports a native install prompt,
+//   - that prompt is actually ready to fire right now.
+export function shouldOfferInstall({
+  standalone,
+  installedHint,
+  nativePromptSupported,
+  nativePromptReady,
+}) {
+  // Already an installed app (or we recorded one on this device) → nothing.
+  if (standalone || installedHint) return false;
+  // No native install API (Safari, Firefox) → nothing. This is the case the
+  // button must never appear for.
+  if (!nativePromptSupported) return false;
+  // Supported but no prompt captured yet → nothing (a dead button is worse
+  // than none).
+  return Boolean(nativePromptReady);
+}
+
+// The single source of truth for whether the install button renders.
+export function useInstallOffer() {
+  const standalone = usePwaStore((s) => s.standalone);
+  const installedHint = usePwaStore((s) => s.installedHint);
+  const nativePromptSupported = usePwaStore((s) => s.nativePromptSupported);
+  const nativePromptReady = usePwaStore((s) => s.nativePromptReady);
+
+  return shouldOfferInstall({
+    standalone,
+    installedHint,
+    nativePromptSupported,
+    nativePromptReady,
+  });
+}
 
 // The updater returned by registerSW. Kept at module scope so applyUpdate() can
 // ask the SAME registration to activate its waiting worker — calling
@@ -84,8 +181,14 @@ export function initPwa() {
 
   const store = usePwaStore.getState();
 
-  store.setStandalone(detectStandalone());
-  store.setIosInstallable(detectIosInstallable());
+  const standalone = detectStandalone();
+  // A recorded install (or an active standalone session) hides the affordance
+  // even when the app is later reopened in a normal browser tab.
+  const installed = standalone || readInstalledHint();
+  if (standalone) writeInstalledHint(true);
+  store.setStandalone(standalone);
+  store.setInstalledHint(installed);
+  store.setNativePromptSupported(detectNativePromptSupported());
 
   // --- online / offline -----------------------------------------------------
   // A school tablet loses wifi constantly; surfacing it explains the spinners.
@@ -95,7 +198,11 @@ export function initPwa() {
   // --- installed-app state can change while the page is open ---------------
   try {
     const mql = window.matchMedia('(display-mode: standalone)');
-    const onChange = () => usePwaStore.getState().setStandalone(mql.matches);
+    const onChange = () => {
+      const nowStandalone = mql.matches;
+      usePwaStore.getState().setStandalone(nowStandalone);
+      if (nowStandalone) usePwaStore.getState().markInstalled();
+    };
     mql.addEventListener('change', onChange);
   } catch {
     /* older Safari: no addEventListener on MediaQueryList — ignore */
@@ -105,14 +212,15 @@ export function initPwa() {
   window.addEventListener('beforeinstallprompt', (event) => {
     // Stop Chrome's mini-infobar so our own button is the only affordance.
     event.preventDefault();
+    // Receiving this event proves the app is NOT already installed, which is a
+    // more reliable signal than the stored hint — clear it.
+    usePwaStore.getState().resetInstalled();
     usePwaStore.getState().setInstallEvent(event);
   });
 
   window.addEventListener('appinstalled', () => {
-    // Clear the saved prompt and mark standalone so the button disappears.
-    usePwaStore.getState().setInstallEvent(null);
     usePwaStore.getState().setStandalone(true);
-    usePwaStore.getState().setIosInstallable(false);
+    usePwaStore.getState().markInstalled();
   });
 
   registerWorker();
@@ -135,6 +243,7 @@ async function registerWorker() {
 
     let updateTimer = null;
     let registration = null;
+    let visibilityListenerAdded = false;
 
     const checkForUpdate = () => {
       // update() throws if called while a check is already in flight on some
@@ -161,9 +270,16 @@ async function registerWorker() {
         // case the interval alone would miss (a tab left open and then
         // reopened). Cheap: registration.update() is a conditional GET of a
         // tiny file.
-        document.addEventListener('visibilitychange', () => {
-          if (document.visibilityState === 'visible') checkForUpdate();
-        });
+        //
+        // Guarded: onRegisteredSW is called once per registerSW() today, but
+        // this listener is added to `document` and would stack duplicates if
+        // the callback ever fired twice. The flag makes that impossible.
+        if (!visibilityListenerAdded) {
+          visibilityListenerAdded = true;
+          document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') checkForUpdate();
+          });
+        }
       },
 
       onNeedRefresh() {
@@ -204,18 +320,23 @@ export function applyUpdate() {
   updateSW(true);
 }
 
-// Trigger the saved install prompt. Returns true if the install was accepted.
+// Trigger the saved install prompt. Returns 'accepted', 'dismissed', or null
+// when there was no prompt to show.
 export async function promptInstall() {
   const { installEvent } = usePwaStore.getState();
-  if (!installEvent) return false;
+  if (!installEvent) return null;
   try {
     await installEvent.prompt();
     const choice = await installEvent.userChoice;
     // The event can only be used once, whatever the choice.
-    usePwaStore.getState().setInstallEvent(null);
-    return choice?.outcome === 'accepted';
+    if (choice?.outcome === 'accepted') {
+      usePwaStore.getState().markInstalled();
+    } else {
+      usePwaStore.getState().setInstallEvent(null);
+    }
+    return choice?.outcome ?? null;
   } catch {
     usePwaStore.getState().setInstallEvent(null);
-    return false;
+    return null;
   }
 }
