@@ -33,9 +33,11 @@ export default class ErrorBoundary extends Component {
   handleReload = async () => {
     const { error } = this.state;
 
-    // Only a stale-chunk failure benefits from wiping the service worker and
-    // caches; an ordinary render error should not pay for it, since those
-    // caches are what make a repeat play instant for a child on school wifi.
+    // Only a stale-chunk failure benefits from the promote-the-new-worker path
+    // in recoverFromStaleChunk (it waits for a new worker to take over before
+    // reloading, so the reload fetches the CURRENT build). An ordinary render
+    // error should not pay for that wait, and must never touch the worker —
+    // it and its caches are what make a repeat play instant on school wifi.
     if (isChunkLoadError(error)) {
       // Rate-limited internally, so a genuinely missing chunk cannot put the
       // browser into a reload loop. If recovery was refused (already tried

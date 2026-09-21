@@ -14,6 +14,8 @@ import RouteSeo from "./seo";
 import { ConfirmHost } from "./confirmDialog";
 import { usePlayerStore } from "./playerStore";
 import { startSystemConfigPolling } from "./systemConfig";
+import PwaBadges from "./PwaBadges";
+import { initPwa } from "./pwa";
 
 // Vite fires `vite:preloadError` when a lazy chunk fails to load, BEFORE React
 // ever sees the error — so this is the earliest and most reliable place to catch
@@ -27,13 +29,12 @@ if (typeof window !== 'undefined') {
   });
 }
 
-// The retired PWA worker is NOT re-registered from here on purpose. Devices
-// that still carry it get evicted by the browser's own service-worker update
-// check on navigation: because `public/sw.js` now differs from the old
-// workbox bundle, the browser refetches it, and that copy deletes its caches
-// and unregisters itself. That happens natively, without page JavaScript, so
-// calling register() would only install a worker on devices that never had
-// one — new background work for no benefit. See public/sw.js.
+// Registers the (minimal) service worker that makes the app installable and
+// offline-capable, and wires up the online/offline and install-prompt listeners.
+// Safe to call unconditionally: initPwa() is a no-op outside the browser, and
+// the heavy `virtual:pwa-register` runtime is dynamically imported inside it, so
+// none of it lands in the first-paint bundle. See src/pwa.js and vite.config.js.
+initPwa();
 
 // Fires at module scope, before React has rendered anything, so the maintenance
 // config request races the auth hydrate in parallel instead of queueing behind
@@ -171,6 +172,9 @@ function AppShell() {
 
   return (
     <ErrorBoundary>
+      {/* Offline strip + update/offline-ready toasts. Rendered above everything
+          so a route-level crash cannot take the offline indicator with it. */}
+      <PwaBadges />
       <RotateHint />
       <ConfirmHost />
       <AuthBootstrap>

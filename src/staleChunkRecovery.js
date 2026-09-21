@@ -9,12 +9,11 @@
 // depends on which build that device had loaded — which is why the same teacher
 // saw it on her phone and not her laptop.
 //
-// This still unregisters any service worker it finds, and that is now the main
-// reason to keep it: the project no longer ships a worker (see vite.config.js),
-// so on a device that still has the old one this is what removes it. A stale
-// worker serves its own precached shell and chunks, so without this the page
-// would keep requesting dead filenames no matter how many times it was reloaded.
-// For a device with no worker this is a complete no-op and it just reloads.
+// The normal path AVOIDS this entirely: registerType 'prompt' means the old
+// worker keeps serving a self-consistent old build until the user accepts the
+// update (see src/pwa.js and vite.config.js). This module is only the backstop
+// for the moments that model cannot cover — a chunk fetched for the first time
+// in the window between a deploy and the user accepting it.
 
 // Matches every phrasing the browsers actually produce for this class of fault.
 const CHUNK_ERROR_RE =
@@ -24,31 +23,109 @@ export function isChunkLoadError(error) {
   return CHUNK_ERROR_RE.test(String(error?.message || error || ''));
 }
 
-// Reloads the app from the network, discarding the service worker and every
-// cache first. Every step is best-effort: on a locked-down school browser (or in
-// private mode) `caches` and the SW API may be unavailable, and a reload that
-// works is strictly better than one that silently does nothing.
+// Resolves when the service worker controlling this page changes, or when the
+// timeout elapses — whichever comes first. `controllerchange` is what tells us
+// the promoted worker has taken over, i.e. the next navigation will be served
+// the NEW build's shell instead of the cached stale one. The timeout is a hard
+// floor so a worker that never activates cannot leave the user stuck on the
+// error screen (a reload that fetches the old shell is still no worse than not
+// reloading at all).
+function waitForControllerChange(timeoutMs) {
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      navigator.serviceWorker.removeEventListener?.('controllerchange', finish);
+      resolve();
+    };
+    try {
+      navigator.serviceWorker.addEventListener('controllerchange', finish);
+    } catch {
+      finish();
+      return;
+    }
+    setTimeout(finish, timeoutMs);
+  });
+}
+
+// Reloads the app onto the current deploy.
+//
+// WHY THIS NO LONGER UNREGISTERS EVERY SERVICE WORKER (it used to):
+// while the project shipped no worker, blowing away any registration it found
+// was the only way to evict the retired vite-plugin-pwa worker. The project now
+// ships a LEGITIMATE minimal worker (see vite.config.js): the shell precache and
+// the runtime-cached game art are exactly what makes the site installable and
+// work offline. Unregistering it here would delete all of that on the first
+// stale-chunk blip.
+//
+// Rather than destroy the worker, this PROMOTES it:
+//   1. If a worker is already waiting (the common case — the update toast was
+//      just ignored), tell it to take over.
+//   2. Otherwise force an update check and poll briefly for a worker that has
+//      just installed and moved to `waiting`, then tell that one to take over.
+//   3. Wait until a worker actually controls the page before reloading. This is
+//      the important part: reloading first would let the OLD worker re-serve
+//      its cached stale index.html, and the same chunk would fail again.
 export async function hardReload() {
   try {
     if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
       const registrations = await navigator.serviceWorker.getRegistrations();
-      await Promise.all(registrations.map((registration) => registration.unregister()));
-    }
-    if (typeof caches !== 'undefined') {
-      const cacheNames = await caches.keys();
-      await Promise.all(cacheNames.map((name) => caches.delete(name)));
+      // Only workers that actually control pages are relevant here.
+      const controlling = registrations.filter((r) => r.active);
+
+      let promoted = false;
+
+      // 1. An already-waiting worker can take over immediately.
+      for (const registration of controlling) {
+        if (registration.waiting) {
+          registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+          promoted = true;
+        }
+      }
+
+      // 2. Nothing waiting: the new worker may not have been fetched yet, since
+      //    the browser only checks on navigation. Force a check, then poll for
+      //    it to install and reach the waiting state.
+      if (!promoted && controlling.length) {
+        await Promise.all(
+          controlling.map((r) => r.update?.().catch(() => {}))
+        );
+        const deadline = Date.now() + 4000;
+        while (Date.now() < deadline) {
+          let waitingWorker = null;
+          for (const registration of controlling) {
+            if (registration.waiting) {
+              waitingWorker = registration.waiting;
+              break;
+            }
+          }
+          if (waitingWorker) {
+            waitingWorker.postMessage({ type: 'SKIP_WAITING' });
+            promoted = true;
+            break;
+          }
+          await new Promise((resolve) => setTimeout(resolve, 150));
+        }
+      }
+
+      // 3. Let the promoted worker claim this page before navigating, so the
+      //    reload fetches the new shell. A device with no worker at all skips
+      //    straight to the reload, which is a plain network fetch.
+      if (promoted) await waitForControllerChange(3000);
     }
   } catch {
-    // Fall through to the reload regardless.
+    // Best effort on locked-down school browsers / private mode. Fall through
+    // to the reload regardless.
   }
   window.location.reload();
 }
 
 // Guards against a reload loop. If the chunk is genuinely MISSING rather than
-// merely stale — a bad deploy, a blocked request — then unregistering and
-// reloading will fail again, and again. An infinite reload is far worse for a
-// child than one error screen, so recovery is attempted at most once per
-// cooldown window; after that the caller should show the normal error UI.
+// merely stale — a bad deploy, a blocked request — then reloading will fail
+// again, and again. An infinite reload is far worse for a child than one error
+// screen, so recovery is attempted at most once per cooldown window; after that
+// the caller should show the normal error UI.
 const RELOAD_KEY = 'ezw.chunk-reload-at';
 const RELOAD_COOLDOWN_MS = 60_000;
 

@@ -70,7 +70,23 @@
 
     <meta name="application-name" content="EZ Wonders" />
     <meta name="author" content="EZ Wonders" />
-    <meta name="theme-color" content="#3fb6ea" />
+
+    <!-- Installability / standalone meta.
+         Split theme-color: the browser chrome tint follows the OS colour
+         scheme, matching the app's aurora-dusk backdrop (deep indigo) instead
+         of the old single light-sky value, which tinted the status bar a
+         colour the app never actually renders behind it. -->
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#3fb6ea" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#1e1b5a" />
+    <!-- Android Chrome reads this to launch without browser chrome. -->
+    <meta name="mobile-web-app-capable" content="yes" />
+    <!-- iOS Safari uses the apple-* variants; it ignores the manifest for these.
+         black-translucent lets the app paint under the status bar, which the
+         full-bleed aurora backdrop handles correctly. -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="EZ Wonders" />
+
     <meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1" />
     <meta name="format-detection" content="telephone=no" />
 
