@@ -54,9 +54,13 @@ export function OfflineBanner() {
   return (
     <>
       <PwaStyle />
+      {/* pointer-events-none: this strip sits at top-0 and overlaps the teacher
+          bar's row when no maintenance ribbon is present. It is purely
+          informational with no controls, so it must never swallow a click meant
+          for the "Teacher controls" button underneath it. */}
       <div
         // Above the maintenance ribbon (z-120) — an internet outage outranks it.
-        className="ezw-pwa-drop fixed inset-x-0 top-0 z-[130] flex h-8 items-center justify-center gap-2 bg-rose-600 px-3 text-center text-[12px] font-bold text-white sm:text-[13px]"
+        className="ezw-pwa-drop pointer-events-none fixed inset-x-0 top-0 z-[130] flex h-8 items-center justify-center gap-2 bg-rose-600 px-3 text-center text-[12px] font-bold text-white sm:text-[13px]"
         role="status"
         aria-live="polite"
       >
@@ -200,15 +204,22 @@ export function InstallButton() {
   // consumed.
   if (!offer || !isInstallRoute(pathname)) return null;
 
-  // LAYOUT: this mirrors the teacher nav bar in BetaHome.jsx EXACTLY — same
-  // fixed full-width bar, same `mx-auto max-w-4xl px-3 py-3 sm:px-6` container,
-  // same button padding/ring — but justified to the END. That puts it on the
-  // opposite side of the screen from the "Teacher controls" button while
-  // keeping the two buttons on the same horizontal line and the same content
-  // edge (a plain `right-3` would not have lined up with the bar's grid).
+  // LAYOUT: mirrors the teacher nav bar in BetaHome.jsx — same fixed full-width
+  // bar, same `mx-auto max-w-4xl px-3 py-3 sm:px-6` container, same button
+  // padding/ring — but justified to the END. That puts it on the opposite side
+  // of the screen from the "Teacher controls" button while keeping the two on
+  // the same horizontal line and content edge (a plain `right-3` would not
+  // align with the bar's max-w-4xl grid).
+  //
+  // `pointer-events-none` on the wrapper is LOAD-BEARING. This bar is
+  // full-width and sits at z-[115], ABOVE the teacher bar (z-50). Without it,
+  // the (invisible) empty space of this overlay swallowed clicks across the
+  // whole header — the "Teacher controls" button on the left stopped working
+  // entirely. The container stays full-width so it aligns, but only the button
+  // re-enables pointer events, so every other pixel passes clicks through.
   return (
     <div
-      className="fixed left-0 right-0 z-[115]"
+      className="pointer-events-none fixed left-0 right-0 z-[115]"
       style={{
         // Same offset the teacher bar uses, plus the phone status bar when
         // running installed. The bar itself is not rendered for non-teachers,
@@ -223,7 +234,7 @@ export function InstallButton() {
           type="button"
           onClick={() => promptInstall()}
           aria-label="Install EZ Wonders"
-          className="flex items-center gap-1.5 rounded-full bg-white/95 px-3.5 py-1.5 text-xs font-black text-violet-700 shadow-md ring-2 ring-white/70 backdrop-blur transition hover:-translate-y-0.5 active:translate-y-0 sm:gap-2 sm:px-5 sm:py-2.5 sm:text-base sm:shadow-xl sm:ring-4"
+          className="pointer-events-auto flex items-center gap-1.5 rounded-full bg-white/95 px-3.5 py-1.5 text-xs font-black text-violet-700 shadow-md ring-2 ring-white/70 backdrop-blur transition hover:-translate-y-0.5 active:translate-y-0 sm:gap-2 sm:px-5 sm:py-2.5 sm:text-base sm:shadow-xl sm:ring-4"
         >
           <span aria-hidden="true" className="text-base sm:text-lg">
             {INSTALL_ICON}
