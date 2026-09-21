@@ -175,19 +175,24 @@ function AppShell() {
       {/* Offline strip + update/offline-ready toasts. Rendered above everything
           so a route-level crash cannot take the offline indicator with it. */}
       <PwaBadges />
-      {/* Top-right install affordance. Self-hides unless the browser can install
-          right now, the app isn't already installed, and we're on an entry route. */}
-      <InstallButton />
       <RotateHint />
       <ConfirmHost />
       <AuthBootstrap>
         <MaintenanceGate>
-          <ErrorBoundary
-            homeHref="/"
-            onDismiss={() => setRetryNonce((n) => n + 1)}
-          >
-            <AppRoutes resetKey={retryNonce} />
-          </ErrorBoundary>
+          <>
+            {/* Install button lives INSIDE the maintenance gate, not out in
+                AppShell. The gate's wrapper sets `--maint-banner-h`, which the
+                button (like the teacher bar) uses to drop clear of the staff
+                ribbon. Rendered outside the gate it inherited nothing, fell
+                back to 0px, and sat behind the banner. */}
+            <InstallButton />
+            <ErrorBoundary
+              homeHref="/"
+              onDismiss={() => setRetryNonce((n) => n + 1)}
+            >
+              <AppRoutes resetKey={retryNonce} />
+            </ErrorBoundary>
+          </>
         </MaintenanceGate>
       </AuthBootstrap>
     </ErrorBoundary>
