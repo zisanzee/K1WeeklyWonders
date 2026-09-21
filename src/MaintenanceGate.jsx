@@ -13,10 +13,18 @@ import ContactStrip from './ContactStrip';
 // and reaches nothing privileged, so there is nothing to protect here.
 const PUBLIC_DURING_MAINTENANCE = new Set(['/teacher-onboarding']);
 
+// Game routes paint their own top-of-screen chrome inside the canvas, so the
+// staff ribbon would sit over it. It is hidden there — the warning is still on
+// the home and panel surfaces, where staff actually arrange things, so nothing
+// is lost. Covers the opaque 5-digit game codes plus the legacy aliases.
+const GAME_ROUTE_RE = /^\/(\d{5}|game\d+|bonus-game\d+)$/;
+
 // Height of the staff maintenance ribbon. Exposed to descendants as the
 // `--maint-banner-h` CSS variable so fixed/sticky top bars can offset
-// themselves instead of being covered by it.
-const BANNER_HEIGHT = '2rem';
+// themselves instead of being covered by it. Slim by design: this is an
+// advisory strip for staff, not a content block, so it costs as little of the
+// screen as it can while staying legible on a phone.
+const BANNER_HEIGHT = '1.75rem';
 
 // Counts down to an optional scheduled maintenance end time. Returns null when
 // there is no end time or it has already passed.
@@ -75,8 +83,12 @@ export default function MaintenanceGate({ children }) {
   const countdown = useCountdown(staff ? null : maintenanceEndsAt);
 
   const isPublicRoute = PUBLIC_DURING_MAINTENANCE.has(pathname);
+  const isGameRoute = GAME_ROUTE_RE.test(pathname);
 
-  const showBanner = staff && maintenanceMode;
+  // Hidden on game routes (see GAME_ROUTE_RE). Used for BOTH the ribbon and the
+  // reserved padding, so when it is hidden the page reclaims the space instead
+  // of leaving a gap where the ribbon would have been.
+  const showBanner = staff && maintenanceMode && !isGameRoute;
   const showOverlay =
     maintenanceMode && !staff && !staffLoginOpen && !isPublicRoute;
   const heading = maintenanceMessage?.trim()
@@ -93,15 +105,24 @@ export default function MaintenanceGate({ children }) {
       }}
     >
       {showBanner && (
-        <div className="fixed inset-x-0 top-0 z-[120] flex h-8 items-center justify-center gap-1.5 bg-amber-400 px-3 text-center text-[12px] font-bold text-amber-950 sm:text-[13px]">
-          <span aria-hidden="true">⚠</span>
-          <span className="truncate">
-            Maintenance mode is ON — students see a maintenance screen.
-          </span>
-          <span className="hidden shrink-0 opacity-80 sm:inline">
-            Toggle off in admin settings.
-          </span>
-        </div>
+        <>
+          {/* Invisible click-through: a fixed overlay must never intercept a tap
+              meant for something behind it. This strip carries no controls. */}
+          <div
+            aria-hidden="true"
+            className="pointer-events-none fixed inset-x-0 top-0 z-[120] h-7 bg-amber-400"
+          />
+          <div
+            role="status"
+            className="pointer-events-none fixed inset-x-0 top-0 z-[121] flex h-7 items-center justify-center gap-1.5 px-3 text-center text-[11px] font-bold text-amber-950 sm:text-[12px]"
+          >
+            <span aria-hidden="true">⚠</span>
+            <span className="truncate">Maintenance mode on</span>
+            <span className="hidden shrink-0 font-semibold opacity-70 sm:inline">
+              · students see a maintenance screen
+            </span>
+          </div>
+        </>
       )}
 
       {showOverlay ? (

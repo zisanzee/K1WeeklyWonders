@@ -237,6 +237,87 @@ p {
   margin: 0;
 }
 
+/*
+  ---------------------------------------------------------------------------
+  LOW-POWER MODE  (html[data-lowpower="true"])
+
+  Set by src/pwa.js before first paint on devices that should not pay for the
+  heavy decoration: Save-Data, prefers-reduced-motion, <=4 CPU cores, <=4 GB
+  device memory, or a browser too old to report either. The aurora gradient
+  itself is kept — it is cheap and it IS the brand — but the things that are
+  expensive to composite on a weak GPU are removed:
+
+    - backdrop-filter on the frosted panels/buttons. Each blurred surface is a
+      full-screen filter pass; the stats/admin screens stack many of them.
+      A solid translucent fill reads almost identically over the aurora.
+    - the decorative glow layers behind game cards and the oversized blurred
+      blobs, which are large off-screen rasterisations.
+    - the ambient keyframe animations, which keep the compositor awake.
+
+  Nothing here changes layout, text or behaviour — only cost.
+  ---------------------------------------------------------------------------
+*/
+html[data-lowpower="true"] .aura-panel,
+html[data-lowpower="true"] .aura-card,
+html[data-lowpower="true"] .bh-panel {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  /* Bump opacity to keep the LIGHT text readable without the blur wash. */
+  background: linear-gradient(
+    165deg,
+    rgba(46, 36, 96, 0.82) 0%,
+    rgba(32, 24, 70, 0.86) 100%
+  );
+}
+
+html[data-lowpower="true"] .bh-panel {
+  background: rgba(46, 36, 96, 0.86);
+}
+
+/* Kill the ambient/decorative keyframe animations in one place. Games are not
+   affected: they run inside a canvas and declare their own animation. All the
+   `animate-[...]` usages are decorative (floating shapes, a card idle-bob) —
+   none is a loading indicator, so freezing them costs nothing functionally. */
+html[data-lowpower="true"] [class*="animate-["],
+html[data-lowpower="true"] .ezw-pwa-drop,
+html[data-lowpower="true"] .ezw-pwa-rise {
+  animation: none !important;
+}
+
+/* Collapse the 7-layer aurora (6 radial glows + a linear base) down to the base
+   gradient alone. This is a full-viewport fixed layer, so on a weak GPU the six
+   extra radial rasterisations are the most expensive single paint on the home
+   page. `!important` is required because the layer sets its background inline. */
+html[data-lowpower="true"] .bh-aurora,
+html[data-lowpower="true"] .aura-page::before {
+  background-image: linear-gradient(
+    160deg,
+    #1e1b5a 0%,
+    #4338ca 22%,
+    #7c3aed 46%,
+    #9333ea 66%,
+    #a21caf 84%,
+    #be185d 100%
+  ) !important;
+}
+
+/* Remove the oversized blurred glow behind each game card — a large
+   off-screen rasterisation per card. */
+html[data-lowpower="true"] .card-glow {
+  display: none;
+}
+
+/* Skip layout and paint for game cards that are off-screen. `contain-intrinsic-
+   size` reserves a placeholder height so the scrollbar does not jump as cards
+   scroll in. Applied ONLY under low power: on a capable device the skip can
+   race the card's entrance animation (the animation would start while the card
+   is still not painted), producing a visible pop. Here the animation is off
+   anyway, so there is nothing to race. */
+html[data-lowpower="true"] .cv-card {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 320px;
+}
+
 code,
 .counter {
   font-family: var(--mono);

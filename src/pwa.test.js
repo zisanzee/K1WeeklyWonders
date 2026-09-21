@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { shouldOfferInstall, isInstallRoute } from './pwa';
+import { shouldOfferInstall, isInstallRoute, classifyLowPower } from './pwa';
 
 const base = {
   standalone: false,
@@ -71,6 +71,45 @@ describe('shouldOfferInstall', () => {
         nativePromptReady: true,
       })
     ).toBe(false);
+  });
+});
+
+describe('classifyLowPower', () => {
+  it('keeps full decoration on a capable device', () => {
+    expect(classifyLowPower({ cores: 8, memory: 8 })).toBe(false);
+  });
+
+  it('drops decoration when the user asked to save data', () => {
+    expect(classifyLowPower({ saveData: true, cores: 8, memory: 8 })).toBe(true);
+  });
+
+  it('drops decoration when the OS asked for reduced motion', () => {
+    expect(classifyLowPower({ reducedMotion: true, cores: 8, memory: 8 })).toBe(true);
+  });
+
+  it('drops decoration on a low core count', () => {
+    expect(classifyLowPower({ cores: 4, memory: 8 })).toBe(true);
+    expect(classifyLowPower({ cores: 2, memory: 8 })).toBe(true);
+  });
+
+  it('drops decoration on low device memory', () => {
+    expect(classifyLowPower({ cores: 8, memory: 4 })).toBe(true);
+    expect(classifyLowPower({ cores: 8, memory: 2 })).toBe(true);
+  });
+
+  it('treats a browser that reports neither signal as low power', () => {
+    // No hardwareConcurrency and no deviceMemory means the browser is old
+    // enough to predate both — the exact devices this mode targets.
+    expect(classifyLowPower({})).toBe(true);
+    expect(classifyLowPower()).toBe(true);
+    expect(classifyLowPower({ cores: 0, memory: 0 })).toBe(true);
+  });
+
+  it('accepts a single 5-4 boundary case correctly', () => {
+    // 5 cores + 5 GB is still "capable"; the threshold is inclusive at 4.
+    expect(classifyLowPower({ cores: 5, memory: 5 })).toBe(false);
+    expect(classifyLowPower({ cores: 4, memory: 5 })).toBe(true);
+    expect(classifyLowPower({ cores: 5, memory: 4 })).toBe(true);
   });
 });
 

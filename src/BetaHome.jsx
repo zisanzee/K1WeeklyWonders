@@ -20,7 +20,7 @@ import WeeklyGoals from "./WeeklyGoals";
 import { LOGO_URL } from "./brand";
 import PublicLanding from "./PublicLanding";
 import FeedbackButton from "./FeedbackButton";
-import { useInstallOffer } from "./pwa";
+import { useInstallOffer, useLowPower } from "./pwa";
 import ContactStrip from "./ContactStrip";
 
 // ---------------------------------------------------------------------------
@@ -865,12 +865,12 @@ const GameCard = motion.create(function GameCard({
       animate={{ opacity: 1, y: 0, scale: 1, rotate: 0 }}
       transition={{ delay: 0.04 + index * 0.07, type: "spring", stiffness: 280, damping: 22 }}
       whileHover={isOpen ? {} : {}}
-      className="relative"
+      className="relative cv-card"
       style={{ fontFamily: FONT }}
     >
       {isOpen && (
         <div
-          className="hidden sm:block absolute -inset-3 rounded-[2rem] opacity-35 blur-2xl -z-10 transition-opacity duration-300 group-hover:opacity-60"
+          className="card-glow hidden sm:block absolute -inset-3 rounded-[2rem] opacity-35 blur-2xl -z-10 transition-opacity duration-300 group-hover:opacity-60"
           style={{ background: gradient }}
         />
       )}
@@ -1404,6 +1404,8 @@ function BetaHomeContent() {
   // even when the teacher bar is not rendered — otherwise a non-teacher's
   // "Install app" would sit on top of the header card.
   const showInstall = useInstallOffer();
+  // Decorative only — skipped on low-power devices (see index.css / pwa.js).
+  const lowPower = useLowPower();
   const resetPlayer = usePlayerStore((s) => s.resetPlayer);
   const reduceMotion = useReducedMotion();
 
@@ -1562,7 +1564,7 @@ function BetaHomeContent() {
           content above it loads and scrolls. */}
       <div
         aria-hidden="true"
-        className="pointer-events-none fixed inset-0 z-0"
+        className="bh-aurora pointer-events-none fixed inset-0 z-0"
         style={{
           backgroundImage: PAGE_BACKGROUND_IMAGE,
           backgroundRepeat: PAGE_BACKGROUND_REPEAT,
@@ -1584,7 +1586,10 @@ function BetaHomeContent() {
         }}
       />
 
-      <FloatingDecor />
+      {/* Ten animated SVG shapes. They are pure decoration and each keeps the
+          compositor awake, so they are simply not rendered on low-power
+          devices rather than left to animate off-screen. */}
+      {!lowPower && <FloatingDecor />}
 
       {/* Visually-hidden, crawlable page summary. The visible app sits behind a
           code gate, so this gives search engines (and AI crawlers) real page

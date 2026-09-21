@@ -91,6 +91,53 @@ function detectNativePromptSupported() {
   return 'onbeforeinstallprompt' in window;
 }
 
+// The pure decision behind low-power mode: given the raw device signals, should
+// the app drop its heavy decoration? Split out from the detection so it can be
+// unit-tested without a browser (see pwa.test.js).
+//
+// Any one signal is enough:
+//   - Save-Data (the user asked to save bytes) or prefers-reduced-motion
+//     (the OS asked for less motion),
+//   - a low core count — the cheapest cross-browser proxy for "older phone",
+//   - a low reported device memory (Chrome only).
+// If the browser reports NEITHER core count nor memory it is itself old, so it
+// is treated as low-power too. This only downgrades decoration; it never
+// changes behaviour, layout, or access to any feature.
+export function classifyLowPower({
+  saveData = false,
+  reducedMotion = false,
+  cores = null,
+  memory = null,
+} = {}) {
+  if (saveData || reducedMotion) return true;
+
+  const hasCores = typeof cores === 'number' && cores > 0;
+  const hasMemory = typeof memory === 'number' && memory > 0;
+
+  if (!hasCores && !hasMemory) return true; // too old to even report → assume weak
+  if (hasCores && cores <= 4) return true;
+  if (hasMemory && memory <= 4) return true;
+  return false;
+}
+
+// Gathers the raw signals and applies the decision above. Defaults to
+// low-power when there is no browser at all (e.g. SSR/odd embeds).
+function detectLowPower() {
+  if (typeof window === 'undefined') return true;
+  try {
+    return classifyLowPower({
+      saveData: Boolean(navigator.connection?.saveData),
+      reducedMotion: Boolean(
+        window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+      ),
+      cores: navigator.hardwareConcurrency ?? null,
+      memory: navigator.deviceMemory ?? null, // undefined on Safari/Firefox
+    });
+  } catch {
+    return true; // a throwing navigator is a good reason to keep it simple
+  }
+}
+
 const initialOnline =
   typeof navigator === 'undefined' ? true : navigator.onLine !== false;
 
@@ -104,11 +151,15 @@ export const usePwaStore = create((set) => ({
   nativePromptReady: false, // a deferred prompt is captured and usable
   installEvent: null, // the deferred BeforeInstallPromptEvent (Chromium)
 
+  // --- device capability ---
+  lowPower: false,
+
   // --- update / offline readiness ---
   needRefresh: false,
   offlineReady: false,
 
   setOnline: (online) => set({ online }),
+  setLowPower: (lowPower) => set({ lowPower }),
   setStandalone: (standalone) => set({ standalone }),
   markInstalled: () => {
     writeInstalledHint(true);
@@ -152,6 +203,13 @@ export function shouldOfferInstall({
   return Boolean(nativePromptReady);
 }
 
+// Whether this device should get the light-touch decoration. Defaults to false
+// so the first render on an unknown device is the safe, simple one; initPwa()
+// corrects it synchronously at boot.
+export function useLowPower() {
+  return usePwaStore((s) => s.lowPower);
+}
+
 // The single source of truth for whether the install button renders.
 export function useInstallOffer() {
   const standalone = usePwaStore((s) => s.standalone);
@@ -190,6 +248,17 @@ export function initPwa() {
   store.setInstalledHint(installed);
   store.setNativePromptSupported(detectNativePromptSupported());
 
+  // Classify the device once, before first paint, and expose it as a document
+  // attribute so CSS can downgrade the heavy decoration without React having to
+  // thread a prop into every decorative element (see index.css).
+  const lowPower = detectLowPower();
+  store.setLowPower(lowPower);
+  try {
+    document.documentElement.dataset.lowpower = lowPower ? 'true' : 'false';
+  } catch {
+    /* non-fatal */
+  }
+
   // --- online / offline -----------------------------------------------------
   // A school tablet loses wifi constantly; surfacing it explains the spinners.
   window.addEventListener('online', () => usePwaStore.getState().setOnline(true));
@@ -223,7 +292,22 @@ export function initPwa() {
     usePwaStore.getState().markInstalled();
   });
 
-  registerWorker();
+  // Register the service worker OFF the critical path. Workbox installs a
+  // worker, parses its runtime and (on update) may fetch the new shell — none of
+  // which the first paint needs. Doing it in an idle callback (with a 'load'
+  // floor, because a busy phone may not grant idle time) keeps it out of the
+  // startup budget on exactly the slow devices that feel it most.
+  scheduleWorkerRegistration();
+}
+
+function scheduleWorkerRegistration() {
+  if (typeof window === 'undefined') return;
+  const start = () => registerWorker();
+  if (document.readyState === 'complete') {
+    start();
+    return;
+  }
+  window.addEventListener('load', start, { once: true });
 }
 
 // A deploy landing while a tab is open does NOT surface itself: the browser
