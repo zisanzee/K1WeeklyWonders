@@ -1,0 +1,13 @@
+{
+  "compilerOptions": {
+    "paths": {
+      "@/*": ["./src/*"]
+    },
+    "checkJs": false,
+    "jsx": "react-jsx",
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "target": "esnext"
+  },
+  "exclude": ["node_modules", "dist", "_src_backup", "_tmp_*"]
+}

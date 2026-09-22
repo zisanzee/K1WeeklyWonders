@@ -1,7 +1,7 @@
 // Phaser/BaseScene.js
 import * as Phaser from 'phaser';
-import { createPillButton } from './common/uiHelpers';
-import { makeBackgroundTexture, makeCloudTexture } from './common/sceneAssets';
+import { createPillButton } from '@/phaser/common/uiHelpers';
+import { makeBackgroundTexture, makeCloudTexture } from '@/phaser/common/sceneAssets';
 
 // Optional common functionality for game scenes. Extending this instead of
 // Phaser.Scene directly is purely a convenience — nothing else assumes a

@@ -1,4 +1,5 @@
 import { defineConfig } from "vite";
+import { fileURLToPath, URL } from "node:url";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { VitePWA } from "vite-plugin-pwa";
@@ -51,6 +52,17 @@ import { VitePWA } from "vite-plugin-pwa";
 // can reload forever. Update handling lives in src/pwa.js instead.
 // ---------------------------------------------------------------------------
 export default defineConfig({
+  // `@` → src, so no import has to count `../` levels, and moving a file
+  // between folders never breaks its imports. This is what makes the games/
+  // reorganisation surgical: files are grouped by concern without any import
+  // churn beyond the one-time codemod. Mirrored in vitest.config.js and
+  // jsconfig.json (editor IntelliSense) — all three must agree.
+  resolve: {
+    alias: {
+      '@': fileURLToPath(new URL('./src', import.meta.url)),
+    },
+  },
+
   plugins: [
     react(),
     tailwindcss(),

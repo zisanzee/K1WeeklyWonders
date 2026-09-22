@@ -216,12 +216,12 @@ This "code-first, then second-step if needed" flow keeps it simple for students 
 
 The current app already does some things that will need to be adapted, not removed:
 
-- `src/main.jsx` currently renders `Home` at `/` and `BetaHome` at `/beta-ezwonders`
-- `src/BetaHome.jsx` is already a fully functional home variant, not just a mock
-- `src/NameGate.jsx` currently supports player name + teacher code only
-- `src/StudentLogin.jsx` handles `/p/:code` student-code deep link — **this must stay and work**, not be removed
-- `src/StudentBadge.jsx` exists for badge printing — **keep it**, it's part of the kept student-code flow
-- `src/GameAccessPanel.jsx` currently has:
+- `src/app/main.jsx` currently renders `Home` at `/` and `BetaHome` at `/beta-ezwonders`
+- `src/pages/BetaHome.jsx` is already a fully functional home variant, not just a mock
+- `src/auth/NameGate.jsx` currently supports player name + teacher code only
+- `src/pages/StudentLogin.jsx` handles `/p/:code` student-code deep link — **this must stay and work**, not be removed
+- `src/pages/StudentBadge.jsx` exists for badge printing — **keep it**, it's part of the kept student-code flow
+- `src/pages/GameAccessPanel.jsx` currently has:
   - admin editing by `classType`
   - teacher read-only game list
   - a Students tab (keep + enhance with merge)
@@ -534,14 +534,14 @@ Report any duplicates to admin (via a log / admin dashboard warning). Do NOT aut
 
 ### 7.1 Routing
 
-Update `src/main.jsx`:
+Update `src/app/main.jsx`:
 
 - render `BetaHome` at `/`
 - retire or redirect `/beta-ezwonders` (301 to `/` or keep as alias but render same component)
 - remove or demote `Home.jsx` from the main experience (it can wrap `BetaHome` temporarily for safety but don't maintain two divergent home shells)
 - **keep** `/p/:code` → `StudentLogin` route (it still works for student-code deep links)
 
-### 7.2 Session store (`src/playerStore.js`)
+### 7.2 Session store (`src/auth/playerStore.js`)
 
 Update persisted fields to cover all login modes:
 
@@ -585,7 +585,7 @@ Add a frontend-level maintenance check. Mechanism:
 
 Determining "is student" before login: if there is a stored session, use it. If there is no stored session AND we are showing the login gate, the app has to assume "could be student OR teacher/admin". In this ambiguous case, still render the maintenance overlay AND a small escape hatch: a link/button "I'm a teacher / admin" that bypasses the overlay and shows the code-first login form so teachers/admins can still get in during maintenance.
 
-### 7.4 Login gate (`src/NameGate.jsx` overhauled)
+### 7.4 Login gate (`src/auth/NameGate.jsx` overhauled)
 
 Implement the "code-first, then second step if needed" flow from §2.10 and §2.11.
 
@@ -603,7 +603,7 @@ Rules:
 - Do NOT fall back to local hardcoded teacher code files. Use only server APIs.
 - Handle URL codes: if a code is present in `?code` / `?classCode` / `?teacherCode` / `?studentCode`, treat it as if the user typed it into step 1 — call code-lookup, then branch.
 
-### 7.5 Home screen (`src/BetaHome.jsx`)
+### 7.5 Home screen (`src/pages/BetaHome.jsx`)
 
 Becomes the real home shell. Required changes:
 
@@ -613,7 +613,7 @@ Becomes the real home shell. Required changes:
 - ensure teacher/admin controls point to the new panel behavior.
 - wrap with `<MaintenanceGate>` or hook into the maintenance system so students see the overlay when active.
 
-### 7.6 Game access client logic (`src/gameAccess.js`)
+### 7.6 Game access client logic (`src/games/gameAccess.js`)
 
 Update so active logic is class-based:
 
@@ -623,7 +623,7 @@ Update so active logic is class-based:
 
 Restore teacher write permissions (for their own class only — enforced by backend anyway).
 
-### 7.7 Management panel (`src/GameAccessPanel.jsx`) redesign
+### 7.7 Management panel (`src/pages/GameAccessPanel.jsx`) redesign
 
 Split the navigation by role.
 
@@ -688,7 +688,7 @@ Split the navigation by role.
   - Amber indicator in the admin panel header reflects live state.
 - Any other global admin settings.
 
-### 7.8 Stats UI (`src/StatsPanel.jsx`)
+### 7.8 Stats UI (`src/pages/StatsPanel.jsx`)
 
 Extend carefully:
 
@@ -702,8 +702,8 @@ Extend carefully:
 
 Keep and adapt:
 
-- `src/StudentLogin.jsx` — stays as `/p/:code` handler. It now calls the v2 endpoints (code-lookup or student-login with studentCode) and stores session via the unified player store.
-- `src/StudentBadge.jsx` — stays, still generates badges for student codes.
+- `src/pages/StudentLogin.jsx` — stays as `/p/:code` handler. It now calls the v2 endpoints (code-lookup or student-login with studentCode) and stores session via the unified player store.
+- `src/pages/StudentBadge.jsx` — stays, still generates badges for student codes.
 - Badge printing actions in the Students tab stay.
 
 ### 7.10 Minor

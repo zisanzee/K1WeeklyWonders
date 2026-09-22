@@ -31,7 +31,7 @@ export const NUMBERS_VOICE = WORD_TO_URL;
  *
  * Usage in a game's assets.js:
  * @example
- *   import { NUMBERS_VOICE_MANIFEST } from '../../Phaser/common/numbersVoice';
+ *   import { NUMBERS_VOICE_MANIFEST } from '@/phaser/common/numbersVoice';
  *   export const ASSET_MANIFEST = [
  *     { type: 'image', key: 'background', url: IMAGES.background },
  *     ...NUMBERS_VOICE_MANIFEST,
@@ -114,7 +114,7 @@ export function playNumberVoice(scene, number, muted = false, onComplete) {
  * sound manager.
  *
  * @example
- *   import { getNumberVoiceUrl } from '../../Phaser/common/numbersVoice';
+ *   import { getNumberVoiceUrl } from '@/phaser/common/numbersVoice';
  *   import useSound from 'use-sound';
  *   const [play] = useSound(getNumberVoiceUrl(3));
  *

@@ -2,7 +2,8 @@
 
 ## Repo layout (READ THIS FIRST — it is not what "monorepo" implies)
 
-The workspace root **IS the frontend**. There is no `games/` subfolder.
+The workspace root **IS the frontend**. `src/games/` is the games *domain*
+(frontend), not the backend.
 
 - workspace root (`d:/Phaser/games`) — Vite + React frontend, deployed to Netlify-style static hosting at `ezwonders.com`
 - `../../K1 games project/server/` — Node/Express + Mongoose backend, deployed on Render
@@ -124,51 +125,78 @@ student code (private class).
 
 ## Frontend gating flow
 
-`NameGate.jsx` (whole-app entry, also wraps every game) captures a code, or a
-name + public class code, and persists **only the credential** in `playerStore.js`.
-`GameAccessGate.jsx` wraps each game and re-checks per-game unlock via
-`useIsGameUnlocked`. Both gates independently re-fetch if data isn't loaded for
-the current classId. New game routes need **both gates, in that order**:
-`NameGate` → `GameAccessGate` → game.
+`@/auth/NameGate.jsx` (whole-app entry, also wraps every game) captures a code, or
+a name + public class code, and persists **only the credential** in
+`@/auth/playerStore.js`. `@/auth/GameAccessGate.jsx` wraps each game and re-checks
+per-game unlock via `useIsGameUnlocked`. Both gates independently re-fetch if data
+isn't loaded for the current classId. New game routes need **both gates, in that
+order**: `NameGate` → `GameAccessGate` → game.
 
-`playerStore.js` persists only `{code, name, mode}` — the credential needed to
+`@/auth/playerStore.js` persists only `{code, name, mode}` — the credential needed to
 re-resolve the identity from the DB on every load. Names, classIds and roles are
 **runtime-only** so that removing a student or changing a code signs that device
 out on its next validation. The persist `name`/`version` are bumped **only** to
 force a global re-login (that is what `version: 3` was); changing either logs
 every device out.
 
-## Key frontend files
+## Frontend source layout (`src/`)
 
-- `src/apiClient.js` — **the single source of truth for `API_BASE`, `withQuery`,
+Grouped by concern. Every cross-folder import uses the **`@/` alias** (→ `src/`),
+configured in `vite.config.js` + `vitest.config.js` + `jsconfig.json` (all three
+must agree). Relative imports are reserved for siblings within one folder, so a
+file can be moved between folders without touching any import.
+
+```
+src/
+  app/        main.jsx (entry + routes), index.css, aurora.css
+  api/        apiClient.js (the ONE fetch/timeout source), logPlaySession.js,
+              students.js, classInfo.js, systemConfig.js, deviceFingerprint.js
+  auth/       playerStore.js (persists only {code,name,mode}), NameGate.jsx,
+              GameAccessGate.jsx, MaintenanceGate.jsx
+  games/      registry.js  ← THE game list (see "Adding a game")
+              gameAccess.js (unlock store; re-exports the catalogue),
+              gameIcons.js, levels.test.js
+              <slug>/      one folder per game (see below)
+  pages/      BetaHome.jsx (home at /), GameAccessPanel.jsx, StatsPanel.jsx,
+              TeacherOnboarding.jsx + teacherOnboardingContent.js, StudentLogin.jsx,
+              PublicLanding.jsx, WeeklyGoals.jsx, MissionHeroes.jsx, NextGameTimer.jsx
+  phaser/     BaseGame.jsx, BaseScene.js, BasePreloadScene.js, config.js, common/
+  pwa/        pwa.js, PwaBadges.jsx, staleChunkRecovery.js
+  ui/         cn.js, brand.js, GameIcon.jsx, BrandLoader.jsx, ErrorBoundary.jsx,
+              RotateHint.jsx, confirmDialog.jsx, FeedbackButton.jsx, ContactStrip.jsx
+  seo/        seo.jsx
+```
+
+- `@/api/apiClient.js` — **the single source of truth for `API_BASE`, `withQuery`,
   `fetchWithTimeout`, `requestJson`, `postJson` and `ApiError`.** Always import
   from here. Never redeclare an API origin or roll a new timeout: this is exactly
   what drifted before (12s / 15s / *no timeout at all*), and the missing one hung
   app boot, since `AuthBootstrap` blocks the entire render on `hydrate()`.
-- `src/playerStore.js` — persisted credential + runtime identity.
-- `src/gameAccess.js` — `GAME_CATALOG` (canonical game list: key, emoji, label,
-  subtitle, hue, gradient, `to`, `progressKey`), the classId-based read store used
-  by Home/`GameAccessGate`, plus class-scoped mutators used only by the panel.
-  Also `nextScheduledGame(games)` / `useNextScheduledGame()`,
+- `@/auth/playerStore.js` — persisted credential + runtime identity.
+- `@/games/registry.js` — **every game, once** (key, route, term, progressKey,
+  meta, lazy `load`). Drives the catalogue, the routes and the homepage prefetch.
+- `@/games/gameAccess.js` — the classId-based unlock store used by Home /
+  `GameAccessGate`, plus class-scoped mutators used only by the panel.
+  Re-exports `GAME_CATALOG` / `GAME_KEYS` from the registry so existing imports
+  keep working. Also `nextScheduledGame(games)` / `useNextScheduledGame()`,
   `useGameByKey()`, and `formatUnlockCountdown()`.
-- `src/logPlaySession.js` — called by every game on completion
+- `@/api/logPlaySession.js` — called by every game on completion
   (`logPlaySession({game, ...})`), plus `fetchStats` / `fetchSummary` /
   `fetchPlaysPage` / `fetchLeaderboard` / `fetchAdminClassStats`.
-- `src/students.js`, `src/classInfo.js` — roster + class/system API stores.
-- `src/systemConfig.js` — maintenance mode, cached to localStorage then corrected.
-- `src/main.jsx` — all routes lazy-loaded, `AuthBootstrap`, and **two**
-  `ErrorBoundary`s (app-level + per-route) so a failed lazy chunk can't blank the
-  app. Wrap new top-level surfaces in one.
-- `src/BetaHome.jsx` — the real home at `/`. Large; holds the SVG `Icon` library,
-  card gradients, the aurora backdrop layers, and `SwitchPlayerButton` (the
-  shared-device "not you?" affordance — it already exists, don't add another).
-- `src/GameAccessPanel.jsx` — admin panel: tab bar is **"K1 Games" / "K2 Games" /
-  Students / Settings** (separate top-level tabs, each independently editable,
+- `@/app/main.jsx` — entry. Builds the routes straight from `GAME_REGISTRY`, runs
+  `AuthBootstrap`, and holds **two** `ErrorBoundary`s (app-level + per-route) so a
+  failed lazy chunk can't blank the app. Wrap new top-level surfaces in one.
+  **Never hand-add a game route here — add a registry entry instead.**
+- `@/pages/BetaHome.jsx` — the real home at `/`. Large; holds the SVG `Icon`
+  library, card gradients, the aurora backdrop layers, and `SwitchPlayerButton`
+  (the shared-device "not you?" affordance — it already exists, don't add another).
+- `@/pages/GameAccessPanel.jsx` — admin panel: tab bar is **"K1 Games" / "K2 Games"
+  / Students / Settings** (separate top-level tabs, each independently editable,
   defaulting to the admin's own class). Non-admin teachers see a single read-only
   **"Games"** tab for their own class — no drag/lock/shiny controls, just static
   badges.
-- `src/TeacherOnboarding.jsx` (`/teacher-onboarding`) — the public teacher guide.
-  **Copy and imagery live in `teacherOnboardingContent.js`**
+- `@/pages/TeacherOnboarding.jsx` (`/teacher-onboarding`) — the public teacher
+  guide. **Copy and imagery live in `teacherOnboardingContent.js`**
   (`ONBOARDING_SECTIONS` + `ONBOARDING_GIFS`), not in the component. An empty GIF
   string renders the "coming soon" placeholder automatically; a broken URL falls
   back via `onError`. The page is deliberately public and is listed in
@@ -176,14 +204,10 @@ every device out.
   **Never rename the content file to `teacherOnboarding.js`** — it would differ
   from the component only by case, and on a case-insensitive filesystem an
   extension-less `./TeacherOnboarding` import can resolve to it.
-- `src/Phaser/common/` — shared Phaser helpers: `audioState.js` (mute + bg music),
+- `@/phaser/common/` — shared Phaser helpers: `audioState.js` (mute + bg music),
   `numbersVoice.js`, `speech.js`, `sceneAssets.js`, `starProgress.js`,
   `uiHelpers.js`.
-- Phaser games live under `BonusGames/<name>/GamePage.jsx` (including Game4, which
-  is not labelled "bonus"). `GamePage.jsx` wraps the canvas in page chrome and
-  composes `NameGate` → `GameAccessGate` → `Game`. The page paints no background,
-  so the platform backdrop shows through; each game paints its own art inside the
-  canvas.
+- `@/ui/cn.js` is the **only** file that imports `clsx` / `tailwind-merge`.
 
 ## Server endpoint contract
 
@@ -272,7 +296,7 @@ authenticated write paths — a whole class can legitimately burst through
   the browser reports as a **CORS error**, pointing at the server instead of at
   the missing config. Private values go in `.env.local` (gitignored) or the
   backend host's own env (`ALLOWED_ORIGINS` etc.).
-- **`cn()` lives in `src/cn.js`.** Import it; never redefine it. `clsx` and
+- **`cn()` lives in `@/ui/cn.js`.** Import it; never redefine it. `clsx` and
   `tailwind-merge` should be imported by that one file only.
 - **Fonts: Fredoka only, loaded once in `index.html`.** Never add a `<link>` to
   Google Fonts from a component — it can't start until that lazy chunk has
@@ -325,18 +349,31 @@ authenticated write paths — a whole class can legitimately burst through
 
 ## Adding a new game — checklist
 
-1. Build the game (React or Phaser) under `src`. Phaser games go in
-   `src/BonusGames/<name>/` as `GamePage.jsx` + scenes, even when not labelled "bonus".
-2. Add a `lazy()` import + `<Route>` in `main.jsx`.
-3. Add an entry to `GAME_CATALOG` in `gameAccess.js` (unique `key`).
-4. Compose `NameGate` → `GameAccessGate` (correct `gameNumber`/`gameLabel`).
-5. Call `logPlaySession({ game: '<slug>' })` on completion with the matching slug.
-6. Use `addMuteButton` / `ensureBgMusic` from `Phaser/common/audioState.js` for
+The whole process is **one folder + one registry entry**. `GAME_REGISTRY` in
+`src/games/registry.js` drives the routes (`app/main.jsx`), the catalogue
+(`GAME_CATALOG`) and the homepage prefetch — so nothing else needs editing.
+
+1. Create `src/games/<slug>/`. A Phaser game is `GamePage.jsx` + scene files; a
+   React game is a single `Game.jsx`. Both export the page component as DEFAULT.
+2. Add one entry to `GAME_REGISTRY`: unique `key`, `slug`, opaque 5-digit `route`,
+   `term`, `progressKey`, the card `meta`, and a `load: () => import('@/games/<slug>/…')`.
+   That is the entire wiring step.
+3. Wrap the game in `NameGate` → `GameAccessGate` (correct `gameNumber`/`gameLabel`)
+   — copy the shape from an existing `GamePage.jsx`.
+4. Call `logPlaySession({ game: '<slug>' })` on completion with the matching slug,
+   which must equal that entry's `progressKey`.
+5. Use `addMuteButton` / `ensureBgMusic` from `@/phaser/common/audioState` for
    audio, never a per-game copy.
-7. It appears once an **admin** adds it to a class from the Catalogue.
-8. Double-check the `title`, on-screen heading and catalogue `label` all agree, and
+6. It appears once an **admin** adds it to a class from the Catalogue.
+7. Double-check the `title`, on-screen heading and catalogue `label` all agree, and
    that no other game already uses that name — a duplicate name is invisible in the
    panel and has caused a shipped mismatch before.
+8. Add a `public/game-icons/<slug>.png` and one line in `@/games/gameIcons.js` if
+   the game should show an icon instead of its catalogue emoji.
+
+**Never** re-add a `lazy()` import or `<Route>` in `main.jsx`, and never edit
+`GAME_CATALOG` directly — both are derived from the registry now, and hand-editing
+them is how the route, the card and the unlock list drift apart.
 
 ## Testing
 

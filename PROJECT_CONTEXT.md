@@ -21,23 +21,23 @@ up the app:
 - **Runtime/build**: Vite (`vite.config.js`, `appType: 'spa'`), React 19,
   `@vitejs/plugin-react`.
 - **Styling**: Tailwind CSS **v4** via `@tailwindcss/vite`. Theme lives in CSS:
-  [`index.css`](src/index.css) does `@import "tailwindcss"` + `@import
+  [`index.css`](src/app/index.css) does `@import "tailwindcss"` + `@import
   "./aurora.css"` plus a small `@theme`, and declares the shared
   `.font-heading` / `.font-body` utilities. (There is deliberately **no**
   `tailwind.config.js` — v4 does not read one, and the stale leftover was
   removed so nobody edits config that does nothing.) A shared "Aurora" theme layer of
-  `.aura-*` classes lives in [`src/aurora.css`](src/aurora.css); all chrome
+  `.aura-*` classes lives in [`src/app/aurora.css`](src/app/aurora.css); all chrome
   pages use these (spec: [`plans/unified-aurora-theme.md`](plans/unified-aurora-theme.md)).
-- **State**: Zustand v5 (+`persist`) — [`playerStore.js`](src/playerStore.js),
-  [`gameAccess.js`](src/gameAccess.js), [`students.js`](src/students.js),
-  [`systemConfig.js`](src/systemConfig.js).
+- **State**: Zustand v5 (+`persist`) — [`playerStore.js`](src/auth/playerStore.js),
+  [`gameAccess.js`](src/games/gameAccess.js), [`students.js`](src/api/students.js),
+  [`systemConfig.js`](src/api/systemConfig.js).
 - **Routing**: `react-router-dom` v7 (`BrowserRouter`), routes in
-  [`main.jsx`](src/main.jsx).
+  [`main.jsx`](src/app/main.jsx).
 - **Animation**: `motion` (`import { motion } from 'motion/react'`).
 - **Game engine**: Phaser **v4** for the canvas games (Game4/7/8/9/BonusGame1),
   wrapped in React by `BaseGame`.
 - **Drag/drop**: `@dnd-kit/*` — only the game reorder UI in
-  [`GameAccessPanel.jsx`](src/GameAccessPanel.jsx).
+  [`GameAccessPanel.jsx`](src/pages/GameAccessPanel.jsx).
 - **Badges/print**: `react-qr-code`, `html-to-image`, `jspdf` (student "Game
   Pass" badges, single PNG + whole-class PDF).
 - **Extras**: `react-confetti`, `use-sound`, `react-helmet-async`, `clsx` +
@@ -74,48 +74,41 @@ Scripts: `dev`, `build`, `lint`, `preview`.
 │   ├── chest_closed.png / chest_open.png
 │   └── PhaserAssets/ (bg_music.m4a · wrong.wav · pop_fx/)
 └── src/
-    ├── main.jsx                # providers + router + lazy() imports + two error boundaries
-    ├── ErrorBoundary.jsx       # app-level + per-route crash recovery
-    ├── seo.jsx                 # per-route canonical + robots (RouteSeo)
-    ├── cn.js                   # shared clsx + tailwind-merge helper
-    ├── index.css · aurora.css  # Tailwind entry + shared .aura-* utilities
-    ├── brand.js · BrandLoader.jsx          # logo/icon URLs + shared loader
-    ├── playerStore.js          # persisted zustand: the ONE credential + identity
-    ├── gameAccess.js           # GAME_CATALOG + classId read store + classId mutators
-    ├── logPlaySession.js       # per-play logging + stats/plays/leaderboard fetchers
-    ├── students.js             # roster zustand + student/identity APIs
-    ├── classInfo.js            # class info API (classId-scoped)
-    ├── systemConfig.js         # maintenance-mode store (polled)
-    ├── NameGate.jsx            # whole-app entry gate (code-first)
-    ├── TeacherOnboarding.jsx   # /teacher-onboarding guide (renderer only)
-    ├── teacherOnboardingContent.js  # guide copy + ONBOARDING_GIFS map
-    ├── MaintenanceGate.jsx     # app-wide maintenance overlay + staff ribbon
-    ├── GameAccessGate.jsx      # per-game unlock gate
-    ├── GameAccessPage.jsx      # /game-access route wrapper (teachers only)
-    ├── GameAccessPanel.jsx     # role-based control panel (see §10.5)
-    ├── StatsPanel.jsx · MissionHeroes.jsx  # teacher stats + weekly mission
-    ├── StudentLogin.jsx        # /p/:code auto-login
-    ├── StudentBadge.jsx        # QR "Game Pass" badge (PNG + class PDF)
-    ├── BetaHome.jsx · BetaHome.css   # THE home page (root route) + public landing
-    ├── PublicLanding.jsx       # signed-out marketing copy inside BetaHome
-    ├── NextGameTimer.jsx       # schedule-driven "next game" countdown
-    ├── WeeklyGoals.jsx · FeedbackButton.jsx · ContactStrip.jsx
-    ├── RotateHint.jsx · confirmDialog.jsx
-    ├── App.jsx / App.css       # legacy shell (unused)
-    ├── Game1.jsx · Game2.jsx · Game3.jsx · Game5.jsx · Game6.jsx
-    ├── assets/
-    ├── BonusGames/
-    │   ├── BonusGame1/         # Number Pop! (b1, bonus)
-    │   ├── Game4/              # Compare Die and Dominoes
-    │   ├── Game 7/             # Mama Bird's Eggs
-    │   ├── Game 8/             # Pizza Order!
-    │   └── Game 9/             # Polly's Treasure Quest
-    └── Phaser/
-        ├── BaseGame.jsx · BasePreloadScene.js · BaseScene.js · config.js
-        └── common/ (numbersVoice.js · sceneAssets.js · speech.js
-                     · starProgress.js · uiHelpers.js)
+    ├── app/                    # main.jsx (providers + router + two error boundaries)
+    │                           # index.css · aurora.css
+    ├── api/                    # apiClient (the ONE fetch/timeout source)
+    │                           # logPlaySession · students · classInfo ·
+    │                           # systemConfig · deviceFingerprint
+    ├── auth/                   # playerStore (the ONE credential + identity)
+    │                           # NameGate · GameAccessGate · MaintenanceGate
+    ├── games/                  # registry.js  ← THE game list (drives routes + catalogue)
+    │   ├── gameAccess.js       # unlock store (re-exports the catalogue)
+    │   ├── gameIcons.js        # optional per-game card icon map
+    │   ├── count-and-win/      # React games: a single Game.jsx
+    │   ├── comparing-quantities/ · which-number/
+    │   ├── making-splitting-groups/ · part-part-whole/
+    │   └── number-pop/ · compare-dice-dominoes/ · mama-birds-eggs/
+    │       pizza-order/ · pollys-treasure-quest/ · feed-me-shapes/
+    │       game-11/            # Phaser games: GamePage.jsx + scenes
+    ├── pages/                  # BetaHome (+css) · GameAccessPanel · StatsPanel ·
+    │                           # TeacherOnboarding (+Content) · StudentLogin ·
+    │                           # StudentBadge · PublicLanding · WeeklyGoals ·
+    │                           # MissionHeroes · NextGameTimer
+    ├── phaser/                 # BaseGame.jsx · BasePreloadScene.js · BaseScene.js ·
+    │                           # config.js · common/
+    ├── pwa/                    # pwa.js · PwaBadges.jsx · staleChunkRecovery.js
+    ├── seo/                    # seo.jsx (per-route canonical + robots)
+    └── ui/                     # cn.js · brand.js · GameIcon · BrandLoader ·
+                                # ErrorBoundary · RotateHint · confirmDialog ·
+                                # FeedbackButton · ContactStrip
 ```
-Each `BonusGames/<name>/` folder contains `assets.js · audioState.js ·
+
+Cross-folder imports use the **`@/` alias** (→ `src/`), configured in
+`vite.config.js` + `vitest.config.js` + `jsconfig.json`. The old `Phaser/` folder
+is now `phaser/` (lowercase) and the former `BonusGames/<name>/` folders are now
+`games/<slug>/` with no spaces in names.
+
+Each `games/<slug>/` folder contains `assets.js ·
 levels.js · Game.jsx · GamePage.jsx` plus game-specific scene files (§13).
 
 ## 4. Directory tree — backend (`D:\K1 games project\server`, actual)
@@ -182,7 +175,7 @@ teacher-code mirror was removed (an older revision of this doc referenced it).
 
 ## 6. Auth model — two tiers, both DB-validated server-side
 
-- `isTeacher` / `isAdmin` in [`playerStore.js`](src/playerStore.js) are **UI
+- `isTeacher` / `isAdmin` in [`playerStore.js`](src/auth/playerStore.js) are **UI
   state only — not a security boundary**. Every write endpoint re-validates the
   code against the DB.
 - **`requireTeacher`** — valid teacher/admin code. Grants: view own class info,
@@ -208,7 +201,7 @@ teacher-code mirror was removed (an older revision of this doc referenced it).
 
 ## 7. Login system (current, in detail)
 
-[`NameGate.jsx`](src/NameGate.jsx) is the whole-app entry gate rendered by
+[`NameGate.jsx`](src/auth/NameGate.jsx) is the whole-app entry gate rendered by
 BetaHome and every `GamePage`. It is **code-first**: one code field, classified
 server-side, branching into three outcomes.
 
@@ -223,7 +216,7 @@ server-side, branching into three outcomes.
    path sets. Old pre-code-only sessions were wiped once via the persist
    `version` bump (see §7.3).
 
-### 7.2 Sign-in actions ([`playerStore.js`](src/playerStore.js))
+### 7.2 Sign-in actions ([`playerStore.js`](src/auth/playerStore.js))
 - `signInWithCode(code)` — sets `{code, mode:'code'}`, then `hydrate()`.
 - `signInLight(name, classCode)` — sets `{code, name, mode:'light'}` for a
   public-class "light" student, then `hydrate()`.
@@ -240,16 +233,16 @@ so a removed/edited user is signed out on the next validation. Everything else
 `studentCode`, `studentId`, `isTeacher`, `isAdmin`, `teacherCode`,
 `identityKind`, `status`) is **runtime-only** and re-derived from the DB.
 The legacy `k1weekly-player` key is explicitly removed on boot.
-`AuthBootstrap` in [`main.jsx`](src/main.jsx) awaits `hydrate()` before the app
+`AuthBootstrap` in [`main.jsx`](src/app/main.jsx) awaits `hydrate()` before the app
 renders, so a signed-in user never flashes the login screen.
 
 ### 7.4 Student QR login
-[`StudentLogin.jsx`](src/StudentLogin.jsx) handles `/p/:code` →
+[`StudentLogin.jsx`](src/pages/StudentLogin.jsx) handles `/p/:code` →
 `lookupStudentByCode(code)` → `GET /api/student-login/:code`.
 
 ---
 
-## 8. Routing (`src/main.jsx`)
+## 8. Routing (`src/app/main.jsx`)
 
 `startSystemConfigPolling()` fires at module scope (before render) so the
 maintenance request races auth hydration instead of queueing behind it. All
@@ -261,12 +254,12 @@ RotateHint + ConfirmHost → AuthBootstrap → MaintenanceGate → Suspense`.
 | `/` | `BetaHome` — **the real production home** (public landing + NameGate) |
 | `/beta-ezwonders` | `Navigate to="/"` (legacy alias) |
 | `/game1` … `/game6` | `Game1` … `Game6` (React games) |
-| `/game10` | `BonusGames/Game 10/GamePage` — **Feed the Shapes** |
-| `/game4` | `BonusGames/Game4/GamePage` |
-| `/game7` | `BonusGames/Game 7/GamePage` |
-| `/game8` | `BonusGames/Game 8/GamePage` — **Pizza Order!** |
-| `/game9` | `BonusGames/Game 9/GamePage` — **Polly's Treasure Quest** |
-| `/bonus-game1` | `BonusGames/BonusGame1/GamePage` — Number Pop! |
+| `/game10` | `games/<slug>/GamePage` — **Feed the Shapes** |
+| `/game4` | `games/<slug>/GamePage` |
+| `/game7` | `games/<slug>/GamePage` |
+| `/game8` | `games/<slug>/GamePage` — **Pizza Order!** |
+| `/game9` | `games/<slug>/GamePage` — **Polly's Treasure Quest** |
+| `/bonus-game1` | `games/<slug>/GamePage` — Number Pop! |
 | `/game-access` | `GameAccessPage` |
 | `/teacher-onboarding` | `TeacherOnboarding` — the teacher guide |
 | `/p/:code` | `StudentLogin` |
@@ -300,7 +293,7 @@ that order.
 
 ## 10. Key screens & frontend files
 
-### 10.1 [`gameAccess.js`](src/gameAccess.js)
+### 10.1 [`gameAccess.js`](src/games/gameAccess.js)
 - **`GAME_CATALOG`** — canonical list of **10** games: keys `1`…`9` + `b1`
   (`1` Count & Win! · `2` Comparing Quantities · `3` Which Number? ·
   `4` Compare Die and Dominoes · `5` Making & Splitting Groups ·
@@ -329,7 +322,7 @@ that order.
   `setGameOrder`, `addGameToClass`, `removeGameFromClass`,
   `fetchGameAccessForType`, `…ForType`) still exist but are **unused**.
 
-### 10.2 [`logPlaySession.js`](src/logPlaySession.js)
+### 10.2 [`logPlaySession.js`](src/api/logPlaySession.js)
 - **`logPlaySession(...)`** — `POST /api/plays`; reads `classId` from the store
   with a legacy fallback; attaches a client-side `detectDevice()` fingerprint.
   Failures only `console.warn` (never break the game).
@@ -341,7 +334,7 @@ that order.
   `fetchAdminClassStats(teacherCode)`, `fetchAdminClassDetail(classId,
   teacherCode)`, and `deletePlayerGame(game, playerName, teacherCode)`.
 
-### 10.3 [`students.js`](src/students.js)
+### 10.3 [`students.js`](src/api/students.js)
 Zustand `useStudentStore` (classId-scoped, 12 s timeout): `students`, `loaded`,
 `loadedClassId`, `fetchStudents(teacherCode)`, `reset`, and optimistic
 `addStudentLocal`/`updateStudentLocal`/`removeStudentLocal`.
@@ -352,15 +345,15 @@ API helpers: legacy `addStudent` / `updateStudent` / `deleteStudent` /
 `deleteIdentityInClass` (**name-only** identities — removes their play sessions),
 `mergeIdentities`, `unmergeIdentity`, and the exported `generateStudentCode()`.
 
-### 10.4 [`classInfo.js`](src/classInfo.js) / [`systemConfig.js`](src/systemConfig.js)
+### 10.4 [`classInfo.js`](src/api/classInfo.js) / [`systemConfig.js`](src/api/systemConfig.js)
 - `classInfo.js` — `fetchClassInfo`, `fetchClasses`, `createClass`, `updateClass`,
   `setClassPublic`, `setClassCode`, `checkCodeAvailable`.
 - `systemConfig.js` — maintenance-mode zustand store. Reads its last-known value
   from localStorage (`ezw.systemConfig.v1`) so the flag never blocks first paint,
   then polls to correct it live.
 
-### 10.5 [`GameAccessPanel.jsx`](src/GameAccessPanel.jsx) — the controls
-Rendered as a full-screen overlay; [`GameAccessPage.jsx`](src/GameAccessPage.jsx)
+### 10.5 [`GameAccessPanel.jsx`](src/pages/GameAccessPanel.jsx) — the controls
+Rendered as a full-screen overlay; [`GameAccessPage.jsx`](src/pages/GameAccessPage.jsx)
 maps its `onClose` to `navigate('/')` and supports a `?tab=` override. The header
 carries a **Teacher guide** button linking to `/teacher-onboarding` (§10.9). Tab
 sets are **role-split**:
@@ -395,7 +388,7 @@ identities are selectable and deletable but not editable.
 **Settings tab** — teacher: class info, privacy toggle, editable class code,
 sign-out. Admin: identity + global maintenance mode + message/end-time.
 
-### 10.6 [`StatsPanel.jsx`](src/StatsPanel.jsx) / [`MissionHeroes.jsx`](src/MissionHeroes.jsx)
+### 10.6 [`StatsPanel.jsx`](src/pages/StatsPanel.jsx) / [`MissionHeroes.jsx`](src/pages/MissionHeroes.jsx)
 Teacher stats dashboard (embedded tab or modal, `adminMode` for admins):
 header stat cards from `fetchStats` (all-classes vs per-game), a game filter
 dropdown, debounced player search, and two views — **Summary** (`fetchSummary`,
@@ -405,12 +398,12 @@ via a shared `usePaginatedList` + IntersectionObserver; the server owns
 filtering/sorting/paging (PAGE_SIZE 50). Phones get stacked cards, sm+ gets
 sortable tables.
 
-### 10.7 [`StudentBadge.jsx`](src/StudentBadge.jsx)
+### 10.7 [`StudentBadge.jsx`](src/pages/StudentBadge.jsx)
 QR "Game Pass" per student: 410×580 px → 300 DPI PNG with true alpha corners,
 copy login link, and **Print all badges** → multi-page A4 PDF (3×3 grid) via
 `html-to-image` + `jsPDF`. The QR points at `${SITE_URL}/p/<code>`.
 
-### 10.8 [`NextGameTimer.jsx`](src/NextGameTimer.jsx) — scheduled unlocks
+### 10.8 [`NextGameTimer.jsx`](src/pages/NextGameTimer.jsx) — scheduled unlocks
 **Schedule-driven, not calendar-driven.** The old hardcoded "new game every
 Friday" countdown is gone; there is no default cadence.
 - Renders **nothing** when the class has no pending schedule. Callers gate it on
@@ -424,11 +417,11 @@ Friday" countdown is gone; there is no default cadence.
 - Teachers see it too (schedule preview); the admin has no class, so it
   self-hides.
 
-### 10.9 [`TeacherOnboarding.jsx`](src/TeacherOnboarding.jsx) — the teacher guide
+### 10.9 [`TeacherOnboarding.jsx`](src/pages/TeacherOnboarding.jsx) — the teacher guide
 `/teacher-onboarding`. A six-step walkthrough of the panel (Log in · Games ·
 Catalogue · Students · Stats · Settings). **No copy or imagery lives in the
 component** — everything comes from
-[`teacherOnboardingContent.js`](src/teacherOnboardingContent.js):
+[`teacherOnboardingContent.js`](src/pages/teacherOnboardingContent.js):
 `ONBOARDING_SECTIONS` (blocks typed `p` / `bullets` / `cards` / `sub` /
 `callout`) and `ONBOARDING_GIFS`, a `{ sectionId: url }` map. Paste a URL into
 that map to ship a section's animation; an empty string renders the dashed
@@ -445,17 +438,17 @@ sides on `lg`, with a sticky jump nav that tracks scroll position.
 The page is deliberately **public** — a teacher can read it before signing in —
 so it is *not* wrapped in `NameGate`. Its "Control Panel" links still point at
 `/game-access`, which does its own teacher check. The teacher guide button in
-the panel header ([`GameAccessPanel.jsx`](src/GameAccessPanel.jsx)) links here.
+the panel header ([`GameAccessPanel.jsx`](src/pages/GameAccessPanel.jsx)) links here.
 
 It is also exempt from maintenance mode: `/teacher-onboarding` is listed in
-`PUBLIC_DURING_MAINTENANCE` in [`MaintenanceGate.jsx`](src/MaintenanceGate.jsx:15),
+`PUBLIC_DURING_MAINTENANCE` in [`MaintenanceGate.jsx`](src/auth/MaintenanceGate.jsx:15),
 so `showOverlay` stays false for it. The rationale is that a teacher locked out
 during an outage is exactly who needs the sign-in documentation; the page is
 read-only and reaches nothing privileged, and its panel links are still gated
 server-side.
 
-### 10.10 [`BetaHome.jsx`](src/BetaHome.jsx) — the home page
-Wraps `NameGate` → `BetaHomeContent`, and renders [`PublicLanding.jsx`](src/PublicLanding.jsx)
+### 10.10 [`BetaHome.jsx`](src/pages/BetaHome.jsx) — the home page
+Wraps `NameGate` → `BetaHomeContent`, and renders [`PublicLanding.jsx`](src/pages/PublicLanding.jsx)
 marketing copy beneath the sign-in card while signed out. Signed in it shows the
 hero/logo, player identity + switch-player, `WeeklyGoals` (students),
 `TimerLeaderboardCard` (game timer strip + Weekly Champions podium), the game
@@ -640,25 +633,25 @@ Connect options: `bufferCommands: false`, `maxIdleTimeMS: 720000`,
 
 ---
 
-## 13. Phaser game anatomy (shared `src/Phaser/`)
+## 13. Phaser game anatomy (shared `src/phaser/`)
 
-- [`BaseGame.jsx`](src/Phaser/BaseGame.jsx) — measures available space
+- [`BaseGame.jsx`](src/phaser/BaseGame.jsx) — measures available space
   (ResizeObserver), computes a 2:3 fit box, mounts one `Phaser.Game` per a
   `buildScenes()` factory, wires a `completeEventName` → `onComplete` callback
   and `onPhaserReady`.
-- [`BasePreloadScene.js`](src/Phaser/BasePreloadScene.js) — generic loader from
+- [`BasePreloadScene.js`](src/phaser/BasePreloadScene.js) — generic loader from
   `{ key, assets, nextSceneKey, loadingEmoji, loadingText }`; manifest entries
   `{ type: 'image'|'audio'|'spritesheet'|'atlas', key, url, config? }`.
-- [`BaseScene.js`](src/Phaser/BaseScene.js) — `createPillButton`,
+- [`BaseScene.js`](src/phaser/BaseScene.js) — `createPillButton`,
   `addSkyBackground`, `addDriftingClouds`, `stopSpeechOnShutdown`.
-- [`config.js`](src/Phaser/config.js) — Phaser config, `DEFAULT_ASPECT`,
+- [`config.js`](src/phaser/config.js) — Phaser config, `DEFAULT_ASPECT`,
   `DEFAULT_BASE_RESOLUTION`.
-- `common/` — [`starProgress.js`](src/Phaser/common/starProgress.js)
+- `common/` — [`starProgress.js`](src/phaser/common/starProgress.js)
   (`createStarProgress({storageKey, levelCount})`),
-  [`uiHelpers.js`](src/Phaser/common/uiHelpers.js),
-  [`numbersVoice.js`](src/Phaser/common/numbersVoice.js),
-  [`sceneAssets.js`](src/Phaser/common/sceneAssets.js),
-  [`speech.js`](src/Phaser/common/speech.js) (`warmupSpeech`, TTS).
+  [`uiHelpers.js`](src/phaser/common/uiHelpers.js),
+  [`numbersVoice.js`](src/phaser/common/numbersVoice.js),
+  [`sceneAssets.js`](src/phaser/common/sceneAssets.js),
+  [`speech.js`](src/phaser/common/speech.js) (`warmupSpeech`, TTS).
 
 Per-game folder shape: `assets.js`, `audioState.js` (`isMuted`,
 `ensureBgMusic`, `addMuteButton`), `levels.js` (`LEVELS`, `buildRounds`,
@@ -677,7 +670,7 @@ calls `logPlaySession({ game: '<slug>', ... })`), and `GamePage.jsx`
 - Phaser canvas games use Phaser's native input; `@dnd-kit` is DOM-only.
 - React `Confetti` is for level-complete overlays only; `use-sound` is not used in
   Phaser games (Phaser `this.sound` instead).
-- Chrome pages share the `aura-*` theme from [`src/aurora.css`](src/aurora.css) —
+- Chrome pages share the `aura-*` theme from [`src/app/aurora.css`](src/app/aurora.css) —
   don't hand-roll new sky/white themes.
 - **The backend needs no redeploy when a new game is added** — `GAME_CATALOG`
   (frontend) and the `GameAccess` DB rows drive everything; the server only
@@ -689,15 +682,22 @@ calls `logPlaySession({ game: '<slug>', ... })`), and `GamePage.jsx`
 
 ## 15. Adding a new game — checklist
 
-1. Build the game component/scene under `src/` (React or `BonusGames/<Name>/`).
-2. Add a `lazy()` import + `<Route>` in [`main.jsx`](src/main.jsx).
-3. Add an entry to `GAME_CATALOG` in [`gameAccess.js`](src/gameAccess.js).
-4. Wrap the route content in `NameGate` → `GameAccessGate`.
-5. Call `logPlaySession(...)` on completion with the matching `game` slug.
-6. Add the slug's emoji/label to `GAME_LABELS` in
-   [`StatsPanel.jsx`](src/StatsPanel.jsx) so stats render nicely.
-7. It appears once a teacher/admin adds it to a class from the **Catalogue**
-   tab (`addGameForClass`). No server change is required.
+**One folder + one registry entry.** See [`docs/ADDING_A_GAME.md`](docs/ADDING_A_GAME.md)
+for the full guide. In short:
+
+1. Create `src/games/<slug>/` (a React `Game.jsx` or a Phaser `GamePage.jsx` +
+   scenes), wrapping the page in `NameGate` → `GameAccessGate`.
+2. Add one entry to `GAME_REGISTRY` in [`registry.js`](src/games/registry.js) —
+   `key`, `slug`, `route`, `term`, `progressKey`, `meta`, `load`.
+3. Call `logPlaySession({ game: '<progressKey>', ... })` on completion.
+
+That is the whole wiring step: the **route** ([`main.jsx`](src/app/main.jsx)), the
+**catalogue** (`GAME_CATALOG`) and the **homepage prefetch** (BetaHome) are all
+derived from the registry. `GAME_LABELS` in [`StatsPanel.jsx`](src/pages/StatsPanel.jsx)
+is derived from it too, so stats pick up the new game automatically.
+
+It appears once a teacher/admin adds it to a class from the **Catalogue** tab
+(`addGameForClass`). No server change is required.
 
 ---
 

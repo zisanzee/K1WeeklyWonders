@@ -1,7 +1,7 @@
 // Phaser/BaseGame.jsx
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import * as Phaser from 'phaser';
-import { createGameConfig, DEFAULT_ASPECT, DEFAULT_BASE_RESOLUTION } from './config';
+import { createGameConfig, DEFAULT_ASPECT, DEFAULT_BASE_RESOLUTION } from '@/phaser/config';
 
 // The Phaser canvas is authored at a fixed internal resolution (2:3 by
 // default) and scaled to fit its DOM parent via Phaser.Scale.FIT. That

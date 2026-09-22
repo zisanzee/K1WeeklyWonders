@@ -38,10 +38,10 @@ export default defineConfig([
     // Fast Refresh can only preserve state for a module whose exports are ALL
     // components. These two legitimately break that rule and cannot be split
     // without hurting the app's structure:
-    //  - main.jsx is the entry point and is never hot-reloaded.
-    //  - confirmDialog.jsx intentionally exports a `confirmDialog()` function
+    //  - app/main.jsx is the entry point and is never hot-reloaded.
+    //  - ui/confirmDialog.jsx intentionally exports a `confirmDialog()` function
     //    next to its host component, so callers don't need to mount anything.
-    files: ['src/main.jsx', 'src/confirmDialog.jsx'],
+    files: ['src/app/main.jsx', 'src/ui/confirmDialog.jsx'],
     rules: {
       'react-refresh/only-export-components': 'off',
     },

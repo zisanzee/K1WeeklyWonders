@@ -1,0 +1,73 @@
+// GamePage.jsx
+import { Link } from 'react-router-dom';
+import Game from '@/games/pollys-treasure-quest/Game';
+import NameGate from '@/auth/NameGate';
+import GameAccessGate from '@/auth/GameAccessGate';
+import { usePlayerStore } from '@/auth/playerStore';
+
+export default function GamePage() {
+  return (
+    <NameGate gameLabel="Game 9: Polly's Treasure Quest">
+      <GameAccessGate gameNumber={9} gameLabel="Polly's Treasure Quest">
+        <GamePageInner />
+      </GameAccessGate>
+    </NameGate>
+  );
+}
+
+function GamePageInner() {
+  const playerName = usePlayerStore((s) => s.playerName);
+
+  return (
+    // .aura-page paints the homepage's aurora backdrop (see aurora.css).
+    // NameGate returns children directly once signed in, so it never renders
+    // its own .aura-page around a game: this page has to provide one.
+    <div className="aura-page relative flex h-[100dvh] w-full flex-col items-center overflow-hidden px-0 pb-0 pt-0 sm:px-4 sm:pb-4 sm:pt-3">
+
+      <style>{`
+        @keyframes float-slow { 0%, 100% { transform: translateY(0px) translateX(0px); } 50% { transform: translateY(-14px) translateX(6px); } }
+        @keyframes float-slower { 0%, 100% { transform: translateY(0px); } 50% { transform: translateY(-10px); } }
+        @keyframes spin-slow { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        @keyframes sparkle { 0%, 100% { opacity: 0.3; transform: scale(0.8); } 50% { opacity: 1; transform: scale(1.15); } }
+        .animate-float-slow { animation: float-slow 7s ease-in-out infinite; will-change: transform; }
+        .animate-float-slower { animation: float-slower 9s ease-in-out infinite; will-change: transform; }
+        .animate-spin-slow { animation: spin-slow 50s linear infinite; will-change: transform; }
+        .animate-sparkle { animation: sparkle 2s ease-in-out infinite; will-change: transform, opacity; }
+      `}</style>
+
+      {/* Sun, top corner — same as the other bonus games for visual continuity */}
+      <div className="pointer-events-none absolute -right-8 -top-8 h-24 w-24 sm:h-32 sm:w-32">
+        <svg viewBox="0 0 200 200" className="absolute inset-0 h-full w-full animate-spin-slow">
+          <g fill="#c4b5fd">
+            {Array.from({ length: 12 }).map((_, i) => (
+              <rect key={i} x="94" y="0" width="12" height="46" rx="6" transform={`rotate(${i * 30} 100 100)`} />
+            ))}
+          </g>
+        </svg>
+        <div className="absolute inset-[18%] rounded-full bg-gradient-to-br from-violet-300 to-fuchsia-400 shadow-[0_0_30px_rgba(232,121,249,0.55)]" />
+      </div>
+
+      {/* Floating clouds + sparkles — zero layout cost, cheap GPU-composited
+          animations, same pattern as the other bonus games */}
+      <div className="pointer-events-none absolute inset-0">
+        <div className="absolute left-[7%] top-[9%] animate-float-slow text-4xl opacity-90 sm:text-5xl">☁️</div>
+        <div className="absolute right-[12%] top-[12%] animate-float-slower text-3xl opacity-80 sm:text-4xl">☁️</div>
+        <div className="absolute left-[12%] top-[54%] animate-sparkle text-xl sm:text-2xl">✨</div>
+        <div className="absolute right-[6%] top-[60%] animate-sparkle text-2xl sm:text-3xl" style={{ animationDelay: '0.7s' }}>
+          ⭐
+        </div>
+      </div>
+
+      <Link
+        to="/"
+        className="font-body relative z-20 flex items-center gap-1.5 self-start rounded-full bg-white/10 font-bold text-white shadow-[0_2px_0_rgba(255,255,255,0.08)] ring-1 ring-white/25 backdrop-blur-sm transition-all hover:-translate-y-0.5 hover:bg-white/20 hover:shadow-[0_3px_0_rgba(255,255,255,0.14)] active:translate-y-0.5 active:shadow-none px-4 py-2 text-sm sm:px-5 sm:py-2.5 sm:text-base md:text-lg"
+      >
+        🏠 Home
+      </Link>
+
+      <div className="relative z-10 flex w-full min-h-0 flex-1 items-center justify-center">
+        <Game playerName={playerName} />
+      </div>
+    </div>
+  );
+}
