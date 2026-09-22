@@ -33,12 +33,18 @@ describe('emoji fallback', () => {
     }
   });
 
-  it('leaves every game un-iconed until one is registered', () => {
-    // This pins the CURRENT state — the map is intentionally empty, so every
-    // card should be showing its emoji. When you register the first icon this
-    // assertion is expected to fail and should be updated, not deleted; it
-    // exists so "did the images actually get wired up?" has a definitive answer.
-    expect(Object.keys(GAME_ICON_FILES)).toHaveLength(0);
+  it('has an icon registered for game 10', () => {
+    // This used to pin the "map is empty" state. The first icon has now been
+    // wired up, so the assertion is inverted (as that test's own comment
+    // instructed): the map must NOT be empty, and every registered key must be
+    // a real catalogue key. GameIcon still falls back to the emoji for the
+    // games that have no icon yet.
+    const registered = Object.keys(GAME_ICON_FILES);
+    expect(registered.length).toBeGreaterThan(0);
+    const known = new Set(GAME_CATALOG.map((g) => g.key));
+    for (const key of registered) {
+      expect(known.has(key), `"${key}" is not a GAME_CATALOG key`).toBe(true);
+    }
   });
 });
 

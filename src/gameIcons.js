@@ -19,8 +19,11 @@
 // adding icons is purely additive — drop a file in and add one line, and every
 // surface that shows a game icon picks it up.
 export const GAME_ICON_FILES = {
-  '10': 'https://res.cloudinary.com/hijmipga/image/upload/v1790064611/game10_icon_1_pi3qad.png',
-  // '10': '/game-icons/game10.png',
+  // Served from public/game-icons/ (see the README there), NOT a remote URL:
+  // a root-relative path is what the /game-icons/* cache header and the
+  // service worker's runtime cache both key on, so the icon is cached on first
+  // view and works offline like every other game asset.
+  '10': '/game-icons/game10.png',
 };
 
 // Resolves a game (or a bare key) to its icon URL, or '' when it has no icon.
