@@ -19,7 +19,7 @@
 // adding icons is purely additive — drop a file in and add one line, and every
 // surface that shows a game icon picks it up.
 export const GAME_ICON_FILES = {
-  // '1': '/game-icons/game1.png',
+  '10': 'https://res.cloudinary.com/hijmipga/image/upload/v1790064611/game10_icon_1_pi3qad.png',
   // '10': '/game-icons/game10.png',
 };
 

@@ -527,7 +527,7 @@ function LockOverlay() {
 // occupied across the breakpoints. The emoji fallback keeps that original
 // responsive text scale (CARD_EMOJI_SIZE) rather than this single width — an
 // emoji is a glyph, so it is sized in text units, not a box.
-const CARD_ICON_SIZE = "clamp(3rem, 11vw, 4.5rem)";
+const CARD_ICON_SIZE = "clamp(4rem, 15vw, 6rem)";
 const CARD_EMOJI_SIZE = "text-5xl sm:text-6xl md:text-7xl";
 
 function WobbleIcon({ game, isOpen = true }) {

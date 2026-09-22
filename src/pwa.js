@@ -14,26 +14,35 @@
 import { create } from 'zustand';
 
 // ---------------------------------------------------------------------------
-// INSTALL CAPABILITY — NATIVE PROMPT ONLY
+// INSTALL CAPABILITY — NATIVE PROMPT, WITH MANUAL GUIDES FOR EVERYONE ELSE
 //
-// The install button is shown ONLY when the browser can install natively:
+// The install button is shown whenever the app can be installed on this device
+// by SOME route:
 //
-//   installed        running as an installed app (standalone), OR we recorded an
-//                    install on this device. Hides the affordance.
-//   nativePromptSupported   the browser implements beforeinstallprompt at all
-//                    (Chromium family). Safari and Firefox do NOT, so they get
-//                    no button — there is no native install to offer them.
-//   nativePromptReady  the browser has actually handed us a deferred
-//                    BeforeInstallPromptEvent, so prompt() will do something
-//                    right now.
+//   installed          running as an installed app (standalone), OR we recorded
+//                      an install on this device. Hides the affordance.
+//   installSupported   the app can be installed here at all — either the browser
+//                      implements beforeinstallprompt (Chromium), OR it is an
+//                      iOS/iPadOS browser, which installs via Share → Add to
+//                      Home Screen and never fires that event.
+//   nativePromptReady  Chromium has actually handed us a deferred
+//                      BeforeInstallPromptEvent, so a native prompt can fire
+//                      right now (engagement-gated, so often not on a first
+//                      visit).
 //
-// Both flags are required. Support alone is not enough: Chrome fires
-// beforeinstallprompt only after an engagement heuristic, so a supported browser
-// can have no prompt ready yet — showing a button then would give a dead
-// control. Ready alone is also insufficient as a guard (it implies support, but
-// gating on both states the intent). iOS is deliberately NOT handled: Safari has
-// no native install API, so per product decision an iOS user sees no button
-// rather than a manual "Add to Home Screen" walkthrough.
+// The button then resolves to one of four guides (see resolveInstallTarget):
+//
+//   - Prompt READY   → fires the native Edge/Chrome install dialog (one tap).
+//   - Chromium, no prompt yet → manual Edge/Chrome menu steps.
+//   - iOS/iPadOS (any browser — they are all WebKit) → Share → Add to Home
+//     Screen, because there is no install API to call.
+//   - Firefox → its own menu path, since it has no beforeinstallprompt either.
+//
+// Gating on `installSupported` (not readiness) means the control always leads
+// somewhere instead of being a dead tap. This is what fixed the "Edge offers
+// install itself but our button never appears" report, and it deliberately
+// reverses the earlier decision to hide the button on iOS: an iPhone/iPad user
+// now gets real steps instead of nothing.
 // ---------------------------------------------------------------------------
 
 const INSTALLED_KEY = 'ezw.pwa.installed.v1';
@@ -89,6 +98,44 @@ function detectStandalone() {
 function detectNativePromptSupported() {
   if (typeof window === 'undefined') return false;
   return 'onbeforeinstallprompt' in window;
+}
+
+// True for iOS and iPadOS. These never fire beforeinstallprompt; install is a
+// manual Share → Add to Home Screen. iPadOS 13+ reports itself as a Mac in the
+// UA, so it is caught via maxTouchPoints (a real Mac has none). Pure so it can
+// be unit-tested.
+//
+// The OTHER browsers on iOS (Firefox, Chrome) are all WebKit and use the same
+// Share-sheet flow, so this deliberately does NOT distinguish them — an iOS
+// Firefox user gets the same correct steps as an iOS Safari user.
+export function isIosPlatform({
+  platform = '',
+  userAgent = '',
+  maxTouchPoints = 0,
+} = {}) {
+  if (/iPad|iPhone|iPod/.test(platform) || /iPad|iPhone|iPod/.test(userAgent)) {
+    return true;
+  }
+  return platform === 'MacIntel' && maxTouchPoints > 1;
+}
+
+function detectIos() {
+  if (typeof window === 'undefined') return false;
+  return isIosPlatform({
+    platform: navigator.platform || '',
+    userAgent: navigator.userAgent || '',
+    maxTouchPoints: navigator.maxTouchPoints || 0,
+  });
+}
+
+// Whether the app can be installed on this device by ANY route. Chromium (via
+// beforeinstallprompt) and iOS/iPadOS (via the Share sheet) both qualify; a
+// desktop Safari or any browser we cannot guide does not.
+export function computeInstallSupported({
+  ios = false,
+  nativePromptSupported = false,
+} = {}) {
+  return Boolean(ios || nativePromptSupported);
 }
 
 // The pure decision behind low-power mode: given the raw device signals, should
@@ -153,6 +200,11 @@ export const usePwaStore = create((set) => ({
   // --- install capability ---
   standalone: false,
   installedHint: false,
+  // Browser family the guide is written for: 'chromium' | 'ios' | 'other'.
+  platform: 'other',
+  // Whether install is possible here by any route (Chromium prompt OR iOS
+  // Share sheet). Drives button visibility; readiness only picks the action.
+  installSupported: false,
   nativePromptSupported: false,
   nativePromptReady: false, // a deferred prompt is captured and usable
   installEvent: null, // the deferred BeforeInstallPromptEvent (Chromium)
@@ -182,6 +234,8 @@ export const usePwaStore = create((set) => ({
     set({ installedHint: false });
   },
   setInstalledHint: (installedHint) => set({ installedHint }),
+  setPlatform: (platform) => set({ platform }),
+  setInstallSupported: (installSupported) => set({ installSupported }),
   setNativePromptSupported: (nativePromptSupported) =>
     set({ nativePromptSupported }),
   setInstallEvent: (installEvent) =>
@@ -206,24 +260,22 @@ export const usePwaStore = create((set) => ({
 // The pure decision behind the install affordance. Kept separate from the hook
 // so it can be unit-tested without a DOM (see pwa.test.js).
 //
-// Returns true only when ALL of these hold:
+// Returns true when BOTH of these hold:
 //   - the app is not already installed,
-//   - the browser supports a native install prompt,
-//   - that prompt is actually ready to fire right now.
-export function shouldOfferInstall({
-  standalone,
-  installedHint,
-  nativePromptSupported,
-  nativePromptReady,
-}) {
+//   - the app can be installed here by SOME route (installSupported covers both
+//     the Chromium prompt and the iOS/iPadOS Share sheet).
+//
+// Readiness is deliberately NOT part of this decision. A supported browser with
+// no deferred prompt still gets the button; it simply opens the matching manual
+// guide (native Chromium dialog, or the iOS/Firefox steps) instead of doing
+// nothing. This keeps the control meaningful on every device that can install,
+// rather than only on Chromium after its engagement heuristic has fired.
+export function shouldOfferInstall({ standalone, installedHint, installSupported }) {
   // Already an installed app (or we recorded one on this device) → nothing.
   if (standalone || installedHint) return false;
-  // No native install API (Safari, Firefox) → nothing. This is the case the
-  // button must never appear for.
-  if (!nativePromptSupported) return false;
-  // Supported but no prompt captured yet → nothing (a dead button is worse
-  // than none).
-  return Boolean(nativePromptReady);
+  // Nothing installable here → nothing. Only reached when the platform provides
+  // neither a native prompt nor a manual route we can point at.
+  return Boolean(installSupported);
 }
 
 // Whether this device should get the light-touch decoration. Defaults to false
@@ -244,15 +296,39 @@ export function shouldShowUpdatePrompt({ needRefresh, refreshSnoozed }) {
 export function useInstallOffer() {
   const standalone = usePwaStore((s) => s.standalone);
   const installedHint = usePwaStore((s) => s.installedHint);
-  const nativePromptSupported = usePwaStore((s) => s.nativePromptSupported);
-  const nativePromptReady = usePwaStore((s) => s.nativePromptReady);
+  const installSupported = usePwaStore((s) => s.installSupported);
 
   return shouldOfferInstall({
     standalone,
     installedHint,
-    nativePromptSupported,
-    nativePromptReady,
+    installSupported,
   });
+}
+
+// Which install action the button should take, given what the browser offers.
+// Pure, so the four guides are unit-testable without a DOM.
+//
+//   'native'       → fire the captured Chromium prompt.
+//   'ios'          → Share → Add to Home Screen (iPad/iPhone, any browser).
+//   'firefox'      → Firefox menu → Install (Firefox never fires the event).
+//   'chromium'     → Chromium menu steps (supported but engagement-gated).
+export function resolveInstallTarget({
+  nativePromptReady = false,
+  platform = 'other',
+} = {}) {
+  if (nativePromptReady) return 'native';
+  if (platform === 'ios') return 'ios';
+  if (platform === 'firefox') return 'firefox';
+  return 'chromium';
+}
+
+// The target for the CURRENT device. The button uses this to choose the label,
+// the guide text, and whether to fire the native prompt; it is separate from
+// useInstallOffer (visibility) because those are two different questions.
+export function useInstallTarget() {
+  const platform = usePwaStore((s) => s.platform);
+  const nativePromptReady = usePwaStore((s) => s.nativePromptReady);
+  return resolveInstallTarget({ platform, nativePromptReady });
 }
 
 // The updater returned by registerSW. Kept at module scope so applyUpdate() can
@@ -276,7 +352,19 @@ export function initPwa() {
   if (standalone) writeInstalledHint(true);
   store.setStandalone(standalone);
   store.setInstalledHint(installed);
-  store.setNativePromptSupported(detectNativePromptSupported());
+
+  // Work out which install guide this browser needs, once, at boot. Order
+  // matters: iOS is checked FIRST because iPadOS reports itself as a Mac in the
+  // UA, and on iOS the prompt is never supported anyway — so an iOS result must
+  // not be overwritten by the native-prompt detection.
+  const ios = detectIos();
+  const nativePromptSupported = detectNativePromptSupported();
+  const firefox =
+    !nativePromptSupported && /Firefox|FxiOS/.test(navigator.userAgent || '');
+  const platform = ios ? 'ios' : firefox ? 'firefox' : 'chromium';
+  store.setPlatform(platform);
+  store.setNativePromptSupported(nativePromptSupported);
+  store.setInstallSupported(computeInstallSupported({ ios, nativePromptSupported }));
 
   // Classify the device once, before first paint, and expose it as a document
   // attribute so CSS can downgrade the heavy decoration without React having to
@@ -476,4 +564,54 @@ export async function promptInstall() {
     usePwaStore.getState().setInstallEvent(null);
     return null;
   }
+}
+
+// Per-target manual install guides, shown when the native prompt is not the
+// action. Pure and browser-free so they can be unit-tested and kept in sync.
+//
+//   ios      — iPad/iPhone, ANY browser (all WebKit): Share → Add to Home
+//              Screen. This is the path iOS never automates.
+//   firefox  — Firefox has no beforeinstallprompt; install lives in the menu
+//              and the page must also have been visited enough to qualify.
+//   chromium — Edge/Chrome when the prompt has not been emitted yet.
+const INSTALL_GUIDES = {
+  ios: {
+    title: 'Add to Home Screen',
+    steps: [
+      'Open this page in Safari.',
+      'Tap the Share button (the square with an arrow).',
+      'Scroll down and tap “Add to Home Screen”.',
+      'Tap “Add” — the EZ Wonders icon appears on your home screen.',
+    ],
+    note: 'Launch it from the new icon to get the full-screen app.',
+  },
+  firefox: {
+    title: 'Install EZ Wonders',
+    steps: [
+      'Open the Firefox menu (☰ in the top-right, or ⋯ on mobile).',
+      'Choose “Install” (desktop) or “Add to Home screen” (Android).',
+      'Confirm — EZ Wonders opens without browser bars.',
+    ],
+    note: 'If you do not see Install, visit the site a little longer first.',
+  },
+  chromium: {
+    title: 'Install EZ Wonders',
+    steps: [
+      'Open the browser menu (⋯ in Edge, ⋮ in Chrome).',
+      'Choose “Apps” (Edge) or “Cast, save and share” (Chrome).',
+      'Pick “Install this site as an app”.',
+    ],
+    note: 'Then open it from your Start menu or home screen.',
+  },
+};
+
+// Public accessor kept for compatibility and tests; returns the Chromium steps.
+export function manualInstallInstructions() {
+  return INSTALL_GUIDES.chromium.steps;
+}
+
+// The resolved guide (title, steps, footnote) for a button target. 'native'
+// means the browser installs itself, so no guide is needed.
+export function installGuideFor(target) {
+  return INSTALL_GUIDES[target] ?? INSTALL_GUIDES.chromium;
 }

@@ -18,15 +18,17 @@
 // graph (main.jsx), so importing `motion` here would pull ~100KB of animation
 // runtime into the first-paint bundle that the whole platform works to keep
 // small. The entrance motion is a few lines of CSS instead.
-import { useEffect } from 'react';
+import { memo, useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import {
   usePwaStore,
   useInstallOffer,
+  useInstallTarget,
   isInstallRoute,
   shouldShowUpdatePrompt,
   applyUpdate,
   promptInstall,
+  installGuideFor,
 } from './pwa';
 
 // How long the "ready offline" confirmation lingers before hiding itself.
@@ -178,15 +180,22 @@ export default function PwaBadges() {
   );
 }
 
-// A compact, top-right install affordance.
+// A compact, top-right install affordance. ALWAYS MOUNTED at the app root and
+// self-gating, so it never remounts on navigation (see the memo note below).
 //
-// It renders NOTHING unless the browser can install natively right now:
-//   - already installed (standalone, or a recorded install) → hidden
-//   - Chromium with a deferred prompt ready → a button that fires it
-//   - Safari / Firefox / any browser without beforeinstallprompt → hidden
-//   - Chromium that supports it but has not granted it yet → hidden
-// That last case is deliberate. A visible-but-dead "Install" button is worse
-// than none; useInstallOffer() is true only when the button will do something.
+// It renders nothing on non-entry routes and once installed, and otherwise does
+// exactly one of:
+//   - a deferred Chromium prompt is ready → fires the native install dialog
+//   - no native prompt → opens a small popover with the guide for THIS device
+//     (iOS Share → Add to Home Screen, Firefox menu, or the Edge/Chrome menu)
+//
+// The popover case is why memo() matters. The component is rendered from the
+// persistent AppShell, but the `useInstallTarget` / `useInstallOffer` selectors
+// can flip in the middle of a click sequence (the browser may emit
+// beforeinstallprompt between the tap and the popover opening). A remount would
+// discard the popover's own local state; memo keeps one instance alive so the
+// state survives. All the store reads inside are already scoped per-slice, so
+// memo does not wrongly freeze the offer/target values.
 const INSTALL_ICON = (
   <svg
     aria-hidden="true"
@@ -205,15 +214,49 @@ const INSTALL_ICON = (
   </svg>
 );
 
-export function InstallButton() {
+export const InstallButton = memo(function InstallButton() {
   const { pathname } = useLocation();
   const offer = useInstallOffer();
+  // 'native' | 'ios' | 'firefox' | 'chromium' — decides the label, whether the
+  // click fires the native dialog, and which guide the popover shows.
+  const target = useInstallTarget();
+  const promptReady = target === 'native';
+  // Manual guide popover. Local state is safe to keep here because memo() keeps
+  // this one instance mounted for the app's lifetime.
+  const [showSteps, setShowSteps] = useState(false);
+  // The guide is platform-static, so compute it once per target change (not per
+  // render) to keep the steps array identity stable.
+  const guide = useMemo(() => installGuideFor(target), [target]);
 
-  // Self-hiding: `offer` is true only when the browser can install natively and
-  // a prompt is ready. No local state is needed — the component unmounts on
-  // navigation and renders null once the app is installed or the prompt is
-  // consumed.
+  // Escape closes the manual popover — it is a lightweight disclosure, not a
+  // focus trap, but a keyboard user still needs a way out without hunting for
+  // the button again.
+  useEffect(() => {
+    if (!showSteps) return undefined;
+    const onKey = (event) => {
+      if (event.key === 'Escape') setShowSteps(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [showSteps]);
+
+  // Deriving (rather than an effect) means a native prompt arriving closes the
+  // stale manual steps on the very next render — no setState-in-effect, and no
+  // window where both the native dialog and the old instructions are live.
+  const stepsOpen = showSteps && !promptReady;
+
+  // Self-hiding on non-entry routes and once installed. `offer` is true whenever
+  // the app can be installed here at all (see shouldOfferInstall); the target
+  // only chooses WHICH action the button performs, not whether it renders.
   if (!offer || !isInstallRoute(pathname)) return null;
+
+  const handleClick = () => {
+    if (promptReady) {
+      promptInstall();
+      return;
+    }
+    setShowSteps((open) => !open);
+  };
 
   // LAYOUT: mirrors the teacher nav bar in BetaHome.jsx — same fixed full-width
   // bar, same `mx-auto max-w-4xl px-3 py-3 sm:px-6` container, same button
@@ -227,7 +270,8 @@ export function InstallButton() {
   // the (invisible) empty space of this overlay swallowed clicks across the
   // whole header — the "Teacher controls" button on the left stopped working
   // entirely. The container stays full-width so it aligns, but only the button
-  // re-enables pointer events, so every other pixel passes clicks through.
+  // (and the popover) re-enable pointer events, so every other pixel passes
+  // clicks through.
   return (
     <div
       className="pointer-events-none fixed left-0 right-0 z-[115]"
@@ -241,18 +285,43 @@ export function InstallButton() {
       }}
     >
       <div className="mx-auto flex w-full max-w-4xl items-center justify-end px-3 py-3 sm:px-6">
-        <button
-          type="button"
-          onClick={() => promptInstall()}
-          aria-label="Install EZ Wonders"
-          className="pointer-events-auto flex items-center gap-1.5 rounded-full bg-white/95 px-3.5 py-1.5 text-xs font-black text-violet-700 shadow-md ring-2 ring-white/70 backdrop-blur transition hover:-translate-y-0.5 active:translate-y-0 sm:gap-2 sm:px-5 sm:py-2.5 sm:text-base sm:shadow-xl sm:ring-4"
-        >
-          <span aria-hidden="true" className="text-base sm:text-lg">
-            {INSTALL_ICON}
-          </span>
-          Install app
-        </button>
+        {/* relative: anchors the manual-instructions popover under the button. */}
+        <div className="relative">
+          <button
+            type="button"
+            onClick={handleClick}
+            aria-label={
+              promptReady ? 'Install EZ Wonders' : 'How to install EZ Wonders'
+            }
+            // Only an expand/collapse disclosure when the popover is the action.
+            aria-expanded={promptReady ? undefined : stepsOpen}
+            className="pointer-events-auto flex items-center gap-1.5 rounded-full bg-white/95 px-3.5 py-1.5 text-xs font-black text-violet-700 shadow-md ring-2 ring-white/70 backdrop-blur transition hover:-translate-y-0.5 active:translate-y-0 sm:gap-2 sm:px-5 sm:py-2.5 sm:text-base sm:shadow-xl sm:ring-4"
+          >
+            <span aria-hidden="true" className="text-base sm:text-lg">
+              {INSTALL_ICON}
+            </span>
+            {promptReady ? 'Install app' : 'How to install'}
+          </button>
+
+          {stepsOpen && (
+            <div
+              role="dialog"
+              aria-label="How to install EZ Wonders"
+              className="pointer-events-auto absolute right-0 top-full mt-2 w-72 max-w-[calc(100vw-1.5rem)] rounded-2xl bg-slate-900/95 p-3 text-left text-[12px] leading-snug text-white shadow-2xl ring-1 ring-white/15 backdrop-blur"
+            >
+              <p className="mb-1.5 font-black">{guide.title}</p>
+              <ol className="list-decimal space-y-1 pl-4">
+                {guide.steps.map((step) => (
+                  <li key={step}>{step}</li>
+                ))}
+              </ol>
+              {guide.note && (
+                <p className="mt-2 text-white/60">{guide.note}</p>
+              )}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
-}
+});

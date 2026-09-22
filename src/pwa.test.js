@@ -4,54 +4,33 @@ import {
   isInstallRoute,
   classifyLowPower,
   shouldShowUpdatePrompt,
+  manualInstallInstructions,
+  isIosPlatform,
+  computeInstallSupported,
+  resolveInstallTarget,
+  installGuideFor,
 } from './pwa';
 
 const base = {
   standalone: false,
   installedHint: false,
-  nativePromptSupported: false,
-  nativePromptReady: false,
+  installSupported: false,
 };
 
 describe('shouldOfferInstall', () => {
-  it('offers install only when the browser supports it AND a prompt is ready', () => {
-    expect(
-      shouldOfferInstall({
-        ...base,
-        nativePromptSupported: true,
-        nativePromptReady: true,
-      })
-    ).toBe(true);
+  it('offers install when install is supported', () => {
+    expect(shouldOfferInstall({ ...base, installSupported: true })).toBe(true);
   });
 
-  // The requirement: no native install support → no button, ever. Safari and
-  // Firefox do not implement beforeinstallprompt, so this is their path.
-  it('does not offer install for a browser without native prompt support', () => {
-    expect(
-      shouldOfferInstall({ ...base, nativePromptSupported: false })
-    ).toBe(false);
-  });
-
-  it('does not offer install when supported but no prompt is ready yet', () => {
-    // Chrome withholds beforeinstallprompt until an engagement heuristic is
-    // met; a button here would be dead on tap.
-    expect(
-      shouldOfferInstall({
-        ...base,
-        nativePromptSupported: true,
-        nativePromptReady: false,
-      })
-    ).toBe(false);
+  it('does not offer install when nothing can install here', () => {
+    expect(shouldOfferInstall({ ...base, installSupported: false })).toBe(
+      false
+    );
   });
 
   it('does not offer install when already running as an installed app', () => {
     expect(
-      shouldOfferInstall({
-        ...base,
-        standalone: true,
-        nativePromptSupported: true,
-        nativePromptReady: true,
-      })
+      shouldOfferInstall({ ...base, standalone: true, installSupported: true })
     ).toBe(false);
   });
 
@@ -60,22 +39,106 @@ describe('shouldOfferInstall', () => {
       shouldOfferInstall({
         ...base,
         installedHint: true,
-        nativePromptSupported: true,
-        nativePromptReady: true,
+        installSupported: true,
       })
     ).toBe(false);
   });
+});
 
-  it('prefers nothing over a stale ready flag if support is absent', () => {
-    // Defensive: a ready prompt implies support, but if the two ever disagree
-    // the button must stay hidden rather than render a control that cannot work.
+describe('isIosPlatform', () => {
+  it('detects the explicit iOS/iPadOS platforms', () => {
+    expect(isIosPlatform({ platform: 'iPhone' })).toBe(true);
+    expect(isIosPlatform({ platform: 'iPad' })).toBe(true);
+    expect(isIosPlatform({ platform: 'iPod' })).toBe(true);
+  });
+
+  it('detects iOS from the user agent when platform is masked', () => {
     expect(
-      shouldOfferInstall({
-        ...base,
-        nativePromptSupported: false,
-        nativePromptReady: true,
-      })
-    ).toBe(false);
+      isIosPlatform({ userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0)' })
+    ).toBe(true);
+  });
+
+  // iPadOS 13+ reports platform "MacIntel" — the touch-point count is the only
+  // reliable tell, because a real Mac has none.
+  it('treats an iPadOS "MacIntel" with touch points as iOS', () => {
+    expect(isIosPlatform({ platform: 'MacIntel', maxTouchPoints: 5 })).toBe(
+      true
+    );
+    expect(isIosPlatform({ platform: 'MacIntel', maxTouchPoints: 0 })).toBe(
+      false
+    );
+  });
+
+  it('is false for non-Apple platforms', () => {
+    expect(isIosPlatform({ platform: 'Win32', userAgent: 'Windows NT' })).toBe(
+      false
+    );
+  });
+});
+
+describe('computeInstallSupported', () => {
+  it('is true for iOS even without a native prompt', () => {
+    expect(
+      computeInstallSupported({ ios: true, nativePromptSupported: false })
+    ).toBe(true);
+  });
+
+  it('is true for a Chromium prompt', () => {
+    expect(
+      computeInstallSupported({ ios: false, nativePromptSupported: true })
+    ).toBe(true);
+  });
+
+  it('is false when neither route exists', () => {
+    expect(computeInstallSupported({})).toBe(false);
+  });
+});
+
+describe('resolveInstallTarget', () => {
+  it('prefers the native prompt whenever it is ready', () => {
+    expect(
+      resolveInstallTarget({ nativePromptReady: true, platform: 'ios' })
+    ).toBe('native');
+  });
+
+  it('routes iOS to the Share-sheet guide', () => {
+    expect(resolveInstallTarget({ platform: 'ios' })).toBe('ios');
+  });
+
+  it('routes Firefox to its own menu guide', () => {
+    expect(resolveInstallTarget({ platform: 'firefox' })).toBe('firefox');
+  });
+
+  it('falls back to the Chromium menu guide', () => {
+    expect(resolveInstallTarget({ platform: 'chromium' })).toBe('chromium');
+    expect(resolveInstallTarget({})).toBe('chromium');
+  });
+});
+
+describe('install guides', () => {
+  it('manualInstallInstructions returns the Chromium steps', () => {
+    const steps = manualInstallInstructions();
+    expect(Array.isArray(steps)).toBe(true);
+    expect(steps.length).toBeGreaterThanOrEqual(2);
+    expect(steps.join(' ')).toMatch(/Edge/);
+    expect(steps.join(' ')).toMatch(/Chrome/);
+  });
+
+  it('gives iOS-specific steps mentioning the Share sheet', () => {
+    const guide = installGuideFor('ios');
+    expect(guide.steps.join(' ')).toMatch(/Share/);
+    expect(guide.steps.join(' ')).toMatch(/Add to Home Screen/);
+  });
+
+  it('gives Firefox its own menu steps', () => {
+    const guide = installGuideFor('firefox');
+    expect(guide.steps.join(' ')).toMatch(/Firefox/);
+  });
+
+  it('always resolves to a usable guide even for an unknown target', () => {
+    const guide = installGuideFor('nonsense');
+    expect(guide.title).toBeTruthy();
+    expect(guide.steps.length).toBeGreaterThanOrEqual(2);
   });
 });
 
