@@ -29,6 +29,7 @@ import { ensureBgMusic, addMuteButton, isMuted } from '@/phaser/common/audioStat
 import {
   makeConfettiTexture,
   makeConfettiSquareTexture,
+  makeDividerGlowTexture,
 } from '@/phaser/common/sceneAssets';
 import { partsForPortrait, orderPartsByZ } from '@/games/game-11/portraits';
 import {
@@ -334,6 +335,13 @@ export default class GameScene extends BaseScene {
     this.phase = 'playing';
     this.roundMistakes = 0;
     this.drag = null;
+    // Stop the previous round's idle-bob tweens BEFORE their containers are
+    // destroyed. Without this they keep ticking against a destroyed target
+    // until the scene ends, which is both wasted work and a slow leak across
+    // eight rounds.
+    if (this.trayItems) {
+      for (const item of this.trayItems) item.bobTween?.remove();
+    }
     this.slots = [];
     this.trayItems = [];
 
@@ -366,30 +374,29 @@ export default class GameScene extends BaseScene {
     const cfg = dividerFor(this.round.portrait);
     if (!cfg) return;
 
-    // One container per side, so each glow tapers about a different colour and
-    // the two cannot bleed into each other across the line.
     const half = cfg.length / 2;
+
+    // One stretched gradient image per side, each tinted to that side's colour.
+    // The baked strip is opaque at its top and clear at its bottom, so placing
+    // the opaque edge on the line makes both sides fade AWAY from it. This
+    // replaces the old live stack of ~48 fill bands per side (≈100 overlapping
+    // full-canvas quads re-rasterised every frame) with two ordinary image
+    // draws — the single biggest per-frame saving in this scene.
+    const tex = makeDividerGlowTexture(this);
     for (const side of [-1, 1]) {
-      const colour = side < 0 ? cfg.colorA : cfg.colorB;
-      const glow = this.add.graphics();
-      // The glow runs from the line out to `depth`; drawn as a stack of bands,
-      // each thinner in alpha the further it is from the line, so the fade is a
-      // gradient rather than a hard edge. That depth defaults to more than the
-      // canvas diagonal, so the colour falls all the way back into the
-      // background instead of stopping short. Many thin bands keep an otherwise
-      // very long taper smooth.
-      const bands = 48;
-      for (let i = 0; i < bands; i += 1) {
-        const t0 = i / bands;
-        const t1 = (i + 1) / bands;
-        const y0 = (side * cfg.depth * t0);
-        const y1 = (side * cfg.depth * t1);
-        // Fade from `alpha` at the line (t=0) to 0 at the outer edge (t=1).
-        glow.fillStyle(colour, cfg.alpha * (1 - t1) * 0.6);
-        glow.fillRect(-half, Math.min(y0, y1), cfg.length, Math.abs(y1 - y0) + 1);
-      }
-      glow.setRotation((cfg.rotation * Math.PI) / 180);
+      const glow = this.add.image(0, 0, tex);
+      // Stretch the strip to the divider's length and falloff depth. Display
+      // size is independent of origin, so this fits whatever the round asks for.
+      glow.setDisplaySize(cfg.length, cfg.depth);
+      // The strip is opaque at its TOP; for the +1 side flip it so the opaque
+      // edge still lands on the line. Origin sits on the line (the container's
+      // centre), so the image extends only outward.
+      if (side > 0) glow.setFlipY(true);
+      glow.setOrigin(0.5, side > 0 ? 1 : 0);
+      glow.setAlpha(cfg.alpha * 0.6);
+      glow.setTint(side < 0 ? cfg.colorA : cfg.colorB);
       const wrap = this.add.container(cfg.x, cfg.y, [glow]);
+      wrap.setRotation((cfg.rotation * Math.PI) / 180);
       this.dividerLayer.add(wrap);
     }
 
@@ -439,6 +446,11 @@ export default class GameScene extends BaseScene {
 
       duplicate.partImages.forEach((image, partKey) => {
         image.setAlpha(SHOW_DUPLICATE_ALPHA);
+        // Ship the duplicate parts hidden rather than merely transparent: an
+        // alpha-0 sprite still costs a draw call and a batch slot every frame,
+        // while a non-visible one is skipped outright. Each is switched back on
+        // the moment its piece is placed (see placePiece).
+        image.setVisible(SHOW_DUPLICATE_ALPHA > 0);
         this.slots.push({ partKey, x: 0, y: 0, image, filled: false });
       });
       // Each part's world centre comes straight off the live duplicate
@@ -587,6 +599,11 @@ export default class GameScene extends BaseScene {
         piece: container,
         signX: container.scaleX < 0 ? -1 : 1,
         signY: container.scaleY < 0 ? -1 : 1,
+        // The container's rotation is fixed for the whole round, so its cos/sin
+        // are cached here rather than recomputed on every drag move (this runs
+        // once per pointermove — see applyPieceLayout).
+        rotCos: Math.cos(container.rotation),
+        rotSin: Math.sin(container.rotation),
         S,
         // The part image's centre in container-local space — the offset to undo.
         centreLocal: { x: image.x, y: image.y },
@@ -617,8 +634,9 @@ export default class GameScene extends BaseScene {
 
       this.trayItems.push(item);
 
-      // Gentle idle bob so the pieces read as interactive.
-      this.tweens.add({
+      // Gentle idle bob so the pieces read as interactive. Kept on the item so
+      // it can be removed on grab / teardown instead of running forever.
+      item.bobTween = this.tweens.add({
         targets: container,
         y: container.y - TRAY_BOB,
         duration: 1100,
@@ -683,13 +701,12 @@ export default class GameScene extends BaseScene {
 
     // Map the part's local centre through the container transform (scale then
     // rotation), then move the container so that point lands on the target.
+    // The rotation's cos/sin are cached at build time (item.rotCos/rotSin).
     const sx = item.centreLocal.x * c.scaleX;
     const sy = item.centreLocal.y * c.scaleY;
-    const cos = Math.cos(c.rotation);
-    const sin = Math.sin(c.rotation);
     c.setPosition(
-      item.centreX - (sx * cos - sy * sin),
-      item.centreY - (sx * sin + sy * cos)
+      item.centreX - (sx * item.rotCos - sy * item.rotSin),
+      item.centreY - (sx * item.rotSin + sy * item.rotCos)
     );
   }
 
@@ -716,14 +733,10 @@ export default class GameScene extends BaseScene {
       const item = this.trayItems[i];
       if (item.placed) continue;
 
-      // Two grab zones: the artwork itself (with a little slack), and the whole
-      // box the piece sits in. Grabbing anywhere in the box picks up its piece.
-      const b = item.piece.getBounds();
-      const onArt =
-        pointer.x >= b.left - OPTION_HIT_PAD &&
-        pointer.x <= b.right + OPTION_HIT_PAD &&
-        pointer.y >= b.top - OPTION_HIT_PAD &&
-        pointer.y <= b.bottom + OPTION_HIT_PAD;
+      // The whole box the piece sits in is the primary grab zone — tap anywhere
+      // in it to pick the piece up. Checked FIRST because it is four number
+      // comparisons; item.piece.getBounds() walks the container and builds a
+      // world matrix, so it is only computed when the cheaper test misses.
       const box = item.box;
       const inBox =
         box &&
@@ -731,8 +744,24 @@ export default class GameScene extends BaseScene {
         pointer.x <= box.right &&
         pointer.y >= box.top &&
         pointer.y <= box.bottom;
-      if (!onArt && !inBox) continue;
 
+      // Fallback grab zone: the artwork itself, with a little slack, for when a
+      // piece has been dragged out of its own box.
+      let onArt = false;
+      if (!inBox) {
+        const b = item.piece.getBounds();
+        onArt =
+          pointer.x >= b.left - OPTION_HIT_PAD &&
+          pointer.x <= b.right + OPTION_HIT_PAD &&
+          pointer.y >= b.top - OPTION_HIT_PAD &&
+          pointer.y <= b.bottom + OPTION_HIT_PAD;
+      }
+      if (!inBox && !onArt) continue;
+
+      // Stop the idle bob (and any in-flight snap tween) so the drag owns the
+      // container's position from here.
+      item.bobTween?.remove();
+      item.bobTween = null;
       this.tweens.killTweensOf(item.piece);
       const centre = this.pieceCentre(item);
       this.drag = {
@@ -837,7 +866,9 @@ export default class GameScene extends BaseScene {
     });
 
     // Reveal the genuine part — its transform is already correct (it is a child
-    // of the invisible duplicate container), so only its alpha changes.
+    // of the invisible duplicate container), so only its visibility and alpha
+    // change. It ships non-visible (see buildBoard), so switch it back on first.
+    slot.image.setVisible(true);
     this.tweens.add({
       targets: slot.image,
       alpha: 1,

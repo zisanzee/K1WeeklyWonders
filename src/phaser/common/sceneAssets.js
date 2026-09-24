@@ -157,3 +157,33 @@ export function makeConfettiSquareTexture(scene) {
   g.destroy();
   return key;
 }
+
+// A vertical white strip that fades from opaque at the TOP edge to fully
+// transparent at the bottom. Baked once and reused as a tintable "glow" quad
+// behind a game's divider line: tint it a colour and it becomes that colour's
+// gradient, fading away from the line.
+//
+// Why a texture instead of drawing the gradient live: the first version of the
+// divider drew the fade as a stack of ~48 stacked fill bands PER SIDE, PER
+// ROUND — around 100 overlapping quads which, at full canvas depth, meant the
+// whole screen was alpha-blended ~100 times every frame. Rasterising the ramp
+// once here turns that into two ordinary image draws. The gradient is
+// resolution-independent (it is stretched to whatever length/depth the divider
+// asks for), so one 256-tall strip serves every round and both colours.
+export function makeDividerGlowTexture(scene, steps = 64) {
+  const key = 'divider-glow';
+  if (scene.textures.exists(key)) return key;
+
+  const h = 256;
+  const g = scene.make.graphics({ x: 0, y: 0, add: false });
+  for (let i = 0; i < steps; i += 1) {
+    const t1 = (i + 1) / steps;
+    // Top band is nearly opaque, each lower band fainter, last is fully clear.
+    g.fillStyle(0xffffff, 1 - t1);
+    const y0 = (i / steps) * h;
+    g.fillRect(0, y0, 2, Math.max(1, t1 * h - y0));
+  }
+  g.generateTexture(key, 2, h);
+  g.destroy();
+  return key;
+}

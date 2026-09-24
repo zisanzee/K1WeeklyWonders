@@ -60,7 +60,7 @@ function GamePageInner() {
 
       <Link
         to="/"
-        className="font-body relative z-20 flex items-center gap-1.5 self-start rounded-full bg-white/10 font-bold text-white shadow-[0_2px_0_rgba(255,255,255,0.08)] ring-1 ring-white/25 backdrop-blur-sm transition-all hover:-translate-y-0.5 hover:bg-white/20 hover:shadow-[0_3px_0_rgba(255,255,255,0.14)] active:translate-y-0.5 active:shadow-none px-4 py-2 text-sm sm:px-5 sm:py-2.5 sm:text-base md:text-lg"
+        className="font-body relative z-20 ml-3 mt-3 flex items-center gap-2 self-start rounded-full bg-white/95 px-4 py-2.5 text-sm font-bold text-[#3b2f1e] shadow-lg shadow-black/15 ring-1 ring-white/60 backdrop-blur-sm transition-all hover:-translate-y-0.5 hover:bg-white hover:shadow-xl active:translate-y-0.5 active:shadow-md sm:ml-4 sm:mt-4 sm:px-5 sm:py-3 sm:text-base md:text-lg"
       >
         🏠 Home
       </Link>

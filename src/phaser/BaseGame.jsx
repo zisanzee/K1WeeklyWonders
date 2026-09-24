@@ -188,22 +188,14 @@ export default function BaseGame({
             : { aspectRatio: `${aspect.width} / ${aspect.height}`, maxWidth: '100%', maxHeight: '100%' }),
         }}
       >
-        {/* Subtle edge glow — zero layout cost (absolute + blur extends
-            outward), cheap to render (one blurred gradient div, no
-            animation), and gives the canvas a soft "lit from behind" look
-            even on a phone where there's no frame to speak of. */}
-        {/* Aurora edge glow — indigo/violet/magenta tints so the dark canvas
-            reads as part of the shared night-sky theme instead of a bright
-            sky halo. */}
-        <div className="pointer-events-none absolute -inset-[3px] rounded-[2.5rem] bg-gradient-to-br from-violet-400/40 via-fuchsia-300/20 to-indigo-500/40 blur-md sm:-inset-2 sm:from-violet-400/60 sm:via-fuchsia-400/30 sm:to-fuchsia-600/50 sm:blur-xl" />
-        {/* Outline + shadow on mobile — outline sits outside the box so it
-            costs zero layout pixels, and box-shadow never affects layout.
-            Together they give just enough definition that the canvas reads
-            as intentional, not accidentally borderless. sm+ restores the
-            full decorative frame. */}
+        {/* No frame: the canvas owns the entire surface, with only a slight
+            corner rounding so it reads as a deliberate panel rather than a
+            hard-edged rectangle. The old outline/border/ring/shadow and the
+            aurora edge glow were all removed — they added visual noise around
+            artwork that already fills the whole canvas. */}
         <div
           ref={containerRef}
-          className="relative h-full w-full overflow-hidden rounded-xl outline outline-[2px] -outline-offset-[1px] outline-white/20 shadow-lg shadow-black/5 sm:rounded-[2rem] sm:border-[6px] sm:border-white/80 sm:shadow-2xl sm:ring-4 sm:ring-white/30 sm:outline-none"
+          className="relative h-full w-full overflow-hidden rounded-2xl"
         />
       </div>
     </div>
