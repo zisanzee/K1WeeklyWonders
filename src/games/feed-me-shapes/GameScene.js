@@ -247,6 +247,11 @@ export default class GameScene extends BaseScene {
     this.welcomeVoice = null;
 
     this.shapes = [];
+    // Reusable shadow Shapes. A shadow is a plain ellipse whose colour and depth
+    // never change, so it can be hidden on despawn and reused next spawn instead
+    // of allocating (and GC-ing) a fresh render node on every one of the ~8
+    // spawns per round. Capped naturally by MAX_SHAPES plus whatever is mid-fade.
+    this.shapePool = [];
     this.lastSpawnShape = null;
     this.spawnsSinceTarget = 0;
     this.spawnTimer = null;
@@ -417,25 +422,23 @@ export default class GameScene extends BaseScene {
     const card = this.add.image(0, 0, 'game-start').setOrigin(0.5);
     this.startOverlay.add(card);
 
-    // Sized to fit the viewport with margin rather than at its natural size:
-    // the art is 460x500, so on a 720x1080 canvas it is the width that runs out
-    // first and the fit is width-driven.
-    const margin = 44;
-    const fit = Math.min(
-      (width - margin * 2) / card.width,
-      (height - margin * 2) / card.height
-    );
-    card.setScale(fit);
+    // Cover the whole canvas rather than fitting a margin'd card: the art is
+    // 460x500 (taller than it is wide) against a 720x1080 canvas, so covering
+    // means scaling by the larger ratio and letting the excess width bleed off
+    // the sides. The overlay clips nothing, so any overflow simply sits outside
+    // the visible canvas.
+    card.setScale(Math.max(width / card.width, height / card.height));
 
-    // The button sits low on the card, over the artwork's flat blue cloud area
+    // The button sits low on the screen, over the artwork's flat blue cloud area
     // and clear of its own instruction text. Raised from the very bottom edge so
-    // it reads as part of the card rather than hanging off it.
+    // it reads as part of the art rather than hanging off it.
     //
     // Positioned in the OVERLAY's coordinates, like the card — not the canvas's.
     // The overlay is centred on the canvas, so a canvas-space y here would be
     // read as an offset from that centre and land the button half a screen too
-    // low.
-    const btnY = (card.height * fit) / 2 - 104;
+    // low. Anchored to the canvas height (not the card) so it stays put whatever
+    // the cover scale does.
+    const btnY = height / 2 - 104;
     const startBtn = this.createPillButton(0, btnY, 'Start \u25B6', {
       fontSize: '38px',
       paddingX: 56,
@@ -1244,9 +1247,21 @@ export default class GameScene extends BaseScene {
     const scale = this.foodScales[foodKey];
     const x = Phaser.Math.Between(SPAWN_X_MIN, SPAWN_X_MAX);
 
-    const shadow = this.add
-      .ellipse(x, this.scale.height - 46, (SHAPE_HEIGHT * 0.9), 22, 0x000000, 0.22)
-      .setDepth(5);
+    // Shadow comes from the pool when one is free (see shapePool in create()).
+    // Colour and depth are fixed, so reuse only has to reset position, size and
+    // the alpha the per-frame tracking will overwrite again anyway.
+    let shadow = this.shapePool.pop();
+    if (shadow) {
+      shadow.setPosition(x, this.scale.height - 46);
+      shadow.setSize(SHAPE_HEIGHT * 0.9, 22);
+      shadow.setScale(1, 1);
+      shadow.setAlpha(0.22);
+      shadow.setVisible(true);
+    } else {
+      shadow = this.add
+        .ellipse(x, this.scale.height - 46, (SHAPE_HEIGHT * 0.9), 22, 0x000000, 0.22)
+        .setDepth(5);
+    }
 
     const sprite = this.physics.add.image(x, SPAWN_Y, foodKey).setDepth(6);
     sprite.setScale(scale);
@@ -1254,9 +1269,11 @@ export default class GameScene extends BaseScene {
     sprite.shapeId = id;
     sprite.foodKey = foodKey;
     sprite.shadow = shadow;
-
-    sprite.setVelocity(Phaser.Math.Between(-LAUNCH_VX_MAX, LAUNCH_VX_MAX), LAUNCH_VY);
-    sprite.setAngularVelocity(Phaser.Math.Between(-60, 60));
+    // Reset the per-shape catch/anticipation flags explicitly — knockAway() sets
+    // `rejected` and checkAnticipation() toggles `anticipating`, and a fresh
+    // sprite must start clear of both.
+    sprite.rejected = false;
+    sprite.anticipating = false;
 
     // Bounce off the top/left/right edges rather than flying out of the canvas
     // (the world bounds are set in create(), with an effectively open bottom).
@@ -1265,6 +1282,9 @@ export default class GameScene extends BaseScene {
     sprite.body.setBounce(0.65, 0.65);
     sprite.body.setDamping(true);
     sprite.body.setDrag(0.98, 1);
+
+    sprite.setVelocity(Phaser.Math.Between(-LAUNCH_VX_MAX, LAUNCH_VX_MAX), LAUNCH_VY);
+    sprite.setAngularVelocity(Phaser.Math.Between(-60, 60));
 
     // Squash on launch → normal, so it reads as "thrown".
     const sx = sprite.scaleX;
@@ -1672,7 +1692,15 @@ export default class GameScene extends BaseScene {
   }
 
   destroyShape(sprite) {
-    if (sprite.shadow) sprite.shadow.destroy();
+    // Recycle the shadow, destroy the sprite. The shadow is a plain Shape with
+    // no tweens or per-instance state worth keeping, so it goes back on the
+    // pool hidden rather than being thrown away (see shapePool in create()).
+    const shadow = sprite.shadow;
+    sprite.shadow = null;
+    if (shadow) {
+      shadow.setVisible(false);
+      this.shapePool.push(shadow);
+    }
     sprite.destroy();
   }
 
@@ -1977,7 +2005,17 @@ export default class GameScene extends BaseScene {
     const shadow = sprite.shadow;
     sprite.shadow = null;
     if (shadow) {
-      this.tweens.add({ targets: shadow, alpha: 0, duration: 250, onComplete: () => shadow.destroy() });
+      // Fades out with its shape, then returns to the pool rather than being
+      // destroyed — alpha is reset on reuse (see spawnShape).
+      this.tweens.add({
+        targets: shadow,
+        alpha: 0,
+        duration: 250,
+        onComplete: () => {
+          shadow.setVisible(false);
+          this.shapePool.push(shadow);
+        },
+      });
     }
     this.tweens.add({
       targets: sprite,
