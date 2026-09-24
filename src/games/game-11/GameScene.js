@@ -1,7 +1,7 @@
 // GameScene.js
 // Game 11 — "Mirror Me!".
 //
-// One round per portrait (8 total). Each round:
+// One round per portrait (10 total). Each round:
 //   1. The finished ORIGINAL portrait is shown, assembled, as the reference.
 //   2. The MIRRORED DUPLICATE is NOT drawn — there is no marker at all. Each
 //      part's snap target is simply the position it occupies in the tuned
@@ -338,7 +338,7 @@ export default class GameScene extends BaseScene {
     // Stop the previous round's idle-bob tweens BEFORE their containers are
     // destroyed. Without this they keep ticking against a destroyed target
     // until the scene ends, which is both wasted work and a slow leak across
-    // eight rounds.
+    // the whole run.
     if (this.trayItems) {
       for (const item of this.trayItems) item.bobTween?.remove();
     }
@@ -502,12 +502,15 @@ export default class GameScene extends BaseScene {
     // depth makes the stacking explicit and independent of how the parts within
     // one key are emitted, so the original and mirror always paint identically.
     keys.forEach((key, i) => {
-      const { x: px, y: py, scale: ps, rotation: pr } = partTransform(key);
+      const { x: px, y: py, scale: ps, rotation: pr, flipX } = partTransform(key);
       const part = this.add
         .image(px - pivot.x, py - pivot.y, key)
         .setScale(ps)
         .setRotation((pr * Math.PI) / 180)
         .setDepth(i);
+      // Optional per-piece mirror (independent of the whole-portrait flip), for
+      // a single part whose art faces the wrong way — see PORTRAIT_POSITIONS.
+      if (flipX) part.setFlipX(true);
       container.add(part);
       partImages.set(key, part);
     });

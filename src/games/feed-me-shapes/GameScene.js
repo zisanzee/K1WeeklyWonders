@@ -6,7 +6,7 @@
 // shape — by name in Level 1 (rounds 1-4), by geometric property in Level 2
 // (rounds 5-10). The child walks the monster left and right along the floor to
 // be under the right shape as it lands, and to be out from under the wrong
-// ones. Three correct catches clears a round; 10 rounds total.
+// ones. One correct catch clears a round; 10 rounds total.
 //
 // The monster is the only thing the child controls. It is steered by pressing
 // anywhere on the left or right half of the play area — the two discs down the
@@ -46,7 +46,7 @@ import createMonster, {
 // ---------------------------------------------------------------------------
 // Layout + tuning constants (720x1080 base resolution — see Phaser/config.js)
 // ---------------------------------------------------------------------------
-const GRAVITY = 430; // px/s^2, scene-local (the shared default stays 0)
+const GRAVITY = 280; // px/s^2, scene-local (the shared default stays 0)
 // Every shape is normalised to this on-screen height. Nudged down twice — 150
 // felt crowded on a phone, where the monster, the prompt bubble and two shapes
 // all compete for the same canvas.
@@ -55,6 +55,13 @@ const GRAVITY = 430; // px/s^2, scene-local (the shared default stays 0)
 // size, so shrinking the food is a change in visual density, not in how easy
 // the game is to win.
 const SHAPE_HEIGHT = 110;
+// Per-food size multiplier applied ON TOP of the normalisation above. Most foods
+// sit at 1 (all normalised to SHAPE_HEIGHT); a food whose art reads as too small
+// beside the others gets a bump here without touching the shared height, so the
+// change is scoped to that one texture.
+const FOOD_SCALE_OVERRIDES = {
+  'juicebox-rectangle': 1.55,
+};
 const MAX_SHAPES = 2; // more than this is too busy for a K1 audience
 // Spawn across the width the monster can actually reach. Now that it walks the
 // floor instead of living in one corner, the whole canvas floor is fair game —
@@ -67,12 +74,14 @@ const SPAWN_Y = 1130; // just below the bottom edge, so shapes fly in
 //
 // So slowing the flight WITHOUT lowering the apex needs both moved together:
 // multiplying GRAVITY by k and LAUNCH_VY by sqrt(k) keeps the apex identical
-// while stretching the duration by sqrt(k). Against the previous pairing of
-// (620, -1120) this k = 0.69 keeps the same ~1000px apex and same peak height
-// (y≈120, just under the progress bar) but stretches the round trip from ~3.6s
-// to ~4.9s. Retune both together, or the shapes either stop reaching the top or
-// shoot past it.
-const LAUNCH_VY = -930;
+// while stretching the duration by sqrt(k). Retune both together, or the shapes
+// either stop reaching the top or shoot past it.
+//
+// Latest pass: GRAVITY 280 (from 344) and LAUNCH_VY reduced 100 to -730 (from
+// -830). Because the launch speed drops by a smaller ratio than gravity does,
+// the apex rises a little too — to ~952px (peak y≈48) — and the round trip
+// stretches from ~4.83s to ~5.2s, so the whole flight is slower and floatier.
+const LAUNCH_VY = -730;
 // Horizontal speed is deliberately gentle. This is a positioning game, not a
 // reflex game: the child is walking a monster into place with two buttons, so a
 // shape that streaks sideways would demand a sprint the controls can't deliver.
@@ -366,7 +375,8 @@ export default class GameScene extends BaseScene {
     let widest = 0;
     FOOD_KEYS.forEach((key) => {
       const { w, h } = measureTexture(this, key);
-      const scale = SHAPE_HEIGHT / h;
+      // Normalise to SHAPE_HEIGHT, then apply that food's own size override.
+      const scale = (SHAPE_HEIGHT / h) * (FOOD_SCALE_OVERRIDES[key] ?? 1);
       this.foodScales[key] = scale;
       const displayW = w * scale;
       if (displayW > widest) widest = displayW;

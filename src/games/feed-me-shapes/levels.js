@@ -8,9 +8,11 @@
 // is shuffled or randomized. Keep this file Phaser-free.
 
 export const TOTAL_ROUNDS = 10;
-// Two feeds per round (was 3). Everything else — round completion and the
-// TOTAL_FEEDS progress denominator in GameScene — derives from this constant.
-export const FEEDS_PER_ROUND = 2;
+// One feed per round (was 2, and 3 before that). Everything else — round
+// completion and the TOTAL_FEEDS progress denominator in GameScene — derives
+// from this constant, so the progress bar still fills exactly to 100% across
+// the 10 rounds.
+export const FEEDS_PER_ROUND = 1;
 
 // Single source of truth for "what is a triangle" — its display label and the
 // foods that ARE that shape. GameScene never hardcodes an image-key string; it

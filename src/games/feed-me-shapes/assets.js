@@ -31,7 +31,7 @@ export const IMAGES = {
   'donut-circle': 'https://res.cloudinary.com/hijmipga/image/upload/v1789382158/Donut_voemzc.png',// 
   'waffle-square': 'https://res.cloudinary.com/hijmipga/image/upload/v1789382158/waffle_tzzoso.png',//
   'sandwich-triangle': 'https://res.cloudinary.com/hijmipga/image/upload/v1789382157/sandwich_wgdx4z.png',// 
-  'game-start':'https://res.cloudinary.com/hijmipga/image/upload/v1789675559/start_x6w1vv.png',
+  'game-start':'https://res.cloudinary.com/hijmipga/image/upload/v1790262994/start_x6w1vv.png',
   'level-2':'https://res.cloudinary.com/hijmipga/image/upload/v1789645047/level-2_hj2kuu.png',
 
   ...HINT_IMAGES,

@@ -12,13 +12,14 @@
 // portraitPositions.js. Splitting it out means the tuning file stays a plain
 // table of numbers you can edit without touching any logic.
 
-import { IMAGES } from '@/games/game-11/assets';
+import { IMAGES, parseTextureKey } from '@/games/game-11/assets';
 
-// The portraits, in round/page order: boat, butterfly, frog, rocket, plane,
-// kite, sun, flower. This is the single source of the round sequence — the
-// level script and the page labels both derive from it.
-//   1 boat · 2 butterfly · 3 flower · 4 sun · 5 frog · 6 kite · 7 rocket · 8 plane
-export const PORTRAIT_ORDER = [1, 2, 5, 7, 8, 6, 4, 3];
+// The portraits, in round/page order: boat, butterfly, beetle, frog, rocket,
+// house, plane, kite, sun, flower. This is the single source of the round
+// sequence — the level script and the page labels both derive from it.
+//   1 boat · 2 butterfly · 3 flower · 4 sun · 5 frog · 6 kite · 7 rocket ·
+//   8 plane · 9 house · 10 beetle
+export const PORTRAIT_ORDER = [1, 2, 10, 5, 7, 9, 8, 6, 4, 3];
 
 // Human-readable names, keyed by portrait index. Used by the game's heading and
 // instruction line. Cosmetic only.
@@ -31,6 +32,8 @@ export const PORTRAIT_NAMES = {
   6: 'Kite',
   7: 'Rocket',
   8: 'Plane',
+  9: 'House',
+  10: 'Beetle',
 };
 
 export function portraitName(portrait) {
@@ -56,10 +59,14 @@ export const LAYER_RECIPE = [1, 2, 3, 4];
 // next to the portraits it applies to rather than being buried in the scene.
 export const PORTRAIT_CHROMA_KEY = 0xffffff;
 
-// A texture key is `p<portrait><variant><part>`, e.g. p213 = portrait 2,
-// variant 1, part 3. This must match the keys in assets.js exactly.
+// A texture key for a (portrait, variant, part) triple. Portraits 1-8 use the
+// compact `p<portrait><variant><part>` form (p213 = portrait 2, variant 1,
+// part 3); portrait 10 needs two digits, which that form cannot express without
+// colliding (`p101` would read as portrait 1), so 9 and up use the delimited
+// `p<portrait>v<variant>p<part>` form (p10v1p2). This must match the keys in
+// assets.js exactly.
 export function textureKey(portrait, variant, part) {
-  return `p${portrait}${variant}${part}`;
+  return portrait > 8 ? `p${portrait}v${variant}p${part}` : `p${portrait}${variant}${part}`;
 }
 
 // The page label shown under each portrait (e.g. page 1 -> "Portrait 1").
@@ -81,7 +88,8 @@ export function portraitForPage(pageNumber) {
 export function variantsForPortrait(portrait) {
   const variants = new Set();
   for (const key of Object.keys(IMAGES)) {
-    if (Number(key[1]) === portrait) variants.add(Number(key[2]));
+    const parsed = parseTextureKey(key);
+    if (parsed && parsed.portrait === portrait) variants.add(parsed.variant);
   }
   return [...variants].sort((a, b) => a - b);
 }

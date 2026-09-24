@@ -21,9 +21,8 @@ small and all commented `DEV`):
        update as devUpdate,
        select as devSelect,
        getSelected as devGetSelected,
-       getOverride as devGetOverride,
        setRelayout as devSetRelayout,
-     } from '@/games/game-11/dev-backup/devEditor';
+     } from '@/games/game-11/devEditor';
 
      const DEV_EDITOR = import.meta.env.DEV;
      ```
@@ -43,12 +42,14 @@ small and all commented `DEV`):
      - top of `onPointerDown`: `if (DEV_EDITOR && this.devPickPart(pointer)) return;`
      - top of `onPointerMove`: `if (this.devDrag) return this.devDragMove(pointer);`
      - top of `onPointerUp`: `if (this.devDrag) { this.devDrag = null; return; }`
-   - Restore the `dev*` methods: `devPickPart`, `devDragMove`, `devRelayout`,
-     `devRefreshSlots`, `devResortCopies`, `devKeyDown`, `devSnapshot`.
-   - In `buildPortrait()` the returned container needs its `pivot` and `parts`
-     (`container.pivot = pivot; container.parts = partImages;`) — these were kept
-     in the live build, so nothing to restore there.
-   - Confirm `SHOW_DUPLICATE = true` while editing and back to `false` after.
+   - Restore the `dev*` methods: `devTick`, `devPickPart`, `devDragMove`,
+     `devRelayout`, `devKeyDown`, `devSnapshot`.
+   - **Add the container handles** — `buildBoard()` keeps `this.originalContainer =
+     original.container`, and `buildPortrait()` sets `container.pivot = pivot;`
+     and `container.parts = partImages;` before returning. These are what the
+     editor's hit-test and drag read.
+   - In `buildBoard()`, or just hide the mirror by setting `SHOW_DUPLICATE_ALPHA`
+     to a small value (e.g. `0.35`) while editing, then back to `0` after.
 
 2. **`src/games/game-11/portraitPositions.js`**
    - `partTransform()` must merge the override global:
@@ -63,13 +64,17 @@ small and all commented `DEV`):
      ```jsx
      {import.meta.env.DEV ? <DevEditorPanel /> : null}
      ```
+   - (It was lazily imported so it dropped out of the production bundle.)
 
 4. **`devEditor.js` import paths** — the copies here import from
    `@/games/game-11/dev-backup/devEditor`. If you move them back to
    `src/games/game-11/`, update that path.
 
-## Tuning flags that were also switched off
+## Key format note
 
-In `GameScene.js`, these were part of the same tuning pass and are now off:
-`DRAW_GUIDE_LINES`, `SHOW_DUPLICATE`, `DEV_ROUND_SKIP`, and the guide-line /
-round-skip helpers. They can stay off for production.
+Portraits 1-8 use the compact key `p<portrait><variant><part>` (e.g. `p213`).
+Portrait 10 needs two digits, which that form cannot express without colliding
+(`p101` would read as portrait 1), so **portraits 9 and up use the delimited form
+`p<portrait>v<variant>p<part>`** (e.g. `p10v1p2`). `portraits.js` `textureKey()`
+and `assets.js` `parseTextureKey()` are the two ends of that rule; `keys.test.js`
+covers it.

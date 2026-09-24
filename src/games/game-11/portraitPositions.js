@@ -23,13 +23,17 @@
 // back to the part's natural layer order.
 //
 // ---------------------------------------------------------------------------
-// PART KEYS  —  p<portrait><variant><part>
+// PART KEYS  —  p<portrait><variant><part>  (or p<n>v<v>p<p> for portraits 9+)
 // ---------------------------------------------------------------------------
-//   key[1] portrait  which character/object (1-8)
-//   key[2] variant   which frame of that portrait (1-4)
-//   key[3] part      which layer           (1 = back ... 4 = front)
+//   portrait  which character/object (1-10)
+//   variant   which frame of that portrait (1-4)
+//   part      which layer                (1 = back ... 4 = front)
 //
-// e.g. `p213` = the 2nd portrait, 1st variant, 3rd part.
+// e.g. `p213` = the 2nd portrait, 1st variant, 3rd part — and, once a portrait
+// needs two digits, `p10v1p2` = the 10th portrait, 1st variant, 2nd part. The
+// compact form cannot express a two-digit portrait (p101 would read as portrait
+// 1), so 9 and up use the delimited form. game-11/portraits.js textureKey() and
+// assets.js parseTextureKey() are the two ends of that rule.
 //
 // Layers are drawn back-to-front, so part 4 paints on top of part 3, etc.
 // Re-order LAYER_RECIPE in portraits.js to change that globally.
@@ -66,11 +70,13 @@ export const PORTRAIT_SCALE = {
   1: 1, // boat
   2: 1.8, // butterfly
   3: 2, // flower
-  4: 3, // sun
+  4: 4, // sun
   5: 1.5, // frog
-  6: 2, // kite
+  6: 3, // kite
   7: 1.2, // rocket
   8: 1.6, // plane
+  9: 1.6, // house
+  10: 0.9, // beetle
 };
 
 // ---------------------------------------------------------------------------
@@ -91,11 +97,13 @@ export const PORTRAIT_POSITION = {
   1: { x: 363, y: 435, rotation: 0 }, // boat
   2: { x: 360, y: 457, rotation: 0 }, // butterfly
   3: { x: 415, y: 400, rotation: 10 }, // flower
-  4: { x: 295, y: 750, rotation: 12 }, // sun
+  4: { x: 250, y: 780, rotation: 12 }, // sun
   5: { x: 295, y: 480, rotation: 0 }, // frog
-  6: { x: 402, y: 727, rotation: -12 }, // kite
+  6: { x: 402, y: 852, rotation: -12 }, // kite
   7: { x: 323, y: 540, rotation: 0 }, // rocket
   8: { x: 360, y: 550, rotation: -11 }, // plane
+  9: { x: 360, y: 540, rotation: 0 }, // house
+  10: { x: 330, y: 540, rotation: 0 }, // beetle
 };
 
 // The fixed point each portrait scales around, in design space. Omit a portrait
@@ -128,16 +136,22 @@ export const PORTRAIT_MIRROR = {
   1: { enabled: true, x: 363, y: 645, rotation: 0, flip: 'vertical' }, // boat — upside down
   2: { enabled: true, x: 360, y: 624, rotation: 0, flip: 'vertical' }, // butterfly — upside down
   3: { enabled: true, x: 205, y: 555, rotation: -82, flip: 'horizontal' }, // flower
-  4: { enabled: true, x: 565, y: 567, rotation: -80, flip: 'horizontal' }, // sun
+  4: { enabled: true, x: 615, y: 535, rotation: -80, flip: 'horizontal' }, // sun
   5: { enabled: true, x: 425, y: 480, rotation: 0, flip: 'horizontal' }, // frog
-  6: { enabled: true, x: 175, y: 580, rotation: 78, flip: 'horizontal' }, // kite
+  6: { enabled: true, x: 68, y: 632, rotation: 78, flip: 'horizontal' }, // kite
   7: { enabled: true, x: 395, y: 540, rotation: 0, flip: 'horizontal' }, // rocket
   8: { enabled: true, x: 350, y: 545, rotation: 79, flip: 'horizontal' }, // plane
+  9: { enabled: true, x: 358, y: 540, rotation: 0, flip: 'horizontal' }, // house — same as frog
+  10: { enabled: true, x: 330, y: 540, rotation: 0, flip: 'vertical' }, // beetle — same as butterfly
 };
 
 // Each entry's `z` is its drawing layer — a higher `z` paints on top of a lower
 // one, so raise a part to pull it forward (e.g. a hand over a body) without
 // moving it. Leave them in their natural 1,2,3,4 order for the default stacking.
+//
+// Optional `flipX: true` mirrors JUST that piece's own art left-to-right,
+// independently of the whole-portrait mirror. Use it when a single part's
+// artwork faces the wrong way inside an otherwise-correct portrait.
 export const PORTRAIT_POSITIONS = {
   // =========================================================================
   // 1 — BOAT (4 frames)
@@ -157,10 +171,10 @@ export const PORTRAIT_POSITIONS = {
   // =========================================================================
   // 3 — FLOWER (4 frames)
   // =========================================================================
-   p311: { x: 297, y: 601, scale: 0.2, rotation: 0, z: 1 },
-  p312: { x: 312, y: 650, scale: 0.2, rotation: 0, z: 2 },
-  p313: { x: 360, y: 661, scale: 0.2, rotation: 0, z: 3 },
-  p321: { x: 341, y: 618, scale: 0.14, rotation: 0, z: 4 },
+  p311: { x: 278, y: 597, scale: 0.29, rotation: 0, z: 1 },
+  p321: { x: 341, y: 618, scale: 0.2, rotation: 0, z: 4 },
+  p312: { x: 296, y: 668, scale: 0.29, rotation: 0, z: 2 },
+  p313: { x: 367, y: 681, scale: 0.29, rotation: 0, z: 3 },
 
   // =========================================================================
   // 4 — SUN (3 frames)
@@ -172,10 +186,9 @@ export const PORTRAIT_POSITIONS = {
   // =========================================================================
   // 5 — FROG (3 frames)
   // =========================================================================
-  p511: { x: 381, y: 501, scale: 0.2, rotation: 0, z: 1 },
-  p512: { x: 385, y: 572, scale: 0.24, rotation: 0, z: 2 },
-  p513: { x: 357, y: 598, scale: 0.24, rotation: 0, z: 3 },
-
+  p511: { x: 371, y: 486, scale: 0.28, rotation: 0, z: 1 },
+  p512: { x: 376, y: 585, scale: 0.33, rotation: 0, z: 2 },
+  p513: { x: 335, y: 621, scale: 0.32, rotation: 0, z: 3 },
   // =========================================================================
   // 6 — KITE (3 frames)
   // =========================================================================
@@ -186,17 +199,32 @@ export const PORTRAIT_POSITIONS = {
   // =========================================================================
   // 7 — ROCKET (4 frames)
   // =========================================================================
-  p711: { x: 362, y: 538, scale: 0.41, rotation: 0, z: 1 },
-  p712: { x: 368, y: 415, scale: 0.32, rotation: 0, z: 2 },
-  p713: { x: 317, y: 590, scale: 0.32, rotation: 0, z: 3 },
-  p721: { x: 368, y: 686, scale: 0.23, rotation: 0, z: 4 },
-
+  p711: { x: 353, y: 538, scale: 0.51, rotation: 0, z: 1 },
+  p721: { x: 362, y: 725, scale: 0.29, rotation: 0, z: 4 },
+  p712: { x: 363, y: 386, scale: 0.4, rotation: 0, z: 2 },
+  p713: { x: 293, y: 611, scale: 0.42, rotation: 0, z: 3 },
   // =========================================================================
   // 8 — PLANE (3 frames)
   // =========================================================================
-  p811: { x: 351, y: 536, scale: 0.35, rotation: 45.5, z: 1 },
-  p812: { x: 325, y: 497, scale: 0.24, rotation: 0, z: 2 },
-  p813: { x: 271, y: 584, scale: 0.22, rotation: 0, z: 3 },
+  p811: { x: 346, y: 537, scale: 0.56, rotation: 45.5, z: 1 },
+  p812: { x: 285, y: 501, scale: 0.34, rotation: 0, z: 2 },
+  p813: { x: 235, y: 600, scale: 0.28, rotation: 0, z: 3 },
+
+  // =========================================================================
+  // 9 — HOUSE (3 frames)   [delimited keys: p<n>v<v>p<p>]
+  // =========================================================================
+  // Starting guesses — tune with the dev editor (drag/nudge, then paste back).
+  p9v1p1: { x: 301, y: 474, scale: 0.37, rotation: 0, z: 1 },
+  p9v1p2: { x: 300, y: 609, scale: 0.42, rotation: 0, z: 2 },
+  p9v1p3: { x: 294, y: 576, scale: 0.14, rotation: 0, z: 3 },
+
+  // =========================================================================
+  // 10 — BEETLE (3 frames)   [delimited keys: p<n>v<v>p<p>]
+  // =========================================================================
+  p10v1p1: { x: 351, y: 474, scale: 0.67, rotation: 90, z: 1 },
+  p10v1p2: { x: 557, y: 485, scale: 0.5, rotation: 90, z: 2 },
+  p10v1p3: { x: 360, y: 396, scale: 0.5, rotation: 86, z: 3 },
+
 };
 
 // The accessors below read through `tables()` rather than the module constants
@@ -318,6 +346,8 @@ export const DIVIDER = {
   6: { x: 392, y: 500, rotation: 123, length: 1300 }, // kite
   7: { x: 359, y: 540, rotation: 90, length: 1080 }, // rocket — side by side
   8: { x: 355, y: 547, rotation: 125, length: 1300 }, // plane — side by side
+  9: { x: 360, y: 480, rotation: 90, length: 1080 }, // house — same line as frog
+  10: { x: 360, y: 540, rotation: 0, length: 720 }, // beetle — same line as butterfly
 };
 
 // The divider's resolved config for a portrait, or null when it is disabled.
