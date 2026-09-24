@@ -1,11 +1,7 @@
 // GamePage.jsx
-// Game 11 — BOILERPLATE ONLY. The game itself is not built yet; this file is
-// the page chrome that will not change once the mechanics land. It mirrors
-// Game 10's page exactly, so the two are directly comparable.
-//
-// TODO(Game 11): update `gameLabel` (both gates) and the catalogue entry's
-// label/title in src/gameAccess.js once the real name is chosen. The gates'
-// labels must match the catalogue, or the lock screen and the card disagree.
+// Game 11 — "Matching Symmetry" page chrome. The `gameLabel` values here must
+// match the catalogue entry's label/title in registry.js, or the lock screen
+// and the card disagree.
 import { Link } from 'react-router-dom';
 import Game from '@/games/game-11/Game';
 import NameGate from '@/auth/NameGate';
@@ -14,8 +10,8 @@ import { usePlayerStore } from '@/auth/playerStore';
 
 export default function GamePage() {
   return (
-    <NameGate gameLabel="Game 11: Feed Me Shapes 2">
-      <GameAccessGate gameNumber={11} gameLabel="Feed Me Shapes 2">
+    <NameGate gameLabel="Game 11: Matching Symmetry">
+      <GameAccessGate gameNumber={11} gameLabel="Matching Symmetry">
         <GamePageInner />
       </GameAccessGate>
     </NameGate>

@@ -18,7 +18,7 @@ export default function Game({ playerName }) {
       assets: ASSET_MANIFEST,
       nextSceneKey: 'GameScene',
       loadingEmoji: '\uD83E\uDDE9',
-      loadingText: 'Getting the game ready...',
+      loadingText: 'Getting the portraits ready...',
     }),
     new GameScene(),
   ];

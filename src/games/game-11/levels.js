@@ -1,16 +1,19 @@
 // levels.js
-// Game 11 — BOILERPLATE ONLY.
+// Game 11 — round curriculum.
 //
-// Keep this file Phaser-free: it is pure data so it can be unit-tested and so
-// the scene module stays the only thing that imports Phaser. Fill in the round
-// curriculum when the game is built; the constants below are the shape the
-// rest of the game expects, not final content.
+// Pure data (Phaser-free) so it can be unit-tested. One round per portrait:
+// the child rebuilds the portrait's mirrored duplicate by dragging each part
+// into place. The order follows PORTRAIT_ORDER, so adding a portrait there
+// adds a round here automatically.
+import { PORTRAIT_ORDER, portraitName } from '@/games/game-11/portraits';
 
-export const TOTAL_ROUNDS = 10;
-export const FEEDS_PER_ROUND = 2;
+export const TOTAL_ROUNDS = PORTRAIT_ORDER.length;
 
-// TODO(Game 11): define the round curriculum here once the mechanic is chosen.
-// Each entry should carry at least { level, prompt, voiceKey } — and anything
-// else the scene needs to render a round (e.g. a target + hint art), matching
-// how Game 10's ROUND_SCRIPT drives its per-round prompt and hint image.
-export const ROUND_SCRIPT = [];
+// `portrait`   which portrait this round builds (its index into the tuning file)
+// `name`       the portrait's display name (heading + instruction)
+// `prompt`     the instruction line shown under the heading
+export const ROUND_SCRIPT = PORTRAIT_ORDER.map((portrait) => ({
+  portrait,
+  name: portraitName(portrait),
+  prompt: `Build the ${portraitName(portrait)}!`,
+}));

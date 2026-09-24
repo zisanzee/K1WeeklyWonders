@@ -253,9 +253,9 @@ export const GAME_REGISTRY = [
     load: () => import('@/games/feed-me-shapes/GamePage'),
   },
   {
-    // Placeholder identity — the game itself is not built yet. Change
-    // key/label/title/route only in tandem with GamePage.jsx's gate labels and
-    // the game's logPlaySession slug, as noted in that file.
+    // Identity for "Matching Symmetry". Change label/title/subtitle only in
+    // tandem with GamePage.jsx's gate labels, or the lock screen and the card
+    // disagree.
     key: '11',
     slug: 'game-11',
     route: '/51730',
@@ -263,10 +263,10 @@ export const GAME_REGISTRY = [
     progressKey: 'game11',
     meta: {
       emoji: '\uD83E\uDDE9',
-      label: 'Feed Me Shapes 2',
-      title: 'Feed Me Shapes 2',
-      subtitle: 'Placeholder\n(Game 11)',
-      description: 'Game 11 — placeholder entry. Mechanics and content to be built.',
+      label: 'Matching Symmetry',
+      title: 'Matching Symmetry',
+      subtitle: 'Match the mirrored parts',
+      description: 'Rebuild each picture by dragging its pieces into the matching spot on its mirror image.',
       hue: '#0EA5E9',
       tint: '#E0F2FE',
       gradient: 'linear-gradient(135deg, #7DD3FC 0%, #0EA5E9 55%, #0369A1 100%)',
