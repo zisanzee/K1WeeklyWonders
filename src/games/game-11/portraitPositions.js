@@ -279,6 +279,58 @@ export function optionTransform(partKey) {
 }
 
 // ---------------------------------------------------------------------------
+// DIVIDER LINE
+// ---------------------------------------------------------------------------
+// A thin line drawn through each round to separate the original portrait from
+// its mirrored copy, with a soft colour glow bleeding off each side. Position
+// and tilt it per portrait; the colours and softness are global defaults you
+// can override per round.
+//
+//   x, y       where the CENTRE of the line sits (720x1080 internal pixels)
+//   rotation   how far the line is tilted, in DEGREES clockwise. 0 = a
+//              HORIZONTAL line (its two glows sit above/below); 90 = VERTICAL
+//              (glows sit left/right)
+//   length     how long the line is, in px
+//   thickness  line width            (default: DIVIDER_DEFAULTS.thickness)
+//   depth      how far each coloured glow reaches away from the line before it
+//              has faded fully into the background. The default is large enough
+//              to span the canvas from any line position, so each side's colour
+//              washes all the way back to the edge rather than stopping short.
+//   alpha      the glow's opacity where it meets the line (fades to 0 outward)
+//   colorA/B   the two side colours
+//   enabled    set false to hide a round's divider without losing its tuning
+export const DIVIDER_DEFAULTS = {
+  thickness: 3,
+  depth: 760,
+  alpha: 0.5,
+  colorA: 0xd98a5f, // warm
+  colorB: 0x5f9ea0, // cool
+  lineColor: 0x5b4a2f,
+  lineAlpha: 0.45,
+};
+
+export const DIVIDER = {
+  1: { x: 363, y: 540, rotation: 0, length: 720 }, // boat — copies stacked
+  2: { x: 360, y: 540, rotation: 0, length: 720 }, // butterfly — stacked
+  3: { x: 360, y: 540, rotation: 53, length: 1370 }, // flower
+  4: { x: 355, y: 540, rotation: 56, length: 1300 }, // sun
+  5: { x: 360, y: 480, rotation: 90, length: 1080 }, // frog — side by side
+  6: { x: 392, y: 500, rotation: 123, length: 1300 }, // kite
+  7: { x: 359, y: 540, rotation: 90, length: 1080 }, // rocket — side by side
+  8: { x: 355, y: 547, rotation: 125, length: 1300 }, // plane — side by side
+};
+
+// The divider's resolved config for a portrait, or null when it is disabled.
+// Merges the per-round entry over the global defaults so a round only has to
+// state what differs.
+export function dividerFor(portrait) {
+  const t = tables();
+  const entry = t.DIVIDER[portrait];
+  if (!entry || entry.enabled === false) return null;
+  return { ...t.DIVIDER_DEFAULTS, ...entry };
+}
+
+// ---------------------------------------------------------------------------
 // LIVE TABLES + DEV HOT-SWAP
 // ---------------------------------------------------------------------------
 // When you save an edit, Vite replaces this whole module, but a Phaser scene
@@ -305,6 +357,8 @@ const LIVE_TABLES = {
   PORTRAIT_MIRROR,
   PORTRAIT_POSITIONS,
   OPTION_TRANSFORM,
+  DIVIDER,
+  DIVIDER_DEFAULTS,
   DEFAULT_PART,
   DEFAULT_PIVOT,
 };

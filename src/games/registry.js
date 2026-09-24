@@ -253,9 +253,8 @@ export const GAME_REGISTRY = [
     load: () => import('@/games/feed-me-shapes/GamePage'),
   },
   {
-    // Identity for "Matching Symmetry". Change label/title/subtitle only in
-    // tandem with GamePage.jsx's gate labels, or the lock screen and the card
-    // disagree.
+    // Identity for "Mirror Me!". Change label/title/subtitle only in tandem with
+    // GamePage.jsx's gate labels, or the lock screen and the card disagree.
     key: '11',
     slug: 'game-11',
     route: '/51730',
@@ -263,8 +262,8 @@ export const GAME_REGISTRY = [
     progressKey: 'game11',
     meta: {
       emoji: '\uD83E\uDDE9',
-      label: 'Matching Symmetry',
-      title: 'Matching Symmetry',
+      label: 'Mirror Me!',
+      title: 'Mirror Me!',
       subtitle: 'Match the mirrored parts',
       description: 'Rebuild each picture by dragging its pieces into the matching spot on its mirror image.',
       hue: '#0EA5E9',

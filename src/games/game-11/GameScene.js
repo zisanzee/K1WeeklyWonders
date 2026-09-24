@@ -1,5 +1,5 @@
 // GameScene.js
-// Game 11 — "Matching Symmetry".
+// Game 11 — "Mirror Me!".
 //
 // One round per portrait (8 total). Each round:
 //   1. The finished ORIGINAL portrait is shown, assembled, as the reference.
@@ -25,7 +25,7 @@
 //   portraits.js          page order + layer order (pure helpers)
 import * as Phaser from 'phaser';
 import BaseScene from '@/phaser/BaseScene';
-import { ensureBgMusic, addMuteButton } from '@/phaser/common/audioState';
+import { ensureBgMusic, addMuteButton, isMuted } from '@/phaser/common/audioState';
 import {
   makeConfettiTexture,
   makeConfettiSquareTexture,
@@ -38,6 +38,7 @@ import {
   portraitPosition,
   portraitMirror,
   optionTransform,
+  dividerFor,
 } from '@/games/game-11/portraitPositions';
 import { ROUND_SCRIPT, TOTAL_ROUNDS } from '@/games/game-11/levels';
 
@@ -57,6 +58,19 @@ const SHOW_DUPLICATE_ALPHA = 0;
 const TITLE_Y = 54;
 const PROMPT_Y = 108;
 const TRAY_TOP = 892; // top edge of the option area
+
+// Header panel — a soft rounded card behind the title + instruction so they stay
+// legible over the portraits and the divider gradient that now reach the top of
+// the canvas. Sized to sit above both text baselines with even breathing room.
+const HEADER_MARGIN = 16;
+const HEADER_TOP = 14;
+const HEADER_HEIGHT = 132;
+const HEADER_RADIUS = 28;
+const HEADER_FILL = 0xfff7e6;
+const HEADER_FILL_ALPHA = 0.9;
+const HEADER_STROKE = 0x5b4a2f;
+const HEADER_STROKE_ALPHA = 0.16;
+const HEADER_STROKE_WIDTH = 3;
 
 // Option area. One BOX per part — 4 boxes when the portrait has 4 parts, 3 when
 // it has 3 — laid out in a row and evenly filling the width. A piece is centred
@@ -78,12 +92,26 @@ const OPTION_HIT_PAD = 10; // slack around a piece's own bounds when grabbing
 const TRAY_AREA_BOTTOM = 1080;
 const DRAW_TRAY_BOXES = true;
 
+// Option-box styling. A warm cream fill that separates the cell from the tan
+// backdrop without competing with the artwork, plus a soft brown outline so the
+// cell reads as a tray slot rather than a floating white patch.
+const TRAY_BOX_FILL = 0xfff7e6;
+const TRAY_BOX_FILL_ALPHA = 0.92;
+const TRAY_BOX_STROKE = 0x5b4a2f;
+const TRAY_BOX_STROKE_ALPHA = 0.32;
+const TRAY_BOX_STROKE_WIDTH = 3;
+
 // Draw order bands.
 const DEPTH_BACKDROP = 0;
+const DEPTH_DIVIDER = 2; // the round divider sits behind the portraits
 const DEPTH_REFERENCE = 5;
 const DEPTH_HUD = 20;
 const DEPTH_TRAY = 30;
 const DEPTH_DRAG = 60;
+const DEPTH_START = 400; // the start screen covers everything, even the end panel
+
+// Start screen — the title card fills the canvas and a Start button sits low.
+const START_BUTTON_Y = 952;
 
 export default class GameScene extends BaseScene {
   constructor() {
@@ -120,6 +148,26 @@ export default class GameScene extends BaseScene {
       backdrop.fillGradientStyle(0xffffff, 0xffffff, 0xf3e8d0, 0xf3e8d0, 1);
       backdrop.fillRect(0, 0, width, height);
     }
+
+    // Header card behind the fixed HUD text (drawn one below the text so the
+    // words sit on top, but above the portraits so the top stays readable).
+    const header = this.add.graphics().setDepth(DEPTH_HUD - 1);
+    header.fillStyle(HEADER_FILL, HEADER_FILL_ALPHA);
+    header.lineStyle(HEADER_STROKE_WIDTH, HEADER_STROKE, HEADER_STROKE_ALPHA);
+    header.fillRoundedRect(
+      HEADER_MARGIN,
+      HEADER_TOP,
+      width - HEADER_MARGIN * 2,
+      HEADER_HEIGHT,
+      HEADER_RADIUS
+    );
+    header.strokeRoundedRect(
+      HEADER_MARGIN,
+      HEADER_TOP,
+      width - HEADER_MARGIN * 2,
+      HEADER_HEIGHT,
+      HEADER_RADIUS
+    );
 
     // Fixed HUD.
     this.titleText = this.add
@@ -173,9 +221,15 @@ export default class GameScene extends BaseScene {
     // when a tuning value is saved — instant preview, no page refresh.
     if (typeof globalThis !== 'undefined') globalThis.__G11_GAME__ = this.game;
     this.game.events.on('g11:tuning', this.onTuning, this);
-    this.events.once('shutdown', () => this.game.events.off('g11:tuning', this.onTuning, this));
+    this.events.once('shutdown', () => {
+      this.game.events.off('g11:tuning', this.onTuning, this);
+      // Don't let the start-screen voice keep playing if the player backs out
+      // before pressing Start.
+      this.stopWelcome();
+    });
 
     this.setupRound(0);
+    this.buildStartOverlay();
   }
 
   // DEV: rebuild the current round in place so a saved tuning edit is visible
@@ -183,6 +237,91 @@ export default class GameScene extends BaseScene {
   onTuning() {
     if (this.drag) return;
     this.setupRound(this.roundIndex);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Start screen
+  // ---------------------------------------------------------------------------
+
+  // Covers the first round with the title card and a Start button. The board is
+  // built underneath (setupRound already ran) so pressing Start is a simple
+  // fade-away into play rather than another setup pass.
+  buildStartOverlay() {
+    const { width, height } = this.scale;
+    this.phase = 'start';
+
+    this.startOverlay = this.add.container(0, 0).setDepth(DEPTH_START);
+
+    // The title card covers the canvas (cover-fit, never letterboxed).
+    const card = this.add.image(width / 2, height / 2, 'startScreen');
+    card.setScale(Math.max(width / card.width, height / card.height));
+    this.startOverlay.add(card);
+
+    const startBtn = this.createPillButton(width / 2, START_BUTTON_Y, 'Start \u25B6', {
+      fontSize: '34px',
+      paddingX: 48,
+      paddingY: 20,
+      depth: DEPTH_START + 1,
+    });
+    // createPillButton returns a wrapper ({ container, on, ... }), not a plain
+    // GameObject — add its container to the overlay, and tween that same
+    // container, or Phaser chokes putting a non-GameObject into a Container.
+    this.startOverlay.add(startBtn.container);
+    // A gentle pulse so the button reads as the thing to press.
+    this.tweens.add({
+      targets: startBtn.container,
+      scale: 1.06,
+      duration: 780,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut',
+    });
+
+    startBtn.on('pointerup', () => this.beginPlay());
+
+    this.playWelcome();
+  }
+
+  // Plays the start-screen voice-over, deferring to the audio unlock if the
+  // browser blocks autoplay before any tap. Not looped: if it finishes on its
+  // own the screen simply goes quiet, waiting for Start.
+  playWelcome() {
+    this.sound.mute = isMuted();
+    const voice = this.sound.add('welcome', { volume: 0.9 });
+    this.welcomeVoice = voice;
+
+    const tryPlay = () => {
+      if (voice.isPlaying) return;
+      voice.play();
+    };
+    tryPlay();
+    this.sound.once('unlocked', tryPlay);
+  }
+
+  // Stops the start-screen voice the moment play begins. Goes through the
+  // SoundManager's remove so the sound is torn down, not just silenced.
+  stopWelcome() {
+    const voice = this.welcomeVoice;
+    this.welcomeVoice = null;
+    if (voice) this.sound.remove(voice);
+  }
+
+  // Fades the start screen out, then drops into the first round.
+  beginPlay() {
+    if (this.phase !== 'start') return;
+    this.phase = 'playing';
+    this.stopWelcome();
+    ensureBgMusic(this);
+
+    const overlay = this.startOverlay;
+    this.startOverlay = null;
+    this.tweens.add({
+      targets: overlay,
+      alpha: 0,
+      duration: 420,
+      ease: 'Sine.easeOut',
+      onComplete: () => overlay.destroy(true),
+    });
   }
 
   // ---------------------------------------------------------------------------
@@ -198,9 +337,11 @@ export default class GameScene extends BaseScene {
     this.slots = [];
     this.trayItems = [];
 
-    // Tear down the previous round's board and row.
+    // Tear down the previous round's divider, board and row.
+    if (this.dividerLayer) this.dividerLayer.destroy(true);
     if (this.boardLayer) this.boardLayer.destroy(true);
     if (this.trayLayer) this.trayLayer.destroy(true);
+    this.dividerLayer = this.add.container(0, 0).setDepth(DEPTH_DIVIDER);
     this.boardLayer = this.add.container(0, 0).setDepth(DEPTH_REFERENCE);
     this.trayLayer = this.add.container(0, 0).setDepth(DEPTH_TRAY);
     // The original and its duplicate both live inside this one group, so the
@@ -212,8 +353,52 @@ export default class GameScene extends BaseScene {
     this.promptText.setText('Drag each piece onto its spot');
     this.roundPill.setText(`Round\n${index + 1}/${TOTAL_ROUNDS}`);
 
+    this.buildDivider();
     this.buildBoard();
     this.buildTray();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Divider — a thin tuned line with a soft two-colour glow bleeding off each side
+  // ---------------------------------------------------------------------------
+
+  buildDivider() {
+    const cfg = dividerFor(this.round.portrait);
+    if (!cfg) return;
+
+    // One container per side, so each glow tapers about a different colour and
+    // the two cannot bleed into each other across the line.
+    const half = cfg.length / 2;
+    for (const side of [-1, 1]) {
+      const colour = side < 0 ? cfg.colorA : cfg.colorB;
+      const glow = this.add.graphics();
+      // The glow runs from the line out to `depth`; drawn as a stack of bands,
+      // each thinner in alpha the further it is from the line, so the fade is a
+      // gradient rather than a hard edge. That depth defaults to more than the
+      // canvas diagonal, so the colour falls all the way back into the
+      // background instead of stopping short. Many thin bands keep an otherwise
+      // very long taper smooth.
+      const bands = 48;
+      for (let i = 0; i < bands; i += 1) {
+        const t0 = i / bands;
+        const t1 = (i + 1) / bands;
+        const y0 = (side * cfg.depth * t0);
+        const y1 = (side * cfg.depth * t1);
+        // Fade from `alpha` at the line (t=0) to 0 at the outer edge (t=1).
+        glow.fillStyle(colour, cfg.alpha * (1 - t1) * 0.6);
+        glow.fillRect(-half, Math.min(y0, y1), cfg.length, Math.abs(y1 - y0) + 1);
+      }
+      glow.setRotation((cfg.rotation * Math.PI) / 180);
+      const wrap = this.add.container(cfg.x, cfg.y, [glow]);
+      this.dividerLayer.add(wrap);
+    }
+
+    // The crisp line itself, on top of both glows.
+    const line = this.add.graphics();
+    line.fillStyle(cfg.lineColor, cfg.lineAlpha);
+    line.fillRect(-half, -cfg.thickness / 2, cfg.length, cfg.thickness);
+    line.setRotation((cfg.rotation * Math.PI) / 180);
+    this.dividerLayer.add(this.add.container(cfg.x, cfg.y, [line]));
   }
 
   // ---------------------------------------------------------------------------
@@ -361,8 +546,19 @@ export default class GameScene extends BaseScene {
       for (let i = 0; i < n; i += 1) {
         const cx = boxCentreX(i);
         const r = this.add
-          .rectangle(cx, boxTop + boxH / 2, boxW, boxH, 0xffffff, 0.5)
-          .setStrokeStyle(3, 0x5b4a2f, 0.28)
+          .rectangle(
+            cx,
+            boxTop + boxH / 2,
+            boxW,
+            boxH,
+            TRAY_BOX_FILL,
+            TRAY_BOX_FILL_ALPHA
+          )
+          .setStrokeStyle(
+            TRAY_BOX_STROKE_WIDTH,
+            TRAY_BOX_STROKE,
+            TRAY_BOX_STROKE_ALPHA
+          )
           .setDepth(DEPTH_TRAY);
         this.trayLayer.add(r);
         r.setData('box', true);

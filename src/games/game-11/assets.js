@@ -15,6 +15,10 @@
 // Portrait 4 (boat) and 7 (rocket) have four frames; every other portrait has
 // three.
 export const IMAGES = {
+  // Title card, shown as the game's start screen (see buildStartOverlay).
+  startScreen:
+    'https://res.cloudinary.com/hijmipga/image/upload/v1790254877/game11-Start_nvzxwe.png',
+
   // 1 — boat
   p111: 'https://res.cloudinary.com/hijmipga/image/upload/v1790191510/boat1_sk5buu.png',
   p112: 'https://res.cloudinary.com/hijmipga/image/upload/v1790191508/boat2_pulypg.png',
@@ -62,15 +66,21 @@ export const IMAGES = {
 
 // Kept as a convenience view of the same URLs grouped per portrait, so tools or
 // future code can iterate portraits without re-parsing the flat keys. This is
-// derived from IMAGES, not a second source of truth.
+// derived from IMAGES, not a second source of truth. Keys that are not portrait
+// parts (like `startScreen`) are skipped.
 export const portraits = Object.entries(IMAGES).reduce((acc, [key, url]) => {
   const portrait = Number(key[1]);
+  if (!Number.isInteger(portrait)) return acc;
   if (!acc[portrait]) acc[portrait] = {};
   acc[portrait][key] = url;
   return acc;
 }, {});
 
 export const AUDIO = {
+  // Start-screen voice-over — plays on the title card and is cut when the
+  // player presses Start (see GameScene's buildStartOverlay/beginPlay).
+  welcome:
+    'https://res.cloudinary.com/hijmipga/video/upload/v1790255425/welcome_to_mirror_me_rqtlxj.mp3',
   // Shared cross-game SFX, referenced by URL exactly like the other games do.
   bgMusic: '/PhaserAssets/bg_music.m4a',
   wrong: '/PhaserAssets/wrong.wav',

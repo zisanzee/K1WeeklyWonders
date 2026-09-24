@@ -1,7 +1,7 @@
 // GamePage.jsx
-// Game 11 — "Matching Symmetry" page chrome. The `gameLabel` values here must
-// match the catalogue entry's label/title in registry.js, or the lock screen
-// and the card disagree.
+// Game 11 — "Mirror Me!" page chrome. The `gameLabel` values here must match
+// the catalogue entry's label/title in registry.js, or the lock screen and the
+// card disagree.
 import { Link } from 'react-router-dom';
 import Game from '@/games/game-11/Game';
 import NameGate from '@/auth/NameGate';
@@ -10,8 +10,8 @@ import { usePlayerStore } from '@/auth/playerStore';
 
 export default function GamePage() {
   return (
-    <NameGate gameLabel="Game 11: Matching Symmetry">
-      <GameAccessGate gameNumber={11} gameLabel="Matching Symmetry">
+    <NameGate gameLabel="Game 11: Mirror Me!">
+      <GameAccessGate gameNumber={11} gameLabel="Mirror Me!">
         <GamePageInner />
       </GameAccessGate>
     </NameGate>
