@@ -21,6 +21,14 @@ jobs:
       # on a deploy that does use it.
       - run: npm ci
 
+      # Supply-chain gate. The auth credential lives in localStorage, so a
+      # vulnerable dependency is an exfil path, not an abstract concern.
+      #
+      # BLOCKING: the pre-existing high/critical backlog was cleared on
+      # 2026-09-25 (`npm audit` reports 0 vulnerabilities), so a new high now
+      # fails the build rather than scrolling past.
+      - run: npm audit --audit-level=high
+
       - run: npm run lint
 
       - run: npm test

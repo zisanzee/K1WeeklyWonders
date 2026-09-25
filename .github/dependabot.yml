@@ -1,0 +1,61 @@
+# Dependabot configuration.
+#
+# WHY grouped updates: this project's dependency surface is unusually wide
+# (Phaser, jsPDF + the canvas stack, dnd-kit, React 19, Vite 8/rolldown), and
+# the auth credential lives in localStorage, so third-party code is the main
+# exfil vector. Ungrouped Dependabot would open one PR per package per week and
+# bury the security-relevant bump in noise — so minor/patch moves are batched
+# into a couple of PRs while anything that could break the build is isolated.
+#
+# WHY `phaser` and the PDF/canvas stack are their own groups: a breaking major
+# in either is a project-level event (Phaser v4 API churn, or a canvas/PDF
+# renderer that the student-badge export depends on) and must be reviewed
+# alone, never merged in behind a batch of unrelated patches.
+version: 2
+updates:
+  - package-ecosystem: npm
+    # The workspace root IS the frontend app — the Node/Express backend lives in
+    # a separate repo (D:\K1 games project\server) and is not tracked here.
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+    groups:
+      # Batched minor/patch for build-time tooling: safe to review as one PR.
+      dev-dependencies:
+        dependency-type: development
+        update-types:
+          - minor
+          - patch
+      # Batched minor/patch for shipped runtime deps.
+      production-dependencies:
+        dependency-type: production
+        update-types:
+          - minor
+          - patch
+      # Isolated: Phaser is the heaviest dep (~1.4MB) and v4 churn is frequent.
+      phaser:
+        patterns:
+          - phaser
+      # Isolated: the student-badge exporter stack. dompurify is included even
+      # though it is transitive — an XSS fix here is exactly what we want a
+      # dedicated, reviewed PR for rather than a silent patch bump.
+      pdf-canvas-stack:
+        patterns:
+          - jspdf
+          - html2canvas
+          - html-to-image
+          - dompurify
+
+  # Added because .github/workflows/ already exists: workflow actions are
+  # supply-chain surface too, and a stale pinned action is a real risk for a
+  # repo whose CI gates a production deploy.
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies

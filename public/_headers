@@ -74,3 +74,128 @@
 # the deploy that changed it, or an installed app keeps the old identity.
 /site.webmanifest
   Cache-Control: public, max-age=0, must-revalidate
+
+# ===========================================================================
+# SECURITY HEADERS
+# ===========================================================================
+#
+# WHY THIS IS A `/*` BLOCK: the "there is deliberately NO catch-all" warning at
+# the top of this file is about Cache-Control ONLY. For security headers a `/*`
+# block is the only sane place, because these must apply to every path (the SPA
+# fallback serves the same origin for /game1, /p/:code, etc.). Netlify applies
+# every matching path block and, for a given header, a more specific path wins —
+# so the per-path Cache-Control rules above still take precedence for their path.
+# This block deliberately sets NO Cache-Control, so it cannot resurrect the
+# deploy-caching problem the top of this file documents.
+#
+# CSP is derived from what the app ACTUALLY loads (verified by inspecting the
+# built bundle and src/), not from a template: every allowance below names a real
+# origin or a real inline construct, and the notes say why each is safe.
+Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://res.cloudinary.com; media-src 'self' blob: https://res.cloudinary.com; connect-src 'self' https://k1weekly-server.onrender.com https://api.ipify.org https://res.cloudinary.com; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests
+#
+# Why each directive is set the way it is:
+#   default-src 'self'          deny by default; every other directive is an
+#                               explicit allowance.
+#   script-src 'self'           Vite emits external content-hashed chunks and the
+#                               ONLY inline <script> is the application/ld+json
+#                               block in index.html, which is data and is NOT
+#                               governed by script-src. Phaser needs NO
+#                               'unsafe-eval': its sole new Function() is the
+#                               webpack global-detection fallback in
+#                               phaser.esm.js, guarded by
+#                               `typeof globalThis === 'object'` — dead code in
+#                               every browser this app supports. If a future
+#                               Phaser bump reintroduces a live eval, games will
+#                               throw a CSP violation and 'unsafe-eval' must be
+#                               added THEN; adding it pre-emptively would hand
+#                               any XSS a code-execution primitive for nothing.
+#   style-src ... 'unsafe-inline' + googleapis
+#                               inline styles are load-bearing: the boot loader
+#                               <style> in index.html and <style>/style={} in
+#                               ~15 components (every game's keyframes, the PWA
+#                               badges, StatsPanel). 'unsafe-inline' stays until
+#                               those are extracted or nonce'd — style injection
+#                               is a far weaker primitive than script injection.
+#                               Google serves the Fredoka stylesheet cross-origin.
+#   font-src gstatic            Fredoka's font files live on fonts.gstatic.com.
+#   img-src data: blob: cloudinary
+#                               Cloudinary is the image host for EVERY game
+#                               sprite and the teacher-onboarding GIFs; data:/
+#                               blob: cover the badge export (canvas toDataURL
+#                               plus html-to-image's blob/data URLs).
+#   media-src blob: cloudinary  all game audio/music (mp3/mp4/wav) is served from
+#                               Cloudinary and played via a media element;
+#                               without this they fall back to default-src and
+#                               every game goes silent.
+#   connect-src cloudinary      Phaser does not load art/audio through
+#                               <img>/<audio>: its loader issues an
+#                               XMLHttpRequest (loader.imageLoadType defaults to
+#                               'XHR', src/phaser/config.js never overrides it),
+#                               and XHR is governed by connect-src. Every game
+#                               sprite and sound comes from Cloudinary, so
+#                               listing it only under img-src/media-src would
+#                               silently break all game art and audio.
+#   connect-src api.ipify.org   the feedback form's best-effort public-IP lookup
+#                               (src/ui/FeedbackButton.jsx). The API origin MUST
+#                               match VITE_API_BASE_URL at build time — an
+#                               environment pointed at a different server needs
+#                               its origin added HERE too, or its calls are
+#                               blocked (and reported as a CSP, not CORS, error).
+#   worker-src 'self'           the PWA service worker is same-origin
+#                               (vite-plugin-pwa → /sw.js). No blob workers.
+#   manifest-src 'self'         public/site.webmanifest is same-origin.
+#   object-src 'none'           no <object>/<embed> anywhere; closes a legacy
+#                               plugin vector outright.
+#   base-uri 'self'             stops an injected <base> from re-pointing every
+#                               relative asset URL off-origin.
+#   form-action 'self'          no form ever posts off-origin, so an injected
+#                               form cannot exfiltrate the login credential.
+#   frame-ancestors 'none'      nothing may frame the app (paired with
+#                               X-Frame-Options below for older browsers). No
+#                               frame-src is set because the app frames nothing.
+#   upgrade-insecure-requests   rewrites any stray http:// subresource to https.
+#
+# Why the non-CSP headers:
+#   Strict-Transport-Security   once seen over HTTPS, force HTTPS for a year
+#                               (subdomains included) so a downgrade can't leak
+#                               the code that every write endpoint trusts.
+#   X-Content-Type-Options      stop a browser from MIME-sniffing a served asset
+#                               into something executable.
+#   Referrer-Policy             send only the origin on cross-origin requests so
+#                               a game/API/Cloudinary request never leaks the
+#                               full page URL (which can carry ?code=…).
+#   Permissions-Policy          switch off device APIs the app never uses, so a
+#                               compromised dependency can't reach them.
+#   X-Frame-Options             legacy clickjacking guard for browsers that
+#                               predate frame-ancestors.
+#   Cross-Origin-Opener-Policy  sever the window.opener link to any opener, so a
+#                               page that embeds/opens this one can't touch it.
+Strict-Transport-Security: max-age=31536000; includeSubDomains
+X-Content-Type-Options: nosniff
+Referrer-Policy: strict-origin-when-cross-origin
+Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=()
+X-Frame-Options: DENY
+Cross-Origin-Opener-Policy: same-origin
+
+# ===========================================================================
+# /p/* — tighten Referrer-Policy for the credential-bearing login route
+# ===========================================================================
+#
+# WHY: /p/:code is a student auto-login link (src/app/main.jsx) whose PATH
+# literally contains a live credential (.code). Under the `/*` policy above
+# (strict-origin-when-cross-origin) the path is stripped on cross-origin
+# requests, but the credential still sits in the URL users see, copy, and paste
+# around — and any same-origin subresource or future change could echo the full
+# URL. `no-referrer` guarantees the URL is never sent in a Referer header at all,
+# closing that echo path outright.
+#
+# Netlify merges every matching path block and, for a GIVEN header, the MORE
+# SPECIFIC path wins — so this /p/* entry overrides the Referrer-Policy from the
+# `/*` block for these paths only. Specificity is what we rely on here; order
+# does not matter.
+#
+# Deliberately sets NO Cache-Control: the top-of-file warning about the SPA
+# catch-all serving index.html under arbitrary paths (/p/:code included) still
+# applies, and this block must not reintroduce that caching problem.
+/p/*
+  Referrer-Policy: no-referrer

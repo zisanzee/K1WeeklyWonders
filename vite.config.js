@@ -207,6 +207,13 @@ export default defineConfig({
   appType: "spa",
 
   build: {
+    // Explicit, even though `false` is the production default: a future Vite
+    // change must not silently turn sourcemaps on. This app is static-hosted
+    // and its auth credential sits in localStorage, so publishing the original
+    // source (and anything embedded in it) is needless exposure — the browser
+    // must never be handed readable source for the running bundle.
+    sourcemap: false,
+
     rollupOptions: {
       output: {
         // Split Phaser out of the entry graph. It is the single heaviest
