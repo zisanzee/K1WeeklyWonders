@@ -13,17 +13,25 @@
 // manualChunks rule is not the only way to make them eager. A public/ file is
 // fetched lazily by the browser only where <img> actually renders it.
 
-// Maps a catalog `key` to its icon file, relative to the app origin.
+// Maps a catalog `key` to its icon URL. The value can be EITHER:
+//   - a root-relative path to a file in public/game-icons/ (e.g. '/game-icons/game10.png'), or
+//   - a full remote URL (e.g. a Cloudinary link).
+// Both are just strings the <img src> gets, so a Cloudinary link is pasted here
+// exactly like a local path — no other file needs touching.
 //
 // A key with NO entry here simply renders the catalogue emoji instead, so
-// adding icons is purely additive — drop a file in and add one line, and every
-// surface that shows a game icon picks it up.
+// adding icons is purely additive — add one line and every surface that shows a
+// game icon picks it up.
 export const GAME_ICON_FILES = {
-  // Served from public/game-icons/ (see the README there), NOT a remote URL:
-  // a root-relative path is what the /game-icons/* cache header and the
-  // service worker's runtime cache both key on, so the icon is cached on first
-  // view and works offline like every other game asset.
+  // Served from public/game-icons/ (see the README there): a root-relative path
+  // is what the /game-icons/* cache header and the service worker's runtime
+  // cache both key on, so the icon is cached on first view and works offline.
   '10': '/game-icons/game10.png',
+  '12': 'https://res.cloudinary.com/hijmipga/image/upload/v1790782996/icon_qnxc7a.png',
+
+  // Remote example — paste a Cloudinary URL here (add f_auto,q_auto to let
+  // Cloudinary serve the smallest format). Replace the placeholder to enable it:
+  // '12': 'https://res.cloudinary.com/hijmipga/image/upload/f_auto,q_auto/v.../icon.png',
 };
 
 // Resolves a game (or a bare key) to its icon URL, or '' when it has no icon.

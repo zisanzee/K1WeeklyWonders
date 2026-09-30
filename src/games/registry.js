@@ -273,6 +273,49 @@ export const GAME_REGISTRY = [
     },
     load: () => import('@/games/game-11/GamePage'),
   },
+  {
+    // "Position Mission!" — change label/title/subtitle only in tandem with
+    // GamePage.jsx's gate labels, or the lock screen and the card disagree.
+    key: '12',
+    slug: 'game-12',
+    route: '/84037',
+    term: 4,
+    progressKey: 'game12',
+    meta: {
+      emoji: '\uD83D\uDCCD',
+      label: 'Position Mission!',
+      title: 'Position Mission!',
+      subtitle: 'Positional Language\n(in front, behind, top, bottom)',
+      description: 'Follow the prompt and drop each character in the right spot — in front, behind, on top or at the bottom.',
+      hue: '#8B5CF6',
+      tint: '#F3F0FF',
+      gradient: 'linear-gradient(135deg, #C4B5FD 0%, #8B5CF6 55%, #6D28D9 100%)',
+      ring: 'ring-[#DDD6FE]',
+    },
+    load: () => import('@/games/game-12/GamePage'),
+  },
+  {
+    // Skeleton entry — the mechanics and final title arrive with the gameplay
+    // brief. Change label/title/subtitle only in tandem with GamePage.jsx's
+    // gate labels, or the lock screen and the card disagree.
+    key: '13',
+    slug: 'game-13',
+    route: '/29164',
+    term: 4,
+    progressKey: 'game13',
+    meta: {
+      emoji: '\uD83D\uDE80',
+      label: 'Game 13 (Coming Soon)',
+      title: 'Game 13 (Coming Soon)',
+      subtitle: 'Coming soon',
+      description: 'Another brand-new game is in the works — stay tuned!',
+      hue: '#10B981',
+      tint: '#ECFDF5',
+      gradient: 'linear-gradient(135deg, #6EE7B7 0%, #10B981 55%, #047857 100%)',
+      ring: 'ring-[#A7F3D0]',
+    },
+    load: () => import('@/games/game-13/GamePage'),
+  },
 ];
 
 // The catalogue shape the UI consumes: identity + routing + metadata, flattened.

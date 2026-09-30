@@ -81,6 +81,10 @@ const GameAccessPage = lazy(() => import("@/pages/GameAccessPage"));
 const TeacherOnboarding = lazy(() => import("@/pages/TeacherOnboarding"));
 const StudentLogin = lazy(() => import("@/pages/StudentLogin"));
 const BetaHome = lazy(() => import("@/pages/BetaHome"));
+// An unlisted keepsake, NOT a game: it is deliberately absent from
+// games/registry.js (no card, no unlock row, no progress) and simply lazy-mounts
+// here. It renders a decoy 404 for anyone who is not the one teacher it is for.
+const FourYearsOfLove = lazy(() => import("@/pages/4yearsoflove"));
 
 // Single shared loading screen (see BrandLoader.jsx) so every wait — route
 // suspense and auth hydration — looks identical to the HTML first-paint loader.
@@ -145,6 +149,8 @@ function AppRoutes({ resetKey }) {
           })}
           <Route path="/game-access" element={<GameAccessPage />} />
           <Route path="/teacher-onboarding" element={<TeacherOnboarding />} />
+          {/* Unlisted keepsake — see the lazy import above. Not a game route. */}
+          <Route path="/4yearsoflove" element={<FourYearsOfLove />} />
           <Route path="/p/:code" element={<StudentLogin />} />
         </Routes>
       </Suspense>

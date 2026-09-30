@@ -1,427 +1,380 @@
 # Project: EZ Wonders — kids' numeracy game platform
 
-## Repo layout (READ THIS FIRST — it is not what "monorepo" implies)
+## Repo map (read first — "monorepo" is misleading)
 
-The workspace root **IS the frontend**. `src/games/` is the games *domain*
-(frontend), not the backend.
-
-- workspace root (`d:/Phaser/games`) — Vite + React frontend, deployed to Netlify-style static hosting at `ezwonders.com`
-- `../../K1 games project/server/` — Node/Express + Mongoose backend, deployed on Render
-
-Because the server is *outside* the workspace, tools cannot read it by default and
-edits to it are not part of this repo. Do not assume a server change is testable
-from here. When reasoning about the API, read the actual server file rather than
-trusting any doc (including this one) — it has drifted repeatedly.
-
-Stale/ignored artifacts to leave alone unless asked: `dist/`, `_sout.log`,
-`server/IMPLEMENTATION_PROMPT.md`, `server/SETUP.md`, `server/logPlaySession.js`
-(a stale, much older copy of the frontend file — it still exports, but nothing
-imports it, so edits there change nothing).
-
-Do not re-explain React/Tailwind/Express basics below. Only project-specific
-architecture. If unsure whether a helper exists, read the file before writing a
-new one — several near-duplicates were consolidated recently and re-adding one
-would undo that.
+- Workspace root `d:/Phaser/games` **IS the frontend** (Vite + React). `src/games/`
+  is the games *domain of the frontend*, not a backend.
+- Backend = `D:\K1 games project\server` (Node/Express + Mongoose), a **sibling
+  outside the workspace**. Tools can't read it by default and edits there aren't
+  part of this repo. Never assume a server change is testable from here.
+- Docs drift (this file included). For API truth, **read the actual server file**
+  (`server.js`, `server/models/*.js`) before trusting any spec.
+- Leave alone unless asked: `dist/`, `_sout.log`, `server/IMPLEMENTATION_PROMPT.md`,
+  `server/SETUP.md`, `server/logPlaySession.js` (stale copy of the frontend file;
+  nothing imports it, so edits there change nothing).
+- Don't re-explain React/Tailwind/Express basics. If unsure a helper exists,
+  **read the file** — recent consolidations removed near-duplicates and re-adding
+  one would undo that.
 
 ## Stack (frontend)
 
 react 19, react-router-dom v7, zustand v5 (+persist), tailwindcss v4 via
-`@tailwindcss/vite` (NOT the v3 postcss workflow — no `tailwind.config.js`;
-theme lives in CSS via `@import "tailwindcss"` and `@theme`), motion
-(`import { motion } from 'motion/react'`), phaser v4, @dnd-kit/* (admin panel
-drag-reorder), react-confetti, use-sound, react-helmet-async, clsx +
-tailwind-merge, react-qr-code, jspdf + html-to-image (student badge export only),
+`@tailwindcss/vite` (NO `tailwind.config.js`; theme is CSS `@import "tailwindcss"`
++ `@theme`), motion (`import { motion } from 'motion/react'`), phaser v4,
+@dnd-kit/* (admin drag-reorder), react-confetti, use-sound, react-helmet-async,
+clsx + tailwind-merge, react-qr-code, jspdf + html-to-image (student badge only),
 react-use.
 
 ## Stack (server)
 
-Express + Mongoose. **Auth is not JWT/session-based.** Every write endpoint
+Express + Mongoose. **Auth is NOT JWT/session-based** — every write endpoint
 re-validates a code against the DB per request, via `requireTeacher` /
-`requireAdmin` middleware in `server.js`.
+`requireAdmin` / `requireClassAccess` middleware in `server.js`.
 
-## Core domain model (post class-scoping migration)
+## Domain model (classId-scoped)
 
-**`classType` is DEPRECATED.** It still exists on `ClassInfo` (`enum: ['k1','k2']`)
-and on `GameAccess` purely so legacy documents validate and a bad migration can be
-rolled back. It no longer drives game access or permissions. All live logic keys
-on `classId`. Never write new code that keys off classType.
+**`classType` is DEPRECATED.** Kept on `ClassInfo` (`enum ['k1','k2']`) and
+`GameAccess` only so legacy docs validate and a bad migration can roll back. It
+drives nothing. Never key new code on it.
 
 - **`ClassInfo`**: `classId` (unique), `className`, `classAlias` (short label),
   `classYear`, `classCode` (globally unique login code, sparse), `isPublic`
-  (public = join with name + classCode; private = needs an individual student
-  code), `active` (soft-retire, never delete), `image` (null until uploaded —
-  render a placeholder), `classType` (deprecated). The teacher list is **derived**
-  by querying `Teacher` for a matching `classId`, never stored on the class.
-- **`Teacher`**: `code` (unique), `name`, `classId` (**null for the global
-  admin**), `role: 'teacher' | 'admin'`, `active` (soft-deactivate so historical
-  stats rows still resolve). Only one admin code exists; it comes from the
-  `ADMIN_CODE` env var via a boot migration. There is no seeded teacher list.
-- **`Student`**: `studentId` (server-generated UUID, not Mongo `_id`), `classId`,
-  `fullName`, `nickname`, `group` (freeform label, no behaviour), `code`
-  (6-char, unique, sparse — drives `/p/:code` student auto-login), plus
-  `mergedInto` / `mergedAt` / `mergedBy` merge bookkeeping. Merged-away records
-  are **never deleted**, so a merge stays reversible.
-- **`GameAccess`**: **classId-scoped** — one row per `{classId, gameKey}` under a
-  *partial* unique index (`partialFilterExpression: { classId: { $exists: true } }`).
-  The partial filter is load-bearing: legacy rows that carry only `classType` and
-  no `classId` are retained for rollback and must not collide. `added` (opted in
-  from the catalogue — a class only sees games it has added), `unlocked`,
-  `shiny` (featured), `order`, `unlockAt`.
-- **`PlaySession`**: one row per completed round, `classId`-scoped (`game`,
-  `playerName`, `studentId`, `classId`, `stars`, `totalRounds`, `peakStreak`,
-  optional `elapsedSeconds`/`mistakes`, `device`).
-- **`PlayerMerge`**: merge/link records so a "light" name-only identity can be
-  bound to a rostered `studentId` after the fact.
-- **`SystemConfig`**: maintenance mode, polled live.
-- **Legacy default**: `classId: 'k12026-pny'` is the fallback when a classId is
-  missing client-side (see `LEGACY_CLASS_ID` in `logPlaySession.js`).
+  (public = join with name + classCode; private = per-student code), `active`
+  (soft-retire, never delete), `image` (null → render a placeholder),
+  `classType` (deprecated). Teacher list is **derived** by querying `Teacher`, never
+  stored on the class.
+- **`Teacher`**: `code` (unique), `name`, `classId` (**null for the global admin**),
+  `role: 'teacher' | 'admin'`, `active` (soft-deactivate so historical stats still
+  resolve). One admin code, from the `ADMIN_CODE` env var via a boot migration. No
+  seeded teacher list.
+- **`Student`**: `studentId` (server UUID, not Mongo `_id`), `classId`, `fullName`,
+  `nickname`, `group` (freeform label, no behaviour), `code` (6-char, unique,
+  sparse → drives `/p/:code` auto-login), plus `mergedInto`/`mergedAt`/`mergedBy`.
+  Merged-away rows are **never deleted**, so a merge stays reversible.
+- **`GameAccess`**: classId-scoped — one row per `{classId, gameKey}` under a
+  **partial** unique index (`partialFilterExpression: { classId: { $exists: true } }`).
+  The partial filter is load-bearing: legacy `classType`-only rows are kept for
+  rollback and must not collide. Fields: `added` (opted in from the catalogue — a
+  class only sees games it added), `unlocked`, `shiny`, `order`, `unlockAt`,
+  `updatedBy`, `updatedAt`.
+- **`PlaySession`**: one row per completed round — `game`, `playerName`,
+  `studentId`, `classId`, `stars`, `totalRounds`, `peakStreak`, optional
+  `elapsedSeconds`/`mistakes`, `mergedFrom`, `completedAt`, `device {kind, os,
+  browser, userAgent}`.
+- **`PlayerMerge`**: name-based merge groups within one class — `primaryName`,
+  `members[]`, `active`. The authoritative merge record (merges mostly target
+  "light" kids with no Student row).
+- **`SystemConfig`**: singleton `_id:'system'` — `maintenanceMode`,
+  `maintenanceMessage`, `maintenanceEndsAt`; polled live.
+- **Legacy fallback** `classId: 'k12026-pny'` when the client classId is missing
+  (`LEGACY_CLASS_ID` in `logPlaySession.js`).
 
 ## Scheduled unlocks
 
-`GameAccess.unlockAt` (Date, nullable) is the only field this feature added. A row
-with `unlockAt` set is **always** `unlocked: false` — the schedule is a promise to
+`GameAccess.unlockAt` (Date, nullable) is the only field the feature added. A row
+with `unlockAt` set is **always `unlocked: false`** — the schedule is a promise to
 flip it later, not a parallel state.
 
-- Unlocking early clears `unlockAt`; removing a game or re-adding it also clears it.
-- Due unlocks are applied **lazily on read** by `resolveDueUnlocks()` inside
-  `getGameAccessRows()`. **There is no cron**, so a schedule still fires correctly
+- Unlock-early clears `unlockAt`; removing or re-adding a game also clears it.
+- Due unlocks apply **lazily on read** via `resolveDueUnlocks()` inside
+  `getGameAccessRows()`. **There is no cron** — a schedule still fires correctly
   after the server slept through the exact minute.
-- Because of that, every read path returning game rows must auto-unlock first.
-  Do not add a read path that queries `GameAccess` directly and skips it.
-- `PUT /api/game-access/:gameKey/schedule` rejects a past time (400) and an
-  already-unlocked game (409). It must stay **above** `/api/game-access/:gameKey`
-  in `server.js` (Express matches in registration order).
-- The same endpoint **cancels** a schedule when sent `unlockAt: null`, clearing
-  the field without unlocking the game (404 if nothing was scheduled). A cancel
-  is deliberately NOT sent as a past time — past times are rejected, and
-  "unlock it now" is a different, destructive intent.
-- `GameAccess` reads are guarded by a per-process `pendingUnlockCache`. **Any new
-  write path that can change `unlockAt` MUST call `invalidateUnlockCache(classId)`.**
+- Every read path returning game rows MUST go through `getGameAccessRows()`
+  (auto-unlocks first). Never query `GameAccess` directly on a read path.
+- `PUT /api/game-access/:gameKey/schedule` sets `unlockAt`: past time → 400,
+  already-unlocked → 409. It must stay **above** `/api/game-access/:gameKey`
+  (Express matches in registration order).
+- The same endpoint **cancels** when sent `unlockAt: null` (clears the field, game
+  stays locked; 404 if nothing was scheduled). A cancel is deliberately NOT a past
+  time — "unlock it now" is a different, destructive intent.
+- A module-scope `pendingUnlockCache` lets the sweep be skipped when the next due
+  time is comfortably future (re-checked ≥ every 30 s). It *skips work*, never
+  serves truth — Mongo is re-read every request. **Any write that can change
+  `unlockAt` MUST call `invalidateUnlockCache(classId)`** (schedule, lock/unlock,
+  catalogue add/remove all do).
 
 ## Auth model
 
-**Identity kinds** — `POST /api/code-lookup` classifies a code into exactly one:
-`teacherCode`, `adminCode`, `studentCode`, or `classCode`. A bare `classCode` is
-not a session; it branches the login flow to either a name (public class) or a
-student code (private class).
-
-- `isTeacher` / `isAdmin` in the zustand store are **UI state only, not a security
-  boundary**. Every write endpoint re-validates the code server-side.
-- **Teacher** (`requireTeacher`): view their own class info, manage their own
-  roster, and view/edit their own class's game arrangement. Scoped to their own
-  `classId`.
-- **Admin** (`requireAdmin`, stricter — `role` must be `'admin'`): manages any
-  class, regardless of whether it is their homeroom. The admin's `classId` is
-  **null**, which is why any component that resolves a class-scoped thing must
-  handle the no-class case (e.g. `NextGameTimer` self-hides for them, and
-  `GameAccessGate` lets teachers/admins through *before* its loading gate — an
-  admin has no classId, so game-access never loads for them and they would
-  otherwise spin forever).
+- `POST /api/code-lookup` classifies a code into exactly one: `teacherCode` |
+  `adminCode` | `studentCode` | `classCode`. A bare `classCode` is not a session —
+  it branches the login flow to a name prompt (public class) or a student-code
+  prompt (private class).
+- `isTeacher` / `isAdmin` in zustand are **UI state only, not a security
+  boundary** — every write endpoint re-validates server-side.
+- **`requireTeacher`**: view own class info, manage own roster, view/edit own
+  class's games. Scoped to own `classId`.
+- **`requireAdmin`** (`requireTeacher` + `role === 'admin'`, else 403): class
+  create/update, `PATCH /api/system/config`, admin stats routes.
+- **`requireClassAccess`** — the class-write workhorse: an admin may target **any**
+  classId, a teacher only their **own**. Gates all `GameAccess` writes and the
+  per-class student merge/unmerge/delete routes. (Corrects older "game-access is
+  admin-only" — a teacher manages their own class's games.)
+- The admin's `classId` is **null** → any component resolving a class-scoped thing
+  must handle the no-class case (e.g. `NextGameTimer` self-hides; `GameAccessGate`
+  lets teachers/admins through *before* its loading gate, or an admin would spin
+  forever).
 - Login: `NameGate.jsx` posts to `/api/code-lookup` (and `/api/student-login` for
-  the light path). The server returns the full identity. **There is no client-side
-  hardcoded teacher-code mirror** — the file that did this (`src/teacherCodes.js`)
-  was deleted, because the frontend copy drifted from the DB and locked out
-  newly-added teachers. Do not reintroduce one.
+  the light path); the server returns the full identity. **No client-side
+  hardcoded teacher-code mirror** — `src/teacherCodes.js` was deleted because the
+  frontend copy drifted from the DB and locked out new teachers. Do not
+  reintroduce one.
 
 ## Frontend gating flow
 
 `@/auth/NameGate.jsx` (whole-app entry, also wraps every game) captures a code, or
 a name + public class code, and persists **only the credential** in
 `@/auth/playerStore.js`. `@/auth/GameAccessGate.jsx` wraps each game and re-checks
-per-game unlock via `useIsGameUnlocked`. Both gates independently re-fetch if data
-isn't loaded for the current classId. New game routes need **both gates, in that
-order**: `NameGate` → `GameAccessGate` → game.
+per-game unlock via `useIsGameUnlocked`. Both re-fetch independently if data isn't
+loaded for the current classId. New game routes need **both gates, in this order**:
+`NameGate` → `GameAccessGate` → game. Teachers/admins pass `GameAccessGate` before
+its loading gate.
 
-`@/auth/playerStore.js` persists only `{code, name, mode}` — the credential needed to
-re-resolve the identity from the DB on every load. Names, classIds and roles are
-**runtime-only** so that removing a student or changing a code signs that device
-out on its next validation. The persist `name`/`version` are bumped **only** to
-force a global re-login (that is what `version: 3` was); changing either logs
-every device out.
+`@/auth/playerStore.js` persists only `{code, name, mode}` — the credential needed
+to re-resolve identity from the DB on every load. Names, classIds and roles are
+**runtime-only**, so removing a student or changing a code signs that device out on
+its next validation. Bump the persist `name`/`version` **only** to force a global
+re-login (that's what `version: 3` was); either logs every device out. The legacy
+`k1weekly-player` key is removed on boot. `AuthBootstrap` (in `main.jsx`) awaits
+`hydrate()` before render, so a signed-in user never flashes the login screen.
 
-## Frontend source layout (`src/`)
+## Source layout (`src/`) — `@/` alias → `src/`
 
-Grouped by concern. Every cross-folder import uses the **`@/` alias** (→ `src/`),
-configured in `vite.config.js` + `vitest.config.js` + `jsconfig.json` (all three
-must agree). Relative imports are reserved for siblings within one folder, so a
-file can be moved between folders without touching any import.
+Alias configured in `vite.config.js` + `vitest.config.js` + `jsconfig.json` (all
+three must agree). Cross-folder imports use `@/`; relative imports are only for
+siblings in one folder.
 
 ```
-src/
-  app/        main.jsx (entry + routes), index.css, aurora.css
-  api/        apiClient.js (the ONE fetch/timeout source), logPlaySession.js,
-              students.js, classInfo.js, systemConfig.js, deviceFingerprint.js
-  auth/       playerStore.js (persists only {code,name,mode}), NameGate.jsx,
-              GameAccessGate.jsx, MaintenanceGate.jsx
-  games/      registry.js  ← THE game list (see "Adding a game")
-              gameAccess.js (unlock store; re-exports the catalogue),
-              gameIcons.js, levels.test.js
-              <slug>/      one folder per game (see below)
-  pages/      BetaHome.jsx (home at /), GameAccessPanel.jsx, StatsPanel.jsx,
-              TeacherOnboarding.jsx + teacherOnboardingContent.js, StudentLogin.jsx,
-              PublicLanding.jsx, WeeklyGoals.jsx, MissionHeroes.jsx, NextGameTimer.jsx
-  phaser/     BaseGame.jsx, BaseScene.js, BasePreloadScene.js, config.js, common/
-  pwa/        pwa.js, PwaBadges.jsx, staleChunkRecovery.js
-  ui/         cn.js, brand.js, GameIcon.jsx, BrandLoader.jsx, ErrorBoundary.jsx,
-              RotateHint.jsx, confirmDialog.jsx, FeedbackButton.jsx, ContactStrip.jsx
-  seo/        seo.jsx
+app/    main.jsx (entry + routes), index.css, aurora.css
+api/    apiClient.js (the ONE fetch/timeout source), logPlaySession.js,
+        students.js, classInfo.js, systemConfig.js, deviceFingerprint.js
+auth/   playerStore.js (persists only {code,name,mode}), NameGate.jsx,
+        GameAccessGate.jsx, MaintenanceGate.jsx
+games/  registry.js  ← THE game list; gameAccess.js (unlock store; re-exports the
+        catalogue), gameIcons.js, levels.test.js, <slug>/ (one folder per game)
+pages/  BetaHome.jsx (home at /), GameAccessPanel.jsx, GameAccessPage.jsx,
+        StatsPanel.jsx, TeacherOnboarding.jsx + teacherOnboardingContent.js,
+        StudentLogin.jsx, StudentBadge.jsx, PublicLanding.jsx, WeeklyGoals.jsx,
+        MissionHeroes.jsx, NextGameTimer.jsx
+phaser/ BaseGame.jsx, BaseScene.js, BasePreloadScene.js, config.js, common/
+pwa/    pwa.js, PwaBadges.jsx, staleChunkRecovery.js
+ui/     cn.js, brand.js, GameIcon.jsx, BrandLoader.jsx, ErrorBoundary.jsx,
+        RotateHint.jsx, confirmDialog.jsx, FeedbackButton.jsx, ContactStrip.jsx
+seo/    seo.jsx
 ```
 
 - `@/api/apiClient.js` — **the single source of truth for `API_BASE`, `withQuery`,
-  `fetchWithTimeout`, `requestJson`, `postJson` and `ApiError`.** Always import
-  from here. Never redeclare an API origin or roll a new timeout: this is exactly
-  what drifted before (12s / 15s / *no timeout at all*), and the missing one hung
-  app boot, since `AuthBootstrap` blocks the entire render on `hydrate()`.
-- `@/auth/playerStore.js` — persisted credential + runtime identity.
-- `@/games/registry.js` — **every game, once** (key, route, term, progressKey,
-  meta, lazy `load`). Drives the catalogue, the routes and the homepage prefetch.
-- `@/games/gameAccess.js` — the classId-based unlock store used by Home /
-  `GameAccessGate`, plus class-scoped mutators used only by the panel.
-  Re-exports `GAME_CATALOG` / `GAME_KEYS` from the registry so existing imports
-  keep working. Also `nextScheduledGame(games)` / `useNextScheduledGame()`,
-  `useGameByKey()`, and `formatUnlockCountdown()`.
-- `@/api/logPlaySession.js` — called by every game on completion
-  (`logPlaySession({game, ...})`), plus `fetchStats` / `fetchSummary` /
-  `fetchPlaysPage` / `fetchLeaderboard` / `fetchAdminClassStats`.
-- `@/app/main.jsx` — entry. Builds the routes straight from `GAME_REGISTRY`, runs
+  `fetchWithTimeout`, `requestJson`, `postJson` and `ApiError`.** Never redeclare
+  an API origin or roll a new timeout — that drifted before (12s / 15s / none) and
+  the missing one hung app boot, since `AuthBootstrap` blocks render on `hydrate()`.
+- `@/games/registry.js` — every game, once (key, slug, opaque 5-digit route, term,
+  progressKey, meta, lazy `load`). Drives the catalogue, the routes and the
+  homepage prefetch; `GAME_CATALOG`/`GAME_KEYS` and `StatsPanel`'s `GAME_LABELS`
+  all derive from it.
+- `@/games/gameAccess.js` — the classId unlock store used by Home /
+  `GameAccessGate`, plus class-scoped mutators used only by the panel. Re-exports
+  `GAME_CATALOG` / `GAME_KEYS`. Also `mergeRows(rows)`,
+  `nextScheduledGame(games)` / `useNextScheduledGame()`, `useGameByKey()`,
+  `formatUnlockCountdown()`. The read store seeds from a localStorage cache
+  (`ezw.gameAccess.v1`, 7-day max) so the grid paints before a cold Render wakes;
+  12 s timeout, aborts superseded requests. Legacy classType-scoped mutators still
+  exist but are **unused**.
+- `@/api/logPlaySession.js` — `logPlaySession({game, ...})` called by every game on
+  completion (`POST /api/plays`; reads classId with legacy fallback, attaches a
+  device fingerprint, failures only `console.warn`), plus `fetchStats` /
+  `fetchSummary` / `fetchPlaysPage` / `fetchLeaderboard` / `fetchWeeklyMission` /
+  `fetchAdminClassStats` / `deletePlayerGame`. Slugs: `game1`…`game9`,
+  `bonusGame1`.
+- `@/app/main.jsx` — entry: builds routes straight from `GAME_REGISTRY`, runs
   `AuthBootstrap`, and holds **two** `ErrorBoundary`s (app-level + per-route) so a
   failed lazy chunk can't blank the app. Wrap new top-level surfaces in one.
-  **Never hand-add a game route here — add a registry entry instead.**
+  **Never hand-add a game route here.**
 - `@/pages/BetaHome.jsx` — the real home at `/`. Large; holds the SVG `Icon`
   library, card gradients, the aurora backdrop layers, and `SwitchPlayerButton`
-  (the shared-device "not you?" affordance — it already exists, don't add another).
-- `@/pages/GameAccessPanel.jsx` — admin panel: tab bar is **"K1 Games" / "K2 Games"
-  / Students / Settings** (separate top-level tabs, each independently editable,
-  defaulting to the admin's own class). Non-admin teachers see a single read-only
-  **"Games"** tab for their own class — no drag/lock/shiny controls, just static
-  badges.
+  (the shared-device "not you?" affordance — it exists, don't add another).
+- `@/pages/GameAccessPanel.jsx` — the admin/teacher panel. Role-split tabs:
+  admin = **Classes · Catalogue · Stats · Settings** (pick a class, manage its
+  games inline); teacher = **Games · Catalogue · Students · Stats · Settings**, all
+  scoped to their own classId. Reorder via @dnd-kit; a clock button opens
+  `ScheduleUnlockDialog`; "Confirm changes" batches only the deltas.
 - `@/pages/TeacherOnboarding.jsx` (`/teacher-onboarding`) — the public teacher
   guide. **Copy and imagery live in `teacherOnboardingContent.js`**
   (`ONBOARDING_SECTIONS` + `ONBOARDING_GIFS`), not in the component. An empty GIF
-  string renders the "coming soon" placeholder automatically; a broken URL falls
-  back via `onError`. The page is deliberately public and is listed in
-  `PUBLIC_DURING_MAINTENANCE` in `MaintenanceGate.jsx`.
+  string renders the "coming soon" placeholder; a broken URL falls back via
+  `onError`. Listed in `PUBLIC_DURING_MAINTENANCE` in `MaintenanceGate.jsx`.
   **Never rename the content file to `teacherOnboarding.js`** — it would differ
   from the component only by case, and on a case-insensitive filesystem an
-  extension-less `./TeacherOnboarding` import can resolve to it.
-- `@/phaser/common/` — shared Phaser helpers: `audioState.js` (mute + bg music),
-  `numbersVoice.js`, `speech.js`, `sceneAssets.js`, `starProgress.js`,
-  `uiHelpers.js`.
-- `@/ui/cn.js` is the **only** file that imports `clsx` / `tailwind-merge`.
+  extension-less `./TeacherOnboarding` import can resolve to it (→ "lazy element
+  type is invalid").
+- `@/phaser/common/` — `audioState.js` (mute + bg music), `numbersVoice.js`,
+  `speech.js`, `sceneAssets.js`, `starProgress.js`, `uiHelpers.js`.
+- `@/ui/cn.js` — the **only** file importing `clsx` / `tailwind-merge`.
 
 ## Server endpoint contract
 
-Admin-only unless noted. All return `{ error: '...' }` with non-2xx on failure.
+All return `{ error: '...' }` with non-2xx on failure. "RL" = rate-limited.
 
-Auth / codes
-- `POST /api/code-lookup` — **rate-limited.** Classifies a code into one identity kind.
-- `POST /api/teacher-login` — **rate-limited.** `{code}` → identity or 401.
-- `POST /api/student-login` — **rate-limited.** Public-class light login.
-- `GET /api/student-login/:code` — student auto-login via `/p/:code`.
-- `POST /api/codes/check` — "is this code free?" across the whole namespace.
+Auth/codes: `POST /api/code-lookup` (RL; classifies a code into one identity kind),
+`POST /api/teacher-login` (RL; `{code}` → identity | 401), `POST /api/student-login`
+(RL; public-class light login), `GET /api/student-login/:code` (auto-login via
+`/p/:code`), `POST /api/codes/check` (namespace availability).
+Classes: `GET /api/classes`, `GET /api/classes/:classId`, `POST /api/classes`,
+`PUT /api/classes/:classId`, `PATCH /api/classes/:classId/public`,
+`PATCH /api/classes/:classId/code`.
+Students/identities (teacher-scoped to own class): `GET|POST /api/students`,
+`PUT|DELETE /api/students/:studentId`; `GET /api/classes/:classId/identities`
+(roster ∪ distinct play names + merges); `GET|POST /api/classes/:classId/students`,
+`PUT|DELETE .../students/:studentId`; `POST .../students/merge`,
+`POST .../students/:studentId/unmerge` (pass the literal `name` as `:studentId` for
+a light identity); `DELETE /api/classes/:classId/identities/:name` — deletes a
+**name-only ("light") identity** by removing its play sessions (that history is the
+only thing making it exist); 409 if the name still matches a roster student (delete
+the student instead). Defensive: matches `classId` against both the URL param and
+the actor's own classId.
+Game access (writes require `requireClassAccess`): `GET /api/game-access?classId=`
+(read; auto-unlocks first; ownership enforced only when a `teacherCode` is given;
+**no hardcoded game-key allowlist** — the DB is truth); `PUT /api/game-access/order`
+(must equal the currently-added set); `POST|DELETE /api/game-access/:gameKey` (add
+from catalogue, starts locked, clears stale `unlockAt` / soft-delete `added:false`,
+resets lock/shiny/`unlockAt`); `PUT /api/game-access/:gameKey/shiny`;
+`PUT /api/game-access/:gameKey/schedule`; `PUT /api/game-access/:gameKey`
+(lock/unlock; **unlocking clears `unlockAt`**). Route order: `/order`,
+`/:gameKey/shiny` and `/:gameKey/schedule` **must stay above** `/:gameKey`.
+Plays/stats: `POST /api/plays` (RL; falls back to the legacy class if classId is
+absent client-side), `DELETE /api/plays` (one player's records for one game),
+`GET /api/stats` (teacher `$facet`: totals + per-game breakdown), `GET /api/summary`
+(teacher code → paginated `{rows,total,page,limit,hasMore}`; `classId` + `playerName`
+→ plain array), `GET /api/plays` (paginated sessions), `GET /api/leaderboard`,
+`/api/leaderboard/:game`, `/api/player/weekly`, `/api/weekly-mission`,
+`GET /api/admin/stats/classes`, `/api/admin/stats/classes/:classId`.
+System: `GET|PATCH /api/system/config` (maintenance; read public, write admin),
+`POST /api/feedback` (RL), `GET /api/ping`, `/api/health`.
 
-Classes
-- `GET /api/classes`, `GET /api/classes/:classId`, `POST /api/classes`,
-  `PUT /api/classes/:classId`, `PATCH /api/classes/:classId/public`,
-  `PATCH /api/classes/:classId/code`.
-
-Students / identities (teacher-scoped to their own class)
-- `GET|POST /api/students`, `PUT|DELETE /api/students/:studentId`
-- `GET /api/classes/:classId/identities` — roster + name-only identities
-- `GET|POST /api/classes/:classId/students`, `PUT|DELETE .../students/:studentId`
-- `POST /api/classes/:classId/students/merge`, `POST .../unmerge`
-- `DELETE /api/classes/:classId/identities/:name` — deletes a **name-only
-  ("light") identity** by removing its play sessions, since that history is the
-  only thing that makes it exist. 409s if the name still matches a roster student
-  (delete the student instead). Matches `classId` against both the URL param and
-  the actor's own classId — the two aren't always the same string, which is why
-  this one endpoint is defensive.
-
-Game access
-- `GET /api/game-access?classId=` — read; returns that class's rows (auto-unlocks first).
-- `PUT /api/game-access/:gameKey` — set `unlocked`
-- `PUT /api/game-access/:gameKey/shiny`
-- `PUT /api/game-access/:gameKey/schedule` — sets `unlockAt`. Rejects past (400) /
-  already-unlocked (409). **Must stay above `/api/game-access/:gameKey`.**
-- `PUT /api/game-access/order` — **must stay above `/api/game-access/:gameKey`.**
-- `POST|DELETE /api/game-access/:gameKey` — add from catalogue / remove
-
-Plays / stats
-- `POST /api/plays` — **rate-limited.** Logs a session; falls back to the legacy
-  class if `classId` is absent client-side.
-- `DELETE /api/plays` — delete one player's records for one game.
-- `GET /api/stats` — teacher admin-style totals + per-game breakdown
-- `GET /api/summary` — teacher code → paginated `{rows,total,page,limit,hasMore}`;
-  `classId` + `playerName` → plain unpaginated array
-- `GET /api/plays` — paginated individual sessions
-- `GET /api/leaderboard`, `/api/leaderboard/:game`, `/api/player/weekly`,
-  `/api/weekly-mission`
-- `GET /api/admin/stats/classes`, `/api/admin/stats/classes/:classId`
-
-System
-- `GET|PATCH /api/system/config` (maintenance mode), `POST /api/feedback`
-  (**rate-limited**), `GET /api/ping`, `/api/health`.
-
-**Rate limits apply only to the unauthenticated/abuse-prone routes:** `code-lookup`,
-`teacher-login`, `student-login`, `plays`, `feedback`. Do **not** add limits to
-authenticated write paths — a whole class can legitimately burst through
-`/api/plays`, and a per-IP cap would throttle everyone behind one school NAT.
+**Rate limits apply ONLY to unauthenticated/abuse-prone routes:** `code-lookup`,
+`teacher-login`, `student-login`, `plays`, `feedback`. Do **NOT** add limits to
+authenticated write paths — a whole class can legitimately burst `/api/plays`, and a
+per-IP cap would throttle everyone behind one school NAT. Per-IP limits need
+`app.set('trust proxy', 1)` (Render's TLS terminator).
 
 ## Mongoose / Mongo gotchas
 
-- Nested subdocument fields must avoid a key literally named `type` (Mongoose reads
-  it as a type-declaration shorthand) — see `PlaySession.device.kind`, not `.type`.
-- **Schema field changes do not migrate indexes.** A Mongoose schema edit alone
-  will not drop or rebuild an existing index in MongoDB; that must be done
-  explicitly, then `syncIndexes()` called.
-- One-time data migrations run at boot in the `mongoose.connect().then()` chain,
-  **before `app.listen`**, and must be self-guarding/idempotent — check for the
-  absence of the new field or presence of the old one before acting, so redeploys
-  don't redo or corrupt the migration.
-- When you add an enum value (e.g. a role) remember the boot replay path that
-  applies enum changes to existing documents.
+- Nested subdocument keys must avoid a literal `type` (Mongoose reads it as a
+  type-declaration shorthand) — hence `PlaySession.device.kind`, not `.type`.
+- **Schema field changes do not migrate indexes.** A Mongoose edit alone won't drop
+  or rebuild an existing index; do it explicitly, then call `syncIndexes()`.
+  (`GameAccess`'s unique key moved classId → classType → classId, each with an
+  explicit drop.)
+- `unlockAt: null` **sorts below every Date** — the due-unlock filter must be
+  `{ $ne: null, $lte: now }`; a bare `$lte` matches every unscheduled row.
+- Boot migrations run in the `mongoose.connect().then()` chain **before
+  `app.listen`** and must be self-guarding/idempotent (check the absence of the new
+  field / presence of the old) so redeploys don't redo or corrupt. Order:
+  `ensureSystemConfig` → `migrateAdminRole` → `migrateClassFields` →
+  `migrateGameAccessToClassId` (drops the old unique index first, `syncIndexes()`,
+  keeps the classType rows) → `migrateStudentCodes` / `auditCodeConflicts` →
+  `syncIndexes()`.
+- Adding an enum value (e.g. a role): update the model enum **and** the boot replay
+  path that applies it to existing documents.
+- Connect options `bufferCommands: false` + a tight `serverSelectionTimeoutMS`
+  avoid silent hangs on Render/Atlas cold starts.
 
 ## Conventions
 
-- Comments explain **why**, not what — short rationale above non-obvious logic.
-- Prefer extending the existing zustand store / API helper file over creating a
-  parallel one. One store per domain, one thin fetch-helper file per API concern,
-  and **one** shared `apiClient.js`.
-- Env: `VITE_API_BASE_URL` (frontend, defaults to `http://localhost:4000`),
-  `MONGODB_URI`, `ADMIN_CODE` and `ALLOWED_ORIGINS` (backend).
-- **`frontend .env` IS COMMITTED and must stay committed.** It holds only the
-  public API origin, and it is the only place a deployed build can read it from
-  — this project sets no host-side frontend env. Untracking it makes production
-  fall back to `http://localhost:4000`, which every request fails against and
-  the browser reports as a **CORS error**, pointing at the server instead of at
-  the missing config. Private values go in `.env.local` (gitignored) or the
-  backend host's own env (`ALLOWED_ORIGINS` etc.).
-- **`cn()` lives in `@/ui/cn.js`.** Import it; never redefine it. `clsx` and
-  `tailwind-merge` should be imported by that one file only.
-- **Fonts: Fredoka only, loaded once in `index.html`.** Never add a `<link>` to
-  Google Fonts from a component — it can't start until that lazy chunk has
-  executed, so the font competes with the page and text re-flows on arrival. The
-  `.font-heading` / `.font-body` utilities are declared in `src/index.css` and are
-  both Fredoka; do **not** re-declare them in a component's inline `<style>` (that
-  duplicate was removed from ~15 files). Nunito is not loaded and must not be
-  referenced.
+- Comments explain **why**, not what — a short rationale above non-obvious logic.
+- Extend the existing zustand store / API helper rather than creating a parallel
+  one: one store per domain, one thin fetch-helper per API concern, **one**
+  `apiClient.js`.
+- Env: `VITE_API_BASE_URL` (frontend, default `http://localhost:4000`),
+  `MONGODB_URI`, `ADMIN_CODE`, `ALLOWED_ORIGINS` (backend).
+- **Frontend `.env` IS COMMITTED and must stay committed.** It holds only the
+  public API origin and is the only place a deployed build reads it (no host-side
+  frontend env). Untracking it makes production fall back to `localhost:4000` —
+  every request fails and the browser reports a **CORS error** pointing at the
+  server instead of the missing config. Private values → `.env.local` (gitignored)
+  or the backend host's env.
+- **`cn()` lives in `@/ui/cn.js`** — import it, never redefine; `clsx` /
+  `tailwind-merge` are imported there only.
+- **Fonts: Fredoka only, loaded once in `index.html`.** Never add a component-level
+  Google Fonts `<link>` — it can't start until that lazy chunk runs, so the font
+  competes and text reflows on arrival. `.font-heading` / `.font-body` are declared
+  in `src/app/index.css` and are both Fredoka; do **not** re-declare them in a
+  component's inline `<style>` (that duplicate was removed from ~15 files). Nunito
+  is not loaded and must not be referenced.
 - **`localStorage` keys** are namespaced and shared where the concept is shared.
-  The mute preference uses one key (`ezw-muted-v1` in
-  `Phaser/common/audioState.js`) because mute is a property of the player, not of
-  whichever game they are in. Never give a game its own mute key.
+  Mute uses one key (`ezw-muted-v1` in `@/phaser/common/audioState.js`) — mute is a
+  property of the player, not of a game. Never give a game its own mute key.
+- Chrome pages share the `aura-*` theme (`src/app/aurora.css`) — don't hand-roll
+  new sky/white themes.
+- Phaser games use Phaser's native input; `@dnd-kit` is DOM-only. `react-confetti`
+  is for React level-complete overlays; Phaser games use `this.sound`, not
+  `use-sound`.
 
-## Performance / platform notes
+## Performance / platform
 
 - `vite.config.js` sets `manualChunks` as a **function** — Vite 8 bundles with
-  rolldown, which rejects the Rollup object form with "manualChunks is not a function".
-- `vite-plugin-pwa` ships the service worker. Phaser (~1.4MB) is excluded from
+  rolldown, which rejects the Rollup object form ("manualChunks is not a function").
+- `vite-plugin-pwa` ships the service worker. Phaser (~1.4 MB) is excluded from
   precaching via `globIgnores` and cached at runtime on first real play, because
-  eager precaching would push that onto every visitor including those who never
-  open a game. The API is never cached (`navigateFallbackDenylist`).
+  eager precaching would tax every visitor including those who never open a game.
+  The API is never cached (`navigateFallbackDenylist`). DevOptions are disabled in
+  dev so a stale module graph can't be served.
 - `public/site.webmanifest` is hand-maintained and linked from `index.html`;
-  `VitePWA` is configured with `manifest: false` so it does not generate a second one.
-- **Canonical/robots are per-route** via `src/seo.jsx`; add a public route to
-  `INDEXABLE_ROUTES` there **and** to `public/sitemap.xml`, or it will be marked
-  `noindex` and pointed at the root canonical.
-- DevOptions for the service worker are disabled in dev so a stale module graph
-  can't be served while developing.
+  `VitePWA` uses `manifest: false` so it doesn't generate a second one.
+- **Canonical/robots are per-route** via `src/seo/seo.jsx`: add a public route to
+  `INDEXABLE_ROUTES` there **and** to `public/sitemap.xml`, or it's marked `noindex`
+  and pointed at the root canonical.
 
 ## The "next game" banner
 
-`NextGameTimer.jsx` is **schedule-driven, not calendar-driven**. The old hardcoded
-"new game every Friday" cadence is gone — there is no default cadence.
+`NextGameTimer.jsx` is **schedule-driven, not calendar-driven** — the old "new game
+every Friday" cadence is gone; there is no default cadence.
 
-- It renders **nothing** when the class has no pending schedule; callers gate it on
+- Renders **nothing** when the class has no pending schedule; callers gate it on
   `useNextScheduledGame()` so the surrounding layout collapses cleanly. The Weekly
   Champions leaderboard always shows regardless.
-- It names the soonest `!unlocked && unlockAt` game and counts down in
+- Names the soonest `!unlocked && unlockAt` game and counts down in
   days/hours/mins/secs, then calls `fetchGameAccess()` at zero so the server applies
   the unlock and the banner either rolls on or disappears.
-- Teachers see it too (it's a schedule preview); the admin has no class, so it
-  self-hides for them.
+- Teachers see it too (schedule preview); the admin has no class, so it self-hides.
 - Panel control: the clock button in each locked game row opens
   `ScheduleUnlockDialog`. Scheduled rows show an "⏰ Unlocks ..." badge. The button
-  is hidden entirely once a game is unlocked. Once a schedule exists, a separate
-  cancel button (in the row and in the dialog) clears it while leaving the game
-  locked.
+  is hidden once a game is unlocked. Once a schedule exists, a separate cancel
+  button (in the row and the dialog) clears it while leaving the game locked.
 - `GameAccessGate` uses `formatUnlockCountdown()` to show a coarse "Ready in 2d 4h"
   on a scheduled game instead of the generic "isn't out yet / ask your teacher".
 
-## Adding a new game — checklist
+## Adding a new game — one folder + one registry entry
 
-The whole process is **one folder + one registry entry**. `GAME_REGISTRY` in
-`src/games/registry.js` drives the routes (`app/main.jsx`), the catalogue
-(`GAME_CATALOG`) and the homepage prefetch — so nothing else needs editing.
+`GAME_REGISTRY` in `src/games/registry.js` drives the routes (`app/main.jsx`), the
+catalogue (`GAME_CATALOG`) and the homepage prefetch — so nothing else is edited.
 
-1. Create `src/games/<slug>/`. A Phaser game is `GamePage.jsx` + scene files; a
-   React game is a single `Game.jsx`. Both export the page component as DEFAULT.
-2. Add one entry to `GAME_REGISTRY`: unique `key`, `slug`, opaque 5-digit `route`,
-   `term`, `progressKey`, the card `meta`, and a `load: () => import('@/games/<slug>/…')`.
-   That is the entire wiring step.
-3. Wrap the game in `NameGate` → `GameAccessGate` (correct `gameNumber`/`gameLabel`)
-   — copy the shape from an existing `GamePage.jsx`.
-4. Call `logPlaySession({ game: '<slug>' })` on completion with the matching slug,
-   which must equal that entry's `progressKey`.
-5. Use `addMuteButton` / `ensureBgMusic` from `@/phaser/common/audioState` for
-   audio, never a per-game copy.
-6. It appears once an **admin** adds it to a class from the Catalogue.
-7. Double-check the `title`, on-screen heading and catalogue `label` all agree, and
-   that no other game already uses that name — a duplicate name is invisible in the
-   panel and has caused a shipped mismatch before.
-8. Add a `public/game-icons/<slug>.png` and one line in `@/games/gameIcons.js` if
-   the game should show an icon instead of its catalogue emoji.
+1. Create `src/games/<slug>/`. Phaser = `GamePage.jsx` + scene files; React = a
+   single `Game.jsx`. Both default-export the page component.
+2. Add ONE `GAME_REGISTRY` entry: unique `key`, `slug`, opaque unique 5-digit
+   `route`, `term`, `progressKey`, the card `meta`, and
+   `load: () => import('@/games/<slug>/…')`. That's the entire wiring step.
+3. Wrap in `NameGate` → `GameAccessGate` (correct `gameNumber`/`gameLabel`) — copy
+   an existing `GamePage.jsx`.
+4. Call `logPlaySession({ game: '<slug>' })` on completion; `game` must equal that
+   entry's `progressKey`.
+5. Audio via `addMuteButton` / `ensureBgMusic` from `@/phaser/common/audioState`,
+   never a per-game copy.
+6. It appears once an **admin/teacher adds it to a class** from the Catalogue.
+7. Ensure `title`, on-screen heading and catalogue `label` all agree, and no other
+   game already uses that name (a duplicate is invisible in the panel and has
+   shipped a mismatch before).
+8. Optional icon: `public/game-icons/<slug>.png` + one line in
+   `@/games/gameIcons.js` (root-relative `/game-icons/…` so cache headers and the
+   service worker both cover it).
 
 **Never** re-add a `lazy()` import or `<Route>` in `main.jsx`, and never edit
-`GAME_CATALOG` directly — both are derived from the registry now, and hand-editing
-them is how the route, the card and the unlock list drift apart.
+`GAME_CATALOG` directly — both derive from the registry, and hand-editing is how
+the route, card and unlock list drift apart. No server change or redeploy is needed
+for a new game.
 
 ## Testing
 
-Vitest for pure logic (`npm test`). There is no DOM/E2E suite. Prefer testing pure
-functions — `mergeRows`, `nextScheduledGame`, `formatUnlockCountdown`, the round
-generators in the `levels.js` files, and the device fingerprint. `vite build` and
-`npm run lint` run in CI; both must pass.
+Vitest for pure logic (`npm test`). No DOM/E2E suite. Prefer testing pure functions
+— `mergeRows`, `nextScheduledGame`, `formatUnlockCountdown`, the round generators in
+the `levels.js` files, and the device fingerprint. `vite build` and `npm run lint`
+run in CI; both must pass (lint = 0 errors).
 
-## Pushing code
-
-**DEFAULT: DO NOT PUSH. EVER.** Finish the work, run the checks, report what
-changed, and STOP. Leave the changes uncommitted in the working tree. The user
-reviews and decides when to ship.
-
-### The ONLY thing that authorises a push
-
-An explicit, unambiguous instruction to push **in the user's most recent
-message**. Treat it as a one-shot key that is consumed by the push it authorises
-— it does NOT carry over to later work. After pushing once, the next change is
-unpushed again until they say so again.
-
-Valid: "push the code", "push it", "push both ends", "push everything", "push",
-"push front end", "push both". Any message whose actual instruction is to push.
-
-### These are NOT push triggers — no matter how complete the work looks
-
-- Finishing a task, feature, fix, or plan. Completing work is **not** consent.
-- Being asked to "fix", "implement", "add", "update", "clean up", or "optimize".
-- A message that merely *mentions* git, commits, deploys, or pushing as context,
-  e.g. "I don't want to push yet", "will this need a push?", "before we push…".
-- `attempt_completion`. Wrapping up is NEVER a cue to push.
-- Your own judgement that the change is "ready" or "should be deployed".
-- A push instruction from an *earlier* turn. Consent does not persist.
-
-**When in doubt, do not push, and ask.** Ending with the work uncommitted and a
-note that it is ready to push is always the correct outcome. Pushing something
-the user did not explicitly ask for in that message is a serious error.
-
-### How to push, once authorised
-
-Run the three commands **as three separate `execute_command` calls, never chained**
-(chaining with `;` breaks `git commit -m`). In each repo, in order:
-
-1. `git add .`
-2. `git commit -m "<concise summary of changes>"`
-3. `git push origin main`
-
-Repo = current working context: frontend `d:/Phaser/games` and/or backend
-`D:\K1 games project\server`. "both ends" / "both" / "everything" = do the
-frontend first, then the backend. Skip `commit`/`push` if a repo's working tree
-is clean ("nothing to commit").

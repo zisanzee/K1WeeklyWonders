@@ -1,0 +1,1217 @@
+/* love.css — art direction for the /4yearsoflove keepsake.
+ *
+ * Everything is scoped under `.lv-root` (plus the two `html.lv-locked` rules,
+ * which exist only to freeze scrolling during the opening hold). Deliberately a
+ * separate file (not Tailwind utility soup) because this page is animation-led:
+ * the keyframes, the 3D transforms and the scroll-linked math are the design and
+ * belong together where they can be tuned.
+ *
+ * SCROLL-DRIVEN ACTS
+ * ------------------
+ * A scroll act is a tall "track" element containing a one-viewport `sticky`
+ * stage. useActScroll() writes the act's progress (0 → 1) to `--p` on the stage;
+ * every animation inside is then a pure function of `--p`, expressed with
+ * clamp(): e.g. `--t: clamp(0, calc((var(--p) - 0.2) / 0.3), 1)`. That keeps the
+ * whole thing off the React render path — scrolling never re-renders anything.
+ *
+ * THE ENVELOPE IS FLAT ON PURPOSE. It was rebuilt as a 3D scene at one point
+ * (perspective + translateZ layer sorting) and every bug in that act traced back
+ * to it, so it is now a plain z-index stack: the letter sits below the pocket,
+ * which is the entire occlusion mechanism. Do not reintroduce perspective,
+ * translateZ or preserve-3d here — if a flat layer can express something, a 3D
+ * layer must not be used.
+ *
+ * Still worth knowing: a transformed ancestor becomes the containing block for
+ * absolutely positioned descendants, which is why each layer sizes itself rather
+ * than relying on a shared wrapper.
+ *
+ * Palette: rose → fuchsia → violet on a deep plum/berry night. Fredoka is loaded
+ * once from index.html (never re-link it here).
+ */
+
+.lv-root {
+  --lv-rose: #fb7185;
+  --lv-pink: #f472b6;
+  --lv-fuchsia: #e879f9;
+  --lv-violet: #a78bfa;
+  --lv-cream: #fff1f5;
+  --lv-glass-line: rgba(255, 255, 255, 0.2);
+  --lv-shadow: 0 24px 60px -30px rgba(24, 0, 20, 0.9);
+
+  position: relative;
+  isolation: isolate;
+  width: 100%;
+  min-height: 100dvh;
+  color: var(--lv-cream);
+  font-family: 'Fredoka', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Freeze the page while the heart is being held: the opening must be the only
+   thing on screen, and a locked document also stops the sticky acts below from
+   being reached until the story has genuinely begun. Toggled from index.jsx.
+   `!important` is required because #root's own overflow rule is more specific. */
+html.lv-locked,
+html.lv-locked body,
+html.lv-locked #root {
+  overflow: hidden !important;
+}
+
+/* Entrance animations are declared on the CHILDREN of a section, not the section
+   itself, because sections are also scroll-reveal targets (which set opacity). */
+.lv-rise > * {
+  animation: lv-rise-in 0.9s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes lv-rise-in {
+  from { transform: translateY(26px); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+
+/* ---------------------------------------------------------------------------
+   Backdrop: layered radial glows, two drifting blobs and a sparkle field.
+   Transform/opacity only, and stripped in low-power mode (see the end).
+--------------------------------------------------------------------------- */
+.lv-bg {
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  pointer-events: none;
+  background:
+    /* cool moonlit key from the top-left */
+    radial-gradient(40% 34% at 16% 4%, rgba(196, 181, 253, 0.32) 0%, transparent 68%),
+    /* warm bounce from the lower-right — the two opposing sources are what give
+       the scene depth; one light alone reads flat */
+    radial-gradient(46% 38% at 88% 92%, rgba(251, 113, 133, 0.34) 0%, transparent 70%),
+    radial-gradient(30% 26% at 92% 12%, rgba(232, 121, 249, 0.26) 0%, transparent 70%),
+    radial-gradient(34% 28% at 10% 88%, rgba(167, 139, 250, 0.24) 0%, transparent 72%),
+    /* vignette: darkens the corners so the centre reads as a lit stage */
+    radial-gradient(120% 100% at 50% 45%, transparent 34%, rgba(22, 2, 16, 0.55) 100%),
+    linear-gradient(160deg, #24051c 0%, #420c36 24%, #61104a 50%, #7d1652 74%, #941c56 100%);
+}
+
+.lv-blob {
+  position: fixed;
+  z-index: -2;
+  border-radius: 50%;
+  filter: blur(70px);
+  opacity: 0.5;
+  pointer-events: none;
+  will-change: transform;
+}
+.lv-blob--a {
+  width: 46vmax;
+  height: 46vmax;
+  top: -14vmax;
+  left: -12vmax;
+  background: radial-gradient(circle, rgba(251, 113, 133, 0.85), transparent 66%);
+  animation: lv-drift-a 22s ease-in-out infinite alternate;
+}
+.lv-blob--b {
+  width: 40vmax;
+  height: 40vmax;
+  bottom: -14vmax;
+  right: -10vmax;
+  background: radial-gradient(circle, rgba(167, 139, 250, 0.8), transparent 66%);
+  animation: lv-drift-b 26s ease-in-out infinite alternate;
+}
+@keyframes lv-drift-a {
+  from { transform: translate3d(0, 0, 0) scale(1); }
+  to { transform: translate3d(6vmax, 5vmax, 0) scale(1.14); }
+}
+@keyframes lv-drift-b {
+  from { transform: translate3d(0, 0, 0) scale(1.08); }
+  to { transform: translate3d(-5vmax, -6vmax, 0) scale(1); }
+}
+
+.lv-stars {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image:
+    radial-gradient(rgba(255, 255, 255, 0.55) 1px, transparent 1.4px),
+    radial-gradient(rgba(255, 214, 232, 0.4) 1px, transparent 1.4px);
+  background-size: 190px 190px, 260px 260px;
+  background-position: 0 0, 90px 130px;
+  opacity: 0.5;
+  animation: lv-twinkle 5.5s ease-in-out infinite;
+}
+@keyframes lv-twinkle {
+  0%, 100% { opacity: 0.32; }
+  50% { opacity: 0.6; }
+}
+
+.lv-canvas {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
+/* Shared text bits. */
+.lv-grad {
+  background: linear-gradient(120deg, #fff0f6 0%, #ffc2dd 32%, #f0abfc 66%, #c4b5fd 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+}
+.lv-soft { color: rgba(255, 226, 240, 0.8); }
+.lv-eyebrow {
+  font-size: clamp(0.7rem, 2vw, 0.82rem);
+  font-weight: 700;
+  letter-spacing: 0.34em;
+  text-transform: uppercase;
+  color: rgba(255, 224, 240, 0.72);
+}
+.lv-note {
+  font-size: clamp(0.8rem, 3vw, 0.92rem);
+  color: rgba(255, 226, 240, 0.78);
+  text-align: center;
+  max-width: 34rem;
+  line-height: 1.6;
+}
+
+.lv-card {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0) 42%),
+    linear-gradient(165deg, rgba(70, 16, 54, 0.62) 0%, rgba(44, 8, 38, 0.5) 100%);
+  border: 1px solid var(--lv-glass-line);
+  border-radius: 1.75rem;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: var(--lv-shadow);
+}
+
+/* ===========================================================================
+   THE HEART (the hold target). Square + two circles, rotated -45°, with one
+   union drop-shadow on the BODY (per-piece shadows would trace the seams).
+   =========================================================================== */
+.lv-heart {
+  --lv-heart-size: 168px;
+  position: relative;
+  width: var(--lv-heart-size);
+  height: var(--lv-heart-size);
+  border: none;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: none;
+  user-select: none;
+  transition: transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.lv-heart:active { transform: scale(0.97); }
+
+.lv-heart__body {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 44%;
+  aspect-ratio: 1;
+  transform: translate(-50%, -50%) rotate(-45deg);
+  filter: drop-shadow(0 18px 28px rgba(120, 0, 50, 0.5));
+}
+
+.lv-heart__lobe,
+.lv-heart__point {
+  position: absolute;
+  background: radial-gradient(circle at 34% 24%, #ffc2d6 0%, #f4577f 38%, #dc2b66 68%, #97164b 100%);
+}
+.lv-heart__point { inset: 0; border-radius: 9%; }
+.lv-heart__lobe { width: 100%; height: 100%; border-radius: 50%; }
+.lv-heart__lobe--l { top: -50%; left: 0; }
+.lv-heart__lobe--r { top: 0; left: 50%; }
+
+.lv-heart__gloss {
+  position: absolute;
+  top: 21%;
+  left: 27%;
+  width: 21%;
+  height: 15%;
+  border-radius: 50%;
+  background: radial-gradient(circle at 40% 40%, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0) 70%);
+  filter: blur(0.5px);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.lv-heart__inner {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  gap: 0.1rem;
+  text-align: center;
+}
+.lv-heart__emoji { font-size: calc(var(--lv-heart-size) * 0.2); filter: drop-shadow(0 2px 6px rgba(90, 0, 40, 0.6)); }
+.lv-heart__label {
+  font-size: calc(var(--lv-heart-size) * 0.082);
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: #fff5f9;
+  text-shadow: 0 1px 6px rgba(90, 0, 40, 0.7);
+}
+
+/* The liquid "love" that pours in while held. A SIBLING of the rotated body so
+   its level stays level on screen instead of tilting 45° with the shape. */
+.lv-heart__fill {
+  position: absolute;
+  left: 8%;
+  right: 8%;
+  bottom: 10%;
+  height: calc(var(--lv-progress, 0) * 84%);
+  border-radius: 46% 46% 40% 40%;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.75), rgba(255, 122, 180, 0.95));
+  opacity: 0.5;
+  mix-blend-mode: screen;
+  filter: blur(3px);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.lv-heart.is-beating .lv-heart__body {
+  animation: lv-heartbeat 1.15s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+/* The base transform is repeated every frame: the animation REPLACES it. */
+@keyframes lv-heartbeat {
+  0%, 100% { transform: translate(-50%, -50%) rotate(-45deg) scale(1); }
+  14% { transform: translate(-50%, -50%) rotate(-45deg) scale(1.1); }
+  28% { transform: translate(-50%, -50%) rotate(-45deg) scale(1.02); }
+  42% { transform: translate(-50%, -50%) rotate(-45deg) scale(1.08); }
+  70% { transform: translate(-50%, -50%) rotate(-45deg) scale(1); }
+}
+.lv-heart.is-held .lv-heart__body { animation-duration: 0.62s; }
+
+/* ===========================================================================
+   ACT 0 — HOLD GATE (the only thing on screen until the heart is full)
+   =========================================================================== */
+.lv-gate {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  padding: 1.5rem;
+}
+.lv-gate__inner {
+  /* Declared here, not on the button, so the decorative ring and the heart both
+     read one size — the ring is a sibling and cannot see a value set inside the
+     button. */
+  --lv-heart-size: 176px;
+  display: grid;
+  justify-items: center;
+  gap: 1.15rem;
+  text-align: center;
+  animation: lv-rise-in 0.9s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.lv-gate__ring {
+  position: absolute;
+  inline-size: calc(var(--lv-heart-size) * 1.26);
+  block-size: calc(var(--lv-heart-size) * 1.26);
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.14);
+}
+.lv-gate__ring::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  border-top-color: #f9a8d4;
+  animation: lv-spin 1.6s linear infinite;
+}
+@keyframes lv-spin { to { transform: rotate(360deg); } }
+
+.lv-gate__hint {
+  margin-top: 0.2rem;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: rgba(255, 213, 233, 0.82);
+}
+.lv-gate__track {
+  width: min(68vw, 19rem);
+  height: 0.7rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.13);
+  border: 1px solid var(--lv-glass-line);
+  overflow: hidden;
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+.lv-gate__fill {
+  height: 100%;
+  width: 0%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #fb7185 0%, #f472b6 44%, #e879f9 100%);
+  box-shadow: 0 0 18px rgba(244, 114, 182, 0.85);
+}
+
+/* The short landing beat after the hold, before the envelope act. */
+.lv-landing {
+  position: relative;
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 0.8rem;
+  padding: 2rem 1.5rem;
+  text-align: center;
+}
+/* :not(.lv-cue) — the scroll cue has its own bob animation, and the blanket
+   `animation` shorthand here would have replaced it and frozen the cue. */
+.lv-landing > :not(.lv-cue) {
+  animation: lv-rise-in 0.9s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.lv-landing > *:nth-child(2) { animation-delay: 0.1s; }
+.lv-landing > *:nth-child(3) { animation-delay: 0.2s; }
+
+/* ===========================================================================
+   SCROLL-ACT PLUMBING
+   =========================================================================== */
+.lv-track { position: relative; width: 100%; }
+.lv-track--envelope { height: 340vh; }
+
+.lv-stage {
+  /* `--p` is written here by useActScroll. */
+  --p: 0;
+  position: sticky;
+  top: 0;
+  height: 100dvh;
+  width: 100%;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+
+  /* ---------------------------------------------------------------------------
+     THE ACT'S TIMELINE — the single source of truth for the whole sequence.
+     Derived on the STAGE (not on `.lv-scene`) because the scroll cue is a
+     SIBLING of the scene and has to react to the same values.
+
+     Five phases, each a clamped 0..1 ramp of the act's scroll progress:
+
+       seal      0.02 → 0.16   the wax seal breaks and spins off
+       open      0.04 → 0.30   the flap swings back on its top edge
+       rise      0.24 → 0.54   the letter grows up and out of the envelope
+       (HOLD)    0.54 → 0.70   NOTHING moves — the letter sits fully presented
+       exit      0.70 → 0.98   the letter is carried away to the left
+       env-out   0.88 → 1.00   the envelope fades last, after the letter has gone
+
+     The HOLD is the entire point of the act: the letter has to arrive, stop, and
+     be readable before anything else happens. It exists because the rise ramp
+     finishes at 0.54 while the exit ramp does not begin until 0.70 — two
+     independent ramps are what create the pause, and it scales with however far
+     the user scrolls.
+  --------------------------------------------------------------------------- */
+  --t-seal: clamp(0, calc((var(--p) - 0.02) / 0.12), 1);
+  --t-flap: clamp(0, calc((var(--p) - 0.04) / 0.22), 1);
+  --t-rise: clamp(0, calc((var(--p) - 0.26) / 0.26), 1);
+  /* The envelope is GONE the moment the letter finishes rising: both ramps end
+     at the same point, so the envelope is never still on screen behind a
+     fully-presented letter. */
+  --t-env-out: clamp(0, calc((var(--p) - 0.34) / 0.18), 1);
+  --t-exit: clamp(0, calc((var(--p) - 0.68) / 0.28), 1);
+}
+
+/* Stage lighting for the envelope acts: a soft key glow behind the subject and a
+   shade across the floor, so the envelope sits IN a space rather than on a flat
+   gradient. Both are pointer-events-none decoration. */
+.lv-stage::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(48% 42% at 50% 56%, rgba(255, 186, 224, 0.16) 0%, transparent 70%),
+    radial-gradient(70% 40% at 50% 100%, rgba(10, 0, 8, 0.5) 0%, transparent 72%);
+}
+
+.lv-rail {
+  position: absolute;
+  left: 50%;
+  bottom: 1.25rem;
+  translate: -50% 0;
+  width: min(58vw, 16rem);
+  height: 3px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.16);
+  overflow: hidden;
+}
+.lv-rail::after {
+  content: '';
+  display: block;
+  height: 100%;
+  width: calc(var(--p, 0) * 100%);
+  background: linear-gradient(90deg, #fb7185, #e879f9);
+  border-radius: 999px;
+}
+
+.lv-cue {
+  position: absolute;
+  left: 50%;
+  bottom: 2.6rem;
+  width: 100%;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+/* Two labels cross-fade as the act moves from "open this" to "carry on": the
+   first belongs to the envelope, the second to the letter walking away. */
+.lv-cue__label {
+  grid-area: 1 / 1;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: rgba(255, 224, 240, 0.8);
+  white-space: nowrap;
+}
+.lv-cue__label--open {
+  opacity: calc(1 - var(--t-exit));
+}
+.lv-cue__label--next {
+  opacity: var(--t-exit);
+}
+@keyframes lv-bob {
+  0%, 100% { transform: translate(-50%, 0); opacity: 0.6; }
+  50% { transform: translate(-50%, -7px); opacity: 1; }
+}
+
+/* ===========================================================================
+   ACT 1 — THE ENVELOPE (scroll-driven: open → letter rises → holds → exits)
+
+   The `--t-*` phase values are derived on `.lv-stage` (see the block above the
+   stage), because the scroll cue is a sibling of the scene and needs them too.
+   Everything below is a pure function of them.
+
+   NO 3D ANYWHERE. An earlier revision built this as a 3D scene (perspective +
+   translateZ layer sorting). Every bug in this act traced back to it — flattened
+   contexts, a transform component that silently cancelled itself, layers
+   disappearing behind each other — and none of it bought anything a flat
+   z-index could not do. The letter is simply a LOWER z-index than the pocket,
+   which is all the occlusion this ever needed, and the flap's opening is a 2D
+   scaleY flip rather than a rotateX. Keep it flat.
+   =========================================================================== */
+.lv-scene {
+  position: relative;
+  /* 66vh rather than 86vh: with a 3:4 box the HEIGHT is 4/3 of the width, so
+     capping the width at 86vh made the scene 115vh tall — taller than the
+     viewport, which is what clipped the bottom off the letter. 66vh keeps the
+     height at 88vh. */
+  width: min(94vw, 66vh, 34rem);
+  aspect-ratio: 3 / 4;
+  transition: scale 0.45s ease;
+}
+/* A gentle hover lift — the assembly breathing toward the pointer. No rotation:
+   the shine is what makes it feel like a physical object now. */
+@media (hover: hover) {
+  .lv-scene:hover { scale: 1.018; transition-duration: 0.15s; }
+}
+
+/* The shine. useTilt writes --sx/--sy from the pointer; --glint rests at 0.35 so
+   there is a highlight even with no pointer at all (a touch device never
+   hovers), brightening to 1 under the cursor. */
+.lv-tiltable {
+  --sx: 50%;
+  --sy: 50%;
+  --glint: 0.35;
+}
+.lv-scene:hover { transition-duration: 0.15s; }
+
+/* The hover glint is placed INSIDE each face (not once over the scene), so it is
+   clipped by that face's own shape and lands on the envelope/paper rather than
+   floating over the empty corner of the scene. --sx/--sy are set on the scene
+   and simply inherit down. */
+.lv-glint {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  /* A tight specular core plus a wide halo — a single soft gradient reads as
+     fog rather than as a light source. */
+  background:
+    radial-gradient(13% 13% at var(--sx) var(--sy), rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0) 68%),
+    radial-gradient(46% 46% at var(--sx) var(--sy), rgba(255, 214, 236, 0.42) 0%, rgba(255, 255, 255, 0) 72%);
+  opacity: var(--glint, 0);
+  transition: opacity 0.45s ease;
+  mix-blend-mode: screen;
+  z-index: 0;
+}
+
+/* An always-on shine so the paper glints even on a touch device, where there is
+   no hover to track. Clipped by the sheet's own rounded shape. */
+.lv-env__paper-face::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(115deg, transparent 36%, rgba(255, 255, 255, 0.3) 50%, transparent 64%);
+  transform: translateX(-140%);
+  animation: lv-sweep 7s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes lv-sweep {
+  0%, 58% { transform: translateX(-140%); }
+  100% { transform: translateX(140%); }
+}
+
+/* ===========================================================================
+   THE ENVELOPE
+
+   FLAT LAYERS, ORDERED BY Z-INDEX
+   -------------------------------
+   Every piece is a child of `.lv-env`, and the only ordering mechanism is
+   z-index. That is all the occlusion this ever needed: the letter sits BELOW the
+   pocket (`z-index: 2` against `3`), so it is hidden by the front while it is
+   inside and revealed once it rises past the opening line.
+
+   There is deliberately no perspective / translateZ / preserve-3d. The previous
+   revision built this as a 3D scene to get "real" layer sorting, and every bug in
+   this act traced back to that: an opacity wrapper flattened the context so the
+   letter painted on top of a closed envelope; a translateZ placed after a
+   rotation silently cancelled itself and dropped the flap behind the body; the
+   whole assembly had to be held at an angle or the layering was invisible. A flat
+   z-index has none of those failure modes, and the flap's hinge is now a 2D
+   scaleY flip instead of a rotateX. If a flat layer can express something, a 3D
+   layer must not be used.
+
+   LAYER ORDER
+        1   .lv-env__back      the outer body
+        2   the letter         hidden by the pocket while it is inside
+        3   .lv-env__gap       the interior / opening mouth
+        4   .lv-env__pocket    the front panel
+        5   .lv-env__flap      the hinged lid (folds UP, out of the way)
+        6   .lv-env__seal      the wax seal
+
+   UNITS: `.lv-env` is exactly one envelope height (1 EH) tall and 1.5 EH wide,
+   and — because the scene is 3:4 and the envelope is 3:2 across its full width —
+   it is precisely the bottom HALF of the scene. The letter's layer is the full
+   envelope box, so its translateY percentages are fractions of one envelope
+   height. Every position below is exact rather than eyeballed.
+   =========================================================================== */
+.lv-env {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  aspect-ratio: 3 / 2;
+  pointer-events: none;
+}
+
+/* --- the outer body ------------------------------------------------------- */
+/* Carries the exit for the whole envelope (shrink, sink, fade), which is why the
+   envelope is completely gone the moment the letter finishes rising. */
+.lv-env__back {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border-radius: 0.9rem;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.42) 0%, rgba(255, 255, 255, 0) 34%),
+    linear-gradient(168deg, #f4b6d2 0%, #dd86b2 48%, #bd5f92 100%);
+  box-shadow:
+    0 46px 74px -34px rgba(24, 0, 14, 0.95),
+    0 6px 14px -8px rgba(24, 0, 14, 0.75);
+  opacity: calc(1 - var(--t-env-out));
+  scale: calc(1 + var(--t-env-out) * 0.05);
+  translate: 0 calc(var(--t-env-out) * 4%);
+}
+
+/* --- the interior --------------------------------------------------------- */
+/* The opening mouth. Its inset leaves a lip of the body visible all round, which
+   is what reads as the envelope having a thickness. A deep ROSE rather than a
+   near-black: it has to look like the inside of a pink envelope catching the
+   light, and actual black reads as a hole punched through the page. */
+.lv-env__gap {
+  position: absolute;
+  inset: 3% 3% 4%;
+  z-index: 3;
+  border-radius: 0.7rem;
+  background:
+    linear-gradient(180deg, rgba(255, 195, 224, 0.3) 0%, rgba(255, 195, 224, 0) 34%),
+    linear-gradient(176deg, #b0427b 0%, #8e2c5f 52%, #611b41 100%);
+  box-shadow: inset 0 18px 32px rgba(52, 6, 34, 0.75);
+  opacity: calc(1 - var(--t-env-out));
+}
+
+/* --- the paper ------------------------------------------------------------ */
+/* The layer is the full envelope box, so its translateY percentages are
+   fractions of ONE ENVELOPE HEIGHT — simple to reason about, and it cannot
+   drift from the envelope's own geometry. */
+.lv-env__paper-layer {
+  position: absolute;
+  inset: 0;
+  /* BELOW the pocket and the gap: that is the entire hiding mechanism. */
+  z-index: 2;
+  pointer-events: none;
+}
+
+/* 86% of 1.5 EH = 1.29 EH wide; 15:11 makes it 0.95 EH tall. Bottom-anchored at
+   15%, so at rest (scaled 0.42) it spans 0.15–0.55 EH — comfortably inside the
+   envelope and below the pocket's opening line, i.e. completely hidden. At full
+   rise it has moved up 0.87 EH, putting its bottom just above the envelope's top
+   edge, so the whole sheet is out and clear. */
+.lv-env__paper {
+  position: absolute;
+  left: 5%;
+  right: 5%;
+  bottom: 12%;
+  /* 12:7 rather than 10:7. At 10:7 the sheet is 0.94 EH tall, and once risen
+     0.87 EH its top edge reached within 3% of the top of the stage — it brushed
+     the frame. At 12:7 it is 0.79 EH tall, so the fully-risen letter sits a
+     comfortable 11% clear of the top while still being hidden at rest (its top
+     edge at 0.565 EH, inside the pocket's covered area). */
+  aspect-ratio: 12 / 7;
+  border-radius: 0.75rem;
+  transform-origin: 50% 100%;
+  /* Two transforms, and nothing else — no opacity, no filter, or this would
+     stop being a 3D plane and the letter would show through the closed
+     envelope.
+       scale 0.4 → 1    grows from its BOTTOM edge, so it pushes up and out
+                        rather than expanding in both directions
+       rotate           a slight lean while it is being carried away left */
+  transform:
+    scale(calc(0.4 + var(--t-rise) * 0.6))
+    rotate(calc(var(--t-exit) * -7deg));
+  box-shadow: 0 26px 46px -18px rgba(24, 0, 14, 0.8);
+}
+
+.lv-env__paper-face {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  overflow: hidden; /* clips the shine sweep to the sheet */
+  background:
+    /* the pointer-tracked hot spot, so the letter catches the light too */
+    radial-gradient(34% 34% at var(--sx) var(--sy), rgba(255, 214, 236, 0.5), transparent 74%),
+    linear-gradient(150deg, #fffefe 0%, #fff6fa 44%, #ffe7f1 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    inset 0 0 0 1px rgba(206, 146, 178, 0.28),
+    inset 0 -26px 44px -22px rgba(196, 120, 160, 0.22);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(0.35rem, 1.5vw, 0.65rem);
+  padding: clamp(0.9rem, 4vw, 2rem);
+  text-align: center;
+}
+/* Faint ruled stationery behind the words; `> *` lifts the content above it. */
+.lv-env__paper-face::before {
+  content: '';
+  position: absolute;
+  inset: 8% 7%;
+  border-radius: 4px;
+  background: repeating-linear-gradient(
+    180deg,
+    rgba(190, 90, 140, 0.11) 0 1px,
+    transparent 1px 16px
+  );
+  pointer-events: none;
+}
+.lv-env__paper-face > * { position: relative; }
+
+/* --- the front ------------------------------------------------------------ */
+/* The front panel. Its clip is the opening line: full width, dipping to a point
+   at 26% down. Everything below the line hides the letter (this sits at z 4,
+   above the letter's z 2); the two upper corners are open, which is where the
+   letter appears as it rises.
+
+   A shallow static scaleY gives the mouth a hint of receding away from the
+   viewer without any 3D — purely graphical. */
+.lv-env__pocket {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  transform: scaleY(0.985);
+  transform-origin: 50% 100%;
+  clip-path: polygon(0 0, 50% 26%, 100% 0, 100% 100%, 0 100%);
+  border-radius: 0.9rem;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.52) 0%, rgba(255, 255, 255, 0) 24%),
+    linear-gradient(178deg, #ffd6e6 0%, #f8a7cb 52%, #e07cae 100%);
+  box-shadow:
+    inset 0 2px 0 rgba(255, 255, 255, 0.75),
+    inset 0 -20px 32px rgba(140, 32, 88, 0.32);
+  opacity: calc(1 - var(--t-env-out));
+}
+/* The two folded side walls, lit from the upper left and shaded on the right, so
+   the front reads as folded paper rather than a printed shape. */
+.lv-env__pocket::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(102deg, rgba(255, 255, 255, 0.42) 0%, rgba(255, 255, 255, 0) 28%),
+    linear-gradient(258deg, rgba(118, 20, 70, 0.44) 0%, rgba(255, 255, 255, 0) 32%);
+}
+
+/* --- the flap ------------------------------------------------------------- */
+/* Folds UP and out of the way. A 2D scaleY flip from its top edge is the whole
+   hinge — no rotateX, no perspective. It reads correctly because the flap is
+   just a triangle: shrinking it vertically to nothing and growing it back, now
+   pointing the other way, is indistinguishable from a lid swinging over.
+
+   The greyed "back of the flap" state is a separate overlay faded in over the
+   second half, which is what tells the eye the flap has turned over. */
+.lv-env__flap-wrap {
+  position: absolute;
+  inset: 0;
+  height: 56%;
+  z-index: 5;
+  transform-origin: 50% 0%;
+  /* scaleY 1 → -1 through a 0 mid-point; the abs() keeps it non-negative for the
+     renderer while the sign flips the triangle's direction. */
+  transform: scaleY(calc(1 - var(--t-flap) * 2));
+  opacity: calc(1 - var(--t-env-out));
+}
+.lv-env__flap {
+  position: absolute;
+  inset: 0;
+  clip-path: polygon(0 0, 100% 0, 50% 100%);
+  /* Two halves with a lit left and a shaded right, so the triangle's central
+     ridge reads as a fold down the middle. */
+  background:
+    linear-gradient(100deg, rgba(255, 255, 255, 0.55) 0%, rgba(255, 255, 255, 0) 30%),
+    linear-gradient(260deg, rgba(126, 22, 74, 0.42) 0%, rgba(255, 255, 255, 0) 34%),
+    linear-gradient(180deg, #ffdfec 0%, #f9b1cf 62%, #ec8ab8 100%);
+  box-shadow: inset 0 -3px 12px rgba(150, 40, 96, 0.32);
+}
+/* The flap's underside, brought in over the second half of the fold. */
+.lv-env__flap::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    rgba(178, 62, 118, 0.42) 0%,
+    rgba(150, 40, 96, 0.3) 100%
+  );
+  opacity: calc(clamp(0, calc((var(--t-flap) - 0.5) * 2), 1) * 0.85);
+}
+/* The crease down the middle, and the flap's own thin lip along the V. */
+.lv-env__flap::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(90deg, transparent 48.5%, rgba(150, 40, 96, 0.2) 50%, transparent 51.5%),
+    linear-gradient(180deg, transparent 0%, transparent 92%, rgba(150, 40, 96, 0.18) 100%);
+}
+
+/* --- the seal ------------------------------------------------------------- */
+/* Sits at the pocket's opening line and breaks away as the flap swings. */
+.lv-env__seal {
+  position: absolute;
+  /* On the flap, a little above the tip of its V (the flap is 56% tall, so its
+     point is at 56%) — where a seal on a closed envelope actually sits. */
+  top: 46%;
+  left: 50%;
+  z-index: 6;
+  transform:
+    translate(-50%, -50%)
+    scale(calc(1 - var(--t-seal) * 0.5))
+    rotate(calc(var(--t-seal) * 40deg));
+  width: 17%;
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: radial-gradient(circle at 38% 32%, #ffa3c2 0%, #e11d6b 46%, #8f1445 100%);
+  box-shadow:
+    0 10px 22px -8px rgba(50, 0, 22, 0.95),
+    inset 0 2px 6px rgba(255, 255, 255, 0.55),
+    inset 0 -6px 12px rgba(90, 0, 40, 0.5);
+  color: #fff4f9;
+  font-weight: 900;
+  font-size: clamp(0.58rem, 2vw, 0.86rem);
+  letter-spacing: 0.02em;
+  opacity: calc(1 - var(--t-seal));
+  pointer-events: none;
+}
+
+/* --- letter typography ---------------------------------------------------- */
+.lv-paper__title {
+  font-size: clamp(0.95rem, 3.9vw, 1.5rem);
+  font-weight: 700;
+  color: #8d1e57;
+  margin: 0;
+}
+.lv-paper__body {
+  display: grid;
+  gap: 0.45rem;
+  max-width: 24rem;
+}
+.lv-paper__p {
+  font-size: clamp(0.7rem, 2.3vw, 0.9rem);
+  line-height: 1.6;
+  color: #5c1237;
+}
+.lv-paper__sign {
+  font-size: clamp(0.78rem, 2.7vw, 0.98rem);
+  font-weight: 700;
+  font-style: italic;
+  color: #c2185b;
+}
+
+/* ===========================================================================
+   ACT 2 — "WHY I LOVE YOU", two per row, revealing as she scrolls
+   =========================================================================== */
+.lv-act {
+  position: relative;
+  width: 100%;
+  max-width: 62rem;
+  margin: 0 auto;
+  padding: clamp(3rem, 12vw, 8rem) clamp(1rem, 4vw, 2rem);
+  display: grid;
+  gap: clamp(1rem, 3vw, 1.5rem);
+  justify-items: center;
+}
+.lv-act__title {
+  font-size: clamp(1.35rem, 5.4vw, 2.1rem);
+  font-weight: 700;
+  text-align: center;
+}
+
+.lv-reasons {
+  width: 100%;
+  display: grid;
+  gap: clamp(0.85rem, 2.6vw, 1.4rem);
+  grid-template-columns: 1fr;
+}
+@media (min-width: 640px) {
+  .lv-reasons { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+.lv-reason {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: flex-start;
+  gap: clamp(0.6rem, 2.2vw, 1rem);
+  padding: clamp(0.9rem, 3.2vw, 1.4rem);
+  border-radius: 1.35rem;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.13) 0%, rgba(255, 255, 255, 0) 48%),
+    linear-gradient(160deg, rgba(96, 22, 72, 0.62), rgba(52, 10, 44, 0.58));
+  border: 1px solid var(--lv-glass-line);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 20px 40px -26px rgba(20, 0, 14, 0.9);
+  /* Comes in from below with a slight over-rotation and a blur, so each pill
+     snaps into focus. The spring easing overshoots a touch on the way in. */
+  opacity: 0;
+  transform: translateY(46px) scale(0.9) rotate(-1.2deg);
+  filter: blur(6px);
+  transition:
+    opacity 0.65s ease,
+    transform 0.85s cubic-bezier(0.18, 1.3, 0.32, 1),
+    filter 0.6s ease,
+    box-shadow 0.4s ease;
+}
+.lv-reason.is-in {
+  opacity: 1;
+  transform: none;
+  filter: blur(0);
+}
+/* A light sweeping across each pill as it lands, so the reveal has a beat. */
+.lv-reason::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(115deg, transparent 34%, rgba(255, 255, 255, 0.22) 50%, transparent 66%);
+  transform: translateX(-140%);
+  pointer-events: none;
+}
+.lv-reason.is-in::after {
+  animation: lv-sweep 1.1s ease-out 0.25s both;
+}
+@media (hover: hover) {
+  .lv-reason.is-in:hover {
+    transform: translateY(-4px) scale(1.015);
+    border-color: rgba(255, 255, 255, 0.3);
+    box-shadow:
+      0 30px 56px -26px rgba(20, 0, 14, 0.95),
+      0 0 24px -6px rgba(244, 114, 182, 0.35);
+  }
+}
+.lv-reason__num {
+  flex: none;
+  width: 2rem;
+  height: 2rem;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: #fff0f7;
+  background: linear-gradient(150deg, #fb7185, #c026d3);
+  box-shadow: 0 6px 14px -8px rgba(192, 38, 211, 0.9);
+  transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+/* The number badge pops in ahead of the text, drawing the eye to the count. */
+.lv-reason.is-in .lv-reason__num {
+  animation: lv-num-pop 0.62s cubic-bezier(0.34, 1.56, 0.64, 1) 0.15s both;
+}
+@keyframes lv-num-pop {
+  from { transform: scale(0.3) rotate(-25deg); opacity: 0; }
+  62% { transform: scale(1.16) rotate(4deg); opacity: 1; }
+  to { transform: scale(1) rotate(0deg); opacity: 1; }
+}
+@media (hover: hover) {
+  .lv-reason.is-in:hover .lv-reason__num { transform: scale(1.1) rotate(-6deg); }
+}
+.lv-reason__kind {
+  display: block;
+  font-size: clamp(0.85rem, 3.2vw, 1rem);
+  font-weight: 800;
+  color: #fff;
+}
+.lv-reason__text {
+  display: block;
+  margin-top: 0.2rem;
+  font-size: clamp(0.8rem, 2.9vw, 0.92rem);
+  line-height: 1.55;
+  color: rgba(255, 226, 240, 0.84);
+}
+.lv-reason__emoji {
+  margin-left: auto;
+  font-size: clamp(1.2rem, 4.4vw, 1.6rem);
+  filter: drop-shadow(0 3px 8px rgba(80, 0, 40, 0.6));
+}
+
+/* ===========================================================================
+   ACT 3 — THE COUNTER (elapsed only; nothing counts down to the future)
+   =========================================================================== */
+.lv-odometer {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: clamp(0.6rem, 2vw, 1rem);
+  width: 100%;
+  max-width: 44rem;
+}
+@media (min-width: 720px) {
+  .lv-odometer { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+
+.lv-odo {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  padding: clamp(0.85rem, 3vw, 1.35rem) 0.4rem;
+  border-radius: 1.2rem;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.16) 0%, rgba(255, 255, 255, 0) 46%),
+    linear-gradient(165deg, rgba(96, 22, 72, 0.6) 0%, rgba(58, 10, 48, 0.62) 100%);
+  border: 1px solid var(--lv-glass-line);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22);
+  overflow: hidden;
+}
+.lv-odo::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(115deg, transparent 34%, rgba(255, 255, 255, 0.2) 50%, transparent 66%);
+  transform: translateX(-120%);
+  animation: lv-sheen 5.2s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes lv-sheen {
+  0%, 62% { transform: translateX(-120%); }
+  100% { transform: translateX(120%); }
+}
+.lv-odo__value {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  font-size: clamp(1.5rem, 6.4vw, 2.6rem);
+  line-height: 1;
+  letter-spacing: -0.02em;
+  background: linear-gradient(180deg, #ffffff 0%, #ffd3e6 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  text-shadow: 0 0 26px rgba(255, 150, 200, 0.35);
+  /* The node is remounted (via `key`) whenever its text changes, so this replays. */
+  animation: lv-tick 0.42s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+@keyframes lv-tick {
+  0% { transform: translateY(-14%) scale(1.12); }
+  100% { transform: translateY(0) scale(1); }
+}
+.lv-odo__label {
+  font-size: clamp(0.58rem, 2vw, 0.72rem);
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(255, 213, 233, 0.78);
+}
+
+.lv-units {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem;
+}
+.lv-unit {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  padding: 0.4rem 0.85rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--lv-glass-line);
+  font-size: clamp(0.7rem, 2.3vw, 0.84rem);
+}
+.lv-unit__n { font-weight: 800; font-variant-numeric: tabular-nums; }
+.lv-unit__k { color: rgba(255, 213, 233, 0.76); font-weight: 600; }
+
+.lv-since {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.45rem 1rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--lv-glass-line);
+  font-size: clamp(0.72rem, 2.5vw, 0.86rem);
+  font-weight: 700;
+  color: rgba(255, 232, 244, 0.9);
+}
+
+.lv-finale {
+  text-align: center;
+  font-size: clamp(1rem, 4vw, 1.4rem);
+  font-weight: 700;
+  max-width: 34rem;
+  line-height: 1.5;
+  padding-bottom: 5rem;
+}
+
+/* ===========================================================================
+   SHARED BITS
+   =========================================================================== */
+.lv-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.4rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  background: linear-gradient(135deg, #fb7185 0%, #e879b8 55%, #a855f7 100%);
+  color: #fff;
+  font-weight: 800;
+  font-size: 0.95rem;
+  cursor: pointer;
+  box-shadow: 0 16px 34px -16px rgba(232, 121, 184, 0.95);
+  transition: transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1), filter 0.18s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.lv-btn:hover { filter: brightness(1.07); transform: translateY(-2px); }
+.lv-btn:active { transform: translateY(1px) scale(0.98); }
+
+.lv-ghost {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.85rem;
+  border-radius: 999px;
+  border: 1px solid var(--lv-glass-line);
+  background: rgba(255, 255, 255, 0.12);
+  color: rgba(255, 235, 245, 0.9);
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+.lv-ghost:hover { background: rgba(255, 255, 255, 0.2); }
+
+/* Confetti, spawned on the counter reveal. Pure CSS animation; the layer is
+   removed once every piece has landed. */
+.lv-confetti-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  pointer-events: none;
+  overflow: hidden;
+}
+.lv-confetti {
+  position: absolute;
+  top: -6vh;
+  width: 0.55rem;
+  height: 0.95rem;
+  border-radius: 2px;
+  animation: lv-confetti-fall linear forwards;
+}
+@keyframes lv-confetti-fall {
+  0% { transform: translate3d(0, 0, 0) rotate(0deg); opacity: 1; }
+  100% { transform: translate3d(var(--lv-drift, 0px), 112vh, 0) rotate(var(--lv-spin, 540deg)); opacity: 0.9; }
+}
+
+/* The decoy 404 (anyone who is not the intended viewer). It carries its OWN
+   neutral dark background on purpose: it renders OUTSIDE `.lv-root`, so without
+   this the near-white text sat on the app's default light page and was
+   effectively invisible. It must also look mundane — no pink, no hearts,
+   nothing that hints a real page hides here. */
+.lv-404 {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 2rem;
+  text-align: center;
+  background: #0f1115;
+  color: #e7e7ef;
+}
+.lv-404__code {
+  font-size: clamp(4rem, 22vw, 9rem);
+  font-weight: 700;
+  line-height: 1;
+  background: linear-gradient(180deg, #ffffff, #9ca3af);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+}
+
+/* ---------------------------------------------------------------------------
+   Reduced motion / low power: keep every composition, drop the motion and the
+   expensive filters (same philosophy as index.css). The scroll acts still work —
+   they are transform-driven, and transforms are what this rule leaves intact.
+--------------------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  .lv-root *,
+  .lv-root *::before,
+  .lv-root *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.15s !important;
+  }
+  .lv-reason { opacity: 1; transform: none; }
+}
+
+html[data-lowpower='true'] .lv-blob,
+html[data-lowpower='true'] .lv-odo::after,
+html[data-lowpower='true'] .lv-gate__ring::after,
+html[data-lowpower='true'] .lv-env__pocket::after,
+html[data-lowpower='true'] .lv-env__paper-face::after {
+  animation: none !important;
+}
+html[data-lowpower='true'] .lv-card,
+html[data-lowpower='true'] .lv-odo,
+html[data-lowpower='true'] .lv-reason,
+html[data-lowpower='true'] .lv-ghost {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+html[data-lowpower='true'] .lv-blob { filter: blur(40px); opacity: 0.4; }
+html[data-lowpower='true'] .lv-glint { display: none; }
