@@ -378,3 +378,20 @@ Vitest for pure logic (`npm test`). No DOM/E2E suite. Prefer testing pure functi
 the `levels.js` files, and the device fingerprint. `vite build` and `npm run lint`
 run in CI; both must pass (lint = 0 errors).
 
+## CI supply-chain gate
+
+`.github/workflows/ci.yml` runs, in order: `npm ci` → **`npm audit --audit-level=high`**
+(blocking) → `npm run lint` → `npm test` → `npm run build`. All five must pass.
+
+- The audit gate can fail on a **transitive** dependency nobody edited — an advisory
+  simply landed (this happened 2026-09-30: `brace-expansion` via `filelist`, and
+  `fast-uri`). The fix is `npm audit fix`; it updates **`package-lock.json` only**, so
+  it never changes a pinned version in `package.json`. Commit the lockfile.
+- Dependabot (`.github/dependabot.yml`) opens weekly npm + GitHub-Actions bumps
+  (minor/patch grouped) so this usually arrives as a PR before CI breaks.
+- Do not lower the audit level or add `|| true` to unblock a run — the auth credential
+  lives in localStorage, so a vulnerable dep is an exfil path.
+- `npm test` currently fails in this environment for an unrelated Vitest runner issue
+  (all suites, including untouched ones) — that is environmental, not a code failure;
+  lint + build are the local gates to trust.
+

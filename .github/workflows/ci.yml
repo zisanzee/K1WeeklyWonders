@@ -27,6 +27,11 @@ jobs:
       # BLOCKING: the pre-existing high/critical backlog was cleared on
       # 2026-09-25 (`npm audit` reports 0 vulnerabilities), so a new high now
       # fails the build rather than scrolling past.
+      #
+      # If this fails on a TRANSITIVE dep (e.g. brace-expansion via filelist,
+      # fast-uri) that nobody edited — an advisory simply landed — the fix is
+      # `npm audit fix` (updates the lockfile only). Dependabot (.github/
+      # dependabot.yml) opens the bump automatically, so it should be rare.
       - run: npm audit --audit-level=high
 
       - run: npm run lint

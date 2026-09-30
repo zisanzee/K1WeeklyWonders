@@ -1,61 +1,30 @@
-# Dependabot configuration.
+# Dependabot — keeps dependencies patched so the CI supply-chain gate
+# (`npm audit --audit-level=high`) does not fail on newly-disclosed advisories
+# in transitive packages.
 #
-# WHY grouped updates: this project's dependency surface is unusually wide
-# (Phaser, jsPDF + the canvas stack, dnd-kit, React 19, Vite 8/rolldown), and
-# the auth credential lives in localStorage, so third-party code is the main
-# exfil vector. Ungrouped Dependabot would open one PR per package per week and
-# bury the security-relevant bump in noise — so minor/patch moves are batched
-# into a couple of PRs while anything that could break the build is isolated.
-#
-# WHY `phaser` and the PDF/canvas stack are their own groups: a breaking major
-# in either is a project-level event (Phaser v4 API churn, or a canvas/PDF
-# renderer that the student-badge export depends on) and must be reviewed
-# alone, never merged in behind a batch of unrelated patches.
+# WHY THIS EXISTS: a CI failure on 2026-09-30 came from two TRANSITIVE deps
+# (brace-expansion via filelist, and fast-uri) that nobody edited directly —
+# an advisory landed and CI started failing with no code change. Weekly
+# version updates + Dependabot security updates mean the fix arrives as a PR
+# before/alongside any CI failure, and never as a surprise.
 version: 2
 updates:
   - package-ecosystem: npm
-    # The workspace root IS the frontend app — the Node/Express backend lives in
-    # a separate repo (D:\K1 games project\server) and is not tracked here.
-    directory: "/"
+    directory: /
     schedule:
       interval: weekly
-    open-pull-requests-limit: 5
-    labels:
-      - dependencies
+    open-pull-requests-limit: 6
+    # Group bumps so "future games added" does not mean a pile of PRs: minor and
+    # patch updates land as one PR each, majors stay separate so a breaking
+    # change is reviewed on its own.
     groups:
-      # Batched minor/patch for build-time tooling: safe to review as one PR.
-      dev-dependencies:
-        dependency-type: development
-        update-types:
-          - minor
-          - patch
-      # Batched minor/patch for shipped runtime deps.
-      production-dependencies:
-        dependency-type: production
-        update-types:
-          - minor
-          - patch
-      # Isolated: Phaser is the heaviest dep (~1.4MB) and v4 churn is frequent.
-      phaser:
-        patterns:
-          - phaser
-      # Isolated: the student-badge exporter stack. dompurify is included even
-      # though it is transitive — an XSS fix here is exactly what we want a
-      # dedicated, reviewed PR for rather than a silent patch bump.
-      pdf-canvas-stack:
-        patterns:
-          - jspdf
-          - html2canvas
-          - html-to-image
-          - dompurify
+      npm-minor-patch:
+        patterns: ['*']
+        update-types: ['minor', 'patch']
 
-  # Added because .github/workflows/ already exists: workflow actions are
-  # supply-chain surface too, and a stale pinned action is a real risk for a
-  # repo whose CI gates a production deploy.
+  # Keep the CI actions themselves current (both are currently on v4; a stale
+  # action is its own supply-chain surface).
   - package-ecosystem: github-actions
-    directory: "/"
+    directory: /
     schedule:
       interval: weekly
-    open-pull-requests-limit: 5
-    labels:
-      - dependencies
