@@ -72,55 +72,59 @@ export function buildRoundSequence() {
   const recentContains = (list, value, lookback = 3) =>
     list.slice(-lookback).includes(value);
 
+  // Every addend pair for a mode, as candidate rounds. Used both to re-roll
+  // randomly and, if that exhausts, to pick a GUARANTEED-valid round below.
+  const allRoundsForMode = (mode) => {
+    const out = [];
+    for (let a = 1; a <= 5; a += 1) {
+      for (let b = 1; b <= 5; b += 1) {
+        out.push(
+          mode === MODES.FIRST_HALF
+            ? { mode, ekaWants: a, zeeWants: b, total: a + b }
+            : { mode, ekaHas: a, total: a + b, zeeNeeds: b }
+        );
+      }
+    }
+    return out;
+  };
+
+  // Does a round satisfy every constraint this game enforces?
+  const roundPasses = (round) =>
+    round.total <= 10 &&
+    !recentContains(usedTotals, round.total) &&
+    !recentContains(usedAnswers, answerValueOf(round)) &&
+    !rounds.some((r) => duplicateKeyOf(r) === duplicateKeyOf(round));
+
+  const commitRound = (round) => {
+    round.options = buildOptions(answerValueOf(round));
+    usedTotals.push(round.total);
+    usedAnswers.push(answerValueOf(round));
+    return round;
+  };
+
   const tryBuildRound = (mode) => {
     for (let attempt = 0; attempt < 200; attempt += 1) {
-      let round;
-      if (mode === MODES.FIRST_HALF) {
-        const ekaWants = randInt(1, 5);
-        const zeeWants = randInt(1, 5);
-        round = { mode, ekaWants, zeeWants, total: ekaWants + zeeWants };
-      } else {
-        const ekaHas = randInt(1, 5);
-        const zeeNeeds = randInt(1, 5);
-        round = { mode, ekaHas, total: ekaHas + zeeNeeds, zeeNeeds };
-      }
-
-      const answer = answerValueOf(round);
-
-      // Totals are always ≤ 10 by construction (max addend pair is 5+5),
-      // but keep the guard so a future edit can't silently exceed the
-      // numbersVoice range.
-      if (round.total > 10) continue;
-
-      // Re-roll if the total or the answer value appeared within the last 3
-      // rounds, or if the full addend pair is an exact duplicate of any
-      // earlier round this game.
-      if (recentContains(usedTotals, round.total)) continue;
-      if (recentContains(usedAnswers, answer)) continue;
-      if (rounds.some((r) => duplicateKeyOf(r) === duplicateKeyOf(round))) continue;
-
-      round.options = buildOptions(answer);
-      usedTotals.push(round.total);
-      usedAnswers.push(answer);
-      return round;
+      const round = allRoundsForMode(mode)[randInt(0, 24)];
+      if (roundPasses(round)) return commitRound(round);
     }
 
-    // Safety fallback (unreachable in practice given the pool sizes) — build
-    // one valid round without enforcing the lookback so generation never hangs.
-    let fallback;
-    if (mode === MODES.FIRST_HALF) {
-      const ekaWants = randInt(1, 5);
-      const zeeWants = randInt(1, 5);
-      fallback = { mode, ekaWants, zeeWants, total: ekaWants + zeeWants };
-    } else {
-      const ekaHas = randInt(1, 5);
-      const zeeNeeds = randInt(1, 5);
-      fallback = { mode, ekaHas, total: ekaHas + zeeNeeds, zeeNeeds };
-    }
-    fallback.options = buildOptions(answerValueOf(fallback));
-    usedTotals.push(fallback.total);
-    usedAnswers.push(answerValueOf(fallback));
-    return fallback;
+    // The random loop can exhaust under the strict lookback. Rather than fall
+    // back to an UNCONSTRAINED round (which would repeat a recent total — the
+    // exact thing the lookback exists to prevent, and what flaked CI), scan the
+    // candidate pairs in order and take the first that actually passes. The
+    // total-lookback invariant is always satisfiable: at most 3 of the 9 totals
+    // (2..10) are excluded at once, so valid totals always remain.
+    const candidate = allRoundsForMode(mode).find(roundPasses);
+    if (candidate) return commitRound(candidate);
+
+    // Last resort (mathematically unreachable given the pools above): relax only
+    // the answer-lookback, still honouring the total lookback + duplicate rules.
+    const relaxed = allRoundsForMode(mode).find(
+      (round) =>
+        !recentContains(usedTotals, round.total) &&
+        !rounds.some((r) => duplicateKeyOf(r) === duplicateKeyOf(round))
+    );
+    return commitRound(relaxed || allRoundsForMode(mode)[0]);
   };
 
   for (let i = 0; i < ROUNDS_PER_HALF; i += 1) {

@@ -58,9 +58,15 @@ describe('GAME_ICON_FILES', () => {
     }
   });
 
-  it('maps every entry to a root-relative path under /game-icons/', () => {
+  it('maps every entry to a usable image URL (local /game-icons/ path or remote https)', () => {
+    // Icons may be either a local file under public/game-icons/ (cached by the
+    // service worker) or a full remote URL (e.g. Cloudinary) — both are just
+    // strings for <img src>. Assert it is one of the two, and points at an
+    // image, without pinning callers to the local-file shape.
     for (const [key, file] of Object.entries(GAME_ICON_FILES)) {
-      expect(file.startsWith('/game-icons/'), `${key} → ${file}`).toBe(true);
+      const local = file.startsWith('/game-icons/');
+      const remote = /^https:\/\//.test(file);
+      expect(local || remote, `${key} → ${file}`).toBe(true);
       expect(/\.(png|webp|svg|jpg|jpeg)$/i.test(file), `${key} → ${file}`).toBe(true);
     }
   });
