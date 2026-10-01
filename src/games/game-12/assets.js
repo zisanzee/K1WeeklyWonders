@@ -90,7 +90,7 @@ const RAW_IMAGES = {
   // SCENE 5
   // ===========================================================================
   scene5Background:
-    'https://res.cloudinary.com/hijmipga/image/upload/v1790705164/scene5bg_d7w9my.png',
+    'https://res.cloudinary.com/hijmipga/image/upload/v1790878308/scene5bg_d7w9my.png',
   scene5Character1:
     'https://res.cloudinary.com/hijmipga/image/upload/v1790705163/scene5pot-Photoroom_mkvagu.png',
   scene5Character2:
@@ -111,7 +111,7 @@ const RAW_IMAGES = {
   // round prompts (props that have no character cut-out of their own).
   // ===========================================================================
   promptSlide:
-    'https://res.cloudinary.com/hijmipga/image/upload/v1790776949/slide_1_fmvpur.png',
+    'https://res.cloudinary.com/hijmipga/image/upload/v1790878266/slide_1_fmvpur.png',
   promptBed:
     'https://res.cloudinary.com/hijmipga/image/upload/v1790777550/bed_uttrmq.png',
   promptChef:

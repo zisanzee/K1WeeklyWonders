@@ -72,7 +72,7 @@ export const CHARACTERS = [
   { id: 'scene4Character1', x: 324.118, y: 517.647, scale: 0.36, rotation: 0, flipX: 0, z: 1 },
   { id: 'scene4Character2', x: 355.294, y: 231.176, scale: 0.36, rotation: 0, flipX: 0, z: 2 },
   { id: 'scene5Character1', x: 165.217, y: 577.101, scale: 0.59, rotation: 0, flipX: 0, z: 1 },
-  { id: 'scene5Character2', x: 628.986, y: 453.043, scale: 0.81, rotation: 0, flipX: 0, z: 2 },
+  { id: 'scene5Character2', x: 555.986, y: 440.043, scale: 0.81, rotation: 0, flipX: 0, z: 2 },
   { id: 'scene6Character1', x: 364.038, y: 254.756, scale: 0.77, rotation: 0, flipX: 0, z: 1 },
   { id: 'scene6Character2', x: 400.091, y: 732.182, scale: 0.5, rotation: 0, flipX: 0, z: 2 },
 ];
@@ -89,7 +89,7 @@ export const BOXES = [
   { id: 'scene4Character1', x: 357.741, y: 554.748, w: 720, h: 285 },
   { id: 'scene4Character2', x: 359.932, y: 211.466, w: 720, h: 319 },
   { id: 'scene5Character1', x: 165.217, y: 577.101, w: 281.57, h: 960 },
-  { id: 'scene5Character2', x: 617.392, y: 542.318, w: 203.72, h: 935 },
+  { id: 'scene5Character2', x: 607.392, y: 542.318, w: 220.72, h: 935 },
   { id: 'scene6Character1', x: 366.766, y: 411.574, w: 807, h: 305 },
   { id: 'scene6Character2', x: 360, y: 800.579, w: 720, h: 396 },
 ];
