@@ -295,20 +295,19 @@ export const GAME_REGISTRY = [
     load: () => import('@/games/game-12/GamePage'),
   },
   {
-    // Skeleton entry — the mechanics and final title arrive with the gameplay
-    // brief. Change label/title/subtitle only in tandem with GamePage.jsx's
-    // gate labels, or the lock screen and the card disagree.
+    // Traffic Dodge — change label/title/subtitle only in tandem with
+    // GamePage.jsx's gate labels, or the lock screen and the card disagree.
     key: '13',
     slug: 'game-13',
     route: '/29164',
     term: 4,
     progressKey: 'game13',
     meta: {
-      emoji: '\uD83D\uDE80',
-      label: 'Game 13 (Coming Soon)',
-      title: 'Game 13 (Coming Soon)',
-      subtitle: 'Coming soon',
-      description: 'Another brand-new game is in the works — stay tuned!',
+      emoji: '\uD83D\uDE97',
+      label: 'Traffic Dodge',
+      title: 'Traffic Dodge',
+      subtitle: 'Switch lanes to dodge the traffic',
+      description: 'Read the LEFT or RIGHT prompt and switch lanes to dodge the oncoming traffic. Clear all 10 rounds without crashing!',
       hue: '#10B981',
       tint: '#ECFDF5',
       gradient: 'linear-gradient(135deg, #6EE7B7 0%, #10B981 55%, #047857 100%)',

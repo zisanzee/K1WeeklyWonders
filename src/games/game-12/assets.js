@@ -100,7 +100,7 @@ const RAW_IMAGES = {
   // SCENE 6
   // ===========================================================================
   scene6Background:
-    'https://res.cloudinary.com/hijmipga/image/upload/v1790705164/scene6bg_bhrqvb.png',
+    'https://res.cloudinary.com/hijmipga/image/upload/v1790852255/Sunny_Backyard_Treescape_1_wbaja1.png',
   scene6Character1:
     'https://res.cloudinary.com/hijmipga/image/upload/v1790705163/scene6bird_abrdar.png',
   scene6Character2:

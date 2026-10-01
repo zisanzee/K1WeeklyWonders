@@ -17,12 +17,14 @@
 //   4. On a correct placement the character is revealed in the scene and the
 //      round advances; the placed character stays for later rounds.
 //
-// Boxes and positions are never read from image pixels: they come straight from
-// sceneTuning.js, so what the tuning pass placed is exactly what the game checks.
+// Every number below is read THROUGH the shared tuning kit (@/devTuning), so the
+// whole layout can be re-tuned live — sliders in the dev panel, or dragging a
+// character / drop box straight on the canvas (see the DEV blocks). In a
+// production build the kit's get() is a plain direct read.
 //
 //   assets.js        what to load (URLs) + the flat key grammar
 //   scenes.js        scene order, permanent vs movable characters
-//   sceneTuning.js   where each character sits (the file you tune)
+//   sceneTuning.js   THE tuning file (createTuning tables + schema)
 //   levels.js        the round script (prompt + which character)
 import * as Phaser from 'phaser';
 import BaseScene from '@/phaser/BaseScene';
@@ -33,99 +35,48 @@ import {
 } from '@/phaser/common/sceneAssets';
 import { sceneBackgroundKey } from '@/games/game-12/assets';
 import {
+  availableScenes,
   charactersForScene,
   permanentCharactersForScene,
   movableCharactersForScene,
   isPromptAtBottom,
 } from '@/games/game-12/scenes';
-import { partTransform, backgroundFit, boxOverride, boxPadding } from '@/games/game-12/sceneTuning';
+import {
+  TUNING,
+  partTransform,
+  backgroundFit,
+  boxOverride,
+  boxPadding,
+  getLayout,
+  getPromptStyle,
+  getCard,
+  getDepth,
+  setDevScope,
+  DEV_TUNING_ENABLED,
+} from '@/games/game-12/sceneTuning';
 import { ROUNDS, TOTAL_ROUNDS, splitPrompt } from '@/games/game-12/levels';
 
 // The clear colour behind everything, and the Phaser canvas clear colour (see
 // Game.jsx) so the single frame before a backdrop draws is not a bare canvas.
 export const BACKGROUND_COLOR = '#eef2ff';
 
-// Layout (720x1080 base resolution — see Phaser/config.js). The prompt is the
-// only HUD text — no scene title, no header card — so it sits high and large.
-// A scene may opt to put it at the BOTTOM instead (see isPromptAtBottom).
-const PROMPT_Y = 96;
-// A bottom-flagged scene (scene 6) puts the prompt BESIDE the option instead of
-// above it: the circle sits bottom-left, the card to its right, wrapping onto a
-// couple of lines so it stays narrow enough to fit the space.
-const PROMPT_SIDE_Y = 946; // vertical centre shared by the side prompt + circle
-const PROMPT_SIDE_LEFT = 330; // left edge of the prompt CONTENT in side mode
-const PROMPT_SIDE_MAXW = 340; // widest a wrapped prompt line may be
-const PROMPT_LINE_GAP = 14; // vertical gap between wrapped lines
-// Inline prompt pictures are given a COMMON WIDTH (so a skinny cut-out is not
-// left looking small next to a chunky one), then their height is clamped into a
-// band: a very wide picture (the slide) is not left flat, and a very tall one
-// (the tree) is not left towering. That keeps every picture at a similar visual
-// scale — a touch bigger than an emphasis word (32px at 1.5× ≈ 60px tall).
-const PROMPT_IMG_W = 124;
-const PROMPT_IMG_MIN_H = 60;
-const PROMPT_IMG_MAX_H = 104;
-
-// Prompt text styling. The relation word ("front"/"behind"/"top"/"bottom") is
-// drawn BIGGER and in a warm accent, as the key word of the instruction.
-const PROMPT_FONT = 'Fredoka, sans-serif';
-const PROMPT_SIZE = 32;
-const PROMPT_EMPHASIS_SCALE = 1.5; // extra size on the relation word
-const PROMPT_COLOR = '#3b2f1e';
-const PROMPT_EMPHASIS_COLOR = '#c2410c';
-const PROMPT_STROKE = '#fffdf5'; // light outline keeps text legible on any art
-const PROMPT_GAP = 12;
-
-// Prompt card — a soft rounded panel the whole line sits on, so the instruction
-// reads as a deliberate element over any background.
-const CARD_FILL = 0xfff7e6;
-const CARD_FILL_ALPHA = 0.94;
-const CARD_STROKE = 0x5b4a2f;
-const CARD_STROKE_ALPHA = 0.28;
-const CARD_STROKE_WIDTH = 4;
-const CARD_RADIUS = 26;
-const CARD_PAD_X = 30;
-const CARD_PAD_Y = 20;
-const CARD_SHADOW_ALPHA = 0.16;
-const CARD_SHADOW_DY = 7;
-
-// Option tray, along the bottom. The option floats on a soft translucent disc
-// — no opaque card.
-// Start screen — where the button image sits (as a fraction of canvas height)
-// and how wide it should read on the 720px canvas.
-const START_BTN_Y_RATIO = 0.83;
-const START_BTN_W = 320;
-
-// A mid-scene round change just needs a short beat for the snap to read.
-const ROUND_ADVANCE_MS = 520;
-// Finishing a scene holds longer: the success jingle is ~1.69s, so this lets it
-// finish and the confetti play out before the scene transition.
-const SUCCESS_HOLD_MS = 1690;
-
-const TRAY_TOP = 856;
-const TRAY_TOP_RAISED = 812; // side-by-side scene: circle centred on PROMPT_SIDE_Y
-const TRAY_SIDE_X = 168; // circle centre x in the side-by-side layout
-const TRAY_BOX = 196;
+// Small structural constants that never need tuning.
 const TRAY_BOX_INSET = 8; // gap between a piece and its disc's inner edge
 const TRAY_BOB = 6; // px the idle bob lifts a piece; reserved so it cannot clip
 const HIT_PAD = 10; // slack around the art when grabbing a piece
 
-// Drop boxes decide accept/reject but are NEVER drawn — they are a design aid,
-// not something a player sees. A character is accepted only when dropped inside
-// its OWN box; inside any other box is wrong.
-// How many px outside a box a piece still counts as "inside" it, so a child
-// does not have to drop dead-centre.
-const BOX_DROP_PAD = 24;
-const BOX_MIN_SIZE = 40; // a box can never collapse to nothing
+// Live reads of the tuned sections (thin wrappers so call sites stay short).
+const L = () => getLayout();
+const PS = () => getPromptStyle();
+const C = () => getCard();
+const D = () => getDepth();
 
-// Draw order bands.
-const DEPTH_BACKDROP = 0;
-const DEPTH_CHARS = 5;
-// The prompt sits ABOVE the tray band (33 > 30) so a bottom-prompt scene's band
-// gradient cannot paint over it; the round pill (25) stays under the tray.
-const DEPTH_HUD = 33;
-const DEPTH_TRAY = 30;
-const DEPTH_DRAG = 60;
-const DEPTH_START = 400; // the start screen covers everything
+// True only in a dev build with the editor enabled for this game (see
+// DEV_TUNING_ENABLED in sceneTuning.js). In production TUNING.dev is false and
+// import.meta.env.DEV is false, so this folds to a plain `false`. When set, the
+// scene opens straight into editing and skips the start screen and level
+// completion.
+const DEV_TUNING = import.meta.env.DEV && TUNING.dev && DEV_TUNING_ENABLED;
 
 export default class GameScene extends BaseScene {
   constructor() {
@@ -150,6 +101,7 @@ export default class GameScene extends BaseScene {
     this.placedKeys = new Set();
     this.trayItem = null;
     this.drag = null;
+    this.devDrag = null; // dev-only on-canvas tuning drag
     this.promptParts = [];
     this.voice = null; // the currently-playing voice line (start / round prompt)
   }
@@ -183,17 +135,16 @@ export default class GameScene extends BaseScene {
     });
 
     // Scene layers (rebuilt per round).
-    this.bgLayer = this.add.container(0, 0).setDepth(DEPTH_BACKDROP);
-    this.charLayer = this.add.container(0, 0).setDepth(DEPTH_CHARS);
-    this.trayLayer = this.add.container(0, 0).setDepth(DEPTH_TRAY);
-    this.dragLayer = this.add.container(0, 0).setDepth(DEPTH_DRAG);
+    this.bgLayer = this.add.container(0, 0).setDepth(D().backdrop);
+    this.charLayer = this.add.container(0, 0).setDepth(D().chars);
+    this.trayLayer = this.add.container(0, 0).setDepth(D().tray);
+    this.dragLayer = this.add.container(0, 0).setDepth(D().drag);
     this.boxes = new Map(); // texture key -> { x, y, w, h }
-    this.trayTop = TRAY_TOP; // per-scene; raised for a bottom-prompt scene
+    this.trayTop = L().trayTop; // per-scene; raised for a bottom-prompt scene
 
-    // Transparent tray band: a soft white gradient (fully clear at its top edge,
-    // faint at the bottom) so the option reads as floating on the scene rather
-    // than sitting on an opaque shelf. Redrawn per round (the top can move).
-    this.trayBand = this.add.graphics().setDepth(DEPTH_TRAY - 1);
+    // Transparent tray band: a soft white gradient so the option reads as
+    // floating on the scene rather than sitting on an opaque shelf.
+    this.trayBand = this.add.graphics().setDepth(D().tray - 1);
     this.drawTrayBand();
 
     this.redFlash = this.add
@@ -207,10 +158,67 @@ export default class GameScene extends BaseScene {
     this.input.on('pointermove', (p) => this.onPointerMove(p));
     this.input.on('pointerup', () => this.onPointerUp());
 
+    // DEV: register a relayout callback with the tuning kit so any change
+    // (panel slider, on-canvas drag, or an HMR edit of sceneTuning.js)
+    // re-applies to what is on screen — no page reload.
+    TUNING.setRelayout(() => this.applyTuning());
+    this.events.once('shutdown', () => TUNING.setRelayout(null));
+
+    if (DEV_TUNING) {
+      // Dev tuning: no start screen and no level completion — go straight into
+      // editing the first round, and register nav handlers so the panel can step
+      // scenes/rounds.
+      TUNING.setNav({
+        label: () => `Scene ${this.round?.scene} · Round ${this.roundIndex + 1}/${TOTAL_ROUNDS}`,
+        prev: () => this.devGoRound(this.roundIndex - 1),
+        next: () => this.devGoRound(this.roundIndex + 1),
+        prevScene: () => this.devGoScene(-1),
+        nextScene: () => this.devGoScene(1),
+      });
+      this.events.once('shutdown', () => TUNING.setNav(null));
+      // A dev-only overlay drawing the editable character + box outlines.
+      this.devOverlay = this.add.graphics().setDepth(D().hud + 2);
+      this.setupRound(0);
+      this.drawDevOverlay();
+      this.trayLayer.setVisible(true);
+      if (this.trayItem) this.dropInTray(this.trayItem);
+      return;
+    }
+
     this.setupRound(0);
     // The tray is built with the round but must stay hidden until Start.
     this.trayLayer.setVisible(false);
     this.buildStartOverlay();
+  }
+
+  // DEV: re-apply tuning to the live scene. Rebuilds the current round in place
+  // (skipped mid-drag, and while the start overlay owns the phase). This IS the
+  // kit's relayout callback, so it must NOT poke the kit again — that would be
+  // an infinite loop (poke → relayout → poke → …) that jams the whole game.
+  applyTuning() {
+    if (this.drag || this.devDrag) return;
+    if (this.phase === 'playing' || this.phase === 'success') this.setupRound(this.roundIndex);
+  }
+
+  // DEV nav: jump to a round by index (wrapping), keeping the tray shown and the
+  // panel's figure scope in step with the scene now on screen. Uses notify()
+  // (panel-only) so it never re-enters applyTuning().
+  devGoRound(index) {
+    const n = TOTAL_ROUNDS;
+    const i = ((index % n) + n) % n;
+    setDevScope(ROUNDS[i].scene);
+    this.setupRound(i);
+    this.trayLayer.setVisible(true);
+    if (this.trayItem) this.applyPreview(this.trayItem);
+    TUNING.notify();
+  }
+
+  // DEV nav: jump to the first round of the previous/next scene.
+  devGoScene(delta) {
+    const scenes = availableScenes();
+    const i = scenes.indexOf(this.round.scene);
+    const scene = scenes[(i + delta + scenes.length) % scenes.length];
+    this.devGoRound(ROUNDS.findIndex((r) => r.scene === scene));
   }
 
   // ---------------------------------------------------------------------------
@@ -221,17 +229,16 @@ export default class GameScene extends BaseScene {
     if (this.bgLayer) this.bgLayer.destroy(true);
     if (this.charLayer) this.charLayer.destroy(true);
     if (this.trayLayer) this.trayLayer.destroy(true);
-    this.bgLayer = this.add.container(0, 0).setDepth(DEPTH_BACKDROP);
-    this.charLayer = this.add.container(0, 0).setDepth(DEPTH_CHARS);
-    this.trayLayer = this.add.container(0, 0).setDepth(DEPTH_TRAY);
+    this.bgLayer = this.add.container(0, 0).setDepth(D().backdrop);
+    this.charLayer = this.add.container(0, 0).setDepth(D().chars);
+    this.trayLayer = this.add.container(0, 0).setDepth(D().tray);
     this.charObjects = new Map();
     this.boxes = new Map();
   }
 
-  // A character's drop box: an explicit CHARACTER_BOXES entry (its x/y define the
-  // centre; w/h the size) if present, else one auto-sized to the character's
-  // in-scene bounds plus padding, centred on it. Computed at build time from the
-  // live image, so it always tracks the tuned transform.
+  // A character's drop box: an explicit BOXES entry (its x/y define the centre;
+  // w/h the size) if present, else one auto-sized to the character's in-scene
+  // bounds plus padding, centred on it.
   computeBox(key) {
     const explicit = boxOverride(key);
     if (explicit && explicit.x != null && explicit.y != null && explicit.w != null && explicit.h != null) {
@@ -239,13 +246,14 @@ export default class GameScene extends BaseScene {
     }
     const obj = this.charObjects.get(key);
     const pad = boxPadding();
+    const min = L().boxMinSize;
     if (obj) {
       const b = obj.image.getBounds();
       return {
         x: b.centerX,
         y: b.centerY,
-        w: explicit?.w ?? Math.max(BOX_MIN_SIZE, b.width + pad * 2),
-        h: explicit?.h ?? Math.max(BOX_MIN_SIZE, b.height + pad * 2),
+        w: explicit?.w ?? Math.max(min, b.width + pad * 2),
+        h: explicit?.h ?? Math.max(min, b.height + pad * 2),
       };
     }
     // Not on the scene (e.g. the round's target still in the tray): size the box
@@ -255,8 +263,8 @@ export default class GameScene extends BaseScene {
     return {
       x: t.x,
       y: t.y,
-      w: explicit?.w ?? Math.max(BOX_MIN_SIZE, (src?.width || 100) * t.scale + pad * 2),
-      h: explicit?.h ?? Math.max(BOX_MIN_SIZE, (src?.height || 100) * t.scale + pad * 2),
+      w: explicit?.w ?? Math.max(min, (src?.width || 100) * t.scale + pad * 2),
+      h: explicit?.h ?? Math.max(min, (src?.height || 100) * t.scale + pad * 2),
     };
   }
 
@@ -329,8 +337,7 @@ export default class GameScene extends BaseScene {
     this.drag = null;
 
     // Stop the previous piece's idle bob; the piece image itself is torn down
-    // with its layer in clearLayers() (it may have been folded into the scene
-    // layer already if it was placed).
+    // with its layer in clearLayers().
     if (this.trayItem) {
       this.trayItem.bobTween?.remove();
       this.trayItem = null;
@@ -340,7 +347,7 @@ export default class GameScene extends BaseScene {
     const scene = this.round.scene;
     // The option tray floats where the prompt is not: a bottom-prompt scene
     // (scene 6) lifts the tray so the line has clear room beneath it.
-    this.trayTop = isPromptAtBottom(scene) ? TRAY_TOP_RAISED : TRAY_TOP;
+    this.trayTop = isPromptAtBottom(scene) ? L().trayTopRaised : L().trayTop;
     this.drawTrayBand();
     this.buildBackground(scene);
 
@@ -353,8 +360,7 @@ export default class GameScene extends BaseScene {
     this.charLayer.sort('depth');
 
     // Every character in the scene gets a box (even the one still in the tray,
-    // and the ones not placed yet) — these are the ONLY accept zones, and the
-    // target for this round is its own box.
+    // and the ones not placed yet) — these are the ONLY accept zones.
     charactersForScene(scene)
       .filter((k) => this.textures.exists(k))
       .forEach((k) => this.refreshBox(k));
@@ -364,9 +370,33 @@ export default class GameScene extends BaseScene {
     this.buildTray();
 
     this.roundPill?.setText(`Round\n${index + 1}/${TOTAL_ROUNDS}`);
+
+    // Keep the dev panel's figure scope on this scene.
+    setDevScope(scene);
+    if (this.devOverlay) this.drawDevOverlay();
   }
 
-  // Redraws the transl/white tray band at the current tray top.
+  // DEV: draw an outline around every editable character and box, highlighting
+  // whichever is being dragged. Purely a tuning aid; never created in prod.
+  drawDevOverlay() {
+    if (!this.devOverlay) return;
+    const g = this.devOverlay;
+    g.clear();
+    const sel = this.devDrag?.key;
+    for (const [key, obj] of this.charObjects.entries()) {
+      const b = obj.image.getBounds();
+      const on = key === sel;
+      g.lineStyle(on ? 3 : 2, on ? 0xf59e0b : 0x22d3ee, on ? 0.95 : 0.55);
+      g.strokeRect(b.left, b.top, b.width, b.height);
+    }
+    for (const [key, box] of this.boxes.entries()) {
+      const on = key === sel;
+      g.lineStyle(on ? 3 : 2, on ? 0xf59e0b : 0x38bdf8, on ? 0.95 : 0.55);
+      g.strokeRect(box.x - box.w / 2, box.y - box.h / 2, box.w, box.h);
+    }
+  }
+
+  // Redraws the translucent white tray band at the current tray top.
   drawTrayBand() {
     if (!this.trayBand) return;
     const { width, height } = this.scale;
@@ -378,47 +408,45 @@ export default class GameScene extends BaseScene {
   // Where the prompt sits on the canvas: high at the top by default, or (for a
   // scene that opts in, e.g. scene 6) beside the option near the bottom.
   promptY(scene) {
-    return isPromptAtBottom(scene) ? PROMPT_SIDE_Y : PROMPT_Y;
+    return isPromptAtBottom(scene) ? L().promptSideY : L().promptY;
   }
 
   // One prompt piece (a word or an inline image), built at its BASE size and
-  // measured. The final scale is applied by the layout, never here. A picture's
-  // base scale is chosen so it reads at a similar size to the words; a word's is
-  // the emphasis factor.
+  // measured. The final scale is applied by the layout, never here.
   makePromptPiece(tok, y) {
+    const ps = PS();
     if (tok.kind === 'image') {
       // Origin (0, 0.5) anchors the LEFT edge at x — the same anchor words use,
       // so every piece advances by its full width with one consistent gap.
-      const img = this.add.image(0, y, tok.key).setOrigin(0, 0.5).setDepth(DEPTH_HUD);
+      const img = this.add.image(0, y, tok.key).setOrigin(0, 0.5).setDepth(D().hud);
       if (tok.flip) img.setFlipX(true); // flip the IMAGE, never the text
       const natH = Math.max(img.height, 1);
-      let scale = PROMPT_IMG_W / Math.max(img.width, 1);
+      let scale = ps.imgW / Math.max(img.width, 1);
       const hAtWidth = natH * scale;
-      if (hAtWidth > PROMPT_IMG_MAX_H) scale = PROMPT_IMG_MAX_H / natH;
-      else if (hAtWidth < PROMPT_IMG_MIN_H) scale = PROMPT_IMG_MIN_H / natH;
+      if (hAtWidth > ps.imgMaxH) scale = ps.imgMaxH / natH;
+      else if (hAtWidth < ps.imgMinH) scale = ps.imgMinH / natH;
       return { kind: 'image', obj: img, baseW: img.width, baseH: natH, targetH: natH * scale };
     }
     const obj = this.add
       .text(0, y, tok.text, {
-        fontSize: `${PROMPT_SIZE}px`,
-        fontFamily: PROMPT_FONT,
+        fontSize: `${ps.size}px`,
+        fontFamily: ps.font,
         fontStyle: 'bold',
-        color: tok.emphasis ? PROMPT_EMPHASIS_COLOR : PROMPT_COLOR,
+        color: tok.emphasis ? ps.emphasisColor : ps.color,
       })
-      .setStroke(PROMPT_STROKE, tok.emphasis ? 8 : 6)
+      .setStroke(ps.stroke, tok.emphasis ? 8 : 6)
       .setOrigin(0, 0.5)
-      .setDepth(DEPTH_HUD);
+      .setDepth(D().hud);
     return {
       kind: 'text',
       obj,
       baseW: obj.width,
-      targetH: obj.height * (tok.emphasis ? PROMPT_EMPHASIS_SCALE : 1),
+      targetH: obj.height * (tok.emphasis ? ps.emphasisScale : 1),
     };
   }
 
   // The prompt, laid out piece by piece, on one or more lines (`|` breaks a
-  // line, and a side-by-side scene wraps to fit the space beside the option).
-  // Replaces any previous prompt.
+  // line; a side-by-side scene wraps to fit the space beside the option).
   renderPrompt(prompt) {
     // Tear down the previous prompt's pieces (and their entrance tweens).
     this.promptParts.forEach((t) => {
@@ -429,6 +457,8 @@ export default class GameScene extends BaseScene {
     if (!prompt) return;
 
     const { width } = this.scale;
+    const ps = PS();
+    const card = C();
     const scene = this.round?.scene;
     const side = isPromptAtBottom(scene);
     const y = this.promptY(scene);
@@ -445,25 +475,25 @@ export default class GameScene extends BaseScene {
     const heightScale = (p) =>
       p.kind === 'image' ? p.targetH / Math.max(p.baseH, 1) : p.targetH / Math.max(p.obj.height, 1);
     const lineW = (pieces) =>
-      pieces.reduce((s, p) => s + p.baseW * heightScale(p), 0) + PROMPT_GAP * (pieces.length - 1);
+      pieces.reduce((s, p) => s + p.baseW * heightScale(p), 0) + ps.gap * (pieces.length - 1);
     const lineH = (pieces) =>
       Math.max(...pieces.map((p) => (p.kind === 'image' ? p.baseH : p.obj.height) * heightScale(p)));
 
     const widest = Math.max(...builtLines.map(lineW));
     // A side-by-side prompt is fitted to its narrow column; a top/bottom one to
     // the full canvas. Either way, one shared `fit` scales every line together.
-    const maxW = side ? PROMPT_SIDE_MAXW : width - 2 * (CARD_PAD_X + 16);
+    const maxW = side ? L().promptSideMaxW : width - 2 * (card.padX + 16);
     const fit = Math.min(1, maxW / Math.max(widest, 1));
 
     const lineHeights = builtLines.map((p) => lineH(p) * fit);
-    const totalH = lineHeights.reduce((a, b) => a + b, 0) + PROMPT_LINE_GAP * (builtLines.length - 1);
+    const totalH = lineHeights.reduce((a, b) => a + b, 0) + L().promptLineGap * (builtLines.length - 1);
 
     // Stack the lines around the centre y.
     const lineYs = [];
     let cursor = y - totalH / 2;
     for (const h of lineHeights) {
       lineYs.push(cursor + h / 2);
-      cursor += h + PROMPT_LINE_GAP;
+      cursor += h + L().promptLineGap;
     }
 
     builtLines.forEach((pieces, li) => {
@@ -471,12 +501,12 @@ export default class GameScene extends BaseScene {
       const w = lineW(pieces) * fit;
       // Every line is centred: on the canvas for a top/bottom prompt, or within
       // the card's (widest-line) content column for a side-by-side prompt.
-      let x = side ? PROMPT_SIDE_LEFT + (widest * fit - w) / 2 : width / 2 - w / 2;
+      let x = side ? L().promptSideLeft + (widest * fit - w) / 2 : width / 2 - w / 2;
       for (const p of pieces) {
         const scale = fit * heightScale(p);
         p.obj.x = x;
         p.obj.y = ly;
-        x += p.baseW * scale + PROMPT_GAP * fit;
+        x += p.baseW * scale + ps.gap * fit;
         // Stylised entrance so a new prompt reads clearly.
         p.obj.setScale(0.8 * scale).setAlpha(0);
         this.tweens.add({ targets: p.obj, scale, alpha: 1, duration: 260, ease: 'Back.easeOut' });
@@ -485,18 +515,18 @@ export default class GameScene extends BaseScene {
     });
 
     // A soft rounded card behind the whole block, sized to the content.
-    const cardW = widest * fit + CARD_PAD_X * 2;
-    const cardH = totalH + CARD_PAD_Y * 2;
-    const cardX = (side ? PROMPT_SIDE_LEFT : width / 2 - (widest * fit) / 2) - CARD_PAD_X;
+    const cardW = widest * fit + card.padX * 2;
+    const cardH = totalH + card.padY * 2;
+    const cardX = (side ? L().promptSideLeft : width / 2 - (widest * fit) / 2) - card.padX;
     const cardY = y - cardH / 2;
-    const card = this.add.graphics().setDepth(DEPTH_HUD - 2);
-    card.fillStyle(0x000000, CARD_SHADOW_ALPHA);
-    card.fillRoundedRect(cardX, cardY + CARD_SHADOW_DY, cardW, cardH, CARD_RADIUS);
-    card.fillStyle(CARD_FILL, CARD_FILL_ALPHA);
-    card.fillRoundedRect(cardX, cardY, cardW, cardH, CARD_RADIUS);
-    card.lineStyle(CARD_STROKE_WIDTH, CARD_STROKE, CARD_STROKE_ALPHA);
-    card.strokeRoundedRect(cardX, cardY, cardW, cardH, CARD_RADIUS);
-    this.promptParts.push(card);
+    const g = this.add.graphics().setDepth(D().hud - 2);
+    g.fillStyle(0x000000, card.shadowAlpha);
+    g.fillRoundedRect(cardX, cardY + card.shadowDy, cardW, cardH, card.radius);
+    g.fillStyle(card.fill, card.fillAlpha);
+    g.fillRoundedRect(cardX, cardY, cardW, cardH, card.radius);
+    g.lineStyle(card.strokeWidth, card.stroke, card.strokeAlpha);
+    g.strokeRoundedRect(cardX, cardY, cardW, cardH, card.radius);
+    this.promptParts.push(g);
   }
 
   // The single draggable option in the tray, shown at its real rotation/flip and
@@ -506,24 +536,25 @@ export default class GameScene extends BaseScene {
     const key = this.round.key;
     if (!this.textures.exists(key)) return;
 
+    const trayBox = L().trayBox;
     const t = partTransform(key);
     // Side-by-side scene: the circle sits bottom-left and shares a centre line
     // with the prompt card beside it. Otherwise it is centred in the tray band.
     const side = isPromptAtBottom(this.round?.scene);
-    const boxCentreX = side ? TRAY_SIDE_X : width / 2;
-    const boxCentreY = side ? PROMPT_SIDE_Y : this.trayTop + (this.scale.height - this.trayTop) / 2;
+    const boxCentreX = side ? L().traySideX : width / 2;
+    const boxCentreY = side ? L().promptSideY : this.trayTop + (this.scale.height - this.trayTop) / 2;
 
     const box = {
-      left: boxCentreX - TRAY_BOX / 2,
-      right: boxCentreX + TRAY_BOX / 2,
-      top: boxCentreY - TRAY_BOX / 2,
-      bottom: boxCentreY + TRAY_BOX / 2,
+      left: boxCentreX - trayBox / 2,
+      right: boxCentreX + trayBox / 2,
+      top: boxCentreY - trayBox / 2,
+      bottom: boxCentreY + trayBox / 2,
     };
     // A soft translucent disc (not an opaque card) so the option reads as
     // floating on the scene. A soft shadow lifts it off the backdrop.
-    const shadow = this.add.circle(boxCentreX, boxCentreY + 6, TRAY_BOX / 2, 0x000000, 0.12);
+    const shadow = this.add.circle(boxCentreX, boxCentreY + 6, trayBox / 2, 0x000000, 0.12);
     this.trayLayer.add(shadow);
-    const disc = this.add.circle(boxCentreX, boxCentreY, TRAY_BOX / 2, 0xffffff, 0.22);
+    const disc = this.add.circle(boxCentreX, boxCentreY, trayBox / 2, 0xffffff, 0.22);
     disc.setStrokeStyle(4, 0xffffff, 0.6);
     this.trayLayer.add(disc);
 
@@ -536,7 +567,7 @@ export default class GameScene extends BaseScene {
     this.trayLayer.add(image);
 
     const b = image.getBounds();
-    const inner = TRAY_BOX - 2 * TRAY_BOX_INSET - TRAY_BOB;
+    const inner = trayBox - 2 * TRAY_BOX_INSET - TRAY_BOB;
     const previewFactor = Math.min(inner / Math.max(b.width, 1), inner / Math.max(b.height, 1));
     const previewScale = t.scale * previewFactor;
 
@@ -580,14 +611,14 @@ export default class GameScene extends BaseScene {
   }
 
   // ---------------------------------------------------------------------------
-  // Start screen (production only)
+  // Start screen
   // ---------------------------------------------------------------------------
 
   buildStartOverlay() {
     const { width, height } = this.scale;
     this.phase = 'start';
 
-    this.startOverlay = this.add.container(0, 0).setDepth(DEPTH_START);
+    this.startOverlay = this.add.container(0, 0).setDepth(D().start);
 
     // Full-bleed title art, cover-fit so it fills the canvas on any aspect.
     const bg = this.add.image(width / 2, height / 2, 'startScreen');
@@ -596,8 +627,8 @@ export default class GameScene extends BaseScene {
 
     // The "play" button image, fit to a comfortable width (whatever its native
     // size), centred low on the art, gently pulsing.
-    const btn = this.add.image(width / 2, height * START_BTN_Y_RATIO, 'startButton');
-    const bScale = START_BTN_W / Math.max(btn.width, 1);
+    const btn = this.add.image(width / 2, height * L().startBtnYRatio, 'startButton');
+    const bScale = L().startBtnW / Math.max(btn.width, 1);
     this.startOverlay.add(btn);
     btn.setScale(bScale);
     this.startBtn = btn;
@@ -663,6 +694,10 @@ export default class GameScene extends BaseScene {
   // ---------------------------------------------------------------------------
 
   onPointerDown(pointer) {
+    // DEV: on-canvas tuning drag takes priority — grab a scene character or a
+    // drop box and move it; the value is written back to the kit on release.
+    if (DEV_TUNING && !this.devDrag && this.devPick(pointer)) return;
+
     if (this.phase !== 'playing' || this.drag) return;
     const item = this.trayItem;
     if (!item || item.placed) return;
@@ -691,7 +726,7 @@ export default class GameScene extends BaseScene {
     // Grow to true size and lift above everything.
     this.trayLayer.remove(item.image);
     this.dragLayer.add(item.image);
-    item.image.setDepth(DEPTH_DRAG);
+    item.image.setDepth(D().drag);
     this.applyFull(item);
 
     if (onArt) {
@@ -704,6 +739,7 @@ export default class GameScene extends BaseScene {
   }
 
   onPointerMove(pointer) {
+    if (this.devDrag) return this.devDragMove(pointer);
     if (!this.drag) return;
     const { item, gripX, gripY } = this.drag;
     item.image.setPosition(pointer.x + gripX, pointer.y + gripY);
@@ -711,6 +747,7 @@ export default class GameScene extends BaseScene {
   }
 
   onPointerUp() {
+    if (this.devDrag) return this.devCommit();
     if (!this.drag) return;
     const { item, moved } = this.drag;
     this.drag = null;
@@ -720,7 +757,7 @@ export default class GameScene extends BaseScene {
 
     // Accept/reject is decided by the BOXES. A small pad lets a near miss on the
     // edge still count; the box the piece's centre lands in decides the outcome.
-    const landedIn = this.boxAt(item.image.x, item.image.y, BOX_DROP_PAD);
+    const landedIn = this.boxAt(item.image.x, item.image.y, L().boxDropPad);
 
     if (landedIn === item.key) return this.placePiece(item);
 
@@ -742,7 +779,7 @@ export default class GameScene extends BaseScene {
   returnToTray(item) {
     this.dragLayer.remove(item.image);
     this.trayLayer.add(item.image);
-    item.image.setDepth(DEPTH_TRAY);
+    item.image.setDepth(D().tray);
     this.applyPreview(item);
     this.restartBob(item);
   }
@@ -804,6 +841,13 @@ export default class GameScene extends BaseScene {
       this.streak = 0;
     }
 
+    // DEV tuning: no level completion — the piece snaps and that's it. Nothing
+    // advances, so a scene can be inspected/tuned freely.
+    if (DEV_TUNING) {
+      this.phase = 'playing';
+      return;
+    }
+
     // Finishing the SCENE (its second placement) earns the success jingle and
     // confetti, and a hold long enough for both to play out before the scene
     // transition. A mid-scene round change keeps the old quick beat.
@@ -813,7 +857,7 @@ export default class GameScene extends BaseScene {
       this.spawnConfetti(30);
     }
 
-    this.time.delayedCall(sceneDone ? SUCCESS_HOLD_MS : ROUND_ADVANCE_MS, () => {
+    this.time.delayedCall(sceneDone ? L().successHoldMs : L().roundAdvanceMs, () => {
       if (this.phase !== 'success') return;
       this.advanceRound();
     });
@@ -858,7 +902,7 @@ export default class GameScene extends BaseScene {
   }
 
   spawnSnapBurst(x, y) {
-    const ring = this.add.circle(x, y, 30, 0xffffff, 0).setDepth(DEPTH_CHARS + 2);
+    const ring = this.add.circle(x, y, 30, 0xffffff, 0).setDepth(D().chars + 2);
     ring.setStrokeStyle(5, 0xf59e0b, 0.9);
     this.tweens.add({
       targets: ring,
@@ -882,9 +926,8 @@ export default class GameScene extends BaseScene {
     }
   }
 
-  // Stops the current voice line (start-screen instructions or a round prompt)
-  // the moment it is no longer wanted. `remove` both stops playback and frees
-  // the Sound, rather than just silencing it.
+  // Stops the current voice line the moment it is no longer wanted. `remove`
+  // both stops playback and frees the Sound, rather than just silencing it.
   stopVoice() {
     const v = this.voice;
     this.voice = null;
@@ -893,8 +936,7 @@ export default class GameScene extends BaseScene {
 
   // Plays a one-shot voice line, replacing whatever was playing so two lines
   // never overlap. Retries once on Phaser's audio-unlock if the browser blocked
-  // autoplay — guarded on `this.voice === v` so a line cancelled in the meantime
-  // does not start up after the fact.
+  // autoplay — guarded on `this.voice === v`.
   playVoice(key, volume = 0.95) {
     this.stopVoice();
     if (!key || !this.cache.audio.exists(key)) return;
@@ -956,8 +998,6 @@ export default class GameScene extends BaseScene {
     this.stopVoice();
 
     const elapsedSeconds = Math.round((this.time.now - this.startTime) / 1000);
-    // Confetti for the final round is spawned in placePiece() alongside the
-    // success jingle, so it is not repeated here.
 
     this.game.events.emit('game12-complete', {
       stars: this.stars,
@@ -988,7 +1028,7 @@ export default class GameScene extends BaseScene {
     const title = this.add
       .text(0, -78, 'Mission Complete!', {
         fontSize: '48px',
-        fontFamily: PROMPT_FONT,
+        fontFamily: PS().font,
         fontStyle: 'bold',
         color: '#3b2f1e',
       })
@@ -998,7 +1038,7 @@ export default class GameScene extends BaseScene {
     const starLine = this.add
       .text(0, -6, `\u2B50 ${this.stars} / ${TOTAL_ROUNDS}`, {
         fontSize: '40px',
-        fontFamily: PROMPT_FONT,
+        fontFamily: PS().font,
         fontStyle: 'bold',
         color: '#f59e0b',
       })
@@ -1023,7 +1063,7 @@ export default class GameScene extends BaseScene {
       const key = texKeys[i % texKeys.length];
       const piece = this.add
         .image(Phaser.Math.Between(20, width - 20), Phaser.Math.Between(-180, -60), key)
-        .setDepth(DEPTH_DRAG + 4)
+        .setDepth(D().drag + 4)
         .setTint(Phaser.Utils.Array.GetRandom(tints))
         .setScale(Phaser.Math.FloatBetween(1.1, 2.2))
         .setAngle(Phaser.Math.Between(0, 360));
@@ -1040,4 +1080,73 @@ export default class GameScene extends BaseScene {
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // DEV — on-canvas tuning drag (characters + drop boxes). Never runs in prod.
+  // ---------------------------------------------------------------------------
+
+  // Grab a scene character or a drop box under the pointer, topmost first. Sets
+  // this.devDrag and returns true when something was picked.
+  devPick(pointer) {
+    // Characters first (they are what you usually want to move), topmost first.
+    const entries = [...this.charObjects.entries()].reverse();
+    for (const [key, obj] of entries) {
+      const b = obj.image.getBounds();
+      if (
+        pointer.x >= b.left - HIT_PAD &&
+        pointer.x <= b.right + HIT_PAD &&
+        pointer.y >= b.top - HIT_PAD &&
+        pointer.y <= b.bottom + HIT_PAD
+      ) {
+        this.devDrag = {
+          mode: 'char',
+          key,
+          dx: obj.image.x - pointer.x,
+          dy: obj.image.y - pointer.y,
+          moved: false,
+        };
+        this.charLayer.bringToTop(obj.image);
+        return true;
+      }
+    }
+
+    // Otherwise a box.
+    const boxKey = this.boxAt(pointer.x, pointer.y);
+    if (boxKey) {
+      const box = this.boxes.get(boxKey);
+      this.devDrag = { mode: 'box', key: boxKey, dx: box.x - pointer.x, dy: box.y - pointer.y, moved: false };
+      return true;
+    }
+    return false;
+  }
+
+  devDragMove(pointer) {
+    const { mode, key, dx, dy } = this.devDrag;
+    if (mode === 'char') {
+      const obj = this.charObjects.get(key);
+      if (!obj) return;
+      obj.image.setPosition(pointer.x + dx, pointer.y + dy);
+    } else {
+      const box = this.boxes.get(key);
+      if (!box) return;
+      box.x = pointer.x + dx;
+      box.y = pointer.y + dy;
+    }
+    this.devDrag.moved = true;
+    this.drawDevOverlay();
+  }
+
+  // Write the dragged value back into the tuning kit (which is what actually
+  // re-applies it — the scene reads through the kit's get()).
+  devCommit() {
+    const { mode, key, moved } = this.devDrag;
+    this.devDrag = null;
+    if (!moved) return;
+    if (mode === 'char') {
+      const obj = this.charObjects.get(key);
+      if (obj) TUNING.set({ CHARACTERS: { [key]: { x: obj.image.x, y: obj.image.y } } });
+    } else {
+      const box = this.boxes.get(key);
+      if (box) TUNING.set({ BOXES: { [key]: { x: box.x, y: box.y } } });
+    }
+  }
 }

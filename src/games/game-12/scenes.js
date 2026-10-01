@@ -31,10 +31,10 @@ export function sceneName(scene) {
   return SCENE_NAMES[scene] || `Scene ${scene}`;
 }
 
-// Scenes whose prompt sits BELOW the option tray (bottom of the canvas) instead
-// of at the top. Used by scene 6, whose tall tree art would otherwise clash with
-// a top prompt.
-export const PROMPT_AT_BOTTOM = { 6: true };
+// Every scene shows its prompt in the standard top position now (scene 6 used to
+// opt into a bottom/side layout; that was removed so all scenes match). Kept as
+// a function so a scene could still opt in later without touching the scene code.
+export const PROMPT_AT_BOTTOM = {};
 
 export function isPromptAtBottom(scene) {
   return !!PROMPT_AT_BOTTOM[scene];

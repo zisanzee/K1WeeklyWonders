@@ -43,10 +43,9 @@ export const ROUNDS = [
   { scene: 5, key: 'scene5Character1', prompt: 'Put [scene5Character1] in *front* of [promptChef]' },
   { scene: 5, key: 'scene5Character2', prompt: 'Put [scene5Character2] *behind* [promptChef]' },
 
-  // ---- Scene 6 — prompt sits BESIDE the option, and wraps to two lines so it
-  //      stays narrow (the ` | ` breaks the line). Art: a tall tree.
-  { scene: 6, key: 'scene6Character1', prompt: 'Put [scene6Character1] | on *top* of [promptTree]' },
-  { scene: 6, key: 'scene6Character2', prompt: 'Put [scene6Character2] | at the *bottom* of [promptTree]' },
+  // ---- Scene 6 — standard prompt, same position/style as every other scene ---
+  { scene: 6, key: 'scene6Character1', prompt: 'Put [scene6Character1] on *top* of [promptTree]' },
+  { scene: 6, key: 'scene6Character2', prompt: 'Put [scene6Character2] at the *bottom* of [promptTree]' },
 ];
 
 export const TOTAL_ROUNDS = ROUNDS.length;

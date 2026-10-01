@@ -1,16 +1,62 @@
 // assets.js
-// Game 13 — BOILERPLATE ONLY.
+// Game 13 — the single place this game's asset URLs live.
 //
-// The single place this game's asset URLs live. Nothing is wired up yet: the
-// gameplay brief and artwork arrive later, so IMAGES ships empty and the scene
-// copes with the missing start card / backdrop (see GameScene.js). Fill IMAGES
-// in and every loader path below picks the files up automatically —
-// ASSET_MANIFEST is derived from it, so it never needs editing by hand.
+// The road/car/obstacle artwork is loaded here and every loader path picks the
+// files up automatically: ASSET_MANIFEST is derived from IMAGES, so it never
+// needs editing by hand. Keys are FLAT on purpose — the manifest builder maps
+// every value straight to a URL, so a nested object would be handed to Phaser as
+// a bogus URL. Obstacles therefore use an `obstacleX` prefix instead of nesting.
+
+// Cloudinary assets are served through `f_auto,q_auto` so the browser gets the
+// smallest format it supports (WebP/AVIF) at an auto-selected quality — a large
+// download saving over the raw PNGs, with no layout change. Applied once here so
+// the table below stays plain URLs.
+const cld = (url) => url.replace('/image/upload/', '/image/upload/f_auto,q_auto/');
 
 export const IMAGES = {
-  // startScreen: 'https://res.cloudinary.com/.../game13-Start.png',
-  // background:  'https://res.cloudinary.com/.../game13-Background.png',
+  // Looping road backdrop — scrolled top-to-bottom to read as an endless road.
+  // It carries the two lanes; the lane GUIDES are drawn from roadTuning.js (see
+  // GameScene.js), not baked into this image.
+  bgLoop: cld(
+    'https://res.cloudinary.com/hijmipga/image/upload/v1790794532/road_qwt430.png'
+  ),
+
+  // The player's car — parked at the bottom of one lane and tapped to switch.
+  playerCar: cld(
+    'https://res.cloudinary.com/hijmipga/image/upload/v1790794531/playerCar_izyrpt.png'
+  ),
+
+  // Obstacles: one drives down each lane at a time (see roadTuning.js). All are
+  // flat keys so the manifest derivation below just works.
+  obstacleTires: cld(
+    'https://res.cloudinary.com/hijmipga/image/upload/v1790794530/obstacletires_mvd3jp.png'
+  ),
+  obstaclePuddle: cld(
+    'https://res.cloudinary.com/hijmipga/image/upload/v1790794529/obstaclePuddle_pfomvu.png'
+  ),
+  obstacleCar1: cld(
+    'https://res.cloudinary.com/hijmipga/image/upload/v1790794528/obstacleCar2_dqrpjf.png'
+  ),
+  obstacleCone: cld(
+    'https://res.cloudinary.com/hijmipga/image/upload/v1790794528/obstacleCone_aooaxu.png'
+  ),
+  obstacleCar2: cld(
+    'https://res.cloudinary.com/hijmipga/image/upload/v1790794527/obstacleCar_uczmyn.png'
+  ),
+  obstacleBox: cld(
+    'https://res.cloudinary.com/hijmipga/image/upload/v1790794527/obstacleBox_b9jorn.png'
+  ),
 };
+
+// The obstacle pool, in one place so the scene can pick a random one per lane.
+export const OBSTACLE_KEYS = [
+  'obstacleTires',
+  'obstaclePuddle',
+  'obstacleCar1',
+  'obstacleCone',
+  'obstacleCar2',
+  'obstacleBox',
+];
 
 export const AUDIO = {
   // Shared cross-game SFX, referenced by URL exactly like the other games do.
@@ -20,6 +66,18 @@ export const AUDIO = {
   pop1: '/PhaserAssets/pop_fx/pop-1.mp3',
   pop2: '/PhaserAssets/pop_fx/pop-2.mp3',
   pop3: '/PhaserAssets/pop_fx/pop-3.mp3',
+
+  // Game 13's own driving SFX. These are Cloudinary VIDEO uploads served as mp3;
+  // each is listed in AUDIO_TYPE_OVERRIDES below so Phaser queues them as mp3
+  // (see the note there). The engine loops for the whole run; the skids play on
+  // a lane change; the honk sounds just before an obstacle appears.
+  engine: 'https://res.cloudinary.com/hijmipga/video/upload/v1790855817/carEngine_mjdu2m.mp3',
+  skid1: 'https://res.cloudinary.com/hijmipga/video/upload/v1790855817/skid1_fsicno.mp3',
+  skid2: 'https://res.cloudinary.com/hijmipga/video/upload/v1790855817/skid2_v0wioo.mp3',
+  honk: 'https://res.cloudinary.com/hijmipga/video/upload/v1790856125/honk_ljlfla.mp3',
+  sayLeft: 'https://res.cloudinary.com/hijmipga/video/upload/v1790856421/left_uh86bk.mp3',
+  sayRight: 'https://res.cloudinary.com/hijmipga/video/upload/v1790856421/right_uh3vtr.mp3',
+  crash: 'https://res.cloudinary.com/hijmipga/video/upload/v1790860564/car_crash_thyqlp.mp3',
 };
 
 // Phaser's audio loader picks a codec/extension to trust from the URL itself,
@@ -27,7 +85,13 @@ export const AUDIO = {
 // recognise as audio — with a bare URL string it can then silently skip queuing
 // the file. Add any such clip here so it is forced to a real audio type.
 const AUDIO_TYPE_OVERRIDES = {
-  // bgMusic: 'mp3',
+  engine: 'mp3',
+  skid1: 'mp3',
+  skid2: 'mp3',
+  honk: 'mp3',
+  sayLeft: 'mp3',
+  sayRight: 'mp3',
+  crash: 'mp3',
 };
 
 // Flattened manifest for BasePreloadScene({ assets: ASSET_MANIFEST, ... }).
