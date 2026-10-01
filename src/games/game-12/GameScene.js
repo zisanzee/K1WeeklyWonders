@@ -119,17 +119,18 @@ export default class GameScene extends BaseScene {
 
     this.startTime = this.time.now;
 
-    // Background music + first-tap unlock, plus the shared mute button.
+    // Background music + first-tap unlock, plus the shared mute button — pinned
+    // to the BOTTOM-left so it stays clear of the top prompt card.
     ensureBgMusic(this);
     this.input.once('pointerdown', () => ensureBgMusic(this));
-    addMuteButton(this, 16, 16, { anchor: 'topLeft', depth: 1000 });
+    addMuteButton(this, 16, height - 16, { anchor: 'bottomLeft', depth: 1000 });
 
-    // Round counter pill (top-right), matching the other bonus games.
-    this.roundPill = this.createPillButton(width - 14, 14, '', {
+    // Round counter pill, bottom-right for the same reason.
+    this.roundPill = this.createPillButton(width - 16, height - 16, '', {
       fontSize: '20px',
       paddingX: 16,
       paddingY: 9,
-      anchor: 'topRight',
+      anchor: 'bottomRight',
       interactive: false,
       depth: 25,
     });

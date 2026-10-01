@@ -62,6 +62,12 @@ let currentBorderColor = borderColor;
   const offsetFor = (ww) => {
     if (anchor === 'topLeft') return { ox: ww / 2, oy: h / 2 };
     if (anchor === 'topRight') return { ox: -ww / 2, oy: h / 2 };
+    // Bottom anchors: the container origin is the bottom edge, so the pill's
+    // centre sits half its width/half its height up-and-inward from there. The
+    // offset is recomputed on setText (see below), so a bottom pill stays pinned
+    // to the edge as its label changes size.
+    if (anchor === 'bottomLeft') return { ox: ww / 2, oy: -h / 2 };
+    if (anchor === 'bottomRight') return { ox: -ww / 2, oy: -h / 2 };
     return { ox: 0, oy: 0 };
   };
   let { ox, oy } = offsetFor(w);
