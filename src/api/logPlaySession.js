@@ -209,6 +209,30 @@ export async function fetchLeaderboard(classId) {
   }
 }
 
+// Teacher-only: the top 3 players for each of the last few COMPLETED weeks
+// (GET /api/leaderboard/history). Because the weekly ranking is derived by
+// sliding the Friday→Friday boundary, a past week is reconstructed server-side
+// from play history — so a teacher keeps a record of past champions even after
+// the live board has reset. Returns { weeks: [{ start, end, winners }] } (newest
+// first) or null on failure so the panel can hide gracefully. `since` is pinned
+// to the client's local Friday noon just like the live leaderboard, so the week
+// boundaries still match the player's timezone.
+export async function fetchLeaderboardHistory(teacherCode) {
+  try {
+    const res = await fetchWithTimeout(
+      withQuery('/api/leaderboard/history', {
+        teacherCode,
+        since: getWeekStart().toISOString(),
+      })
+    );
+    if (!res.ok) return null;
+    const data = await res.json();
+    return Array.isArray(data?.weeks) ? data : { weeks: [] };
+  } catch {
+    return null;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Weekly mission + player home strip
 // ---------------------------------------------------------------------------

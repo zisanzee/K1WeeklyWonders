@@ -503,7 +503,7 @@ export default class GameScene extends BaseScene {
 
   showPrompt(direction) {
     const prompt = getPrompt();
-    const word = direction === 'left' ? 'LEFT' : 'RIGHT';
+    const word = direction === 'left' ? 'Left' : 'Right';
     const color = direction === 'left' ? prompt.leftColor : prompt.rightColor;
 
     this.directionText.setText(word);

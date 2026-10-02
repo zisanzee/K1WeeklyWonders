@@ -33,7 +33,7 @@ import { createTuning } from '@/devTuning/core';
 // runs its own height, so tuning SCROLL_SPEED just changes how fast the world
 // moves past. Scaling to fit the WIDTH (not the height) means the painted lane
 // markings keep their proportions on any device.
-export const ROAD = { fitWidth: true, scrollSpeed: 125 };
+export const ROAD = { fitWidth: true, scrollSpeed: 145 };
 
 export const LANES = [
   { id: 0, x: 272.014, y: 560.72, w: 175, h: 1400 },
@@ -109,7 +109,7 @@ export const LANE_GUIDE = {
 // rounds.js (speed + the shrinking prompt→obstacle gap).
 export const ROUNDS = {
   startDelayMs: 2000, // quiet beat after Start before the first prompt appears
-  promptHoldMs: 3000, // prompt on its own before the obstacle appears
+  promptHoldMs: 2000, // prompt on its own before the obstacle appears
   obstacleWarnMs: 250, // grace after the obstacle appears before it can hit
   passMargin: 150, // px below the car centre that counts as "cleared"
   fillPerRound: 0.1, // progress bar gain per round cleared (10%)

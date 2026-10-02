@@ -7,6 +7,7 @@ import {
   deletePlayerGame,
   fetchAdminClassStats,
   fetchAdminClassDetail,
+  fetchLeaderboardHistory,
 } from '@/api/logPlaySession';
 import { usePlayerStore } from '@/auth/playerStore';
 import { GAME_CATALOG } from '@/games/registry';
@@ -288,6 +289,147 @@ function ListState({ list, kind }) {
   return null;
 }
 
+// Formats one completed week's [start, end) window for the folder header, e.g.
+// "Fri 12 Sep – Fri 19 Sep". Both ends fall on Friday noon, so the weekday is
+// implied by the feature itself; the dates are what a teacher scans for.
+function formatWeekRange(startISO, endISO) {
+  const opts = { day: 'numeric', month: 'short' };
+  const start = new Date(startISO).toLocaleDateString(undefined, opts);
+  const end = new Date(endISO).toLocaleDateString(undefined, opts);
+  return `${start} – ${end}`;
+}
+
+const MEDALS = ['🥇', '🥈', '🥉'];
+
+// "Past winners" — an accordion (folder) list of the top 3 players for each of
+// the last few completed weeks. Rows are fetched once from
+// /api/leaderboard/history; because that endpoint reconstructs each week from
+// play history, this record survives the Friday reset rather than needing to be
+// captured at reset time.
+function WeeklyWinners({ refetchToken = 0 }) {
+  const teacherCode = usePlayerStore((s) => s.teacherCode);
+  const [status, setStatus] = useState('loading'); // loading | error | ready
+  const [weeks, setWeeks] = useState([]);
+  // Open folders by index. The newest week starts expanded so the panel has
+  // something to show immediately; the rest stay collapsed until tapped.
+  const [openSet, setOpenSet] = useState(() => new Set([0]));
+
+  const load = useCallback(async () => {
+    if (!teacherCode) return;
+    setStatus('loading');
+    const data = await fetchLeaderboardHistory(teacherCode);
+    if (!data) {
+      setStatus('error');
+      return;
+    }
+    setWeeks(data.weeks || []);
+    setStatus('ready');
+  }, [teacherCode]);
+
+  useEffect(() => {
+    load();
+  }, [load, refetchToken]);
+
+  const toggle = (index) => {
+    setOpenSet((prev) => {
+      const next = new Set(prev);
+      if (next.has(index)) next.delete(index);
+      else next.add(index);
+      return next;
+    });
+  };
+
+  return (
+    <div className="font-body flex-1 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
+      {status === 'loading' && <LoadingBlock label="Loading past winners…" />}
+      {status === 'error' && (
+        <ErrorBlock label="Couldn't load past winners." onRetry={load} />
+      )}
+      {status === 'ready' && weeks.length === 0 && (
+        <div className="py-10 text-center font-bold aura-muted sm:py-16">
+          <p className="text-4xl">🏆</p>
+          <p className="mt-2">No completed weeks to show yet.</p>
+          <p className="mt-1 text-xs font-semibold">
+            Once a week wraps up, its top 3 players will be listed here.
+          </p>
+        </div>
+      )}
+      {status === 'ready' && weeks.length > 0 && (
+        <div className="mx-auto max-w-2xl space-y-2.5">
+          <p className="mb-3 text-center text-xs font-bold aura-muted sm:text-sm">
+            Top 3 players from each of the last {weeks.length} weeks — saved right before
+            the ranking reset.
+          </p>
+          {weeks.map((week, i) => {
+            const open = openSet.has(i);
+            return (
+              <div key={week.start} className="aura-card overflow-hidden rounded-2xl">
+                <button
+                  type="button"
+                  onClick={() => toggle(i)}
+                  aria-expanded={open}
+                  className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors active:bg-white/10 sm:hover:bg-white/10"
+                >
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-amber-400/80 to-orange-500/80 text-lg shadow-sm">
+                    📁
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-black aura-text sm:text-base">
+                      {formatWeekRange(week.start, week.end)}
+                    </span>
+                    <span className="block text-[11px] font-semibold aura-muted">
+                      {week.winners[0]?.playerName
+                        ? `${week.winners[0].playerName} came 1st`
+                        : 'No players'}
+                    </span>
+                  </span>
+                  <motion.span
+                    animate={{ rotate: open ? 90 : 0 }}
+                    transition={{ duration: 0.15 }}
+                    className="shrink-0 text-lg aura-muted"
+                  >
+                    ›
+                  </motion.span>
+                </button>
+                <AnimatePresence initial={false}>
+                  {open && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.2 }}
+                      className="overflow-hidden"
+                    >
+                      <ol className="border-t border-white/10 px-3 py-2">
+                        {week.winners.map((w, rank) => (
+                          <li
+                            key={w.playerName}
+                            className="flex items-center gap-3 rounded-xl px-2 py-2.5"
+                          >
+                            <span className="w-7 shrink-0 text-center text-xl">
+                              {MEDALS[rank] || `#${rank + 1}`}
+                            </span>
+                            <span className="min-w-0 flex-1 truncate font-bold aura-text">
+                              {w.playerName}
+                            </span>
+                            <span className="shrink-0 rounded-full bg-amber-400/20 px-2.5 py-1 text-xs font-black text-amber-100">
+                              🏆 {w.trophies}
+                            </span>
+                          </li>
+                        ))}
+                      </ol>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function TeacherStatsPanel({ onClose, embedded = false }) {
   // Access to this panel is already decided at the name/code prompt (Home
   // only renders the Stats button for teachers) — this just reads who's in.
@@ -297,6 +439,9 @@ function TeacherStatsPanel({ onClose, embedded = false }) {
   const [statsStatus, setStatsStatus] = useState('loading'); // loading | error | ready
   const [slow, setSlow] = useState(false);
   const [stats, setStats] = useState(null);
+  // Which surface the panel shows: the live stats tables, or the folder list of
+  // past weekly winners. Purely a view toggle — both read the same teacherCode.
+  const [view, setView] = useState('stats'); // stats | winners
 
   const [filter, setFilter] = useState('all');
   const [search, setSearch] = useState('');
@@ -522,6 +667,17 @@ function TeacherStatsPanel({ onClose, embedded = false }) {
           </h2>
           <div className="flex items-center gap-2">
             <button
+              onClick={() => setView((v) => (v === 'winners' ? 'stats' : 'winners'))}
+              aria-label={view === 'winners' ? 'Back to stats' : 'Past weekly winners'}
+              title={view === 'winners' ? 'Back to stats' : 'Past weekly winners'}
+              aria-pressed={view === 'winners'}
+              className={`aura-icon-btn h-9 w-9 text-lg active:scale-90 sm:h-11 sm:w-11 ${
+                view === 'winners' ? 'ring-2 ring-pink-400' : ''
+              }`}
+            >
+              {view === 'winners' ? '📊' : '🏆'}
+            </button>
+            <button
               onClick={refresh}
               disabled={statsStatus === 'loading'}
               aria-label="Refresh stats"
@@ -542,6 +698,10 @@ function TeacherStatsPanel({ onClose, embedded = false }) {
           </div>
         </div>
 
+        {view === 'winners' && <WeeklyWinners refetchToken={version} />}
+
+        {view === 'stats' && (
+          <>
         {statsStatus === 'ready' && stats && (
           <div className="border-b border-white/10 px-4 py-3 sm:px-6">
             <div className="flex justify-center">
@@ -925,6 +1085,8 @@ function TeacherStatsPanel({ onClose, embedded = false }) {
             </AnimatePresence>
           )}
         </div>
+          </>
+        )}
     </>
   );
 
