@@ -356,10 +356,7 @@ function WeeklyWinners({ refetchToken = 0 }) {
       )}
       {status === 'ready' && weeks.length > 0 && (
         <div className="mx-auto max-w-2xl space-y-2.5">
-          <p className="mb-3 text-center text-xs font-bold aura-muted sm:text-sm">
-            Top 3 players from each of the last {weeks.length} weeks — saved right before
-            the ranking reset.
-          </p>
+         
           {weeks.map((week, i) => {
             const open = openSet.has(i);
             return (

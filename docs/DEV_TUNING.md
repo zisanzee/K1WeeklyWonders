@@ -15,7 +15,9 @@ final values back into your tuning file — with **no page reload**.
 | File | Role |
 | --- | --- |
 | `src/devTuning/core.js` | The engine (`createTuning`). **Framework-free.** |
-| `src/devTuning/config.js` | The master switch (`TUNING_DEV_ENABLED`). |
+| `src/devTuning/config.js` | The shared master switch (`TUNING_DEV_ENABLED`). |
+| `src/devTuning/panel.js` | **The single DEV gate** — owns the literal `import.meta.env.DEV` on the dynamic `import()`. |
+| `src/devTuning/DevTuningFrame.jsx` | The wrapper a game mounts (gate + layout). |
 | `src/devTuning/DevTuningPanel.jsx` | The lazy, DEV-gated React sidebar. |
 | `src/games/<game>/<game>Tuning.js` | A game's tables + accessors + schema. |
 
@@ -98,35 +100,41 @@ applyTuning() {
 
 ### 3. Mount the shared panel in `Game.jsx`
 
+Wrap the game in the shared `<DevTuningFrame>` — it owns BOTH the DEV gate and
+the layout, so there is no `if` and no `lazy()`/`Suspense` to write yourself:
+
 ```jsx
-import { lazy, Suspense } from 'react';
 import { TUNING, TUNING_SCHEMA } from '@/games/<slug>/<slug>Tuning';
-import { TUNING_DEV_ENABLED } from '@/devTuning/config';
+import DevTuningFrame from '@/devTuning/DevTuningFrame';
 
-// INLINE import.meta.env.DEV — see the note below.
-const DevTuningPanel =
-  import.meta.env.DEV && TUNING_DEV_ENABLED
-    ? lazy(() => import('@/devTuning/DevTuningPanel'))
-    : null;
+// …build `game`…
 
-// …
-return DevTuningPanel ? (
-  <div className="flex h-full w-full">
-    <div className="min-h-0 flex-1">{game}</div>
-    <Suspense fallback={null}>
-      <DevTuningPanel tuning={TUNING} schema={TUNING_SCHEMA} />
-    </Suspense>
-  </div>
-) : game;
+// Production (or the editor switched off) → returns `game` unchanged.
+return (
+  <DevTuningFrame tuning={TUNING} schema={TUNING_SCHEMA}>
+    {game}
+  </DevTuningFrame>
+);
 ```
 
-> **Write the gate inline on `import.meta.env.DEV`.** Vite replaces that token
-> with the literal `false` in production, the ternary folds, the dynamic
-> `import()` becomes unreachable and is dropped. If you instead reference a
-> helper like `export const DEV_TUNING = import.meta.env.DEV && …`, the condition
-> is no longer a literal at the import site, the chunk is still **emitted**, and
-> it only avoids *loading* — not "not shipped".
+In production the frame returns `children` untouched — no extra DOM, no Suspense,
+no chunk. Two optional props:
 
+- `layout="stack"` — game on top, panel below (for portrait / constrained pages).
+  Default is side-by-side.
+- `enabled={MY_GAME_TUNING_ENABLED}` — a game's own **local-dev** off switch so
+  one game can go player-facing while the shared `TUNING_DEV_ENABLED` stays on
+  for the others. It is checked *after* the build gate, so it can only ever hide
+  the editor in dev — never re-enable it in production.
+
+> **Do NOT write your own `import.meta.env.DEV && … ? lazy(import(…))` gate.**
+> The gate must live on the *literal* `import.meta.env.DEV` expression in the
+> same module as the dynamic `import()`, or Vite can't prove it's dead output:
+> with a helper like `export const DEV_TUNING = import.meta.env.DEV && …` the
+> condition is no longer a literal at the import site, so the panel chunk is
+> still **emitted** (only not loaded). That single correct gate already exists
+> in [`src/devTuning/panel.js`](../src/devTuning/panel.js); `<DevTuningFrame>`
+> consumes it. Games stay gate-free.
 ### 4. Add on-canvas handles (optional)
 
 For draggable lane boxes / drop zones, create invisible interactive zones in dev
@@ -163,12 +171,21 @@ Two layers, both keyed off `import.meta.env.DEV`:
 1. **Runtime** — `createTuning()` checks `import.meta.env.DEV` once. Off, `get()`
    is `(key) => tables[key]`; no globals, no bus, no merge, no HMR. This is
    precise: off means "a plain property read", nothing else.
-2. **Bundle** — the panel is behind an inline `import.meta.env.DEV` gate, so its
-   lazy chunk is not emitted at all in production.
+2. **Bundle** — `panel.js` holds the one literal `import.meta.env.DEV` gate on
+   the dynamic `import()`. In production it folds to `null`, the import is dead
+   code, and the sidebar chunk is not emitted at all. Games that mount
+   `<DevTuningFrame>` ship zero panel code.
 
 To keep the wiring but disable the editor **during local dev** (e.g. to test the
 shipping code path), set `TUNING_DEV_ENABLED = false` in
-[`src/devTuning/config.js`](../src/devTuning/config.js).
+[`src/devTuning/config.js`](../src/devTuning/config.js). To disable it for just
+one game, pass `enabled={false}` to that game's `<DevTuningFrame>`.
+
+> **This guarantee survives pushing with the editor on.** Even if
+> `TUNING_DEV_ENABLED` (and a game's own flag) are `true`, a `vite build` — what
+> CI and Netlify run — always emits `import.meta.env.DEV === false`, so the panel
+> chunk is absent from `dist/`. The switches only affect the local `vite dev`
+> server.
 
 ## Backing up / removing a game's editor
 

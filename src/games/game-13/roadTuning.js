@@ -26,6 +26,17 @@ import { createTuning } from '@/devTuning/core';
 // from these same numbers, so fixing the boxes fixes everything at once.
 
 // ---------------------------------------------------------------------------
+// DEV EDITOR SWITCH
+// ---------------------------------------------------------------------------
+// Per-game master switch for the live-tuning editor. Kept separate from the
+// shared kit's own TUNING_DEV_ENABLED so THIS game can ship player-facing while
+// the editor stays wired for the others. With it false, the scene draws no lane
+// guides, installs no canvas drag hooks, and Game.jsx mounts no sidebar — even
+// in a dev build. Vite folds `import.meta.env.DEV && DEV_TUNING_ENABLED` to a
+// plain false in production regardless, so a player never sees either path.
+export const DEV_TUNING_ENABLED = false;
+
+// ---------------------------------------------------------------------------
 // ROAD (the looping backdrop)
 // ---------------------------------------------------------------------------
 // The road image is scroll-tiled top-to-bottom to fake an endless road. It is

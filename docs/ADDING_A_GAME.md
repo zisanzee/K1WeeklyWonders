@@ -125,6 +125,29 @@ export const GAME_ICON_FILES = {
 The path must be root-relative (`/game-icons/…`) so the cache header and the
 service worker's runtime cache both cover it and it works offline.
 
+## 6. Optional: a live-tuning editor
+
+To tune a Phaser game by eye (sliders beside the running game, no reload), follow
+[`docs/DEV_TUNING.md`](./DEV_TUNING.md). The only thing `Game.jsx` needs is the
+shared frame:
+
+```jsx
+import DevTuningFrame from '@/devTuning/DevTuningFrame';
+
+return (
+  <DevTuningFrame tuning={TUNING} schema={TUNING_SCHEMA}>
+    {game}
+  </DevTuningFrame>
+);
+```
+
+**Never write your own `import.meta.env.DEV ? lazy(import(…))` gate** — the one
+correct gate lives in `src/devTuning/panel.js` (it must sit on the literal
+`import.meta.env.DEV` expression in the same module as the import, or the panel
+chunk is emitted to production). `DevTuningFrame` consumes it, so in production
+your game ships with zero panel code and no extra DOM — even if the editor is
+switched on in `config.js` when you push.
+
 ---
 
 ## Things that are NOT part of adding a game

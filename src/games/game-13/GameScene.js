@@ -46,6 +46,7 @@ import {
   getDepth,
   fitScaleToLane,
   ROAD_TUNING,
+  DEV_TUNING_ENABLED,
 } from '@/games/game-13/roadTuning';
 
 // The clear colour behind everything, and the Phaser canvas clear colour (see
@@ -54,7 +55,10 @@ export const BACKGROUND_COLOR = '#1f2937';
 
 // Layout (720x1080 base resolution — see Phaser/config.js).
 const START_BUTTON_Y = 952;
-const DEV_EDITOR = import.meta.env.DEV;
+// Per-game dev-editor gate: a dev build alone is not enough — the game's own
+// DEV_TUNING_ENABLED switch must also be on (see roadTuning.js). This keeps
+// Game 13 player-facing in local dev while the editor stays wired for others.
+const DEV_EDITOR = import.meta.env.DEV && DEV_TUNING_ENABLED;
 
 // Bakes a soft radial smoke puff once, cached under a fixed key so every puff
 // (and a scene restart) reuses the same texture instead of redrawing canvas.
