@@ -28,6 +28,7 @@ export const GAME_ICON_FILES = {
   // cache both key on, so the icon is cached on first view and works offline.
   '10': '/game-icons/game10.png',
   '12': 'https://res.cloudinary.com/hijmipga/image/upload/v1790782996/icon_qnxc7a.png',
+  '13': 'https://res.cloudinary.com/hijmipga/image/upload/v1791029534/game13icon_aqhufr.png',
 
   // Remote example — paste a Cloudinary URL here (add f_auto,q_auto to let
   // Cloudinary serve the smallest format). Replace the placeholder to enable it:
