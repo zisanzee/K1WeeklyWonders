@@ -31,7 +31,7 @@ export function setMuted(value) {
 // level is intentionally PER GAME now: pass `volume` to tune the music for one
 // game without changing every other game's mix. (The mute preference stays
 // global — mute is a property of the player, not of a game.)
-export const DEFAULT_BG_MUSIC_VOLUME = 0.2;
+export const DEFAULT_BG_MUSIC_VOLUME = 0.27;
 
 // Call once from each scene's create(). Reuses the existing bgMusic Sound
 // if one's already playing from a previous scene instead of restarting it,
