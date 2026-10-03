@@ -44,7 +44,7 @@ export const DEV_TUNING_ENABLED = false;
 // runs its own height, so tuning SCROLL_SPEED just changes how fast the world
 // moves past. Scaling to fit the WIDTH (not the height) means the painted lane
 // markings keep their proportions on any device.
-export const ROAD = { fitWidth: true, scrollSpeed: 145 };
+export const ROAD = { fitWidth: true, scrollSpeed: 155 };
 
 export const LANES = [
   { id: 0, x: 272.014, y: 560.72, w: 175, h: 1400 },
@@ -206,6 +206,24 @@ export const AUDIO_MIX = {
   honkLeadMs: 600,
 };
 
+// Background music level for THIS game only (see ensureBgMusic in
+// @/phaser/common/audioState). Start values here; the engine loop sits on top.
+export const BG_MUSIC = {
+  volume: 0.2,
+};
+
+// ---------------------------------------------------------------------------
+// START SCREEN (fullscreen title art + Start button)
+// ---------------------------------------------------------------------------
+// The title art is drawn scaled-to-cover; only the button position and the
+// welcome voice volume are tuned, since the artwork carries its own text.
+export const START_SCREEN = {
+  buttonY: 944, // y of the Start button (near the bottom of the 720x1080 base)
+  buttonLabel: 'Start \u25B6',
+  voiceVolume: 1.9, // start-voice line playing under the title screen
+  fadeMs: 420, // title-screen fade-out when Start is tapped
+};
+
 // ---------------------------------------------------------------------------
 // Draw order bands (lower = further back).
 // ---------------------------------------------------------------------------
@@ -239,6 +257,8 @@ const TABLES = {
   PROGRESS_BAR,
   PROMPT,
   AUDIO_MIX,
+  BG_MUSIC,
+  START_SCREEN,
   DEPTH,
 };
 
@@ -257,6 +277,8 @@ export const getObstacle = () => ROAD_TUNING.get('OBSTACLE');
 export const getProgressBar = () => ROAD_TUNING.get('PROGRESS_BAR');
 export const getPrompt = () => ROAD_TUNING.get('PROMPT');
 export const getAudioMix = () => ROAD_TUNING.get('AUDIO_MIX');
+export const getBgMusic = () => ROAD_TUNING.get('BG_MUSIC');
+export const getStartScreen = () => ROAD_TUNING.get('START_SCREEN');
 export const getDepth = () => ROAD_TUNING.get('DEPTH');
 
 // A copy-pasteable snapshot, so a good live session can be pasted straight back
@@ -421,6 +443,20 @@ export const TUNING_SCHEMA = {
         { path: 'y', label: 'y', min: 60, max: 600, step: 1 },
         { path: 'fontSize', label: 'font size', min: 40, max: 160, step: 2 },
         { path: 'bobAmount', label: 'bob', min: 0, max: 40, step: 1 },
+      ],
+    },
+    {
+      key: 'BG_MUSIC',
+      label: 'Background music',
+      fields: [{ path: 'volume', label: 'music vol', min: 0, max: 1, step: 0.02 }],
+    },
+    {
+      key: 'START_SCREEN',
+      label: 'Start screen',
+      fields: [
+        { path: 'buttonY', label: 'button y', min: 600, max: 1060, step: 1 },
+        { path: 'voiceVolume', label: 'voice vol', min: 0, max: 1, step: 0.02 },
+        { path: 'fadeMs', label: 'fade', min: 0, max: 1500, step: 20, suffix: 'ms' },
       ],
     },
     {

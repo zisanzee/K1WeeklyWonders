@@ -27,6 +27,12 @@ export function setMuted(value) {
   }
 }
 
+// Default bg-music volume, used only when a game does not pass its own. The
+// level is intentionally PER GAME now: pass `volume` to tune the music for one
+// game without changing every other game's mix. (The mute preference stays
+// global — mute is a property of the player, not of a game.)
+export const DEFAULT_BG_MUSIC_VOLUME = 0.2;
+
 // Call once from each scene's create(). Reuses the existing bgMusic Sound
 // if one's already playing from a previous scene instead of restarting it,
 // and defers play() until Phaser's AudioContext actually unlocks if the
@@ -34,14 +40,22 @@ export function setMuted(value) {
 //
 // Phaser's SoundManager is per-Game, not per-Scene, so the same Sound object
 // can and should survive scene transitions.
-export function ensureBgMusic(scene) {
+//
+// `volume` — this game's background-music level. Applied on BOTH paths: when the
+// Sound is created and when it is reused, so a per-game value wins even if an
+// earlier scene in the same Game already started the music.
+export function ensureBgMusic(scene, volume = DEFAULT_BG_MUSIC_VOLUME) {
   scene.sound.mute = isMuted();
 
   let music = scene.sound.get('bgMusic');
   if (!music && scene.cache.audio.exists('bgMusic')) {
-    music = scene.sound.add('bgMusic', { loop: true, volume: 0.28 });
+    music = scene.sound.add('bgMusic', { loop: true, volume });
   }
   if (!music) return null;
+
+  // Re-assert the level every call — this is what makes the value truly per
+  // game/scene rather than fixed at the first creation.
+  music.setVolume(volume);
 
   const tryPlay = () => {
     if (!music.isPlaying) music.play();

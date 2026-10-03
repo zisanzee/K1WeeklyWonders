@@ -23,7 +23,7 @@ export default function Game({ playerName }) {
       assets: ASSET_MANIFEST,
       nextSceneKey: 'GameScene',
       loadingEmoji: '\uD83D\uDE97',
-      loadingText: 'Getting Traffic Dodge ready...',
+      loadingText: 'Getting Lane Switch ready...',
     }),
     new GameScene(),
   ];

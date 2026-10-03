@@ -43,6 +43,8 @@ import {
   getProgressBar,
   getPrompt,
   getAudioMix,
+  getBgMusic,
+  getStartScreen,
   getDepth,
   fitScaleToLane,
   ROAD_TUNING,
@@ -53,8 +55,6 @@ import {
 // Game.jsx) so the single frame before the road draws is not a bare canvas.
 export const BACKGROUND_COLOR = '#1f2937';
 
-// Layout (720x1080 base resolution — see Phaser/config.js).
-const START_BUTTON_Y = 952;
 // Per-game dev-editor gate: a dev build alone is not enough — the game's own
 // DEV_TUNING_ENABLED switch must also be on (see roadTuning.js). This keeps
 // Game 13 player-facing in local dev while the editor stays wired for others.
@@ -143,6 +143,9 @@ export default class GameScene extends BaseScene {
     this.obstacleCfg = null;
     this.depthCfg = null;
     this.audioCfg = null;
+    this.startScreenCfg = null;
+    this.bgMusicCfg = null;
+    this.bgMusic = null; // shared bgMusic Sound handle (this game's level)
 
     // Scalar collision extents, recomputed only when the car/obstacle changes —
     // so the per-frame collision test needs no getBounds(). These are the
@@ -175,6 +178,8 @@ export default class GameScene extends BaseScene {
 
     this.flashRect = null;
     this.startOverlay = null;
+    this.startBtn = null;
+    this.startVoiceSound = null; // the welcome voice line, cut off on Start
   }
 
   create() {
@@ -186,9 +191,10 @@ export default class GameScene extends BaseScene {
     // Snapshot tuning BEFORE the builds, so they can read the cache too.
     this.cacheTuning();
 
-    // Background music + first-tap unlock, plus the shared mute button.
-    ensureBgMusic(this);
-    this.input.once('pointerdown', () => ensureBgMusic(this));
+    // Background music + first-tap unlock, plus the shared mute button. The
+    // volume is this game's own (BG_MUSIC), not the shared default.
+    this.bgMusic = ensureBgMusic(this, getBgMusic().volume);
+    this.input.once('pointerdown', () => this.applyBgMusicVolume());
     // Keep a handle: the mute button is NOT part of the lane-tap surface, so a
     // tap on it must not also move the car (see handleLaneTap).
     this.muteButton = addMuteButton(this, 16, 16, { anchor: 'topLeft', depth: 1000 });
@@ -213,9 +219,12 @@ export default class GameScene extends BaseScene {
 
     this.buildStartOverlay();
 
-    // Stop the engine loop if this scene shuts down (defensive: the SoundManager
-    // is per-Game, so the loop would otherwise outlive a scene transition).
-    this.events.once('shutdown', () => this.stopEngine());
+    // Stop the engine loop + welcome voice if this scene shuts down (defensive:
+    // the SoundManager is per-Game, so they would otherwise outlive a transition).
+    this.events.once('shutdown', () => {
+      this.stopEngine();
+      this.stopStartVoice();
+    });
 
     // Live tuning: the shared kit calls this to re-apply after a panel drag or a
     // saved tuning-file hot-reload.
@@ -725,6 +734,14 @@ export default class GameScene extends BaseScene {
     this.engineFading = false;
   }
 
+  // Re-apply this game's bg-music level to the shared music Sound. Distinct
+  // from the shared default so each game can sit at its own level.
+  applyBgMusicVolume() {
+    const vol = (this.bgMusicCfg || getBgMusic()).volume;
+    const music = this.bgMusic || this.sound.get('bgMusic');
+    if (music) music.setVolume(vol);
+  }
+
   // Re-apply the tuned volume to whichever voice is audible.
   applyEngineVolume() {
     const mix = getAudioMix();
@@ -986,8 +1003,15 @@ export default class GameScene extends BaseScene {
 
     if (this.promptContainer) this.promptContainer.y = getPrompt().y;
 
+    // Start screen: still up → move the button + re-apply the voice volume.
+    if (this.startBtn) this.startBtn.container.y = this.startScreenCfg.buttonY;
+    if (this.startVoiceSound?.isPlaying) {
+      this.startVoiceSound.setVolume(this.startScreenCfg.voiceVolume);
+    }
+
     this.applyProgressBarTuning();
     this.applyEngineVolume();
+    this.applyBgMusicVolume();
   }
 
   // Snapshot every tuning section the frame loop reads, once per round (and on
@@ -1004,6 +1028,8 @@ export default class GameScene extends BaseScene {
     this.laneGuideCfg = getLaneGuide();
     this.depthCfg = getDepth();
     this.audioCfg = getAudioMix();
+    this.bgMusicCfg = getBgMusic();
+    this.startScreenCfg = getStartScreen();
   }
 
   // Lane row by index, from the cache (falls back to a fresh read if not cached).
@@ -1197,57 +1223,53 @@ export default class GameScene extends BaseScene {
 
   buildStartOverlay() {
     const { width, height } = this.scale;
+    const screen = getStartScreen();
     this.phase = 'start';
 
     this.startOverlay = this.add.container(0, 0).setDepth(getDepth().start);
 
     if (this.textures.exists('startScreen')) {
-      const card = this.add.image(width / 2, height / 2, 'startScreen');
-      card.setScale(Math.max(width / card.width, height / card.height));
-      this.startOverlay.add(card);
+      // Fullscreen title art, scaled to COVER the viewport (no letterbox bars).
+      const art = this.add.image(width / 2, height / 2, 'startScreen');
+      art.setScale(Math.max(width / art.width, height / art.height));
+      this.startOverlay.add(art);
     } else {
-      const panel = this.add.graphics();
-      panel.fillStyle(0x0f172a, 0.82);
-      panel.fillRoundedRect(width / 2 - 260, height / 2 - 210, 520, 420, 28);
-      panel.lineStyle(4, 0xffffff, 0.18);
-      panel.strokeRoundedRect(width / 2 - 260, height / 2 - 210, 520, 420, 28);
-      this.startOverlay.add(panel);
-
+      // Artwork missing (e.g. a failed load): a plain dark backdrop so the
+      // screen still reads and the Start button stays reachable.
+      const fallback = this.add.rectangle(width / 2, height / 2, width, height, 0x0f172a, 1);
+      this.startOverlay.add(fallback);
       const title = this.add
-        .text(width / 2, height / 2 - 70, 'Traffic Dodge', {
-          fontSize: '54px',
+        .text(width / 2, height / 2 - 60, 'Lane Switch', {
+          fontSize: '56px',
           fontFamily: 'Fredoka, sans-serif',
           fontStyle: 'bold',
           color: '#ffffff',
         })
         .setOrigin(0.5);
-      const sub = this.add
-        .text(width / 2, height / 2 + 10, 'Dodge the traffic!', {
-          fontSize: '28px',
-          fontFamily: 'Fredoka, sans-serif',
-          color: '#bae6fd',
-        })
-        .setOrigin(0.5);
       const how = this.add
-        .text(width / 2, height / 2 + 70, 'Tap the side the prompt says', {
-          fontSize: '20px',
+        .text(width / 2, height / 2 + 20, 'Tap the side the prompt says', {
+          fontSize: '22px',
           fontFamily: 'Fredoka, sans-serif',
-          color: '#94a3b8',
+          color: '#cbd5e1',
           align: 'center',
           wordWrap: { width: width - 120 },
         })
         .setOrigin(0.5);
       this.startOverlay.add(title);
-      this.startOverlay.add(sub);
       this.startOverlay.add(how);
     }
 
-    const startBtn = this.createPillButton(width / 2, START_BUTTON_Y, 'Start \u25B6', {
-      fontSize: '34px',
-      paddingX: 48,
-      paddingY: 20,
-      depth: getDepth().start + 1,
-    });
+    const startBtn = this.createPillButton(
+      width / 2,
+      screen.buttonY,
+      screen.buttonLabel || 'Start \u25B6',
+      {
+        fontSize: '34px',
+        paddingX: 48,
+        paddingY: 20,
+        depth: getDepth().start + 1,
+      }
+    );
     // createPillButton returns a wrapper ({ container, on, ... }), not a plain
     // GameObject — add its container to the overlay, and tween that container.
     this.startOverlay.add(startBtn.container);
@@ -1262,23 +1284,49 @@ export default class GameScene extends BaseScene {
 
     startBtn.on('pointerup', () => this.beginPlay());
     this.startBtn = startBtn;
+
+    // Welcome voice: the game has finished loading here (preload scene is done),
+    // so start the line and let it play over the title screen. It is cut off the
+    // moment Start is tapped (beginPlay).
+    this.playStartVoice();
+  }
+
+  // Plays the start-screen voice line once. Guarded on the clip existing so a
+  // failed Cloudinary load never throws.
+  playStartVoice() {
+    if (!this.cache.audio.exists('startVoice')) return;
+    this.stopStartVoice();
+    this.startVoiceSound = this.sound.add('startVoice', {
+      volume: getStartScreen().voiceVolume,
+    });
+    this.startVoiceSound.play();
+  }
+
+  stopStartVoice() {
+    this.startVoiceSound?.stop();
+    this.startVoiceSound?.destroy();
+    this.startVoiceSound = null;
   }
 
   // Fades the start screen out and starts the world moving.
   beginPlay() {
     if (this.phase !== 'start') return;
 
+    this.stopStartVoice(); // the welcome line stops the instant Start is tapped
+
     const overlay = this.startOverlay;
     this.startOverlay = null;
+    this.startBtn = null;
+    const fadeMs = getStartScreen().fadeMs ?? 420;
     this.tweens.add({
       targets: overlay,
       alpha: 0,
-      duration: 420,
+      duration: fadeMs,
       ease: 'Sine.easeOut',
       onComplete: () => overlay.destroy(true),
     });
 
-    this.time.delayedCall(360, () => this.startRun());
+    this.time.delayedCall(fadeMs, () => this.startRun());
   }
 
   // ---------------------------------------------------------------------------

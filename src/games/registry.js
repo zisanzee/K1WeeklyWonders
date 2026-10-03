@@ -295,7 +295,7 @@ export const GAME_REGISTRY = [
     load: () => import('@/games/game-12/GamePage'),
   },
   {
-    // Traffic Dodge — change label/title/subtitle only in tandem with
+    // Lane Switch — change label/title/subtitle only in tandem with
     // GamePage.jsx's gate labels, or the lock screen and the card disagree.
     key: '13',
     slug: 'game-13',
@@ -304,8 +304,8 @@ export const GAME_REGISTRY = [
     progressKey: 'game13',
     meta: {
       emoji: '\uD83D\uDE97',
-      label: 'Traffic Dodge',
-      title: 'Traffic Dodge',
+      label: 'Lane Switch',
+      title: 'Lane Switch',
       subtitle: 'Switch lanes to dodge the traffic',
       description: 'Read the LEFT or RIGHT prompt and switch lanes to dodge the oncoming traffic. Clear all 10 rounds without crashing!',
       hue: '#10B981',

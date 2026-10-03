@@ -9,8 +9,8 @@ import { usePlayerStore } from '@/auth/playerStore';
 
 export default function GamePage() {
   return (
-    <NameGate gameLabel="Game 13: Traffic Dodge">
-      <GameAccessGate gameNumber={13} gameLabel="Traffic Dodge">
+    <NameGate gameLabel="Game 13: Lane Switch">
+      <GameAccessGate gameNumber={13} gameLabel="Lane Switch">
         <GamePageInner />
       </GameAccessGate>
     </NameGate>

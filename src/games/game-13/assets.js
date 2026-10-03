@@ -14,6 +14,12 @@
 const cld = (url) => url.replace('/image/upload/', '/image/upload/f_auto,q_auto/');
 
 export const IMAGES = {
+  // Fullscreen start/title screen. Drawn scaled-to-cover in GameScene, with the
+  // Start button laid over its lower third (see roadTuning.js START_SCREEN).
+  startScreen: cld(
+    'https://res.cloudinary.com/hijmipga/image/upload/v1791027149/StartGame13_msnzk6.png'
+  ),
+
   // Looping road backdrop — scrolled top-to-bottom to read as an endless road.
   // It carries the two lanes; the lane GUIDES are drawn from roadTuning.js (see
   // GameScene.js), not baked into this image.
@@ -60,7 +66,7 @@ export const OBSTACLE_KEYS = [
 
 export const AUDIO = {
   // Shared cross-game SFX, referenced by URL exactly like the other games do.
-  bgMusic: '/PhaserAssets/bg_music.m4a',
+  bgMusic: 'https://res.cloudinary.com/hijmipga/video/upload/v1791028437/game13bgmusic_ndzjd5.mp4',
   wrong: '/PhaserAssets/wrong.wav',
   // The shared pop_fx bank — used for pick-up/snap/celebrate feedback.
   pop1: '/PhaserAssets/pop_fx/pop-1.mp3',
@@ -78,6 +84,10 @@ export const AUDIO = {
   sayLeft: 'https://res.cloudinary.com/hijmipga/video/upload/v1790856421/left_uh86bk.mp3',
   sayRight: 'https://res.cloudinary.com/hijmipga/video/upload/v1790856421/right_uh3vtr.mp3',
   crash: 'https://res.cloudinary.com/hijmipga/video/upload/v1790860564/car_crash_thyqlp.mp3',
+
+  // Start screen voice line — plays once the game is ready and is cut off the
+  // moment Start is tapped (see GameScene.buildStartOverlay / beginPlay).
+  startVoice: 'https://res.cloudinary.com/hijmipga/video/upload/v1791027479/startVoice_o9t3p6.mp3',
 };
 
 // Phaser's audio loader picks a codec/extension to trust from the URL itself,
@@ -92,6 +102,8 @@ const AUDIO_TYPE_OVERRIDES = {
   sayLeft: 'mp3',
   sayRight: 'mp3',
   crash: 'mp3',
+  startVoice: 'mp3',
+  bgMusic: 'mp3', 
 };
 
 // Flattened manifest for BasePreloadScene({ assets: ASSET_MANIFEST, ... }).
