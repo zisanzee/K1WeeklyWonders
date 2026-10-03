@@ -2360,6 +2360,11 @@ function StudentsTab({ classId, teacherCode, className }) {
             <span>{showMerged ? 'Hide' : 'Show'}</span>
           </button>
 
+          <p className="mt-2 text-[11px] font-semibold aura-soft">
+            Similar names (e.g. “Alyssa” inside “Alyssa Tan”) are combined automatically.
+            Every name is kept, so any of these can be unmerged if it was a mistake.
+          </p>
+
           {showMerged && (
             <ul className="mt-3 flex flex-col gap-2">
               {mergedMembers.map((m) => (

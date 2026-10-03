@@ -239,6 +239,10 @@ export const ONBOARDING_SECTIONS = [
         type: 'p',
         text: 'You can merge these identities so they are treated as one student. This keeps their play history together and makes sure their activity is counted as one student in your class list and statistics.',
       },
+      {
+        type: 'p',
+        text: 'Names that clearly look like the same child are combined for you automatically. If a shorter name is a whole-word part of a longer one (for example “Alyssa” inside “Alyssa Tan”), they are merged with the longer name kept. Both names are remembered, so you can always unmerge them if it was not the same student.',
+      },
     ],
   },
   {
