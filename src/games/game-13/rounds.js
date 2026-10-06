@@ -9,9 +9,9 @@
 // Difficulty ramps each round: the road speeds up (roundSpeed) and the gap
 // between the prompt appearing and the obstacle arriving shrinks (roundDelay),
 // down to a floor so it never becomes impossible.
-export const TOTAL_ROUNDS = 10;
+export const TOTAL_ROUNDS = 15;
 
-export const SPEED_STEP = 19; // px/s the road gains each round
+export const SPEED_STEP = 10; // px/s the road gains each round
 export const DELAY_STEP = 150; // ms shaved off the prompt→obstacle gap each round
 export const MIN_DELAY = 0; // the gap never drops below this
 
@@ -53,7 +53,8 @@ function shuffled(arr, rand) {
 // One plan entry per round (index 0 = round 1). Fixed for the whole run so a
 // replayed round keeps the same prompt it had before the hit.
 //
-// The sequence is BALANCED (5 left / 5 right for 10 rounds) and RANDOMIZED, but
+// The sequence is BALANCED (split as evenly as the round count allows) and
+// RANDOMIZED, but
 // a direction can never repeat three times in a row — you may get "left, left"
 // once, and then the next is guaranteed different. Built by shuffling the
 // balanced multiset and rejecting any shuffle that contains a triple, with the

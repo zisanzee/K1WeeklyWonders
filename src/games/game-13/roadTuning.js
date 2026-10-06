@@ -44,7 +44,7 @@ export const DEV_TUNING_ENABLED = false;
 // runs its own height, so tuning SCROLL_SPEED just changes how fast the world
 // moves past. Scaling to fit the WIDTH (not the height) means the painted lane
 // markings keep their proportions on any device.
-export const ROAD = { fitWidth: true, scrollSpeed: 175 };
+export const ROAD = { fitWidth: true, scrollSpeed: 215 };
 
 export const LANES = [
   { id: 0, x: 272.014, y: 560.72, w: 175, h: 1400 },
@@ -124,7 +124,8 @@ export const ROUNDS = {
   nextRoundDelayMs: 0, // gap after the obstacle leaves before the next round (0 = none)
   obstacleWarnMs: 250, // grace after the obstacle appears before it can hit
   passMargin: 150, // px below the car centre that counts as "cleared"
-  fillPerRound: 0.1, // progress bar gain per round cleared (10%)
+  // NOTE: the progress bar step is derived from TOTAL_ROUNDS (rounds.js), not
+  // tuned here — the bar must always reach full at the last round.
 };
 
 // ---------------------------------------------------------------------------
@@ -320,7 +321,7 @@ export function formatTuningCode() {
     '',
     'export const ROUNDS = {',
     `  startDelayMs: ${fmt(rounds.startDelayMs)}, promptHoldMs: ${fmt(rounds.promptHoldMs)}, obstacleWarnMs: ${fmt(rounds.obstacleWarnMs)},`,
-    `  passMargin: ${fmt(rounds.passMargin)}, fillPerRound: ${fmt(rounds.fillPerRound)},`,
+    `  nextRoundDelayMs: ${fmt(rounds.nextRoundDelayMs)}, passMargin: ${fmt(rounds.passMargin)},`,
     '};',
     '',
     'export const OBSTACLE = {',
@@ -411,7 +412,6 @@ export const TUNING_SCHEMA = {
         { path: 'nextRoundDelayMs', label: 'next gap', min: 0, max: 4000, step: 50, suffix: 'ms' },
         { path: 'obstacleWarnMs', label: 'warn grace', min: 0, max: 2000, step: 50, suffix: 'ms' },
         { path: 'passMargin', label: 'pass margin', min: 0, max: 400, step: 5 },
-        { path: 'fillPerRound', label: 'bar per round', min: 0.02, max: 0.5, step: 0.01 },
       ],
     },
     {

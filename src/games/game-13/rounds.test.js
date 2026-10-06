@@ -55,8 +55,11 @@ describe('game-13 rounds — plan', () => {
     });
   });
 
-  it('splits the rounds evenly (5 left / 5 right for 10)', () => {
+  it('splits the rounds as evenly as the count allows', () => {
     // Sweep many random seeds — the balance must hold regardless of draw order.
+    // The split is floor(n/2) left + the rest right, so it stays valid for an
+    // odd round count (e.g. 15 → 7 left / 8 right).
+    const expectedLeft = Math.floor(TOTAL_ROUNDS / 2);
     for (let seed = 0; seed < 50; seed += 1) {
       let n = seed;
       const rand = () => {
@@ -65,7 +68,7 @@ describe('game-13 rounds — plan', () => {
       };
       const plan = buildRoundPlan(2, rand);
       const left = plan.filter((s) => s.direction === 'left').length;
-      expect(left).toBe(TOTAL_ROUNDS / 2);
+      expect(left).toBe(expectedLeft);
     }
   });
 

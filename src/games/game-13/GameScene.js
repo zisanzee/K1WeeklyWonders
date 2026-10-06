@@ -619,8 +619,11 @@ export default class GameScene extends BaseScene {
 
   // The fill target for a given live round (1-based): rounds already cleared,
   // counted from the start of the run. Intentionally not "highest reached".
+  // Derived from the ACTUAL round count so the bar reaches full exactly at the
+  // last round (a fixed per-round step saturated at 10 rounds when the count
+  // was changed to 15).
   progressFracForRound(liveRound) {
-    return (liveRound - 1) * this.roundsCfg.fillPerRound;
+    return (liveRound - 1) / TOTAL_ROUNDS;
   }
 
   // Animates the bar toward a target fraction (a plain re-draw when it is short).
