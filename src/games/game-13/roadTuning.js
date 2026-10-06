@@ -44,7 +44,7 @@ export const DEV_TUNING_ENABLED = false;
 // runs its own height, so tuning SCROLL_SPEED just changes how fast the world
 // moves past. Scaling to fit the WIDTH (not the height) means the painted lane
 // markings keep their proportions on any device.
-export const ROAD = { fitWidth: true, scrollSpeed: 225 };
+export const ROAD = { fitWidth: true, scrollSpeed: 275 };
 
 export const LANES = [
   { id: 0, x: 272.014, y: 560.72, w: 175, h: 1400 },
