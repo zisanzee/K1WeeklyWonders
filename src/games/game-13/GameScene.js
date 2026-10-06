@@ -880,8 +880,11 @@ export default class GameScene extends BaseScene {
       this.roundTimers.push(this.time.delayedCall(450, () => this.finishGame()));
       return;
     }
-    // A beat after the obstacle left the frame, the next prompt appears.
-    this.roundTimers.push(this.time.delayedCall(1000, () => this.beginRound()));
+    // Next round starts right after the obstacle leaves the frame (gap is
+    // tunable; 0 by default so there is no dead air between obstacles).
+    const gap = this.roundsCfg.nextRoundDelayMs ?? 0;
+    if (gap > 0) this.roundTimers.push(this.time.delayedCall(gap, () => this.beginRound()));
+    else this.beginRound();
   }
 
   // The obstacle reached the car while the car was in its lane → hit.

@@ -13,7 +13,7 @@ export const TOTAL_ROUNDS = 10;
 
 export const SPEED_STEP = 19; // px/s the road gains each round
 export const DELAY_STEP = 150; // ms shaved off the prompt→obstacle gap each round
-export const MIN_DELAY = 600; // the gap never drops below this
+export const MIN_DELAY = 0; // the gap never drops below this
 
 export const DIRECTIONS = ['left', 'right'];
 

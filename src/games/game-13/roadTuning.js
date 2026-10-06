@@ -44,7 +44,7 @@ export const DEV_TUNING_ENABLED = false;
 // runs its own height, so tuning SCROLL_SPEED just changes how fast the world
 // moves past. Scaling to fit the WIDTH (not the height) means the painted lane
 // markings keep their proportions on any device.
-export const ROAD = { fitWidth: true, scrollSpeed: 165 };
+export const ROAD = { fitWidth: true, scrollSpeed: 175 };
 
 export const LANES = [
   { id: 0, x: 272.014, y: 560.72, w: 175, h: 1400 },
@@ -120,7 +120,8 @@ export const LANE_GUIDE = {
 // rounds.js (speed + the shrinking prompt→obstacle gap).
 export const ROUNDS = {
   startDelayMs: 2000, // quiet beat after Start before the first prompt appears
-  promptHoldMs: 2000, // prompt on its own before the obstacle appears
+  promptHoldMs: 0, // prompt→obstacle gap (0 = they appear together, no delay)
+  nextRoundDelayMs: 0, // gap after the obstacle leaves before the next round (0 = none)
   obstacleWarnMs: 250, // grace after the obstacle appears before it can hit
   passMargin: 150, // px below the car centre that counts as "cleared"
   fillPerRound: 0.1, // progress bar gain per round cleared (10%)
@@ -407,6 +408,7 @@ export const TUNING_SCHEMA = {
       fields: [
         { path: 'startDelayMs', label: 'start delay', min: 0, max: 6000, step: 100, suffix: 'ms' },
         { path: 'promptHoldMs', label: 'prompt hold', min: 0, max: 8000, step: 100, suffix: 'ms' },
+        { path: 'nextRoundDelayMs', label: 'next gap', min: 0, max: 4000, step: 50, suffix: 'ms' },
         { path: 'obstacleWarnMs', label: 'warn grace', min: 0, max: 2000, step: 50, suffix: 'ms' },
         { path: 'passMargin', label: 'pass margin', min: 0, max: 400, step: 5 },
         { path: 'fillPerRound', label: 'bar per round', min: 0.02, max: 0.5, step: 0.01 },
