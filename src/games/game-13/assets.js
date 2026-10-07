@@ -17,7 +17,7 @@ export const IMAGES = {
   // Fullscreen start/title screen. Drawn scaled-to-cover in GameScene, with the
   // Start button laid over its lower third (see roadTuning.js START_SCREEN).
   startScreen: cld(
-    'https://res.cloudinary.com/hijmipga/image/upload/v1791027149/StartGame13_msnzk6.png'
+    'https://res.cloudinary.com/hijmipga/image/upload/v1791371328/Lane_Switch__How_to_Play_1_xr4b4j.png'
   ),
 
   // Looping road backdrop — scrolled top-to-bottom to read as an endless road.
@@ -87,7 +87,7 @@ export const AUDIO = {
 
   // Start screen voice line — plays once the game is ready and is cut off the
   // moment Start is tapped (see GameScene.buildStartOverlay / beginPlay).
-  startVoice: 'https://res.cloudinary.com/hijmipga/video/upload/v1791027479/startVoice_o9t3p6.mp3',
+  startVoice: 'https://res.cloudinary.com/hijmipga/video/upload/v1791371575/startvoicegame13_gf5ctf.mp3',
 };
 
 // Phaser's audio loader picks a codec/extension to trust from the URL itself,
