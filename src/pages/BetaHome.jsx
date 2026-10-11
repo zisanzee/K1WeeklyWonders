@@ -172,6 +172,12 @@ function Icon({ name, size = "1em", className, style, strokeWidth = 2 }) {
           <path d="M12 2l1.9 6.1L20 10l-6.1 1.9L12 18l-1.9-6.1L4 10l6.1-1.9L12 2z" />
         </svg>
       );
+    case "heart":
+      return (
+        <svg {...filled}>
+          <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
+        </svg>
+      );
     case "star":
       return (
         <svg {...filled}>
@@ -1227,6 +1233,75 @@ function SectionHeader({ icon, eyebrow, title, accent, icon2, reduceMotion }) {
 // PlayerName — big bold name (enlarged)
 // ===========================================================================
 
+// ---------------------------------------------------------------------------
+// LoveCard — a private, romantic doorway shown on the home page ONLY to Siti.
+// It leads to the unlisted /4yearsoflove keepsake (see that folder). It is the
+// only place that links there, and it only appears once she is signed in, so
+// the URL is never advertised to anyone else.
+// ---------------------------------------------------------------------------
+function LoveCard({ reduceMotion }) {
+  const heartColor = "#db2777";
+  return (
+    <MotionLink
+      to="/4yearsoflove"
+      aria-label="Open your anniversary surprise"
+      whileHover={reduceMotion ? undefined : { y: -4, scale: 1.015 }}
+      whileTap={{ scale: 0.98 }}
+      className="group relative mx-auto flex w-full max-w-xl items-center gap-4 overflow-hidden rounded-[1.75rem] sm:rounded-[2.25rem] border-[3px] sm:border-4 border-white/70 px-5 py-5 text-left shadow-2xl sm:gap-6 sm:px-8 sm:py-7"
+      style={{
+        fontFamily: FONT,
+        background:
+          "linear-gradient(135deg, #fbcfe8 0%, #f9a8d4 28%, #f472b6 58%, #e879f9 100%)",
+        boxShadow: "0 26px 64px -20px rgba(236,72,153,0.8)",
+      }}
+    >
+      {/* Decoration only: a soft top-light and an oversized heart bleeding off
+          the corner, so the card feels like a sealed love note. */}
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/40 via-white/5 to-black/5"
+      />
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute -right-7 -top-7 text-8xl opacity-20 text-white"
+      >
+        <Icon name="heart" size="1em" />
+      </span>
+
+      <motion.span
+        aria-hidden="true"
+        className="relative flex h-14 w-14 shrink-0 items-center justify-center rounded-full text-3xl shadow-lg ring-2 ring-white/80 sm:h-16 sm:w-16"
+        style={{ background: "linear-gradient(135deg,#fff1f5 0%,#ffd6e6 100%)", color: heartColor }}
+        animate={reduceMotion ? undefined : { scale: [1, 1.12, 1] }}
+        transition={{ duration: 1.7, repeat: Infinity, ease: "easeInOut" }}
+      >
+        <Icon name="heart" size="1em" />
+      </motion.span>
+
+      <div className="relative min-w-0 flex-1">
+        <p
+          className="text-[10px] sm:text-xs font-black uppercase tracking-[0.22em]"
+          style={{ color: "#9d174d", opacity: 0.85 }}
+        >
+          A private surprise
+        </p>
+        <p className="mt-1 text-lg sm:text-2xl font-black leading-tight" style={{ color: "#831843" }}>
+          Four years of us 💗
+        </p>
+        
+      </div>
+
+      <span
+        aria-hidden="true"
+        className="relative shrink-0 text-2xl sm:text-3xl transition-transform group-hover:translate-x-1"
+        style={{ color: "#831843" }}
+      >
+        <Icon name="arrowRight" size="1em" />
+      </span>
+    </MotionLink>
+  );
+}
+
 function PlayerName({ playerName, roleLabel, roleIcon, action }) {
   const greeting = useTimeGreeting();
   const nameRef = useRef(null);
@@ -1533,6 +1608,13 @@ function BetaHomeContent() {
   const roleLabel = isTeacher ? (isAdmin ? "Admin" : "Teacher") : null;
   const roleIcon = isAdmin ? "shield" : "key";
 
+  // The private love card is for one teacher only. Same normalisation as the
+  // /4yearsoflove gate itself (trim, collapse spaces, lowercase) so the two can
+  // never disagree about who "Siti Soleha" is.
+  const isSiti =
+    isTeacher &&
+    (playerName || "").toString().trim().replace(/\s+/g, " ").toLowerCase() === "siti soleha";
+
   return (
     <div
       className="relative flex min-h-[100dvh] w-full flex-col overflow-hidden"
@@ -1721,6 +1803,20 @@ function BetaHomeContent() {
         <div className="relative z-10 px-3 pt-6 sm:px-6 sm:pt-8 md:pt-9">
           <TimerLeaderboardCard classId={classId} playerName={playerName} />
         </div>
+      )}
+
+      {/* ================================================================
+          LOVE CARD — Siti only. The doorway to the unlisted keepsake.
+          ================================================================ */}
+      {isSiti && (
+        <motion.div
+          initial={reduceMotion ? false : { opacity: 0, y: 18 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ type: "spring", stiffness: 220, damping: 22 }}
+          className="relative z-10 px-3 pt-6 sm:px-6 sm:pt-8"
+        >
+          <LoveCard reduceMotion={reduceMotion} />
+        </motion.div>
       )}
 
       {/* ================================================================

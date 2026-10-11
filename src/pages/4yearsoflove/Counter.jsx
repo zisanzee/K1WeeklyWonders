@@ -8,6 +8,7 @@ import {
   COUNTER_SUBLABEL,
   COUNTER_TICK_MS,
   COUNTUP_MS,
+  FINALE_FIREWORKS,
   FINALE_MESSAGE,
   HUG_BURST,
   HUG_EMOJI,
@@ -104,7 +105,7 @@ export default function Counter({ burstAt, fireworkAt, rocketAt, onReveal, onHug
     setRevealed(true);
     onReveal?.();
     sfx.fanfare();
-    say(yearTurnMessage(a.years), 9000);
+    say(yearTurnMessage(), 9000);
     const w = window.innerWidth;
     const h = window.innerHeight;
     burstAt?.(w / 2, h * 0.72, REVEAL_BURST);
@@ -122,6 +123,31 @@ export default function Counter({ burstAt, fireworkAt, rocketAt, onReveal, onHug
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [inView, revealed, onReveal, burstAt]);
+
+  // The sky keeps going after the send-off, so the ending lingers instead of
+  // dying in one volley. Fires every FINALE_FIREWORKS.intervalMs for
+  // FINALE_FIREWORKS.durationMs, then stops itself — a celebration, not the old
+  // endless metronome. Only while the ending is on screen.
+  useEffect(() => {
+    if (!inView || !revealed) return undefined;
+    let n = 0;
+    const stopAt = Date.now() + FINALE_FIREWORKS.durationMs;
+    const id = setInterval(() => {
+      if (Date.now() >= stopAt) {
+        clearInterval(id);
+        return;
+      }
+      n += 1;
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      const x = w * (0.12 + Math.random() * 0.76);
+      const y = h * (0.12 + Math.random() * 0.34);
+      const kind = n % FINALE_FIREWORKS.heartEvery === 0 ? 'heart' : 'peony';
+      if (n % FINALE_FIREWORKS.rocketEvery === 0) rocketAt?.(x, y, kind);
+      else fireworkAt?.(x, y, kind);
+    }, FINALE_FIREWORKS.intervalMs);
+    return () => clearInterval(id);
+  }, [inView, revealed, fireworkAt, rocketAt]);
 
   // A small burst on every whole minute together.
   useEffect(() => {

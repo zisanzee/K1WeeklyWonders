@@ -144,6 +144,16 @@ html.lv-locked #root {
 .lv-canvas {
   position: fixed;
   inset: 0;
+  /* A <canvas> is a REPLACED element: `inset: 0` alone does NOT stretch it, it
+     just anchors the box. Without an explicit size it falls back to its
+     intrinsic dimensions (the width/height attributes), so the whole hearts
+     layer paints as a small square in the top-left corner. These two lines are
+     what make it cover the viewport, which is what the JSX sizing assumes. */
+  width: 100%;
+  height: 100%;
+  display: block;
+  /* Softened so the decoration sits behind the words rather than over them. */
+  opacity: 0.85;
   z-index: 0;
   pointer-events: none;
 }
@@ -297,14 +307,28 @@ html.lv-locked #root {
   padding: 1.5rem;
 }
 .lv-gate__inner {
-  /* Declared here, not on the button, so the decorative ring and the heart both
-     read one size — the ring is a sibling and cannot see a value set inside the
-     button. */
-  --lv-heart-size: 176px;
+  /* Sizes live here, not on the button: the decorative ring and the meter are
+     SIBLINGS of the heart, so they cannot read a value set inside the button.
+     --lv-ring-size is the box that must CONTAIN the largest ring (the meter at
+     1.62× the heart); the stage is sized to it so the rings can never spill past
+     their box and collide with the text above/below (which is what pushed the
+     eyebrow and hint into the circles before). */
+  --lv-heart-size: clamp(128px, 40vw, 176px);
+  --lv-ring-size: calc(var(--lv-heart-size) * 1.72);
   display: grid;
   justify-items: center;
-  gap: 1.15rem;
+  gap: 1.5rem;
+  width: min(92vw, 26rem);
+  padding: clamp(1.7rem, 5.5vw, 2.7rem) clamp(1.2rem, 5vw, 2.4rem) clamp(1.9rem, 5.5vw, 2.9rem);
   text-align: center;
+  border-radius: 2rem;
+  background:
+    radial-gradient(120% 85% at 50% 0%, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0.02) 62%),
+    linear-gradient(165deg, rgba(70, 16, 54, 0.55) 0%, rgba(44, 8, 38, 0.42) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 30px 80px -34px rgba(120, 0, 60, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   animation: lv-rise-in 0.9s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 .lv-gate__ring {
@@ -373,6 +397,8 @@ html.lv-locked #root {
    SCROLL-ACT PLUMBING
    =========================================================================== */
 .lv-track { position: relative; width: 100%; }
+/* Base value; love-fx.css overrides the effective height via
+   --lv-envelope-track (the one knob for the page's scroll pacing). */
 .lv-track--envelope { height: 340vh; }
 
 .lv-stage {

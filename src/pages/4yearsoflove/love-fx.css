@@ -16,9 +16,15 @@
    1. ENVELOPE
 =========================================================================== */
 
-/* OVERRIDE: more scroll distance, so the letter has room to be READ as it is
-   written. (Was 340vh.) */
-.lv-track--envelope { height: 430vh; }
+/* OVERRIDE: scroll distance for the envelope act — the one act whose pacing is
+   set by how tall its track is (useActScroll maps scroll position over
+   `trackHeight - viewport` to the 0..1 progress that drives every phase). A
+   taller track = more scrolling = slower progression.
+   History: 340vh → 430vh (letter needs room to be read) → 1075vh (2.5×, too
+   slow) → 860vh (2×, the current setting). This is the single knob for "how long
+   does the page take": only this act is scroll-proportional. Tune to taste. */
+:root { --lv-envelope-track: 860vh; }
+.lv-track--envelope { height: var(--lv-envelope-track); }
 
 .lv-stage {
   /* OVERRIDE: the exit now begins at 0.76 (was 0.68) so the letter finishes
@@ -399,3 +405,94 @@ html[data-lowpower='true'] .lv-ink__w { filter: none; }
 html[data-lowpower='true'] .lv-game__hud,
 html[data-lowpower='true'] .lv-game__overlay,
 html[data-lowpower='true'] .lv-toast { backdrop-filter: none; -webkit-backdrop-filter: none; }
+
+/* ===========================================================================
+   8. VISUAL CONSISTENCY PASS
+   ---------------------------------------------------------------------------
+   A full read of the three files found the SAME element type designed three or
+   four different ways depending on which act it happened to land in. This block
+   normalises the shared vocabulary so the page reads as one artefact. It is the
+   last section, so these rules win over the earlier ones — but every rule is
+   scoped to a specific class, so nothing here is a blanket reset.
+=========================================================================== */
+
+/* All-caps micro-labels (eyebrow / cue / hint / hud / counter note / milestone
+   tail) shared between 0.2em and 0.34em tracking, which made the same "small
+   uppercase" idea look tight in one act and airy in another. One tracking value
+   now governs every one of them. Excluded on purpose: the odometer and odo
+   labels, whose per-digit tracking is left as-is. */
+.lv-eyebrow,
+.lv-cue__label,
+.lv-gate__hint,
+.lv-hud__text,
+.lv-ringnote,
+.lv-mile--tail {
+  letter-spacing: 0.24em;
+}
+
+/* The scroll cue. The envelope act had two styled, centred, bobbing labels; the
+   landing act had a bare `<span>scroll</span>` with NO class styling at all, so
+   it rendered as raw left-aligned body text and only the love-extras override
+   (translate + bob) saved it from looking broken. It now matches the envelope
+   cue exactly: uppercase, tracked, centred, gently bobbing, with an animated
+   chevron beneath it so it reads as a prompt rather than stray text. */
+.lv-landing .lv-cue {
+  position: absolute;
+  bottom: 2.6rem;
+  /* Above the decorative giant "4" (a later sibling that would otherwise paint
+     over it), so the prompt always stays legible. */
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  gap: 0.35rem;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: rgba(255, 224, 240, 0.8);
+}
+.lv-landing .lv-cue::after {
+  content: '↓';
+  display: block;
+  font-size: 1.05rem;
+  line-height: 1;
+  color: rgba(255, 190, 225, 0.9);
+  animation: lv-cue-nudge 1.8s ease-in-out infinite;
+}
+@keyframes lv-cue-nudge {
+  0%, 100% { transform: translateY(0); opacity: 0.55; }
+  50% { transform: translateY(5px); opacity: 1; }
+}
+
+/* Consistent keyboard focus. The reason cards were the only controls with a
+   visible focus ring; the three most important controls on the page — the heart
+   you must hold, the game field and the action buttons — had none, so a keyboard
+   user could not see where they were. One ring, applied everywhere. */
+.lv-heart:focus-visible,
+.lv-btn:focus-visible,
+.lv-ghost:focus-visible,
+.lv-polaroid:focus-visible,
+.lv-daysring:focus-visible,
+.lv-game__canvas:focus-visible {
+  outline: 2px solid rgba(255, 190, 225, 0.9);
+  outline-offset: 3px;
+  border-radius: inherit;
+}
+
+/* The soft secondary button was a flat translucent fill that read as "disabled"
+   next to its gradient sibling. A faint gradient + ring gives it parity without
+   competing with the primary action. */
+.lv-btn--soft {
+  border-color: rgba(255, 255, 255, 0.32);
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.06));
+  color: #fff0f7;
+}
+.lv-btn--soft:hover { filter: brightness(1.12); }
+
+/* The polaroid used `rotate(-3deg)` on every device, which fights the pointer
+   tilt on a phone (no hover) and makes the photo read as crooked rather than
+   playfully placed. Straighten it where there is no pointer to tilt toward. */
+@media (hover: none) {
+  .lv-polaroid { transform: none; }
+}

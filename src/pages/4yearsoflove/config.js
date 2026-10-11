@@ -42,7 +42,12 @@ export const DECOY_BODY = 'The page you are looking for does not exist.';
 // ---------------------------------------------------------------------------
 // SOUND
 // ---------------------------------------------------------------------------
-export const MUSIC_SRC = '/PhaserAssets/bg_music.m4a';
+// A gentle looping track (Cloudinary master). Played quietly — see the volume in
+// index.jsx. Kept as a single const so the whole page's music is one edit.
+export const MUSIC_SRC =
+  'https://res.cloudinary.com/hijmipga/video/upload/v1791729980/beabadoobee_-_Glue_Song_Official_Music_Video_-_beabadoobeeVEVO_bwgpah.mp3';
+// Music volume (0..1). Deliberately low — it is a background bed, not a feature.
+export const MUSIC_VOLUME = 0.18;
 export const MUSIC_ON_LABEL = 'Music on';
 export const MUSIC_OFF_LABEL = 'Music off';
 export const SFX_ON_LABEL = 'Sound on';
@@ -141,16 +146,16 @@ export const REASONS_TAP_HINT = 'tap a reason to keep it ♥';
 
 // Add or remove freely — the counter and progress bar use REASONS.length.
 export const REASONS = [
-  { emoji: '', kind: 'Your smile', text: 'and your eyes that always make me feel loved.' },
-  { emoji: '', kind: 'The way you care', text: 'for me, even in the smallest things.' },
-  { emoji: '', kind: 'How you notice', text: 'when I don’t eat, don’t sleep, or need someone by my side.' },
-  { emoji: '', kind: 'How you’re always there', text: 'when I feel down, and always look for me when something goes wrong.' },
-  { emoji: '', kind: 'How you find little ways', text: 'to stay close — like turning your camera on while you sleep.' },
-  { emoji: '', kind: 'How much the little things mean', text: 'to you — like the ring and the bear.' },
-  { emoji: '', kind: 'How after four years', text: 'you still call me handsome and make me feel special.' },
-  { emoji: '', kind: 'How you always see', text: 'and appreciate my efforts.' },
-  { emoji: '', kind: 'How you make me feel', text: 'understood, valued, and never alone.' },
-  { emoji: '', kind: 'Ten — and most of all', text: 'you’re not just my partner, but my best friend.' },
+  { emoji: '', kind: 'Your smile', text: 'and how even through a screen, you can still make my whole day better.' },
+  { emoji: '', kind: 'How you take care of me', text: 'in all those little ways that make me feel like someone is always looking out for me.' },
+  { emoji: '', kind: 'How you remember the little things', text: 'like whether I’ve eaten, whether I’m sleeping enough, and when something doesn’t feel right.' },
+  { emoji: '', kind: 'How you never leave me alone with a bad day', text: 'you always find a way to comfort me, even when all you can do is be there through a screen.' },
+  { emoji: '', kind: 'Our little moments together', text: 'watching anime, finding another show to get obsessed with, and having you there to share it all with.' },
+  { emoji: '', kind: 'How you make the distance feel smaller', text: 'with our calls, our conversations, and even the little things we do just to feel closer to each other.' },
+  { emoji: '', kind: 'How you still make me feel handsome', text: 'after four years, you still make me blush with the way you talk to me.' },
+  { emoji: '', kind: 'How much you cherish the little things', text: 'the ring, the bear, and all the tiny reminders that what we have means just as much to you as it does to me.' },
+  { emoji: '', kind: 'How you make me feel loved without asking you to', text: 'you notice my efforts, appreciate the things I do, and make me feel like they matter.' },
+  { emoji: '', kind: 'And most of all, you’re my favourite person', text: 'four years later, you’re still the one I want to tell everything to, watch one more episode with, and share my life with. You’re my girlfriend, but you’re also my best friend.' },
 ];
 // The "kept" badge once she has tapped at least one reason.
 export const reasonsKeptLabel = (n) => `♥ ${n} kept`;
@@ -280,16 +285,34 @@ export const SECRET_TAPS = 5;
 export const SECRET_WINDOW_MS = 2000;
 export const SECRET_FOUND = '✨ you found a secret ✨';
 
+// The number this keepsake celebrates. PINNED on purpose: the send-off message
+// must always read "4 years together" no matter what the live clock says. (The
+// anchor is 12 Oct, so on 11 Oct the computed count is still 3 — the message
+// must not follow it.) Change this one number when the next anniversary lands.
+export const CELEBRATED_YEARS = 4;
+
 // The anniversary send-off message, shown whenever the act is reached.
-export const yearTurnMessage = (years) =>
-  `${years} ${unitLabel(years, 'year')} together. Happy anniversary, ${TEACHER_NAME} 💞`;
+// Deliberately takes no argument — it does NOT follow the ticking clock.
+export const yearTurnMessage = () =>
+  `${CELEBRATED_YEARS} ${unitLabel(CELEBRATED_YEARS, 'year')} together. Happy anniversary, ${TEACHER_NAME} 💞`;
 
 // TUNING — the counter's clock and its effects.
 export const COUNTER_TICK_MS = 1000; // 1 Hz clock
 export const COUNTUP_MS = 2600; // the days figure rolling up from zero
 export const REVEAL_BURST = { count: 70, power: 1.5 };
-export const SALVO = { count: 4, staggerMs: 240 }; // firework salvo on reveal
-export const ROCKET_VOLLEY = { count: 8, staggerMs: 320 }; // sent off with the reveal
+export const SALVO = { count: 6, staggerMs: 220 }; // opening firework salvo on reveal
+export const ROCKET_VOLLEY = { count: 12, staggerMs: 300 }; // opening rocket volley
+
+// After the send-off the sky keeps going on a loop, so the ending lingers
+// instead of dying in one volley: a firework every `intervalMs` for `durationMs`
+// (then it stops — a celebration, not an endless metronome). It only runs while
+// the ending is on screen.
+export const FINALE_FIREWORKS = {
+  intervalMs: 1400, // more frequent than the old 4200ms
+  durationMs: 45000, // keep celebrating for ~45s after the reveal
+  heartEvery: 3, // every 3rd firework is heart-shaped
+  rocketEvery: 4, // every 4th is a rocket instead of an instant firework
+};
 export const MINUTE_BURST = { count: 10, power: 0.7 }; // small burst each whole minute
 export const HUG_BURST = { count: 90, power: 1.8 };
 
@@ -300,9 +323,9 @@ export const HUG_BURST = { count: 90, power: 1.8 };
 // here, in ONE place, as **12 October 2022** (DD/MM/YY, the couple's timezone).
 // If that reading is ever wrong, change it here and the entire page follows.
 //
-// The anchor is midnight in Asia/Dhaka (UTC+6). Bangladesh has observed no DST
-// since 2009, so a FIXED offset is exactly correct and the count can never drift
-// by an hour mid-year the way a zone-database lookup might.
+// The anchor is midnight in Asia/Singapore (UTC+8). Singapore has observed no
+// DST since 1982, so a FIXED offset is exactly correct and the count can never
+// drift by an hour mid-year the way a zone-database lookup might.
 export const START_DATE_PARTS = Object.freeze({
   year: 2022,
   month: 10, // 1-based: 10 = October
@@ -311,7 +334,8 @@ export const START_DATE_PARTS = Object.freeze({
   minute: 0,
   second: 0,
 });
-export const START_OFFSET_MINUTES = 360; // Asia/Dhaka = UTC+6
+// Asia/Singapore = UTC+8. (Was 360 / UTC+6 for Asia/Dhaka.)
+export const START_OFFSET_MINUTES = 480;
 
 // ---------------------------------------------------------------------------
 // AMBIENT BACKDROP — the shooting stars on staggered loops

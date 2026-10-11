@@ -2,7 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { START_MS, START_OFFSET_MINUTES, getAnniversary } from '@/pages/4yearsoflove/anniversary';
 import { MILESTONES, achievedMilestones } from '@/pages/4yearsoflove/milestones';
 
-const dhaka = (y, m1, d, h = 0) =>
+// A UTC instant from Singapore wall-clock parts (UTC+8, no DST).
+const singapore = (y, m1, d, h = 0) =>
   Date.UTC(y, m1 - 1, d, h) - START_OFFSET_MINUTES * 60_000;
 
 describe('achievedMilestones', () => {
@@ -18,7 +19,7 @@ describe('achievedMilestones', () => {
   });
 
   it('has every milestone by the four-year mark', () => {
-    const all = achievedMilestones(getAnniversary(dhaka(2026, 10, 12)));
+    const all = achievedMilestones(getAnniversary(singapore(2026, 10, 12)));
     expect(all).toHaveLength(MILESTONES.length);
   });
 

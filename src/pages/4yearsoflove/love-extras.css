@@ -101,9 +101,12 @@
    HOLD GATE — ring meter, glow + tremble with progress, bloom finale
 --------------------------------------------------------------------------- */
 .lv-gate__stage {
+  /* Sized to the RING, not the heart, so the absolutely-positioned rings (the
+     meter at 1.62× and the decorative ring at 1.26×) sit fully inside this box
+     and the grid reserves their space. This is what keeps them off the text. */
   position: relative;
-  width: var(--lv-heart-size);
-  height: var(--lv-heart-size);
+  width: var(--lv-ring-size);
+  height: var(--lv-ring-size);
   display: grid;
   place-items: center;
 }

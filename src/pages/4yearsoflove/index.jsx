@@ -25,6 +25,7 @@ import {
   MUSIC_OFF_LABEL,
   MUSIC_ON_LABEL,
   MUSIC_SRC,
+  MUSIC_VOLUME,
   PAGE_THEME_COLOR,
   PAGE_TITLE,
   SFX_OFF_LABEL,
@@ -172,7 +173,7 @@ function LoveStory() {
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
-    audio.volume = 0.34;
+    audio.volume = MUSIC_VOLUME;
     if (musicOn && started) {
       audio.play().catch(() => {
         /* still blocked — the next tap will start it */

@@ -15,10 +15,10 @@
 // `START_DATE_PARTS` below and the entire page follows — no other file encodes
 // the date.
 //
-// The anchor is midday-neutral midnight in Asia/Dhaka (UTC+6). Bangladesh has
-// observed no DST since 2009, so a FIXED offset is exactly correct here and the
-// count can never drift by an hour mid-year the way a zone-database lookup
-// would if the rules ever changed.
+// The anchor is midnight in Asia/Singapore (UTC+8). Singapore has observed no
+// DST since 1982, so a FIXED offset is exactly correct here and the count can
+// never drift by an hour mid-year the way a zone-database lookup would if the
+// rules ever changed.
 
 // The date and timezone anchor now live in ./config.js (the one editable file).
 import { START_DATE_PARTS, START_OFFSET_MINUTES } from './config';
@@ -70,7 +70,7 @@ const WEEKDAY_NAMES = [
 
 // A Date whose UTC getters report the wall-clock time at `offsetMinutes`.
 // Working through UTC getters (instead of local ones) keeps the result
-// identical for a viewer in Dhaka and a viewer in New York — the count is a
+// identical for a viewer in Singapore and a viewer in New York — the count is a
 // property of the couple's calendar, not of whoever happens to be looking.
 function toZonedParts(ms, offsetMinutes) {
   const d = new Date(ms + offsetMinutes * 60_000);
@@ -147,7 +147,7 @@ export function getAnniversary(nowMs = Date.now()) {
     Date.UTC(startYear, startMonth - 1, startDay)
   ).getUTCDay();
 
-  // The next month-anniversary (the 12th of next month, 00:00 Dhaka) and the
+  // The next month-anniversary (the 12th of next month, 00:00 Singapore) and the
   // progress through the current month between the two — drives the ring that
   // fills a little more each day.
   const now = toZonedParts(nowMs, START_OFFSET_MINUTES);

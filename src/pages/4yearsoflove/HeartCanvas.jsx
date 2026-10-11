@@ -106,10 +106,20 @@ const HeartCanvas = forwardRef(function HeartCanvas(
     let height = 0;
     let dpr = 1;
 
+    // Match the backing store to the CSS box. Skipping the reassign when nothing
+    // changed matters: setting canvas.width/height clears the bitmap, so a
+    // ResizeObserver firing on every layout tick would flicker. It also guards
+    // the pixelation bug — if the element size is ever read BEFORE layout
+    // settles (or after the element grows), a smaller bitmap gets stretched over
+    // a larger box and every heart renders big and blocky.
     const resize = () => {
-      dpr = Math.min(window.devicePixelRatio || 1, 2);
-      width = canvas.clientWidth || window.innerWidth;
-      height = canvas.clientHeight || window.innerHeight;
+      const nextDpr = Math.min(window.devicePixelRatio || 1, 2);
+      const w = canvas.clientWidth || window.innerWidth;
+      const h = canvas.clientHeight || window.innerHeight;
+      if (w === width && h === height && nextDpr === dpr) return;
+      dpr = nextDpr;
+      width = w;
+      height = h;
       canvas.width = Math.max(1, Math.floor(width * dpr));
       canvas.height = Math.max(1, Math.floor(height * dpr));
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -168,7 +178,9 @@ const HeartCanvas = forwardRef(function HeartCanvas(
     const ambientOnKey = !(reduceMotion || lowPower);
 
     const spawnAmbient = () => {
-      const size = random(9, 26);
+      // Smaller and fainter than a burst: this is wallpaper, so it should read as
+      // a soft drift behind the story, never as prominent floating shapes.
+      const size = random(6, 16);
       particlesRef.current.push({
         kind: Math.random() < 0.16 ? 'star' : 'heart',
         x: random(0, width),
@@ -180,7 +192,7 @@ const HeartCanvas = forwardRef(function HeartCanvas(
         vr: random(-0.5, 0.5),
         hue: random(322, 352),
         alpha: 0,
-        peak: random(0.24, 0.55),
+        peak: random(0.12, 0.3),
         life: 0,
         maxLife: random(7, 13),
         wobble: random(0, Math.PI * 2),
@@ -197,7 +209,9 @@ const HeartCanvas = forwardRef(function HeartCanvas(
             : random(-spread / 2, spread / 2) - Math.PI / 2;
         const speed = random(70, 260) * power;
         particlesRef.current.push({
-          kind: Math.random() < 0.22 ? 'star' : 'heart',
+          // Hearts only — the burst is a "heart explosion". (It used to mix in a
+          // ~22% scattering of 'star' sparkles.)
+          kind: 'heart',
           x,
           y,
           vx: Math.cos(base) * speed,
@@ -381,6 +395,15 @@ const HeartCanvas = forwardRef(function HeartCanvas(
 
     const onResize = () => resize();
     window.addEventListener('resize', onResize);
+    // The window can stay the same size while THIS element's box changes (first
+    // layout, scrollbar changes, dynamic-vh updates). Only a window listener
+    // misses all of those, leaving a stale backing store — the pixelation. Watch
+    // the element itself too.
+    let ro = null;
+    if (typeof ResizeObserver !== 'undefined') {
+      ro = new ResizeObserver(() => resize());
+      ro.observe(canvas);
+    }
 
     function frame(now) {
       const dt = Math.min((now - last) / 1000, 0.05);
@@ -498,6 +521,7 @@ const HeartCanvas = forwardRef(function HeartCanvas(
       fireRef.current = null;
       rocketRef.current = null;
       ringRef.current = null;
+      ro?.disconnect();
       window.removeEventListener('resize', onResize);
       window.removeEventListener('pointermove', onPointerMove);
       window.removeEventListener('pointerdown', onPointerDown);

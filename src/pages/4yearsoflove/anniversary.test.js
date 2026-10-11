@@ -9,13 +9,13 @@ import {
   pad2,
 } from '@/pages/4yearsoflove/anniversary';
 
-// Helper: a UTC instant from Dhaka wall-clock parts (UTC+6, no DST).
-const dhaka = (y, m1, d, h = 0, min = 0, s = 0) =>
+// Helper: a UTC instant from Singapore wall-clock parts (UTC+8, no DST).
+const singapore = (y, m1, d, h = 0, min = 0, s = 0) =>
   Date.UTC(y, m1 - 1, d, h, min, s) - START_OFFSET_MINUTES * 60_000;
 
 describe('START_MS', () => {
-  it('anchors 12 October 2022 00:00 Dhaka to 11 Oct 2022 18:00 UTC', () => {
-    expect(START_MS).toBe(Date.UTC(2022, 9, 11, 18, 0, 0));
+  it('anchors 12 October 2022 00:00 Singapore to 11 Oct 2022 16:00 UTC', () => {
+    expect(START_MS).toBe(Date.UTC(2022, 9, 11, 16, 0, 0));
   });
 });
 
@@ -32,7 +32,7 @@ describe('diffParts', () => {
   });
 
   it('counts whole years with no residue on a year anniversary', () => {
-    expect(diffParts(START_MS, dhaka(2023, 10, 12))).toEqual({
+    expect(diffParts(START_MS, singapore(2023, 10, 12))).toEqual({
       years: 1,
       months: 0,
       days: 0,
@@ -43,15 +43,15 @@ describe('diffParts', () => {
   });
 
   it('borrows the length of the previous month (31 Jan → 28 Feb = 28 days)', () => {
-    const from = dhaka(2023, 1, 31);
-    const to = dhaka(2023, 2, 28);
+    const from = singapore(2023, 1, 31);
+    const to = singapore(2023, 2, 28);
     const parts = diffParts(from, to);
     expect(parts.months).toBe(0);
     expect(parts.days).toBe(28);
   });
 
   it('handles a leap-day start without producing negative days', () => {
-    const parts = diffParts(dhaka(2024, 2, 29), dhaka(2025, 2, 28));
+    const parts = diffParts(singapore(2024, 2, 29), singapore(2025, 2, 28));
     expect(parts.days).toBeGreaterThanOrEqual(0);
     expect(parts.months).toBeGreaterThanOrEqual(0);
   });
@@ -89,10 +89,10 @@ describe('getAnniversary', () => {
   });
 
   it('reports 4 years at the 4-year mark', () => {
-    const a = getAnniversary(dhaka(2026, 10, 12));
+    const a = getAnniversary(singapore(2026, 10, 12));
     expect(a.years).toBe(4);
     expect(a.months).toBe(0);
-    expect(a.totalDays).toBe(Math.floor((dhaka(2026, 10, 12) - START_MS) / 86_400_000));
+    expect(a.totalDays).toBe(Math.floor((singapore(2026, 10, 12) - START_MS) / 86_400_000));
   });
 
   it('keeps monthProgress inside 0..1', () => {
@@ -104,7 +104,7 @@ describe('getAnniversary', () => {
   });
 
   it('points at a future next-year anniversary with a sane day count', () => {
-    const a = getAnniversary(dhaka(2026, 9, 27)); // ~15 days before the 4th
+    const a = getAnniversary(singapore(2026, 9, 27)); // ~15 days before the 4th
     expect(a.nextYearCount).toBe(4);
     expect(a.daysToNextYear).toBeGreaterThan(0);
     expect(a.daysToNextYear).toBeLessThanOrEqual(366);
