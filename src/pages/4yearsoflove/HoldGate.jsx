@@ -1,128 +1,175 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { HOLD_DONE_MESSAGE, HOLD_HEADING, HOLD_SUBLABEL } from './content';
+import {
+  HOLD_BEATS,
+  HOLD_DONE_MESSAGE,
+  HOLD_DRAIN_PER_SEC,
+  HOLD_EMOJI_DONE,
+  HOLD_EMOJI_IDLE,
+  HOLD_EYEBROW,
+  HOLD_FULL_LABEL,
+  HOLD_HEADING,
+  HOLD_MS,
+  HOLD_SPARK_EVERY_MS,
+  HOLD_STAGES,
+  HOLD_SUBLABEL,
+  HOLD_VIBRATE_FINISH,
+  HOLD_VIBRATE_TICK,
+} from './config';
 
-// HoldGate — the whole opening. The ONLY thing on screen until the heart is
+// HoldGate — the opening ritual. Nothing else is on screen until the heart is
 // genuinely held to full.
 //
-// This is a real press-and-hold, not a click: progress fills while a pointer (or
-// space/enter) is down and drains the moment it is released, over ~2.6s. That
-// happened wrong before — the animation only ever ran on press, so a single tap
-// filled it — which is exactly the bug this replaced.
+// FIX: the previous loop captured `holding` in a useCallback closure, so the
+// running rAF kept calling a stale frame with holding=false and the heart could
+// drain instead of fill. The loop now reads `holdingRef`, which never goes stale.
 //
-// The fill loop is driven by requestAnimationFrame and writes the heart's
-// `--lv-progress` and the meter's width straight onto the DOM. React state holds
-// only the integer percentage, and only for the label, so a 60fps fill never
-// re-renders the tree.
-const HOLD_MS = 2600;
-const DRAIN_PER_SEC = 1.7; // how fast it empties when released (progress/second)
-const TICK_STEP = 0.07; // minimum visible step for a repeated key press
+// UPGRADE: a ring meter, sparks that grow as it fills, haptic ticks, a heart that
+// glows and trembles with progress, status lines, and a bloom + fireworks finale
+// before the gate dissolves into the story.
+const vibrate = (pattern) => {
+  try {
+    navigator.vibrate?.(pattern);
+  } catch {
+    /* unsupported — purely a bonus */
+  }
+};
 
-export default function HoldGate({ onComplete, burstAt }) {
+const stageLabel = (progress) => {
+  let label = HOLD_SUBLABEL;
+  for (const [at, text] of HOLD_STAGES) if (progress >= at) label = text;
+  return label;
+};
+
+export default function HoldGate({ onComplete, burstAt, fireworkAt }) {
   const [pct, setPct] = useState(0);
-  const [done, setDone] = useState(false);
+  const [phase, setPhase] = useState('idle'); // idle → done → leaving
   const [holding, setHolding] = useState(false);
 
   const progressRef = useRef(0);
+  const holdingRef = useRef(false);
+  const doneRef = useRef(false);
   const rafRef = useRef(0);
   const lastRef = useRef(0);
+  const sparkRef = useRef(0);
+  const stepRef = useRef(0);
+  const timersRef = useRef([]);
   const heartRef = useRef(null);
   const fillRef = useRef(null);
-  const doneRef = useRef(false);
+  const ringRef = useRef(null);
 
-  // Latest callbacks without re-creating the loop.
-  const completeRef = useRef(onComplete);
-  completeRef.current = onComplete;
-  const burstRef = useRef(burstAt);
-  burstRef.current = burstAt;
+  const propsRef = useRef({});
+  propsRef.current = { onComplete, burstAt, fireworkAt };
+
+  const later = useCallback((fn, ms) => {
+    timersRef.current.push(setTimeout(fn, ms));
+  }, []);
+
+  const center = () => {
+    const r = heartRef.current?.getBoundingClientRect();
+    return r
+      ? [r.left + r.width / 2, r.top + r.height / 2]
+      : [window.innerWidth / 2, window.innerHeight * 0.42];
+  };
 
   const paint = useCallback((value) => {
     progressRef.current = value;
-    heartRef.current?.style.setProperty('--lv-progress', String(value));
+    heartRef.current?.style.setProperty('--lv-progress', value.toFixed(4));
     if (fillRef.current) fillRef.current.style.width = `${value * 100}%`;
+    if (ringRef.current) ringRef.current.style.strokeDashoffset = String(1 - value);
     setPct(Math.round(value * 100));
   }, []);
 
-  const stop = useCallback(() => {
-    if (rafRef.current) cancelAnimationFrame(rafRef.current);
+  const finish = useCallback(() => {
+    if (doneRef.current) return;
+    doneRef.current = true;
+    holdingRef.current = false;
+    cancelAnimationFrame(rafRef.current);
     rafRef.current = 0;
-  }, []);
+    paint(1);
+    setHolding(false);
+    setPhase('done');
+    vibrate(HOLD_VIBRATE_FINISH);
 
-  const frame = useCallback(
+    const [x, y] = center();
+    const p = propsRef.current;
+    p.burstAt?.(x, y, { count: 70, power: 1.7 });
+    p.fireworkAt?.(x, y - 90);
+    later(() => {
+      p.fireworkAt?.(x - 120, y - 20);
+      p.fireworkAt?.(x + 120, y - 20);
+    }, 260);
+    later(() => setPhase('leaving'), 950);
+    later(() => propsRef.current.onComplete?.(), 1600);
+  }, [later, paint]);
+
+  const tick = useCallback(
     (now) => {
       const dt = Math.min((now - lastRef.current) / 1000, 0.05);
       lastRef.current = now;
-
-      const target = holding ? progressRef.current + (dt * 1000) / HOLD_MS : progressRef.current - dt * DRAIN_PER_SEC;
-      const next = Math.max(0, Math.min(1, target));
+      const hold = holdingRef.current;
+      const raw = progressRef.current + (hold ? (dt * 1000) / HOLD_MS : -dt * HOLD_DRAIN_PER_SEC);
+      const next = Math.max(0, Math.min(1, raw));
       paint(next);
 
-      if (next >= 1) {
-        stop();
-        if (!doneRef.current) {
-          doneRef.current = true;
-          setDone(true);
-          setHolding(false);
-          burstRef.current?.(
-            window.innerWidth / 2,
-            window.innerHeight * 0.42,
-            { count: 64, power: 1.6 }
-          );
-          // Let the "filled" state be seen for a beat before the story takes over.
-          setTimeout(() => completeRef.current?.(), 720);
+      const step = Math.floor(next * HOLD_BEATS);
+      if (hold) {
+        if (step > stepRef.current) vibrate(HOLD_VIBRATE_TICK);
+        if (now - sparkRef.current > HOLD_SPARK_EVERY_MS) {
+          sparkRef.current = now;
+          const [x, y] = center();
+          propsRef.current.burstAt?.(x, y, {
+            count: 1 + Math.floor(next * 4),
+            power: 0.3 + next * 0.5,
+          });
         }
-        return;
       }
+      stepRef.current = step;
 
-      // Nothing left to animate once it has drained back to empty and released.
-      if (!holding && next <= 0) {
-        stop();
+      if (next >= 1) {
+        finish();
         return;
       }
-      rafRef.current = requestAnimationFrame(frame);
+      if (!hold && next <= 0) {
+        rafRef.current = 0;
+        return;
+      }
+      rafRef.current = requestAnimationFrame(tick);
     },
-    [holding, paint, stop]
+    [finish, paint]
   );
 
   const ensureLoop = useCallback(() => {
-    if (!rafRef.current && !doneRef.current) {
-      lastRef.current = performance.now();
-      rafRef.current = requestAnimationFrame(frame);
-    }
-  }, [frame]);
+    if (rafRef.current || doneRef.current) return;
+    lastRef.current = performance.now();
+    rafRef.current = requestAnimationFrame(tick);
+  }, [tick]);
 
   const start = useCallback(() => {
     if (doneRef.current) return;
+    holdingRef.current = true;
     setHolding(true);
     ensureLoop();
   }, [ensureLoop]);
 
   const release = useCallback(() => {
     if (doneRef.current) return;
+    holdingRef.current = false;
     setHolding(false);
     ensureLoop();
   }, [ensureLoop]);
 
-  useEffect(() => () => stop(), [stop]);
+  useEffect(
+    () => () => {
+      cancelAnimationFrame(rafRef.current);
+      timersRef.current.forEach(clearTimeout);
+    },
+    []
+  );
 
-  // Keyboard: space/enter. Held-down keys repeat, and each repeat nudges the
-  // progress, so the hold is genuinely achievable without a pointer.
   const onKeyDown = (event) => {
     if (event.key !== ' ' && event.key !== 'Enter') return;
     event.preventDefault();
-    if (event.repeat) {
-      // A repeat is a nudge rather than a fresh start — start() is idempotent.
-      if (progressRef.current < 1) {
-        paint(Math.min(1, progressRef.current + TICK_STEP));
-        if (progressRef.current >= 1 && !doneRef.current) {
-          doneRef.current = true;
-          setDone(true);
-          burstRef.current?.(window.innerWidth / 2, window.innerHeight * 0.42, { count: 64, power: 1.6 });
-          setTimeout(() => completeRef.current?.(), 720);
-        }
-      }
-      return;
-    }
-    start();
+    if (!event.repeat) start();
   };
   const onKeyUp = (event) => {
     if (event.key === ' ' || event.key === 'Enter') {
@@ -131,50 +178,68 @@ export default function HoldGate({ onComplete, burstAt }) {
     }
   };
 
+  const done = phase !== 'idle';
+
   return (
-    <div className="lv-gate">
+    <div className={`lv-gate${done ? ' is-done' : ''}${phase === 'leaving' ? ' is-leaving' : ''}`}>
+      <span className="lv-gate__bloom" aria-hidden="true" />
       <div className="lv-gate__inner">
-        <span className="lv-gate__ring" aria-hidden="true" />
+        <p className="lv-eyebrow">{HOLD_EYEBROW}</p>
 
-        <p className="lv-eyebrow">A little ritual first</p>
+        <div className="lv-gate__stage">
+          <span className="lv-gate__ring" aria-hidden="true" />
+          <svg className="lv-gate__meter" viewBox="0 0 100 100" aria-hidden="true">
+            <defs>
+              <linearGradient id="lv-meter-grad" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0%" stopColor="#fb7185" />
+                <stop offset="55%" stopColor="#f472b6" />
+                <stop offset="100%" stopColor="#c4b5fd" />
+              </linearGradient>
+            </defs>
+            <circle className="lv-gate__meter-bg" cx="50" cy="50" r="46" />
+            <circle ref={ringRef} className="lv-gate__meter-fg" cx="50" cy="50" r="46" pathLength="1" />
+          </svg>
 
-        <button
-          type="button"
-          ref={heartRef}
-          className={`lv-heart${holding ? ' is-held' : ''}${done ? ' is-beating' : ''}`}
-          style={{ '--lv-progress': 0 }}
-          onPointerDown={(e) => {
-            // Capture so a finger that slides off the heart still releases it.
-            e.currentTarget.setPointerCapture?.(e.pointerId);
-            start();
-          }}
-          onPointerUp={release}
-          onPointerCancel={release}
-          onLostPointerCapture={release}
-          onKeyDown={onKeyDown}
-          onKeyUp={onKeyUp}
-          aria-label={HOLD_HEADING}
-        >
-          <span className="lv-heart__body" aria-hidden="true">
-            <span className="lv-heart__lobe lv-heart__lobe--l" />
-            <span className="lv-heart__lobe lv-heart__lobe--r" />
-            <span className="lv-heart__point" />
-          </span>
-          {/* Siblings of the rotated body, so the pouring glow and the highlight
-              stay level on screen instead of tilting 45° with the shape. */}
-          <span className="lv-heart__fill" aria-hidden="true" />
-          <span className="lv-heart__gloss" aria-hidden="true" />
-          <span className="lv-heart__inner">
-            <span className="lv-heart__emoji" aria-hidden="true">{done ? '💖' : '💗'}</span>
-            <span className="lv-heart__label">{done ? 'full' : `${pct}%`}</span>
-          </span>
-        </button>
+          <button
+            type="button"
+            ref={heartRef}
+            className={`lv-heart${holding ? ' is-held' : ''}${done ? ' is-beating' : ''}`}
+            style={{ '--lv-progress': 0 }}
+            onPointerDown={(e) => {
+              e.currentTarget.setPointerCapture?.(e.pointerId);
+              start();
+            }}
+            onPointerUp={release}
+            onPointerCancel={release}
+            onLostPointerCapture={release}
+            onContextMenu={(e) => e.preventDefault()}
+            onKeyDown={onKeyDown}
+            onKeyUp={onKeyUp}
+            aria-label={HOLD_HEADING}
+          >
+            <span className="lv-heart__body" aria-hidden="true">
+              <span className="lv-heart__lobe lv-heart__lobe--l" />
+              <span className="lv-heart__lobe lv-heart__lobe--r" />
+              <span className="lv-heart__point" />
+            </span>
+            <span className="lv-heart__fill" aria-hidden="true" />
+            <span className="lv-heart__gloss" aria-hidden="true" />
+            <span className="lv-heart__inner">
+              <span className="lv-heart__emoji" aria-hidden="true">
+                {done ? HOLD_EMOJI_DONE : HOLD_EMOJI_IDLE}
+              </span>
+              <span className="lv-heart__label">{done ? HOLD_FULL_LABEL : `${pct}%`}</span>
+            </span>
+          </button>
+        </div>
 
         <div className="lv-gate__track" aria-hidden="true">
           <div className="lv-gate__fill" ref={fillRef} />
         </div>
 
-        <p className="lv-gate__hint">{done ? HOLD_DONE_MESSAGE : HOLD_SUBLABEL}</p>
+        <p className="lv-gate__hint" aria-live="polite">
+          {done ? HOLD_DONE_MESSAGE : stageLabel(pct / 100)}
+        </p>
       </div>
     </div>
   );

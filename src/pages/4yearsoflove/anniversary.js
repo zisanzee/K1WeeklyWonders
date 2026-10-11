@@ -20,17 +20,10 @@
 // count can never drift by an hour mid-year the way a zone-database lookup
 // would if the rules ever changed.
 
-export const START_DATE_PARTS = Object.freeze({
-  year: 2022,
-  month: 10, // 1-based: 10 = October
-  day: 12,
-  hour: 0,
-  minute: 0,
-  second: 0,
-});
+// The date and timezone anchor now live in ./config.js (the one editable file).
+import { START_DATE_PARTS, START_OFFSET_MINUTES } from './config';
 
-// Minutes offset of the anniversary's "local" timezone. Asia/Dhaka = UTC+6.
-export const START_OFFSET_MINUTES = 360;
+export { START_DATE_PARTS, START_OFFSET_MINUTES };
 
 // The exact UTC instant the relationship began. Computed (not hardcoded) so the
 // parts above stay the single source of truth.

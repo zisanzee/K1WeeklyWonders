@@ -1,88 +1,162 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { usePlayerStore } from '@/auth/playerStore';
 import HeartCanvas from './HeartCanvas';
 import HoldGate from './HoldGate';
 import ActEnvelope from './ActEnvelope';
+import PhotoCard from './PhotoCard';
 import ReasonWall from './ReasonWall';
+import HeartCatch from './HeartCatch';
 import Counter from './Counter';
 import Confetti from './Confetti';
-import { useSavedFlag } from './hooks';
+import { sfx, setSoundEnabled } from './sfx';
+import { useSavedFlag, usePointerLight, useScrollProgress } from './hooks';
 import {
+  CONFETTI,
+  DECOY_BODY,
+  DECOY_CODE,
+  DECOY_TITLE,
+  GRANTED_TEACHER_NAME,
   HERO_BODY,
   HERO_EYEBROW,
   HERO_TITLE,
-  GRANTED_TEACHER_NAME,
+  LANDING_CUE,
+  LANDING_FOUR,
+  MUSIC_OFF_LABEL,
+  MUSIC_ON_LABEL,
   MUSIC_SRC,
-} from './content';
+  PAGE_THEME_COLOR,
+  PAGE_TITLE,
+  SFX_OFF_LABEL,
+  SFX_ON_LABEL,
+  SHOOTING_STARS,
+} from './config';
 import './love.css';
+import './love-extras.css';
+import './love-fx.css';
 
 // ---------------------------------------------------------------------------
-// ACCESS
+// ACCESS — unchanged. A private surprise: only the named teacher sees the story;
+// everyone else gets an indistinguishable decoy 404. A *display* gate only.
 // ---------------------------------------------------------------------------
-// This is a private surprise, not a public page. It renders only for a viewer
-// signed in as the teacher below; EVERYONE else — a signed-out visitor, another
-// teacher, a student, a search engine — gets a plain decoy "404" that is
-// indistinguishable from a dead link. The URL itself is unguessable enough to be
-// effectively unlisted, and even knowing it reveals nothing without the right
-// name on the session.
-//
-// The name is compared case- and whitespace-insensitively so "siti  soleha"
-// still opens it. This is intentionally a *display* gate — the page reaches
-// nothing private, so it should never fail over a flaky network.
 function normalizeName(value) {
   return (value || '').toString().trim().replace(/\s+/g, ' ').toLowerCase();
 }
 
-// The decoy. Static, unbranded, and no hint that the real page exists.
 function Decoy() {
   return (
     <main className="lv-404">
       <Helmet>
-        <title>404 — Page not found</title>
+        <title>{`${DECOY_CODE} — ${DECOY_TITLE}`}</title>
         <meta name="robots" content="noindex,nofollow" />
       </Helmet>
       <div>
-        <p className="lv-404__code">404</p>
-        <p style={{ fontWeight: 700, marginTop: '0.5rem' }}>Page not found</p>
+        <p className="lv-404__code">{DECOY_CODE}</p>
+        <p style={{ fontWeight: 700, marginTop: '0.5rem' }}>{DECOY_TITLE}</p>
         <p style={{ opacity: 0.6, marginTop: '0.4rem', fontSize: '0.9rem' }}>
-          The page you are looking for does not exist.
+          {DECOY_BODY}
         </p>
       </div>
     </main>
   );
 }
 
+// Splits a title into words and letters so each letter can fly in on its own.
+// The accessible name stays the plain string.
+function Letters({ text }) {
+  let n = 0;
+  return (
+    <span aria-label={text}>
+      {text.split(' ').map((word, w) => (
+        <Fragment key={`${word}-${w}`}>
+          {w > 0 && ' '}
+          <span className="lv-word" aria-hidden="true">
+            {[...word].map((ch) => {
+              const i = n;
+              n += 1;
+              return (
+                <span key={i} className="lv-letter" style={{ '--i': i }}>
+                  {ch}
+                </span>
+              );
+            })}
+          </span>
+        </Fragment>
+      ))}
+    </span>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // THE STORY
+//   HoldGate → hold the heart to full (scroll locked) — it now CHARGES UP in
+//              sound, a rising pentatonic arpeggio, and finishes with a fanfare
+//   Landing  → letter-by-letter title over a giant glowing "4" that parallaxes
+//   Envelope → trembles, cracks, glows, the letter writes itself word by word
+//   Photo    → a polaroid that develops, and turns over
+//   Reasons  → ten reasons you can keep, with a live counter
+//   Game     → catch my heart
+//   Counter  → elapsed time, rolling count, milestones, fireworks, hug, replay
 // ---------------------------------------------------------------------------
-// The page is a linear, scroll-driven story with a locked prologue:
-//
-//   HoldGate      → the heart must be HELD to full (the only thing on screen)
-//   ActEnvelope   → scrolling opens the envelope, the paper rises and settles,
-//                   the envelope dissolves
-//   ReasonWall    → the ten reasons, arriving two at a time
-//   Counter       → the elapsed time, then confetti — the end
-//
-// Scrolling is frozen for the whole prologue so the story cannot be skipped by
-// scrolling past it, and released once the heart is full.
 function LoveStory() {
   const canvasRef = useRef(null);
   const audioRef = useRef(null);
+  const barRef = useRef(null);
+  const lightRef = useRef(null);
   const [started, setStarted] = useState(false);
-  // Set when the counter act is reached — this is what arms the confetti, so the
-  // finale lands with the closing act rather than playing over the envelope.
   const [counterReached, setCounterReached] = useState(false);
+  const [confettiRun, setConfettiRun] = useState(0);
   const [musicOn, setMusicOn] = useSavedFlag('ezw-love-music', false);
+  const [soundOn, setSoundOn] = useSavedFlag('ezw-love-sfx', true);
 
-  // The single burst entry point every act uses. A stable callback, so the
-  // particles start the instant it is pressed.
+  useScrollProgress(barRef);
+  usePointerLight(lightRef);
+
+  useEffect(() => {
+    setSoundEnabled(soundOn);
+  }, [soundOn]);
+
+  // Every effect goes through these wrappers so the picture and the sound can
+  // never drift apart: children just ask for a burst / firework / rocket.
   const burstAt = useCallback((x, y, opts) => {
     canvasRef.current?.burst(x, y, opts);
   }, []);
+  const fireworkAt = useCallback((x, y, kind) => {
+    canvasRef.current?.firework(x, y, kind);
+    sfx.boom();
+  }, []);
+  const rocketAt = useCallback((x, y, kind) => {
+    canvasRef.current?.rocket(x, y, kind);
+    sfx.whoosh();
+    // The rocket takes ~0.8 s to climb; the bang follows it.
+    setTimeout(() => sfx.boom(), 820);
+  }, []);
 
-  // Lock scrolling while the heart is being held. The class lives on <html>
-  // because #root is the app's real scroll container — see love.css.
+  // The hold gate speaks through its own burst calls: each spark is a "charge"
+  // note whose pitch follows progress (its `power` is 0.3 + progress * 0.5), and
+  // the big finishing burst (count >= 60) plays the fanfare.
+  const gateBurst = useCallback((x, y, opts = {}) => {
+    canvasRef.current?.burst(x, y, opts);
+    if ((opts.count || 0) >= 60) sfx.fanfare();
+    else sfx.tick(Math.max(0, Math.min(1, ((opts.power || 0.3) - 0.3) / 0.5)));
+  }, []);
+
+  const onReveal = useCallback(() => setCounterReached(true), []);
+  const onHug = useCallback(() => setConfettiRun((n) => n + 1), []);
+
+  // Anywhere she taps in the story sends a few hearts (buttons keep their own).
+  const onTap = useCallback(
+    (event) => {
+      sfx.unlock(); // any first touch is the gesture that lets audio start
+      if (!started || event.target.closest?.('button, a, [role="button"], canvas')) return;
+      burstAt(event.clientX, event.clientY, { count: 9, power: 0.55 });
+      sfx.pop();
+    },
+    [started, burstAt]
+  );
+
+  // Lock scrolling while the heart is held; the class lives on <html> because
+  // #root is the app's real scroll container (see love.css).
   useEffect(() => {
     const root = document.documentElement;
     if (started) {
@@ -94,8 +168,7 @@ function LoveStory() {
     return () => root.classList.remove('lv-locked');
   }, [started]);
 
-  // Music only starts after the story begins: the browser blocks autoplay until
-  // a gesture, and the hold that opens the story IS that gesture.
+  // Music starts only after the hold — that gesture is what unblocks autoplay.
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
@@ -110,64 +183,105 @@ function LoveStory() {
   }, [musicOn, started]);
 
   return (
-    <div className="lv-root">
+    <div className="lv-root" onPointerDown={onTap}>
       <Helmet>
-        <title>Four years of love 💗</title>
+        <title>{PAGE_TITLE}</title>
         <meta name="robots" content="noindex,nofollow" />
-        <meta name="theme-color" content="#4c0f3c" />
+        <meta name="theme-color" content={PAGE_THEME_COLOR} />
       </Helmet>
 
-      {/* Ambient backdrop. */}
+      {/* Ambient backdrop: gradient, aurora, blobs, stars, shooting stars,
+          the heart canvas, and a light that follows the cursor. */}
       <div className="lv-bg" aria-hidden="true" />
+      <div className="lv-aurora" aria-hidden="true" />
       <div className="lv-blob lv-blob--a" aria-hidden="true" />
       <div className="lv-blob lv-blob--b" aria-hidden="true" />
       <div className="lv-stars" aria-hidden="true" />
+      {SHOOTING_STARS.map(([x, y, d, dur]) => (
+        <span
+          key={x}
+          className="lv-shoot"
+          aria-hidden="true"
+          style={{ '--x': x, '--y': y, '--d': d, '--dur': dur }}
+        />
+      ))}
       <HeartCanvas ref={canvasRef} />
+      <div className="lv-light" ref={lightRef} aria-hidden="true" />
 
-      {/* Music toggle — only offered once she is into the story. */}
+      {/* Thin gradient bar showing how far through the story she is. */}
+      <div className={`lv-pagebar${started ? ' is-on' : ''}`} ref={barRef} aria-hidden="true">
+        <span />
+      </div>
+
       {started && (
-        <button
-          type="button"
-          className="lv-ghost"
-          onClick={() => setMusicOn(!musicOn)}
-          aria-pressed={musicOn}
-          style={{ position: 'fixed', top: '1rem', right: '1rem', zIndex: 90 }}
-        >
-          <span aria-hidden="true">{musicOn ? '🔊' : '🔈'}</span>
-          {musicOn ? 'Music on' : 'Music off'}
-        </button>
+        <div className="lv-toggles">
+          <button
+            type="button"
+            className="lv-ghost"
+            onClick={() => setSoundOn(!soundOn)}
+            aria-pressed={soundOn}
+          >
+            <span aria-hidden="true">{soundOn ? '🔔' : '🔕'}</span>
+            {soundOn ? SFX_ON_LABEL : SFX_OFF_LABEL}
+          </button>
+          <button
+            type="button"
+            className="lv-ghost"
+            onClick={() => setMusicOn(!musicOn)}
+            aria-pressed={musicOn}
+          >
+            <span aria-hidden="true">{musicOn ? '🔊' : '🔈'}</span>
+            {musicOn ? MUSIC_ON_LABEL : MUSIC_OFF_LABEL}
+          </button>
+        </div>
       )}
       <audio ref={audioRef} src={MUSIC_SRC} loop preload="none" />
 
-      {/* The prologue. The story below is a genuinely separate branch, so the
-          whole scroll graph mounts at once when the heart fills — which is also
-          what lets the opening line glide in from the top. */}
       {!started ? (
-        <HoldGate onComplete={() => setStarted(true)} burstAt={burstAt} />
+        <HoldGate onComplete={() => setStarted(true)} burstAt={gateBurst} fireworkAt={fireworkAt} />
       ) : (
         <>
-          {/* A short landing beat, so the envelope doesn't start mid-scroll. */}
           <header className="lv-landing">
             <p className="lv-eyebrow">{HERO_EYEBROW}</p>
             <h1
-              className="lv-grad"
-              style={{ fontSize: 'clamp(1.9rem, 8vw, 3.4rem)', fontWeight: 700, margin: 0, lineHeight: 1.1 }}
+              style={{
+                fontSize: 'clamp(1.9rem, 8vw, 3.4rem)',
+                fontWeight: 700,
+                margin: 0,
+                lineHeight: 1.1,
+              }}
             >
-              {HERO_TITLE}
+              <Letters text={HERO_TITLE} />
             </h1>
             <p className="lv-note">{HERO_BODY}</p>
-            <span className="lv-cue">scroll</span>
+            <span className="lv-cue">{LANDING_CUE}</span>
+            {/* Last child on purpose: the CSS addresses the first three by index. */}
+            <span className="lv-landing__four" aria-hidden="true">
+              <span>{LANDING_FOUR}</span>
+            </span>
           </header>
 
           <main>
-            <ActEnvelope />
-            <ReasonWall />
-            <Counter onReveal={() => setCounterReached(true)} burstAt={burstAt} />
+            <ActEnvelope burstAt={burstAt} fireworkAt={fireworkAt} rocketAt={rocketAt} />
+            <PhotoCard burstAt={burstAt} />
+            <ReasonWall burstAt={burstAt} />
+            <HeartCatch burstAt={burstAt} fireworkAt={fireworkAt} rocketAt={rocketAt} />
+            <Counter
+              onReveal={onReveal}
+              onHug={onHug}
+              burstAt={burstAt}
+              fireworkAt={fireworkAt}
+              rocketAt={rocketAt}
+            />
           </main>
 
-          {/* The ending: confetti falls over everything once, when the counter is
-              reached, and removes itself when it lands. */}
-          {counterReached && <Confetti count={90} />}
+          {counterReached && (
+            <Confetti
+              key={confettiRun}
+              count={confettiRun ? CONFETTI.replayCount : CONFETTI.count}
+              durationMs={CONFETTI.durationMs}
+            />
+          )}
         </>
       )}
     </div>

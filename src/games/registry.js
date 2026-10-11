@@ -315,6 +315,28 @@ export const GAME_REGISTRY = [
     },
     load: () => import('@/games/game-13/GamePage'),
   },
+  {
+    // Game 14 (boilerplate) — rename label/title/subtitle/folder when the real
+    // game lands. Keep the gate labels in GamePage.jsx in tandem, or the lock
+    // screen and the card disagree.
+    key: '14',
+    slug: 'game-14',
+    route: '/60815',
+    term: 4,
+    progressKey: 'game14',
+    meta: {
+      emoji: '\uD83C\uDFB2',
+      label: 'Game 14',
+      title: 'Game 14',
+      subtitle: 'Boilerplate',
+      description: 'Placeholder game — replace with the real mechanic.',
+      hue: '#6366F1',
+      tint: '#EEF2FF',
+      gradient: 'linear-gradient(135deg, #A5B4FC 0%, #6366F1 55%, #4338CA 100%)',
+      ring: 'ring-[#C7D2FE]',
+    },
+    load: () => import('@/games/game-14/GamePage'),
+  },
 ];
 
 // The catalogue shape the UI consumes: identity + routing + metadata, flattened.

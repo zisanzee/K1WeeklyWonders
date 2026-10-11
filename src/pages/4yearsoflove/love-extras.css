@@ -1,0 +1,457 @@
+/* love-extras.css — the visual upgrade, layered on top of love.css.
+ * Import it AFTER love.css (index.jsx does). Nothing in love.css was edited, so
+ * the original art direction and the flat-envelope rule are untouched; every
+ * rule here either adds a new class or deliberately overrides one noted below.
+ *
+ * Handwriting: the signature and polaroid caption use 'Dancing Script'. Add it
+ * once to index.html next to Fredoka:
+ *   <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@600;700&display=swap" rel="stylesheet">
+ * Without it they fall back to the system script/cursive face — still fine.
+ */
+
+.lv-root { --lv-hand: 'Dancing Script', 'Segoe Script', 'Brush Script MT', cursive; }
+
+/* ---------------------------------------------------------------------------
+   FIX — the scroll cue. love.css gives it `left: 50%` but never centres it, so
+   the label sat half a screen to the right. Centre it and give it a gentle bob.
+--------------------------------------------------------------------------- */
+.lv-cue { translate: -50% 0; animation: lv-bob-y 2.4s ease-in-out infinite; }
+@keyframes lv-bob-y {
+  0%, 100% { transform: translateY(0); opacity: 0.65; }
+  50% { transform: translateY(-7px); opacity: 1; }
+}
+
+/* ---------------------------------------------------------------------------
+   BACKDROP — a slow aurora, shooting stars, and a light that follows the cursor
+--------------------------------------------------------------------------- */
+.lv-aurora {
+  position: fixed;
+  inset: -25%;
+  z-index: -2;
+  pointer-events: none;
+  opacity: 0.32;
+  mix-blend-mode: screen;
+  filter: blur(80px);
+  background: conic-gradient(
+    from 0deg,
+    rgba(251, 113, 133, 0) 0deg,
+    rgba(251, 113, 133, 0.55) 70deg,
+    rgba(232, 121, 249, 0) 140deg,
+    rgba(167, 139, 250, 0.6) 215deg,
+    rgba(244, 114, 182, 0) 290deg,
+    rgba(251, 113, 133, 0) 360deg
+  );
+  animation: lv-aurora 70s linear infinite;
+}
+@keyframes lv-aurora { to { transform: rotate(360deg); } }
+
+.lv-shoot {
+  position: fixed;
+  left: var(--x);
+  top: var(--y);
+  z-index: -1;
+  width: 130px;
+  height: 2px;
+  border-radius: 2px;
+  pointer-events: none;
+  opacity: 0;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0), rgba(255, 255, 255, 0.95));
+  box-shadow: 0 0 10px 1px rgba(255, 190, 225, 0.7);
+  animation: lv-shoot var(--dur, 12s) ease-out var(--d, 0s) infinite;
+}
+@keyframes lv-shoot {
+  0% { opacity: 0; transform: rotate(24deg) translateX(0); }
+  2% { opacity: 1; }
+  8%, 100% { opacity: 0; transform: rotate(24deg) translateX(460px); }
+}
+
+.lv-light {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.6s ease;
+  mix-blend-mode: screen;
+  background: radial-gradient(280px circle at var(--cx, 50%) var(--cy, 50%), rgba(255, 160, 210, 0.17), transparent 70%);
+}
+
+.lv-pagebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  z-index: 95;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.6s ease;
+}
+.lv-pagebar.is-on { opacity: 1; }
+.lv-pagebar span {
+  display: block;
+  height: 100%;
+  width: calc(var(--lv-page, 0) * 100%);
+  border-radius: 0 999px 999px 0;
+  background: linear-gradient(90deg, #fb7185, #e879f9, #a78bfa);
+  box-shadow: 0 0 14px rgba(244, 114, 182, 0.9);
+}
+
+/* ---------------------------------------------------------------------------
+   HOLD GATE — ring meter, glow + tremble with progress, bloom finale
+--------------------------------------------------------------------------- */
+.lv-gate__stage {
+  position: relative;
+  width: var(--lv-heart-size);
+  height: var(--lv-heart-size);
+  display: grid;
+  place-items: center;
+}
+/* The original ring is moved into the stage so it is actually centred on the heart. */
+.lv-gate__stage > .lv-gate__ring { left: 50%; top: 50%; translate: -50% -50%; }
+
+.lv-gate__meter {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: calc(var(--lv-heart-size) * 1.62);
+  height: calc(var(--lv-heart-size) * 1.62);
+  translate: -50% -50%;
+  rotate: -90deg;
+  overflow: visible;
+  pointer-events: none;
+}
+.lv-gate__meter-bg { fill: none; stroke: rgba(255, 255, 255, 0.1); stroke-width: 2.2; }
+.lv-gate__meter-fg {
+  fill: none;
+  stroke: url(#lv-meter-grad);
+  stroke-width: 3.2;
+  stroke-linecap: round;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  filter: drop-shadow(0 0 6px rgba(244, 114, 182, 0.95));
+}
+
+.lv-heart {
+  scale: calc(1 + var(--lv-progress, 0) * 0.12);
+  filter: drop-shadow(0 0 calc(var(--lv-progress, 0) * 34px) rgba(255, 110, 170, 0.85));
+}
+.lv-heart.is-held { animation: lv-shiver 0.14s linear infinite; }
+@keyframes lv-shiver {
+  0%, 100% { translate: 0 0; }
+  25% { translate: calc(var(--lv-progress, 0) * 2.5px) calc(var(--lv-progress, 0) * -1.5px); }
+  50% { translate: calc(var(--lv-progress, 0) * -2px) calc(var(--lv-progress, 0) * 2px); }
+  75% { translate: calc(var(--lv-progress, 0) * 1.5px) calc(var(--lv-progress, 0) * 2px); }
+}
+
+.lv-gate__bloom {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 22vmax;
+  height: 22vmax;
+  border-radius: 50%;
+  translate: -50% -50%;
+  scale: 0;
+  opacity: 0;
+  pointer-events: none;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.95), rgba(255, 170, 215, 0.7) 35%, transparent 70%);
+}
+.lv-gate.is-done .lv-gate__bloom { animation: lv-bloom 1.3s cubic-bezier(0.2, 0.7, 0.2, 1) forwards; }
+@keyframes lv-bloom {
+  0% { scale: 0; opacity: 0.95; }
+  100% { scale: 7; opacity: 0; }
+}
+.lv-gate.is-leaving { pointer-events: none; animation: lv-gate-out 0.65s ease-in forwards; }
+@keyframes lv-gate-out { to { opacity: 0; scale: 1.1; filter: blur(10px); } }
+
+/* ---------------------------------------------------------------------------
+   LANDING — letter-by-letter title over a giant, breathing "4"
+--------------------------------------------------------------------------- */
+.lv-word { display: inline-block; white-space: nowrap; }
+.lv-letter {
+  display: inline-block;
+  /* A hue ramp pink → violet across the title (gradient clip fights transforms). */
+  color: hsl(calc(335 - var(--i) * 3.6) 100% 86%);
+  text-shadow: 0 0 28px rgba(255, 120, 190, 0.55);
+  animation: lv-letter-in 0.9s cubic-bezier(0.2, 1.1, 0.3, 1) both;
+  animation-delay: calc(0.45s + var(--i) * 55ms);
+}
+@keyframes lv-letter-in {
+  from { opacity: 0; transform: translateY(0.7em) rotate(10deg) scale(0.5); filter: blur(8px); }
+  to { opacity: 1; transform: none; filter: blur(0); }
+}
+
+.lv-landing__four {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  pointer-events: none;
+  font-size: clamp(16rem, 72vw, 34rem);
+  font-weight: 700;
+  line-height: 1;
+  color: transparent;
+  -webkit-text-stroke: 2px rgba(255, 170, 215, 0.2);
+  text-shadow: 0 0 90px rgba(244, 114, 182, 0.28);
+}
+.lv-landing__four > span { animation: lv-throb 3.6s ease-in-out infinite; }
+@keyframes lv-throb {
+  0%, 100% { transform: scale(1); }
+  14% { transform: scale(1.04); }
+  28% { transform: scale(1.01); }
+  42% { transform: scale(1.035); }
+}
+
+/* ---------------------------------------------------------------------------
+   ENVELOPE — a glow that grows with the letter, a seal that pulses, stationery
+--------------------------------------------------------------------------- */
+.lv-env::before {
+  content: '';
+  position: absolute;
+  inset: -45% -30% -10%;
+  z-index: 0;
+  pointer-events: none;
+  background: radial-gradient(closest-side, rgba(255, 190, 225, 0.55), rgba(244, 114, 182, 0.18) 55%, transparent 76%);
+  opacity: calc(var(--t-rise) * (1 - var(--t-exit) * 0.7));
+}
+.lv-env__seal { animation: lv-seal-glow 2.2s ease-in-out infinite; }
+@keyframes lv-seal-glow {
+  0%, 100% {
+    box-shadow: 0 10px 22px -8px rgba(50, 0, 22, 0.95), inset 0 2px 6px rgba(255, 255, 255, 0.55),
+      inset 0 -6px 12px rgba(90, 0, 40, 0.5), 0 0 0 0 rgba(251, 113, 133, 0.55);
+  }
+  50% {
+    box-shadow: 0 10px 22px -8px rgba(50, 0, 22, 0.95), inset 0 2px 6px rgba(255, 255, 255, 0.55),
+      inset 0 -6px 12px rgba(90, 0, 40, 0.5), 0 0 0 16px rgba(251, 113, 133, 0);
+  }
+}
+.lv-paper__sign { font-family: var(--lv-hand); font-size: clamp(1.05rem, 3.8vw, 1.4rem); }
+.lv-env__paper-face > .lv-paper__stamp {
+  position: absolute;
+  top: 0.55rem;
+  right: 0.65rem;
+  display: grid;
+  place-items: center;
+  width: 2.1rem;
+  aspect-ratio: 1;
+  rotate: 8deg;
+  border: 1.5px dashed rgba(194, 24, 91, 0.55);
+  border-radius: 0.35rem;
+  color: #c2185b;
+  font-weight: 800;
+  font-size: 0.82rem;
+  line-height: 0.9;
+  text-align: center;
+}
+.lv-paper__stamp small { display: block; font-size: 0.42rem; letter-spacing: 0.08em; text-transform: uppercase; }
+
+/* ---------------------------------------------------------------------------
+   POLAROID — develops on scroll, tilts to the pointer, floats
+--------------------------------------------------------------------------- */
+.lv-polaroid {
+  position: relative;
+  width: min(76vw, 19rem);
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transform: perspective(900px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg)) rotate(-3deg);
+  opacity: 0;
+  translate: 0 46px;
+  scale: 0.9;
+  transition: transform 0.25s ease-out, opacity 0.9s ease, translate 1.1s cubic-bezier(0.2, 1.1, 0.3, 1),
+    scale 1.1s cubic-bezier(0.2, 1.1, 0.3, 1);
+}
+.lv-polaroid.is-in { opacity: 1; translate: 0 0; scale: 1; }
+.lv-polaroid__frame {
+  display: block;
+  padding: 0.85rem 0.85rem 0;
+  border-radius: 0.5rem;
+  background: linear-gradient(160deg, #fffdfd, #ffeaf2);
+  box-shadow: 0 34px 60px -26px rgba(24, 0, 14, 0.95), 0 0 0 1px rgba(255, 255, 255, 0.4) inset;
+  animation: lv-float 6s ease-in-out infinite;
+}
+@keyframes lv-float { 0%, 100% { translate: 0 0; } 50% { translate: 0 -8px; } }
+.lv-polaroid__photo {
+  position: relative;
+  display: block;
+  aspect-ratio: 4 / 5;
+  overflow: hidden;
+  border-radius: 0.25rem;
+  background: linear-gradient(160deg, #5a1a46, #8e2c5f);
+  box-shadow: inset 0 0 0 1px rgba(120, 30, 80, 0.25);
+}
+.lv-polaroid__photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  user-select: none;
+  filter: sepia(1) saturate(0.5) brightness(0.3) blur(12px);
+  transition: filter 2.8s ease 0.5s;
+}
+.lv-polaroid.is-in.is-developed .lv-polaroid__photo img { filter: none; }
+.lv-polaroid__empty { display: grid; place-items: center; height: 100%; font-size: 4rem; }
+.lv-polaroid__caption {
+  display: grid;
+  place-items: center;
+  height: 4.2rem;
+  font-family: var(--lv-hand);
+  font-size: 1.55rem;
+  font-weight: 700;
+  color: #9d2463;
+}
+.lv-polaroid__tape {
+  position: absolute;
+  top: -0.7rem;
+  left: 50%;
+  width: 5.2rem;
+  height: 1.5rem;
+  translate: -50% 0;
+  rotate: -4deg;
+  background: repeating-linear-gradient(45deg, rgba(255, 190, 215, 0.8) 0 6px, rgba(255, 225, 238, 0.8) 6px 12px);
+  box-shadow: 0 2px 6px rgba(60, 0, 30, 0.3);
+}
+@media (hover: hover) { .lv-polaroid:hover .lv-polaroid__frame { animation-play-state: paused; } }
+
+/* ---------------------------------------------------------------------------
+   REASONS — spotlight on hover, a sticky live counter
+--------------------------------------------------------------------------- */
+.lv-reason::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  background: radial-gradient(190px circle at var(--mx, 50%) var(--my, 50%), rgba(255, 170, 215, 0.22), transparent 70%);
+}
+.lv-reason:hover::before { opacity: 1; }
+
+.lv-hud {
+  position: sticky;
+  top: 0.9rem;
+  z-index: 5;
+  display: grid;
+  gap: 0.4rem;
+  justify-items: center;
+  padding: 0.5rem 1.1rem 0.6rem;
+  border-radius: 999px;
+  border: 1px solid var(--lv-glass-line);
+  background: rgba(60, 10, 48, 0.55);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 12px 28px -16px rgba(20, 0, 14, 0.9);
+}
+.lv-hud__text {
+  font-size: clamp(0.66rem, 2vw, 0.78rem);
+  font-weight: 800;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: rgba(255, 224, 240, 0.85);
+  font-variant-numeric: tabular-nums;
+}
+.lv-hud__bar { width: min(56vw, 14rem); height: 3px; border-radius: 999px; background: rgba(255, 255, 255, 0.16); overflow: hidden; }
+.lv-hud__bar span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #fb7185, #e879f9);
+  transition: width 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* ---------------------------------------------------------------------------
+   COUNTER — date, month ring with a riding spark, actions
+--------------------------------------------------------------------------- */
+.lv-datebig { font-size: clamp(1rem, 4.2vw, 1.5rem); font-weight: 700; text-align: center; margin: -0.3rem 0 0.2rem; }
+
+.lv-daysring {
+  position: relative;
+  width: min(78vw, 19rem);
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+}
+.lv-daysring__svg { position: absolute; inset: 0; width: 100%; height: 100%; rotate: -90deg; overflow: visible; }
+.lv-daysring__bg { fill: none; stroke: rgba(255, 255, 255, 0.12); stroke-width: 2.6; }
+.lv-daysring__fg {
+  fill: none;
+  stroke: url(#lv-ring-grad);
+  stroke-width: 3.6;
+  stroke-linecap: round;
+  stroke-dasharray: 1;
+  filter: drop-shadow(0 0 8px rgba(244, 114, 182, 0.85));
+  transition: stroke-dashoffset 1s linear;
+}
+.lv-daysring__orbit { position: absolute; inset: 0; rotate: var(--a, 0deg); transition: rotate 1s linear; pointer-events: none; }
+.lv-daysring__orbit::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 5%;
+  width: 0.85rem;
+  height: 0.85rem;
+  translate: -50% -50%;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 14px 5px rgba(255, 150, 205, 0.9);
+  animation: lv-spark 1.6s ease-in-out infinite;
+}
+@keyframes lv-spark { 50% { scale: 1.35; } }
+.lv-daysring__core { display: grid; gap: 0.35rem; justify-items: center; }
+.lv-daysring__n {
+  font-size: clamp(2.6rem, 13vw, 4.6rem);
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.lv-ringnote {
+  margin-top: -0.4rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: rgba(255, 213, 233, 0.7);
+}
+
+.lv-finale { padding-bottom: 0; }
+/* The column gap is load-bearing: the magnetic buttons each drift up to ~9px
+   toward the pointer, so the gap must stay wider than 2× that or they overlap.
+   Keep this in sync with useMagnetic's maxOffset (hooks.js). */
+.lv-actions { display: flex; flex-wrap: wrap; justify-content: center; column-gap: 1.6rem; row-gap: 0.7rem; }
+.lv-btn--soft {
+  background: rgba(255, 255, 255, 0.12);
+  box-shadow: none;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+.lv-hugnote {
+  min-height: 1.6rem;
+  padding-bottom: 5rem;
+  text-align: center;
+  font-weight: 700;
+  color: rgba(255, 226, 240, 0.9);
+  animation: lv-rise-in 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* ---------------------------------------------------------------------------
+   Reduced motion / low power — same philosophy as love.css
+--------------------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  .lv-aurora, .lv-shoot, .lv-light { display: none; }
+  .lv-polaroid { opacity: 1; translate: none; scale: 1; }
+  .lv-polaroid__photo img { filter: none; }
+  .lv-letter { opacity: 1; }
+}
+html[data-lowpower='true'] .lv-aurora,
+html[data-lowpower='true'] .lv-shoot,
+html[data-lowpower='true'] .lv-light { display: none; }
+html[data-lowpower='true'] .lv-hud { backdrop-filter: none; -webkit-backdrop-filter: none; }
+html[data-lowpower='true'] .lv-polaroid__frame,
+html[data-lowpower='true'] .lv-landing__four > span,
+html[data-lowpower='true'] .lv-env__seal { animation: none; }
