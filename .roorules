@@ -1,5 +1,24 @@
 # Project: EZ Wonders — kids' numeracy game platform
 
+## Game tunables live in a dedicated file (MANDATORY)
+**Every adjustable magic number a game reads MUST live in one or more dedicated
+tuning file(s) — `src/games/<slug>/tuning.js` (or `<slug>Tuning.js` when a game
+already has one, e.g. `roadTuning.js`) — never inline in `GameScene.js` /
+`Game.jsx`.** Scene files are logic only; they import the numbers and read them.
+
+- Put layout, timing, speeds, easings, colours, alphas, sizes, offsets, depths
+  and copy-to-adjust geometry in the tuning file, each with a short `why` comment.
+- Prefer fractions (`Frac`) of the canvas so tuning survives a different base
+  resolution. Group by concern (`TRAIN`, `TRACK`, `CONTROLS`, …) and export a
+  single aggregate `TUNING` object for a future live-tuning panel.
+- The tuning file must be dependency-free (import nothing) so it can hot-reload.
+- Exceptions: values that are *identity*, not tuning — asset texture keys, the
+  `game` slug passed to `logPlaySession`, and event names (`game14-complete`) —
+  stay where they are. Pure round/curriculum logic belongs in its own `rounds.js`
+  / `levels.js`, not the tuning file.
+- If a scene hardcodes a number a developer might reasonably want to change
+  without reading the logic, that is a bug: move it to tuning.
+
 ## Repo map (read first — "monorepo" is misleading)
 
 - Workspace root `d:/Phaser/games` **IS the frontend** (Vite + React). `src/games/`
