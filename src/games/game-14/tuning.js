@@ -27,20 +27,53 @@ export const CLOUDS = [
   { xr: 0.78, yr: 0.1, scale: 0.8, alpha: 0.7 },
 ];
 
-// Background — the full-screen countryside image. Drawn COVER (scaled so it
-// fills the canvas on both axes and centred), so it never stretches out of
-// aspect. When it is missing, the scene falls back to SKY_THEME + CLOUDS.
-export const BACKGROUND = {
-  key: 'background', // must match the IMAGES key in assets.js
-  depth: -10, // behind the track (0) and every cart
-};
+// Background depth — shared by every level's backdrop image.
+export const BACKGROUND_DEPTH = -10; // behind the track (0) and every cart
+
+// ---------------------------------------------------------------------------
+// LEVELS — the 3 levels. Each level swaps the backdrop, the cart colours and
+// the number of numbered carts. Every key must match an IMAGES key in assets.js.
+// ---------------------------------------------------------------------------
+export const LEVELS = [
+  {
+    background: 'background1',
+    cartLid: 'cartLidGreen',
+    cartBody: 'cartBodyGreen',
+    cartBodyEnd: 'cartBodyEndGreen',
+    carts: 5, // numbered CARTS (the locomotive is extra)
+    headTint: null, // no tint — a bright day scene
+    riderTint: null,
+  },
+  {
+    background: 'background2',
+    cartLid: 'cartLidRed',
+    cartBody: 'cartBodyRed',
+    cartBodyEnd: 'cartBodyEndRed',
+    carts: 7,
+    headTint: null,
+    riderTint: null,
+  },
+  {
+    background: 'background3',
+    cartLid: 'cartLidBlue',
+    cartBody: 'cartBodyBlue',
+    cartBodyEnd: 'cartBodyEndBlue',
+    carts: 10,
+    // Night scene: the locomotive and riders are darkened a LITTLE so they read
+    // as outdoors after dark without going muddy. Multiply-tints, so keep them
+    // light — the riders get the lighter of the two.
+    headTint: null,
+    riderTint: null,
+  },
+];
 
 // ---------------------------------------------------------------------------
 // TRAIN CONFIG
 // ---------------------------------------------------------------------------
 export const TRAIN = {
-  // How many rounds a full game runs for. Each round re-rolls the task order.
-  rounds: 3,
+  // How many rounds EACH level runs before the train moves on. Every round
+  // re-rolls the animal/position order on the same level's carts + backdrop.
+  roundsPerLevel: 2,
   // TOTAL sprites in the consist, including the locomotive. headIndex 0 is the
   // head, so the body carts (the numbered ones) run 1..carts-1 = 1..5.
   carts: 6,
@@ -66,6 +99,16 @@ export const TRAIN = {
   // Which slot is the locomotive (the `trainHead` image). 0 = the first/leftmost
   // cart. The head art replaces the lid+body stack for that one slot.
   headIndex: 0,
+  // The locomotive sits SLIGHTLY LARGER and SLIGHTLY HIGHER, and shifted a touch
+  // LEFT so its nose does not overlap the cart behind it.
+  //   headScaleFrac  — extra scale, relative to the carts (1 = same size).
+  //   headYOffsetFrac — vertical nudge as a fraction of the cart height
+  //                     (negative = up).
+  //   headXOffsetFrac — horizontal nudge as a fraction of the cart width
+  //                     (negative = left).
+  headScaleFrac: 1.12,
+  headYOffsetFrac: -0.12,
+  headXOffsetFrac: -0.10,
   // How many carts should be visible across the screen at once. The cart scale
   // is derived from this so it stays correct at any resolution.
   visibleCarts: 3,
@@ -77,14 +120,14 @@ export const TRAIN = {
   startFrac: 0.62,
   // Fraction of the visible cart width the train covers per second at rest, and
   // the top speed in internal px/s while a control is held.
-  speed: 320,
+  speed: 610,
   // Easing rates (per second) for the velocity — this is what makes the train
   // roll away from a standstill and coast to a stop instead of snapping between
   // 0 and full speed. Higher = snappier, lower = more glide.
-  accel: 2.5,
-  brake: 2.0,
+  accel: 1.8,
+  brake: 3.5,
   // Speeds below this (px/s) settle to exactly 0, so a stopped train is still.
-  settleSpeed: 4,
+  settleSpeed: 10,
   // Largest simulation step (ms). A backgrounded tab hands a huge delta on
   // return; clamping keeps that from becoming one giant jump on the first frame.
   maxDeltaMs: 50,
@@ -92,6 +135,10 @@ export const TRAIN = {
   // Optional nudge (px) to close any transparent padding between the lid's
   // bottom edge and the body's top edge. 0 is a true butt joint.
   lidOverlap: 0,
+
+  // Gap between adjacent carts, as a fraction of the cart width (0 = butted
+  // together, 0.06 = a 6%-of-cart-width gap between each pair).
+  cartGapFrac: -0.03,
 
   // The ENDING cart is always the LAST cart in the consist (index carts-1),
   // whatever the cart count or order. It uses the `cartBodyEnd` image for its
@@ -152,7 +199,8 @@ export const TRAIN = {
   // animal onto the matching cart. When grabbed the animal grows to its
   // on-cart size; a drop anywhere other than the correct cart sends it back.
   task: {
-    // Position words, indexed by cart number - 1 (cart 1 = "first").
+    // Position words, indexed by cart number - 1 (cart 1 = "first"). Spelled in
+    // full, up to the largest level's cart count.
     ordinals: [
       'first',
       'second',
@@ -162,26 +210,32 @@ export const TRAIN = {
       'sixth',
       'seventh',
       'eighth',
+      'ninth',
+      'tenth',
     ],
-    cardYFrac: 0.86, // card centre, as a fraction of the canvas height
+    cardYFrac: 0.76, // card centre, as a fraction of the canvas height
+    // The card is an IMAGE (key in assets.js). Adjust its size in one place here;
+    // the label + animal are positioned on top of it.
+    cardImage: 'cardFrame',
+    cardScale: 0.64,
+    depth: 15,
+    // (Approximate) card size, for positioning the label/animal as fractions.
     cardW: 250,
     cardH: 250,
-    radius: 26,
-    fill: 0xffffff,
-    fillAlpha: 0.96,
-    border: 0x6366f1,
-    borderWidth: 6,
-    shadowOffset: 6,
-    shadowAlpha: 0.18,
-    depth: 15,
-    // Label (the spelled position) sits in the upper part of the card; the
-    // animal in the lower part. Both are fractions of the card height from its
-    // centre (negative = up).
-    labelYFrac: -0.4,
-    labelFontSize: 42,
-    labelColor: '#4338ca',
-    animalYFrac: 0.06,
+
+    // LABEL — the spelled position, drawn ON TOP of the card. yFrac is a fraction
+    // of the card height from its centre (negative = up). Bold green outline.
+    labelYFrac: -0.495,
+    labelFontSize: 44,
+    labelFontFamily: 'Fredoka, sans-serif',
+    labelColor: '#ffffff',
+    labelStroke: '#22c55e',
+    labelStrokeWidth: 8,
+
+    // The draggable animal, also on the card (below the label).
+    animalYFrac: 0.18,
     animalSize: 200, // the card animal is scaled to fit this square
+
     // Grabbing the card animal grows it to its cart size in this long.
     grabGrowMs: 150,
     grabEase: 'Back.easeOut',
@@ -216,10 +270,22 @@ export const TRAIN = {
   placement: {
     // Extra settle time after a correct check before the train rolls out.
     leaveDelayMs: 260,
-    leaveDurationMs: 1300,
-    leaveEase: 'Cubic.easeIn',
-    // Beat between rounds while the train is off screen.
+    // The OUTRO (train leaving off the left) is deliberately slow and gentle so
+    // the departure lingers rather than snapping away.
+    leaveDurationMs: 2400,
+    leaveEase: 'Sine.easeInOut',
+    // Beat between rounds while the train is off screen (same level).
     betweenRoundsMs: 420,
+  },
+
+  // TRANSITION — how the backdrop swaps when a new level begins (in addition to
+  // the train rolling out left / in from right, which is in `intro`/`placement`).
+  transition: {
+    // The old backdrop slides left to this many px off-screen (and the new one
+    // enters from +this), so the two cross the canvas like passing scenery.
+    slideX: 720,
+    durationMs: 900,
+    ease: 'Cubic.easeInOut',
   },
 
   // Idle bob: each cart rises/falls by `bobAmplitude` px on a `bobPeriodMs`
@@ -300,6 +366,9 @@ export const TRAIN_SOUND = {
 // it, it just reads as the rail the train runs along.
 // ---------------------------------------------------------------------------
 export const TRACK = {
+  // The line is a REFERENCE for where the carts ride — hidden from players by
+  // default. The carts still follow its curve/height either way.
+  show: false,
   yFrac: 0.42,
   thickness: 8,
   color: 0x6b7280,
@@ -321,22 +390,76 @@ export const TRACK = {
 };
 
 // ---------------------------------------------------------------------------
-// CONTROLS — the two hold-to-drive buttons (top-left ◀, top-right ▶) and the
-// shared mute button.
+// CONTROLS — the two hold-to-drive targets flank the task card at the BOTTOM.
+// The whole area to the left / right of the card is tappable (a forgiving, no-
+// accuracy-needed hit zone); a visible arrow button sits at each zone's centre.
 // ---------------------------------------------------------------------------
 export const CONTROLS = {
-  y: 150,
-  // Distance of each drive button's centre from its screen edge.
-  edgeInset: 110,
-  fontSize: '52px',
-  minWidth: 150,
-  minHeight: 110,
-  glyphLeft: '\u25C0',
-  glyphRight: '\u25B6',
+  // Each zone spans this fraction of the canvas WIDTH from its own edge. Keep
+  // it clear of the card in the middle (0.30 leaves the centre ~40% for the card).
+  sideFrac: 0.3,
+  // Vertical centre of the zones — the task-card band.
+  yFrac: 0.86,
+  // Zone height as a fraction of the canvas height.
+  zoneHeightFrac: 0.22,
+  // Zones sit BELOW the card (depth 15) so the card + animal still receive their
+  // own taps; the zones only catch taps in the open area beside the card.
+  depth: 5,
+
+  // The visible arrow buttons — a single image (see assets.js `arrowButton`),
+  // flipped horizontally for the left one. Drawn by GameScene.makeDriveButton().
+  buttonImage: 'arrowButton',
+  buttonScale: 0.5, // scale of the arrow image
+  pressScale: 0.9, // scale while held
+  // Lightening: an ADD-blend copy of the art faded over it (a tint can only
+  // darken, so brightening needs an additive layer). Higher = lighter.
+  buttonLighten: 0.3, // at rest
+  buttonLightenPressed: 0.6, // while held — even lighter
+  lightenMs: 90, // fade time for the lighten change
+
   // Shared mute button (top-left corner by default).
   muteX: 16,
   muteY: 16,
   muteDepth: 1000,
+};
+
+// ---------------------------------------------------------------------------
+// NUMBER LINE — a row of 1..N numbers across the TOP (where the old buttons
+// were), each in a small disc.
+// ---------------------------------------------------------------------------
+export const NUMBER_LINE = {
+  count: 10,
+  // The whole row is centred on the canvas by default: numbers sit on evenly
+  // spaced cells between `sidePadFrac` and (1 - sidePadFrac) of the width, so
+  // the group is symmetric about the centre.
+  yFrac: 0.12,
+  // Horizontal shift of the WHOLE row, as a fraction of the canvas width
+  // (negative = left, 0 = centred). Moves numbers, band and dividers together.
+  xFrac: -0.01,
+  sidePadFrac: 0.055, // inset of the FIRST/LAST number from the screen edge
+
+  // The numbers — as large as fits.
+  fontSizePx: 62,
+  fontFamily: 'Fredoka, sans-serif',
+  color: '#ffffff',
+  stroke: '#1f2937',
+  strokeWidth: 6,
+
+  // The semi-transparent band. Its height is derived from the font size so it
+  // ALWAYS fully covers the numbers. Its width auto-fits: the band edge sits
+  // exactly HALF A STEP from the outer numbers, so the number↔divider and
+  // number↔edge gaps are all equal.
+  bandColor: 0xffffff,
+  bandAlpha: 0.3,
+  bandRadius: 22,
+  bandHeightMult: 1.7, // band height = fontSizePx * this
+
+  // Dividers between the numbers.
+  dividerColor: 0x1f2937,
+  dividerAlpha: 0.32,
+  dividerWidth: 3,
+  dividerHeightFrac: 0.045,
+  depth: 8,
 };
 
 // CONFETTI — a short burst of coloured pieces when a round is confirmed
@@ -357,12 +480,13 @@ export const CONFETTI = {
 // A single aggregate, handy for a future live-tuning panel or for printing the
 // whole config at once.
 export const TUNING = {
+  LEVELS,
   TRAIN,
   TRACK,
   CONTROLS,
+  NUMBER_LINE,
   TRAIN_SOUND,
   CONFETTI,
   SKY_THEME,
   CLOUDS,
-  BACKGROUND,
 };

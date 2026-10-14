@@ -14,17 +14,55 @@ export const cld = (url) => url.replace('/image/upload/', '/image/upload/f_auto,
 export const IMAGES = {
   // A single train cart. The scene lays five of these back to back to build the
   // train (see GameScene.js) and scales them so three fill the screen width.
-  cartLid: cld('https://res.cloudinary.com/hijmipga/image/upload/v1791804824/cartLid_bwlvj0.png'),
-  cartBody: cld('https://res.cloudinary.com/hijmipga/image/upload/v1791804824/cartBody_wkunvi.png'),
+  cartLidRed: cld('https://res.cloudinary.com/hijmipga/image/upload/v1791804824/cartLid_bwlvj0.png'),
+  cartBodyRed: cld('https://res.cloudinary.com/hijmipga/image/upload/v1791804824/cartBody_wkunvi.png'),
   // The ENDING cart's body — always the LAST cart in the consist. It uses the
   // same lid and the same rider mechanism; only this body image differs.
-  cartBodyEnd: cld('https://res.cloudinary.com/hijmipga/image/upload/v1791889829/cartBodyEnd_kvpvhx.png'),
+  cartBodyEndRed: cld('https://res.cloudinary.com/hijmipga/image/upload/v1791889829/cartBodyEnd_kvpvhx.png'),
+
+
+
+  cartLidBlue: cld('https://res.cloudinary.com/hijmipga/image/upload/v1791984744/cartLid-Blue_nlsgsw.png'),
+  cartBodyBlue: cld('https://res.cloudinary.com/hijmipga/image/upload/v1791984744/cartBody-Blue_xodhbz.png'),
+  // The ENDING cart's body — always the LAST cart in the consist. It uses the
+  // same lid and the same rider mechanism; only this body image differs.
+  cartBodyEndBlue: cld('https://res.cloudinary.com/hijmipga/image/upload/v1791984744/cartBodyEnd-Blue_kcydcc.png'),
+
+
+
+  cartLidGreen: cld('https://res.cloudinary.com/hijmipga/image/upload/v1791984744/cartLid-Green_bxm0hh.png'),
+  cartBodyGreen: cld('https://res.cloudinary.com/hijmipga/image/upload/v1791984743/cartBody-Green_lto98j.png'),
+  // The ENDING cart's body — always the LAST cart in the consist. It uses the
+  // same lid and the same rider mechanism; only this body image differs.
+  cartBodyEndGreen: cld('https://res.cloudinary.com/hijmipga/image/upload/v1791984743/cartBodyEnd-Green_k2xkfd.png'),
+
+
+
+
+
+
+
+
+
   trainHead: cld('https://res.cloudinary.com/hijmipga/image/upload/v1791809704/trainHead_ystorb.png'),
 
   // Full-screen countryside backdrop, drawn cover-scaled behind everything.
-  background: cld(
+  background1: cld(
     'https://res.cloudinary.com/hijmipga/image/upload/v1791901907/Sunny_Storybook_Countryside_Railway_1_ansuhg.png'
   ),
+  background2: cld(
+    'https://res.cloudinary.com/hijmipga/image/upload/v1791983508/Whimsical_Autumn_Railway_Station_ak41ga.png'
+  ),
+  background3: cld(
+    'https://res.cloudinary.com/hijmipga/image/upload/v1791983508/Moonlit_Village_by_the_Tracks_1_yvbsso.png'
+  ),
+
+  // The task card frame at the bottom (the animal + spelled position sit on it).
+  cardFrame: cld('https://res.cloudinary.com/hijmipga/image/upload/v1791988459/Card-Frame_1_k9kzkg.png'),
+
+  // The drive arrow button. This art points RIGHT; the left button is the same
+  // image flipped horizontally (see GameScene.makeDriveButton).
+  arrowButton: cld('https://res.cloudinary.com/hijmipga/image/upload/v1791991315/right-arrow-button_1_zeukod.png'),
 
   // Riders — the animals the player drags onto each cart.
   riderTurtle: cld('https://res.cloudinary.com/hijmipga/image/upload/v1791816238/Rider-Turtle_rpkqmc.png'),
@@ -32,6 +70,11 @@ export const IMAGES = {
   riderBunny: cld('https://res.cloudinary.com/hijmipga/image/upload/v1791816237/Rider-Bunny_hxvowt.png'),
   riderPenguin: cld('https://res.cloudinary.com/hijmipga/image/upload/v1791816237/Rider-Penguin_epi7zg.png'),
   riderDog: cld('https://res.cloudinary.com/hijmipga/image/upload/v1791816237/Rider-Dog_qnj8lq.png'),
+  riderElephant: cld('https://res.cloudinary.com/hijmipga/image/upload/v1791984263/Rider-Elephant_o14t3u.png'),
+  riderFox: cld('https://res.cloudinary.com/hijmipga/image/upload/v1791984263/Rider-Fox_t6qtkd.png'),
+  riderFrog: cld('https://res.cloudinary.com/hijmipga/image/upload/v1791984263/Rider-Frog_txkf0e.png'),
+  riderGiraffe: cld('https://res.cloudinary.com/hijmipga/image/upload/v1791984263/Rider-Girrafe_gboxvq.png'),
+  riderPanda: cld('https://res.cloudinary.com/hijmipga/image/upload/v1791984263/Rider-Panda_ssmziw.png'),
 };
 
 // The rider pool, in the order they appear in the tray. Texture keys must match
@@ -42,6 +85,11 @@ export const RIDER_KEYS = [
   'riderBunny',
   'riderPenguin',
   'riderDog',
+  'riderElephant',
+  'riderFox',
+  'riderFrog',
+  'riderGiraffe',
+  'riderPanda',
 ];
 
 export const AUDIO = {

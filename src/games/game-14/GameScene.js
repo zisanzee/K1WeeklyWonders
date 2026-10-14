@@ -1,24 +1,26 @@
 // GameScene.js
-// Game 14 — the train + controls + rider task, across 3 rounds.
+// Game 14 — the train + controls + rider task, across 3 LEVELS.
 //
 // What this scene does:
-//   • A horizontal reference line across the middle (visual only — the "track").
+//   • A horizontal reference line across the middle (the "track").
 //   • A train of cars laid back-to-back, scaled so three fill the screen width,
 //     sitting on the line. A single-image HEAD is the locomotive; the body cars
-//     are numbered 1..N and the LAST one uses the `cartBodyEnd` art.
-//   • INTRO: the train starts fully off-screen to the right and rolls in until
-//     the head + first cart straddle the screen centre; only then do the control
-//     buttons and the task card appear.
+//     are numbered 1..N and the LAST one uses the level's `cartBodyEnd` art.
+//   • LEVELS (see LEVELS in tuning.js): each swaps the backdrop, the cart
+//     colours and the number of carts — level 1 = 5 green carts (day), level 2 =
+//     7 red carts (autumn), level 3 = 10 blue carts (night, with a dark tint on
+//     the riders + locomotive).
+//   • INTRO: on each level the train starts fully off-screen to the right and
+//     rolls in until the head + first cart straddle the centre; only then do the
+//     control buttons and the task card appear.
 //   • Two hold-to-drive buttons slide the whole train along the track — but only
 //     as far as being fully off each edge (see TRAIN.pan), never further.
 //   • TASK: ONE card at the bottom shows an animal and the position it belongs
 //     in, spelled as a word ("second"). Deal order is randomised but every
-//     animal and every position is used exactly once. Animals may be dropped on
-//     ANY cart (right or wrong); when every animal is placed, an "All aboard!"
-//     button appears between the arrows.
-//   • CHECK: tapping "All aboard!" verifies the placements. If correct the train
-//     leaves off-screen to the left and the next of the 3 rounds begins; if
-//     wrong the board flashes red, plays the wrong sound, and a wrong is counted.
+//     animal and every position is used exactly once. An animal dropped on the
+//     WRONG cart registers a wrong and returns to the card; dropped on the right
+//     cart it stays. When the last one lands the train celebrates (confetti) and
+//     rolls out to the next level — no confirm button.
 //
 // EVERY adjustable number lives in `tuning.js`, not here. This file is logic only.
 //
@@ -30,10 +32,12 @@ import { ensureBgMusic, addMuteButton } from '@/phaser/common/audioState';
 import {
   SKY_THEME,
   CLOUDS,
-  BACKGROUND,
+  BACKGROUND_DEPTH,
+  LEVELS,
   TRAIN,
   TRACK,
   CONTROLS,
+  NUMBER_LINE,
   TRAIN_SOUND,
   CONFETTI,
 } from '@/games/game-14/tuning';
@@ -101,18 +105,19 @@ export default class GameScene extends BaseScene {
     this.smokeEmitter = null; // pooled chimney-smoke emitter
     this.smokeAccum = 0; // ms accumulator for the smoke cadence
     this.trainSound = null; // looping train-running Sound (rate/volume track speed)
+    this.bgImage = null; // the current level's backdrop image
 
     // Intro / reveal state.
     this.introDone = false;
     this.controlsShown = false;
     this.locked = false; // true during a transition (blocks drags + driving)
 
-    // Game / round state.
-    this.round = 1;
+    // Level / game state.
+    this.levelIndex = 0;
+    this.roundInLevel = 1; // 1..TRAIN.roundsPerLevel (re-rolls on the same level)
     this.finished = false; // guards against emitting the completion twice
     this.mistakes = 0;
     this.stars = 0; // star rating for the finished run (end screen)
-    this.streak = 0;
     this.peakStreak = 0;
     this.startTime = 0;
 
@@ -122,34 +127,30 @@ export default class GameScene extends BaseScene {
     this.cardLabel = null; // the spelled-position Text on the card
     this.taskKey = null; // the rider texture key shown for the current task
     this.taskNumber = null; // the cart number the current task targets
-    this.riders = []; // every on-cart rider sprite (for round cleanup)
-    this.tasks = new Map(); // riderKey -> cart number (the dealt task set)
-    this.allAboardBtn = null;
 
-    // Task queues. Built (shuffled) when the first task of a round is dealt, so
+    // Task queues. Built (shuffled) when the first task of a level is dealt, so
     // the ORDER is random but an animal can never be dealt twice.
     this.queuesReady = false;
     this.riderQueue = [];
     this.numberQueue = [];
+    this.drag = null;
+  }
+
+  get level() {
+    return LEVELS[this.levelIndex];
   }
 
   create() {
     this.resetRun();
     this.startTime = this.time.now;
 
-    // Full-screen countryside backdrop. When it is missing, fall back to the
-    // shared sky gradient + drifting clouds so the scene is never a bare canvas.
-    if (this.textures.exists(BACKGROUND.key)) {
-      this.addBackgroundCover();
-    } else {
-      this.addSkyBackground(SKY_THEME, 'g14-sky');
-      this.addDriftingClouds(CLOUDS);
-    }
+    // The level's backdrop (level 1 on load). Missing art falls back to the
+    // shared sky gradient + drifting clouds so the canvas is never bare.
+    this.buildBackground();
 
     // Shared bg music + first-tap unlock, plus the shared mute button. Mute is a
     // property of the player (one localStorage key) — never per-game.
     this.bgMusic = ensureBgMusic(this);
-    // Retry once on the first tap in case the browser blocked autoplay.
     this.input.once('pointerdown', () => ensureBgMusic(this));
     addMuteButton(this, CONTROLS.muteX, CONTROLS.muteY, {
       anchor: 'topLeft',
@@ -157,10 +158,9 @@ export default class GameScene extends BaseScene {
     });
 
     this.buildTrack();
-    this.buildTrain();
+    this.buildTrain(); // creates the head + carts + smoke emitter + first layout
     this.buildControls();
     this.buildTaskCard();
-    this.buildAllAboard();
     this.buildTrainSound();
 
     // Drag handling is manual (not Phaser's built-in draggable) because riders get
@@ -173,8 +173,6 @@ export default class GameScene extends BaseScene {
     });
     this.events.once('shutdown', () => {
       this.stopDrive();
-      // The SoundManager is per-Game, so a looping train bed would outlive this
-      // scene unless it is stopped here.
       this.trainSound?.stop();
     });
 
@@ -244,7 +242,7 @@ export default class GameScene extends BaseScene {
   }
 
   // ---------------------------------------------------------------------------
-  // Intro / round entry — fly the train in from off-screen right
+  // Intro / level entry — fly the train in from off-screen right
   // ---------------------------------------------------------------------------
 
   startIntro() {
@@ -254,10 +252,9 @@ export default class GameScene extends BaseScene {
     this.trainX = upper + intro.offscreenPad;
     this.layoutCarts();
 
-    // Controls + card + all-aboard exist but are hidden until the train arrives.
+    // Controls + card exist but are hidden until the train arrives.
     this.setControlsVisible(false);
     this.setTaskVisible(false);
-    this.setAllAboardVisible(false);
 
     this.flyIn(intro.durationMs, intro.ease, () => {
       this.introDone = true;
@@ -322,14 +319,20 @@ export default class GameScene extends BaseScene {
 
   setControlsVisible(visible) {
     [this.leftBtn, this.rightBtn].forEach((btn) => btn?.container?.setVisible(visible));
+    [this.leftZone, this.rightZone].forEach((z) => z?.setVisible(visible));
+    (this.numberLineParts || []).forEach((o) => o.setVisible(visible));
+    if (visible) {
+      // Zone input only while the controls are shown (they start hidden).
+      this.leftZone?.setInteractive({ useHandCursor: true });
+      this.rightZone?.setInteractive({ useHandCursor: true });
+    } else {
+      this.leftZone?.disableInteractive();
+      this.rightZone?.disableInteractive();
+    }
   }
 
   setTaskVisible(visible) {
     this.taskParts.forEach((o) => o.setVisible(visible));
-  }
-
-  setAllAboardVisible(visible) {
-    this.allAboardBtn?.container?.setVisible(visible);
   }
 
   // Position each cart on the curved track: its own x, its own y from the line,
@@ -370,7 +373,6 @@ export default class GameScene extends BaseScene {
   }
 
   // Glide the rate and volume toward targets derived from the current speed.
-  // `speedFrac` is |velocity| / top speed, so full speed = 1 and a stop = 0.
   // `speed` is the train's actual px/s this frame — from the player's driving OR
   // an intro/outro tween, so the engine is heard whenever the train is moving.
   updateTrainSound(dt, speed) {
@@ -440,13 +442,58 @@ export default class GameScene extends BaseScene {
     return TRACK.curveAmplitude * k * Math.cos(k * x + TRACK.curvePhase);
   }
 
-  // Draw the background image COVER-scaled: scaled so it fills the canvas on
-  // both axes (never stretched), centred, and behind everything else.
-  addBackgroundCover() {
+  // ---------------------------------------------------------------------------
+  // Background — the current level's full-screen image, COVER-scaled
+  // ---------------------------------------------------------------------------
+
+  buildBackground() {
     const { width, height } = this.scale;
-    const img = this.add.image(width / 2, height / 2, BACKGROUND.key).setDepth(BACKGROUND.depth);
-    img.setScale(Math.max(width / img.width, height / img.height));
-    return img;
+    const key = this.level.background;
+    if (this.textures.exists(key)) {
+      this.bgImage = this.add.image(width / 2, height / 2, key).setDepth(BACKGROUND_DEPTH);
+      this.bgImage.setScale(Math.max(width / this.bgImage.width, height / this.bgImage.height));
+    } else {
+      // No art: the shared sky gradient + clouds for this and every later level.
+      this.addSkyBackground(SKY_THEME, 'g14-sky');
+      this.addDriftingClouds(CLOUDS);
+    }
+  }
+
+  // Slide the backdrop out and the new level's backdrop in, so the level change
+  // reads as scenery passing rather than an instant cut.
+  swapBackgroundAnimated(onDone) {
+    const key = this.level.background;
+    if (!this.bgImage || !this.textures.exists(key)) {
+      onDone();
+      return;
+    }
+    const { width, height } = this.scale;
+    const cfg = TRAIN.transition;
+
+    // Park the incoming backdrop just off the right edge at cover scale. It is
+    // created CENTRED vertically (only x is animated), or it would sit with its
+    // centre on the top edge and show only half the scene.
+    const incoming = this.add.image(width / 2 + cfg.slideX, height / 2, key).setDepth(BACKGROUND_DEPTH);
+    incoming.setScale(Math.max(width / incoming.width, height / incoming.height));
+
+    // The current backdrop slides off to the left.
+    const outgoing = this.bgImage;
+    this.tweens.add({
+      targets: outgoing,
+      x: width / 2 - cfg.slideX,
+      duration: cfg.durationMs,
+      ease: cfg.ease,
+      onComplete: () => outgoing.destroy(),
+    });
+    // The new one slides in from the right to centre.
+    this.tweens.add({
+      targets: incoming,
+      x: width / 2,
+      duration: cfg.durationMs,
+      ease: cfg.ease,
+      onComplete: onDone,
+    });
+    this.bgImage = incoming;
   }
 
   // ---------------------------------------------------------------------------
@@ -455,8 +502,12 @@ export default class GameScene extends BaseScene {
 
   buildTrack() {
     const { width } = this.scale;
-    // Base (unbent) y — the mid-height centre line.
+    // Base (unbent) y — the mid-height centre line. Always computed, because the
+    // carts ride it, whether or not the line is drawn.
     this.trackY = this.scale.height * TRACK.yFrac;
+
+    // Reference only — hidden from players (see TRACK.show).
+    if (!TRACK.show) return;
 
     const gfx = this.add.graphics().setDepth(0);
     gfx.lineStyle(TRACK.thickness, TRACK.color, TRACK.lineAlpha);
@@ -486,13 +537,16 @@ export default class GameScene extends BaseScene {
   }
 
   // ---------------------------------------------------------------------------
-  // Train — the cars + head, laid along the track
+  // Train — the cars + head, laid along the track (per-level art + count)
   // ---------------------------------------------------------------------------
 
   buildTrain() {
     const { width } = this.scale;
-    const hasArt = this.textures.exists('cartLid') && this.textures.exists('cartBody');
+    const level = this.level;
+    const total = level.carts + 1; // numbered cars + the locomotive
+    const hasArt = this.textures.exists(level.cartLid) && this.textures.exists(level.cartBody);
     const hasHead = this.textures.exists('trainHead');
+    const headTint = level.headTint || null;
 
     // Target one cart's on-screen width so `visibleCarts` of them span the
     // screen. The body defines the cart's width; a probe gives its source size
@@ -505,13 +559,13 @@ export default class GameScene extends BaseScene {
     let lidH = 0;
     let bodyH = 0;
     if (hasArt) {
-      const probe = this.add.image(0, 0, 'cartBody').setVisible(false);
+      const probe = this.add.image(0, 0, level.cartBody).setVisible(false);
       scale = targetW / probe.width;
       cartW = probe.width * scale;
       bodyH = probe.height * scale;
       // The lid is scaled by the SAME factor so it aligns with the body even if
       // the two source images are different pixel sizes.
-      const lidSrc = this.textures.get('cartLid').getSourceImage();
+      const lidSrc = this.textures.get(level.cartLid).getSourceImage();
       lidH = lidSrc.height * scale;
       cartH = bodyH + lidH; // the stacked cart's total height
       probe.destroy();
@@ -520,14 +574,14 @@ export default class GameScene extends BaseScene {
     this.cartW = cartW;
     this.cartH = cartH;
 
-    // Carts butt directly against each other — no gap between adjacent carts.
-    const step = cartW; // spacing between adjacent cart CENTRES
-    const span = step * (TRAIN.carts - 1);
+    // Spacing between adjacent cart CENTRES = the cart width plus an optional
+    // gap (see TRAIN.cartGapFrac; 0 = butted together).
+    const step = cartW * (1 + TRAIN.cartGapFrac);
+    const span = step * (total - 1);
     const startOffset = -span / 2; // local offsets centred on the container origin
 
-    // The ENDING cart index — normally the LAST cart, whatever the count/order.
-    const endIndex = TRAIN.endCartIndex < 0 ? TRAIN.carts - 1 : TRAIN.endCartIndex;
-    const hasEndArt = this.textures.exists('cartBodyEnd');
+    // The ENDING cart is always the LAST sprite in the consist.
+    const endIndex = TRAIN.endCartIndex < 0 ? total - 1 : TRAIN.endCartIndex;
 
     // The body cars carry the number 1..N along the consist; the locomotive
     // (which has no body) is skipped so the count runs across the body cars.
@@ -536,7 +590,7 @@ export default class GameScene extends BaseScene {
     // Draw order inside a cart (back to front): LID, then the RIDER (added later
     // via addAt(1)), then BODY, then the NUMBER — so a rider sits behind the body
     // but in front of the lid, and the number sits on top of the body.
-    for (let i = 0; i < TRAIN.carts; i += 1) {
+    for (let i = 0; i < total; i += 1) {
       const isHead = hasHead && i === TRAIN.headIndex;
       // The head's whole container sits at a HIGHER depth, so it reads as being
       // in front of the carts rather than tucked behind its neighbour.
@@ -547,11 +601,14 @@ export default class GameScene extends BaseScene {
       cart.number = null; // the cart's 1..N number (body cars only)
 
       if (isHead) {
-        // The locomotive. Its own single image (no lid/body split), but scaled by
-        // the SAME factor as the carts and centred on the cart origin — exactly
-        // like the lid+body stack — so it lines up with the consist instead of
-        // sitting proud of it.
-        const head = this.add.image(0, 0, 'trainHead').setOrigin(0.5).setScale(scale);
+        // The locomotive. Slightly larger and slightly higher than the carts
+        // (see TRAIN.headScaleFrac / headYOffsetFrac). Tinted on the night level
+        // so it reads as being outdoors after dark, alongside the riders.
+        const head = this.add
+          .image(TRAIN.headXOffsetFrac * cartW, TRAIN.headYOffsetFrac * cartH, 'trainHead')
+          .setOrigin(0.5)
+          .setScale(scale * TRAIN.headScaleFrac);
+        if (headTint) head.setTint(headTint);
         cart.add(head);
         cart.cartBody = head;
         this.headCart = cart;
@@ -559,16 +616,16 @@ export default class GameScene extends BaseScene {
       } else if (hasArt) {
         numberSeq += 1;
         cart.number = numberSeq;
-        const isEnd = i === endIndex && hasEndArt;
+        const isEnd = i === endIndex;
         // Body sits at the bottom of the stack; its centre is half a cart-height
         // (body + lid) below the cart's own centre.
         const bodyY = cartH / 2 - bodyH / 2;
         // Lid sits directly on top of the body: its bottom edge meets the body's
         // top edge, so its centre is half a lid-height above that seam.
         const lidY = -cartH / 2 + lidH / 2 - TRAIN.lidOverlap;
-        const lid = this.add.image(0, lidY, 'cartLid').setOrigin(0.5).setScale(scale);
+        const lid = this.add.image(0, lidY, level.cartLid).setOrigin(0.5).setScale(scale);
         const body = this.add
-          .image(0, bodyY, isEnd ? 'cartBodyEnd' : 'cartBody')
+          .image(0, bodyY, isEnd ? level.cartBodyEnd : level.cartBody)
           .setOrigin(0.5)
           .setScale(scale);
         // Lid FIRST, then body → body draws in front. A rider dropped here is
@@ -608,34 +665,172 @@ export default class GameScene extends BaseScene {
     this.buildSmokeEmitter();
   }
 
+  // Destroy the current consist (used between levels, which change the cart
+  // count and art).
+  teardownTrain() {
+    this.smokeEmitter?.destroy();
+    this.smokeEmitter = null;
+    for (const cart of this.carts) cart.destroy();
+    this.carts = [];
+    this.headCart = null;
+    this.headSprite = null;
+  }
+
   // ---------------------------------------------------------------------------
-  // Controls — hold-to-drive buttons, top-left (left) and top-right (right)
+  // Controls — the two hold-to-drive targets flank the card at the BOTTOM. Each
+  // is a big, forgiving hit zone (the whole area beside the card) with an arrow
+  // button at its centre. A 1..10 number line sits across the top.
   // ---------------------------------------------------------------------------
 
   buildControls() {
-    const { width } = this.scale;
+    const { width, height } = this.scale;
+    const y = height * CONTROLS.yFrac;
+    const zoneW = width * CONTROLS.sideFrac;
+    const zoneH = height * CONTROLS.zoneHeightFrac;
 
-    this.leftBtn = this.createPillButton(CONTROLS.edgeInset, CONTROLS.y, CONTROLS.glyphLeft, {
-      fontSize: CONTROLS.fontSize,
-      minWidth: CONTROLS.minWidth,
-      minHeight: CONTROLS.minHeight,
+    // Left/right zones. They sit BELOW the card in depth, so the card + animal
+    // still get their own taps; only the open area beside the card moves the
+    // train. A tap anywhere in the zone works — no accuracy needed.
+    this.leftZone = this.add
+      .zone(zoneW / 2, y, zoneW, zoneH)
+      .setDepth(CONTROLS.depth)
+      .setInteractive({ useHandCursor: true });
+    this.leftZone.on('pointerdown', () => {
+      this.startDrive(-1);
+      this.leftBtn.container.press?.(true);
     });
-    this.bindHold(this.leftBtn, -1);
+    this.leftZone.on('pointerup', () => {
+      this.stopDrive();
+      this.leftBtn.container.press?.(false);
+    });
 
-    this.rightBtn = this.createPillButton(
-      width - CONTROLS.edgeInset,
-      CONTROLS.y,
-      CONTROLS.glyphRight,
-      {
-        fontSize: CONTROLS.fontSize,
-        minWidth: CONTROLS.minWidth,
-        minHeight: CONTROLS.minHeight,
-      }
-    );
-    this.bindHold(this.rightBtn, +1);
+    this.rightZone = this.add
+      .zone(width - zoneW / 2, y, zoneW, zoneH)
+      .setDepth(CONTROLS.depth)
+      .setInteractive({ useHandCursor: true });
+    this.rightZone.on('pointerdown', () => {
+      this.startDrive(+1);
+      this.rightBtn.container.press?.(true);
+    });
+    this.rightZone.on('pointerup', () => {
+      this.stopDrive();
+      this.rightBtn.container.press?.(false);
+    });
+
+    // Visible arrow buttons at each zone's centre — glossy gradient discs,
+    // purely visual (taps fall through to the zones underneath).
+    this.leftBtn = this.makeDriveButton(zoneW / 2, y, -1);
+    this.rightBtn = this.makeDriveButton(width - zoneW / 2, y, +1);
+
+    this.buildNumberLine();
 
     // Hidden until the intro finishes.
     this.setControlsVisible(false);
+  }
+
+  // The drive arrow button — a single image (see CONTROLS.buttonImage),
+  // flipped horizontally for the LEFT button. Returns { container } so
+  // setControlsVisible() can toggle it like a pill.
+  makeDriveButton(cx, cy, dir) {
+    const cfg = CONTROLS;
+    const container = this.add.container(cx, cy).setDepth(cfg.depth + 1);
+
+    let lighten = null;
+    if (this.textures.exists(cfg.buttonImage)) {
+      const img = this.add.image(0, 0, cfg.buttonImage).setOrigin(0.5).setScale(cfg.buttonScale);
+      // An ADD-blend copy faded over the art brightens it.
+      lighten = this.add
+        .image(0, 0, cfg.buttonImage)
+        .setOrigin(0.5)
+        .setScale(cfg.buttonScale)
+        .setBlendMode(Phaser.BlendModes.ADD)
+        .setAlpha(cfg.buttonLighten);
+      // The art points RIGHT; mirror both layers for the left button.
+      if (dir < 0) {
+        img.setFlipX(true);
+        lighten.setFlipX(true);
+      }
+      container.add([img, lighten]);
+    }
+
+    // Visual press feedback (the zone underneath owns the actual input): the
+    // button shrinks a little AND brightens.
+    container.press = (down) => {
+      this.tweens.killTweensOf(container);
+      this.tweens.add({
+        targets: container,
+        scale: down ? cfg.pressScale : 1,
+        duration: 90,
+        ease: 'Sine.easeOut',
+      });
+      if (lighten) {
+        this.tweens.killTweensOf(lighten);
+        this.tweens.add({
+          targets: lighten,
+          alpha: down ? cfg.buttonLightenPressed : cfg.buttonLighten,
+          duration: cfg.lightenMs,
+          ease: 'Sine.easeOut',
+        });
+      }
+    };
+    return { container };
+  }
+
+  // A row of 1..N numbers across the top, on a semi-transparent band broken into
+  // cells by thin dividers. Numbers are as large as fits.
+  buildNumberLine() {
+    const { width } = this.scale;
+    const cfg = NUMBER_LINE;
+    const y = this.scale.height * cfg.yFrac;
+    const count = cfg.count;
+
+    this.numberLineParts = [];
+
+    // Evenly spaced cells, symmetric about the screen centre, shifted by xFrac.
+    const shift = width * (cfg.xFrac || 0);
+    const left = width * cfg.sidePadFrac + shift;
+    const right = width * (1 - cfg.sidePadFrac) + shift;
+    const step = (right - left) / Math.max(1, count - 1);
+
+    // Semi-transparent band, sized from the font so it always covers the numbers.
+    // The band extends HALF A STEP past the outer numbers, so the gap from the
+    // first/last number to the band edge equals the number↔divider gap — the
+    // whole row is evenly spaced.
+    const bandH = cfg.fontSizePx * cfg.bandHeightMult;
+    const edgePad = step / 2;
+    const bandX = left - edgePad;
+    const bandW = right - left + edgePad * 2;
+    const band = this.add.graphics().setDepth(cfg.depth);
+    band.fillStyle(cfg.bandColor, cfg.bandAlpha);
+    band.fillRoundedRect(bandX, y - bandH / 2, bandW, bandH, cfg.bandRadius);
+    this.numberLineParts.push(band);
+
+    // Thin dividers between each pair of numbers.
+    const divH = this.scale.height * cfg.dividerHeightFrac;
+    for (let i = 1; i < count; i += 1) {
+      const x = left + (i - 0.5) * step;
+      const div = this.add.graphics().setDepth(cfg.depth + 1);
+      div.lineStyle(cfg.dividerWidth, cfg.dividerColor, cfg.dividerAlpha);
+      div.lineBetween(x, y - divH / 2, x, y + divH / 2);
+      this.numberLineParts.push(div);
+    }
+
+    // The numbers themselves.
+    for (let i = 0; i < count; i += 1) {
+      const x = left + i * step;
+      const label = this.add
+        .text(x, y, String(i + 1), {
+          fontFamily: cfg.fontFamily,
+          fontSize: `${cfg.fontSizePx}px`,
+          color: cfg.color,
+          fontStyle: 'bold',
+          stroke: cfg.stroke,
+          strokeThickness: cfg.strokeWidth,
+        })
+        .setOrigin(0.5)
+        .setDepth(cfg.depth + 2);
+      this.numberLineParts.push(label);
+    }
   }
 
   // Wire a control so holding it drives the train in `dir`. The shared pill
@@ -656,34 +851,12 @@ export default class GameScene extends BaseScene {
   }
 
   // ---------------------------------------------------------------------------
-  // All aboard — the confirm button between the arrows
+  // Wrong-answer feedback
   // ---------------------------------------------------------------------------
-
-  buildAllAboard() {
-    const { width, height } = this.scale;
-    const cfg = TRAIN.allAboard;
-    this.allAboardBtn = this.createPillButton(width / 2, height * cfg.yFrac, cfg.label, {
-      fontSize: cfg.fontSize,
-      minWidth: cfg.minWidth,
-      minHeight: cfg.minHeight,
-      depth: cfg.depth,
-    });
-    this.allAboardBtn.on('pointerup', () => this.checkAllAboard());
-    this.setAllAboardVisible(false);
-  }
-
-  // Tapping All aboard: every animal is already on its correct cart (a wrong
-  // drop is rejected on the spot), so this simply confirms and rolls on. It is
-  // gated on the board actually being complete.
-  checkAllAboard() {
-    if (this.locked || !this.allAboardTrue()) return;
-    this.onCorrectRound();
-  }
 
   wrongAnswer() {
     const cfg = TRAIN.allAboard;
     this.mistakes += 1;
-    this.streak = 0;
     this.sound.play(cfg.wrongKey, { volume: 0.7 });
 
     // Flash + shake the whole board red so the miss reads instantly.
@@ -692,24 +865,36 @@ export default class GameScene extends BaseScene {
     this.cameras.main.shake(cfg.shakeDurationMs, cfg.shakeAmplitude / this.scale.width);
   }
 
-  onCorrectRound() {
+  // ---------------------------------------------------------------------------
+  // Level complete — auto, no confirm button
+  // ---------------------------------------------------------------------------
+
+  // Every animal is aboard: celebrate, roll out, then either re-roll the same
+  // level (another round) or slide on to the next level.
+  onLevelComplete() {
     this.spawnConfetti();
     this.locked = true;
     this.stopDrive();
-    this.peakStreak = Math.max(this.peakStreak, (this.streak += 1));
-    this.setAllAboardVisible(false);
+    this.setControlsVisible(false);
+    this.setTaskVisible(false);
 
     const cfg = TRAIN.placement;
     this.time.delayedCall(cfg.leaveDelayMs, () => {
-      // Controls pop out and the train leaves off screen to the LEFT.
-      this.setControlsVisible(false);
-      this.setTaskVisible(false);
-      this.leaveTrain(() => this.nextRound());
+      // The next step is decided NOW (before the roll-out) so the arrival
+      // background swap knows whether the art changes.
+      const sameLevel = this.roundInLevel < TRAIN.roundsPerLevel;
+      if (sameLevel) this.roundInLevel += 1;
+      else {
+        this.levelIndex += 1;
+        this.roundInLevel = 1;
+      }
+      const levelChanged = this.levelIndex < LEVELS.length;
+      this.leaveTrain(() => this.enterBoard(sameLevel, levelChanged));
     });
   }
 
   // A short burst of coloured confetti pieces drifting down from above the
-  // canvas — the round's "well done" beat after All aboard is confirmed.
+  // canvas — the level's "well done" beat.
   spawnConfetti(count = CONFETTI.count) {
     const { width, height } = this.scale;
     const keys = [makeConfettiTexture(this), makeConfettiSquareTexture(this)];
@@ -751,67 +936,77 @@ export default class GameScene extends BaseScene {
     });
   }
 
-  nextRound() {
-    this.round += 1;
-    if (this.round > TRAIN.rounds) {
+  // The train is off screen: set up the next board, run the backdrop transition,
+  // and fly the train back in. Called with what actually changed.
+  enterBoard(sameLevel, levelChanged) {
+    // Out of levels → the game is over.
+    if (!levelChanged) {
       this.finish();
       return;
     }
-    // Reset the board for the new round while the train is off screen, then fly
-    // it back in from the right.
-    this.time.delayedCall(TRAIN.placement.betweenRoundsMs, () => {
-      this.resetRoundBoard();
-      const { upper } = this.panBounds();
-      this.trainX = upper + TRAIN.intro.offscreenPad;
-      this.layoutCarts();
-      this.flyIn(TRAIN.intro.durationMs * 0.85, TRAIN.intro.ease, () => {
-        // The round transition unlocks the board again — otherwise the controls
-        // and dragging stay dead for every round after the first.
-        this.locked = false;
-        this.setControlsVisible(true);
-        this.setTaskVisible(true);
-        this.dealTask();
-      });
+
+    this.clearRiders();
+
+    if (sameLevel) {
+      // Same level, next round: only the task order changes.
+      this.time.delayedCall(TRAIN.placement.betweenRoundsMs, () => this.arriveBack());
+      return;
+    }
+
+    // New level: rebuild the consist (new art + count) and animate the backdrop
+    // while the train is off screen.
+    this.teardownTrain();
+    this.buildTrain();
+    this.swapBackgroundAnimated(() => this.arriveBack());
+  }
+
+  // Fly the train back in from the right and hand control to the player.
+  arriveBack() {
+    const { upper } = this.panBounds();
+    this.trainX = upper + TRAIN.intro.offscreenPad;
+    this.layoutCarts();
+    this.flyIn(TRAIN.intro.durationMs * 0.85, TRAIN.intro.ease, () => {
+      this.locked = false;
+      this.setControlsVisible(true);
+      this.setTaskVisible(true);
+      this.dealTask();
     });
   }
 
-  // Clear the previous round's riders + task state, ready for a fresh deal.
-  resetRoundBoard() {
+  // Remove every on-cart rider + the current card animal, and reset the task
+  // queues so the next board deals a fresh shuffle.
+  clearRiders() {
     for (const cart of this.carts) {
       if (cart.riderSlot) {
         cart.riderSlot.destroy();
         cart.riderSlot = null;
       }
     }
-    this.riders = [];
-    this.tasks.clear();
+    this.destroyCardAnimal();
     this.queuesReady = false;
     this.riderQueue = [];
     this.numberQueue = [];
-    this.destroyCardAnimal();
     this.taskKey = null;
     this.taskNumber = null;
     this.drag = null;
-    this.setAllAboardVisible(false);
   }
 
-  // The whole game is done (all TRAIN.rounds cleared): show the completion, then
-  // emit the payload the shared shell logs — the same shape the other games use,
-  // so `mistakes` is stored as the wrong-count and stars/totalRounds feed stats.
+  // The whole game is done (all levels cleared): show the completion, then emit
+  // the payload the shared shell logs — the same shape the other games use, so
+  // `mistakes` is stored as the wrong-count and stars/totalRounds feed stats.
   finish() {
     if (this.finished) return; // never log twice
     this.finished = true;
     this.locked = true;
     this.setControlsVisible(false);
     this.setTaskVisible(false);
-    this.setAllAboardVisible(false);
 
     const mistakes = this.mistakes;
     this.stars = mistakes === 0 ? 3 : mistakes <= 2 ? 2 : 1;
 
     const payload = {
       stars: this.stars,
-      totalRounds: TRAIN.rounds,
+      totalRounds: LEVELS.length,
       peakStreak: this.peakStreak,
       mistakes,
       elapsedSeconds: Math.round((this.time.now - this.startTime) / 1000),
@@ -885,28 +1080,33 @@ export default class GameScene extends BaseScene {
     const cy = height * cfg.cardYFrac;
     this.taskCardPos = { x: cx, y: cy };
 
-    const card = this.add.graphics().setDepth(cfg.depth);
-    card.fillStyle(0x000000, cfg.shadowAlpha);
-    card.fillRoundedRect(
-      cx - cfg.cardW / 2 + cfg.shadowOffset,
-      cy - cfg.cardH / 2 + cfg.shadowOffset,
-      cfg.cardW,
-      cfg.cardH,
-      cfg.radius
-    );
-    card.fillStyle(cfg.fill, cfg.fillAlpha);
-    card.fillRoundedRect(cx - cfg.cardW / 2, cy - cfg.cardH / 2, cfg.cardW, cfg.cardH, cfg.radius);
-    card.lineStyle(cfg.borderWidth, cfg.border, 1);
-    card.strokeRoundedRect(cx - cfg.cardW / 2, cy - cfg.cardH / 2, cfg.cardW, cfg.cardH, cfg.radius);
-    this.taskParts.push(card);
+    // The card art (falls back to nothing if the image failed to load).
+    if (this.textures.exists(cfg.cardImage)) {
+      const card = this.add
+        .image(cx, cy, cfg.cardImage)
+        .setOrigin(0.5)
+        .setScale(cfg.cardScale)
+        .setDepth(cfg.depth);
+      this.taskParts.push(card);
+      // Use the card's ACTUAL on-screen size for the label/animal fractions, so
+      // tuning the card size or art keeps them on the card.
+      this.cardH = card.displayHeight;
+      this.cardW = card.displayWidth;
+    } else {
+      this.cardH = cfg.cardH;
+      this.cardW = cfg.cardW;
+    }
 
-    // The spelled position label, in the upper part of the card.
+    // The spelled position label, drawn ON TOP of the card, with a bold green
+    // outline.
     this.cardLabel = this.add
       .text(cx, cy + cfg.labelYFrac * cfg.cardH, '', {
-        fontFamily: 'Fredoka, sans-serif',
+        fontFamily: cfg.labelFontFamily,
         fontSize: `${cfg.labelFontSize}px`,
         color: cfg.labelColor,
         fontStyle: 'bold',
+        stroke: cfg.labelStroke,
+        strokeThickness: cfg.labelStrokeWidth,
       })
       .setOrigin(0.5)
       .setDepth(cfg.depth + 1);
@@ -916,17 +1116,14 @@ export default class GameScene extends BaseScene {
     this.setTaskVisible(false);
   }
 
-  // Build the two shuffled queues once per round: one entry per numbered cart
+  // Build the two shuffled queues once per level: one entry per numbered cart
   // (its position) and one entry per rider. Every rider and every position is
   // used exactly once; only the ORDER they arrive in is random.
   prepareTaskQueues() {
     this.queuesReady = true;
-    // De-dupe defensively, then shuffle: neither a position nor an animal can be
-    // dealt twice in a round.
     const numbers = [...new Set(this.carts.filter((c) => c.number).map((c) => c.number))];
     this.numberQueue = shuffled(numbers);
     this.riderQueue = shuffled([...new Set(RIDER_KEYS.filter((k) => this.textures.exists(k)))]);
-    this.tasks.clear();
   }
 
   // Deal the next task: take the next animal and the next position off the
@@ -935,18 +1132,13 @@ export default class GameScene extends BaseScene {
     const cfg = TRAIN.task;
     if (!this.queuesReady) this.prepareTaskQueues();
 
-    if (this.riderQueue.length === 0 || this.numberQueue.length === 0) {
-      // Every animal is dealt; the confirm button takes over.
-      this.showAllAboard();
-      return;
-    }
+    // Only as many tasks as the level has carts (extra riders stay unused).
+    if (this.riderQueue.length === 0 || this.numberQueue.length === 0) return;
 
     const number = this.numberQueue.shift();
     const key = this.riderQueue.shift();
     this.taskKey = key;
     this.taskNumber = number;
-    // Record the correct placement for the check: THIS animal rides THIS cart.
-    this.tasks.set(key, number);
     this.cardLabel.setText(this.ordinalFor(number));
 
     // Replace the card animal (remove it from taskParts too, so the show/hide
@@ -959,6 +1151,7 @@ export default class GameScene extends BaseScene {
     const x = this.taskCardPos.x;
     const y = this.taskCardPos.y + cfg.animalYFrac * cfg.cardH;
     const sprite = this.add.image(x, y, key).setOrigin(0.5).setScale(s).setDepth(cfg.depth + 2);
+    this.applyRiderTint(sprite);
     sprite.setInteractive({ useHandCursor: true });
     sprite.on('pointerdown', (pointer) => this.beginRiderDrag(sprite, pointer));
 
@@ -981,34 +1174,21 @@ export default class GameScene extends BaseScene {
     return words[number - 1] || `${number}th`;
   }
 
+  // Darken a rider on the night level (level.riderTint) so it reads as outdoors
+  // after dark; no-op on the day levels.
+  applyRiderTint(sprite) {
+    const tint = this.level.riderTint;
+    if (tint) sprite.setTint(tint);
+    else sprite.clearTint();
+  }
+
   // ---------------------------------------------------------------------------
-  // Placement check helpers
+  // Placement helpers
   // ---------------------------------------------------------------------------
 
   // A numbered cart still without a rider.
   emptyNumberCart() {
     return this.carts.some((c) => c.number && !c.riderSlot);
-  }
-
-  // True when every numbered cart holds a rider.
-  allAboardTrue() {
-    const numberCarts = this.carts.filter((c) => c.number);
-    return numberCarts.length > 0 && numberCarts.every((c) => c.riderSlot);
-  }
-
-  showAllAboard() {
-    this.destroyCardAnimal();
-    this.taskKey = null;
-    this.taskNumber = null;
-    this.setAllAboardVisible(true);
-    this.allAboardBtn?.container?.setScale(0.6).setAlpha(0);
-    this.tweens.add({
-      targets: this.allAboardBtn?.container,
-      scale: 1,
-      alpha: 1,
-      duration: TRAIN.rider.popInDurationMs,
-      ease: TRAIN.rider.popInEase,
-    });
   }
 
   // ---------------------------------------------------------------------------
@@ -1031,12 +1211,10 @@ export default class GameScene extends BaseScene {
     return TRAIN.task.animalSize / Math.max(src?.width || 1, src?.height || 1);
   }
 
-  // Begin a drag from a pointerdown. `origin` is 'card' (the task-card animal) or
-  // 'cart' (a rider already on a cart). The sprite becomes a scene-level object
-  // parented at its WORLD position, then follows the pointer until release.
+  // Begin a drag from a pointerdown on the CARD animal. Once a rider is seated it
+  // has a `cart`, so any further pointerdown on it is ignored — placed animals
+  // are fixed.
   beginRiderDrag(sprite, pointer) {
-    // Only the CARD animal is draggable. Once a rider is seated it has a `cart`,
-    // so any further pointerdown on it is ignored — placed animals are fixed.
     if (!this.introDone || this.locked || this.drag || sprite.cart) return;
 
     // Kill any return/grow tween still running on the sprite.
@@ -1065,19 +1243,24 @@ export default class GameScene extends BaseScene {
   onPointerUp() {
     const drag = this.drag;
     if (!drag) return;
-    this.drag = null;
     const { sprite } = drag;
+    // Only a sprite that is still being dragged (not already seated) resolves.
+    if (sprite.cart) {
+      this.drag = null;
+      return;
+    }
+    this.drag = null;
     sprite.setAlpha(1);
 
     const cart = this.cartUnder(sprite.x, sprite.y);
 
     if (cart && !cart.riderSlot && cart.number === this.taskNumber) {
-      // Correct cart: it stays. The dragged sprite BECOMES the on-cart rider —
-      // detach the card bookkeeping WITHOUT destroying it.
+      // Correct cart. The dragged sprite BECOMES the on-cart rider — detach the
+      // card bookkeeping WITHOUT destroying it.
       this.attachRiderToCart(cart, sprite);
       this.forgetCardAnimal(sprite);
       if (this.emptyNumberCart()) this.dealTask();
-      else this.showAllAboard();
+      else this.onLevelComplete();
       return;
     }
 
