@@ -206,14 +206,16 @@ export const TRAIN = {
   // body-bearing carts 1..N along the consist (the locomotive head is not
   // numbered). All sizes are fractions so they scale with the cart.
   number: {
-    sizeFrac: 0.30, // font size as a fraction of the cart width
+    sizeFrac: 0.28, // font size as a fraction of the cart width
     strokeFrac: 0.028, // stroke thickness as a fraction of the cart width
     color: '#ffffff',
     stroke: '#1f2937',
     fontFamily: 'Fredoka, sans-serif',
     // Extra vertical nudge from the body's centre, as a fraction of the cart
     // height (negative = up). 0 = dead centre of the body.
-    yOffsetFrac: -0.065,
+    yOffsetFrac: -0.078,
+    // Slightly see-through so the body art reads through the number.
+    alpha: 0.8,
   },
 
   // RIDERS — animals dragged from the task card onto a cart. A rider is placed
@@ -487,42 +489,61 @@ export const CONTROLS = {
 };
 
 // ---------------------------------------------------------------------------
-// NUMBER LINE — a row of 1..N numbers across the TOP (where the old buttons
-// were), each in a small disc.
+// NUMBER SLIDER — an interactive strip of 1..N numbers across the TOP. A window
+// of `visible` numbers shows at once; the middle one is HIGHLIGHTED and the
+// spelled ordinal ("first", "second"…) is shown below it. Drag the strip (or tap
+// a number) to slide to another; on release it snaps to the nearest number.
 // ---------------------------------------------------------------------------
-export const NUMBER_LINE = {
+export const NUMBER_SLIDER = {
   count: 10,
-  // The whole row is centred on the canvas by default: numbers sit on evenly
-  // spaced cells between `sidePadFrac` and (1 - sidePadFrac) of the width, so
-  // the group is symmetric about the centre.
-  yFrac: 0.12,
-  // Horizontal shift of the WHOLE row, as a fraction of the canvas width
-  // (negative = left, 0 = centred). Moves numbers, band and dividers together.
-  xFrac: -0.01,
-  sidePadFrac: 0.055, // inset of the FIRST/LAST number from the screen edge
-
-  // The numbers — as large as fits.
-  fontSizePx: 62,
-  fontFamily: 'Fredoka, sans-serif',
-  color: '#ffffff',
-  stroke: '#1f2937',
-  strokeWidth: 6,
-
-  // The semi-transparent band. Its height is derived from the font size so it
-  // ALWAYS fully covers the numbers. Its width auto-fits: the band edge sits
-  // exactly HALF A STEP from the outer numbers, so the number↔divider and
-  // number↔edge gaps are all equal.
-  bandColor: 0xffffff,
-  bandAlpha: 0.3,
-  bandRadius: 22,
-  bandHeightMult: 1.7, // band height = fontSizePx * this
-
-  // Dividers between the numbers.
-  dividerColor: 0x1f2937,
-  dividerAlpha: 0.32,
-  dividerWidth: 3,
-  dividerHeightFrac: 0.045,
+  visible: 5, // how many numbers show at once
+  yFrac: 0.11,
+  // Horizontal shift of the whole slider, as a fraction of the canvas width.
+  xFrac: 0,
+  widthFrac: 0.9, // band width, as a fraction of the canvas width
   depth: 8,
+
+  // The semi-transparent band behind the numbers.
+  band: {
+    color: 0xffffff,
+    alpha: 0.3,
+    radius: 26,
+    heightMult: 1.8, // band height = number.fontSizePx * this
+  },
+
+  // The numbers.
+  number: {
+    fontSizePx: 58,
+    fontFamily: 'Fredoka, sans-serif',
+    color: '#ffffff',
+    stroke: '#1f2937',
+    strokeWidth: 6,
+    sideAlpha: 0.4, // the non-selected numbers
+    sideScale: 0.78,
+  },
+
+  // The highlight pill behind the centred number.
+  highlight: {
+    color: 0x6366f1,
+    alpha: 0.9,
+    radius: 42, // pill half-height
+    insetX: 8, // px trimmed off each cell side so pills do not touch
+  },
+
+  // The spelled ordinal, below the highlighted number.
+  label: {
+    offsetY: 84, // px below the band centre
+    fontSizePx: 40,
+    fontFamily: 'Fredoka, sans-serif',
+    color: '#ffffff',
+    stroke: '#22c55e',
+    strokeWidth: 8,
+  },
+
+  // Snapping when released.
+  snapMs: 200,
+  snapEase: 'Cubic.easeOut',
+  tapThresholdPx: 12, // movement under this = a tap (select the tapped number)
 };
 
 // CONFETTI — a short burst of coloured pieces when a round is confirmed
@@ -549,7 +570,7 @@ export const TUNING = {
   TRAIN,
   TRACK,
   CONTROLS,
-  NUMBER_LINE,
+  NUMBER_SLIDER,
   TRAIN_SOUND,
   CONFETTI,
   SKY_THEME,

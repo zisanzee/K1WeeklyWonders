@@ -40,7 +40,7 @@ import {
   TRAIN,
   TRACK,
   CONTROLS,
-  NUMBER_LINE,
+  NUMBER_SLIDER,
   TRAIN_SOUND,
   CONFETTI,
 } from '@/games/game-14/tuning';
@@ -50,6 +50,23 @@ import { makeConfettiTexture, makeConfettiSquareTexture } from '@/phaser/common/
 // Re-exported so `import GameScene, { BACKGROUND_COLOR }` keeps working for
 // Game.jsx — the value itself lives in tuning.js.
 export { BACKGROUND_COLOR } from '@/games/game-14/tuning';
+
+// "1" → "1st", "2" → "2nd", "3" → "3rd", "4" → "4th", … (handles the 11–13
+// exceptions). Used for the number painted on each cart's body.
+function ordinalSuffix(n) {
+  const mod100 = n % 100;
+  if (mod100 >= 11 && mod100 <= 13) return `${n}th`;
+  switch (n % 10) {
+    case 1:
+      return `${n}st`;
+    case 2:
+      return `${n}nd`;
+    case 3:
+      return `${n}rd`;
+    default:
+      return `${n}th`;
+  }
+}
 
 // Fisher-Yates shuffle on a copy, so the task order is randomised without ever
 // repeating an entry.
@@ -128,6 +145,19 @@ export default class GameScene extends BaseScene {
     this.voiceSound = null; // the current spoken ordinal line
     this.soundBtn = null; // the small replay-sound button beside the card
     this.soundGlow = null; // the glow layer behind the sound button
+    // Number slider.
+    this.sliderParts = []; // band + highlight + label (screen-space objects)
+    this.sliderStrip = null; // the scrolling container of numbers
+    this.sliderNumbers = []; // the number Text objects
+    this.sliderZone = null; // the drag/tap surface
+    this.sliderHighlight = null;
+    this.sliderMask = null; // geometry mask keeping numbers inside the band
+    this.sliderLabel = null; // the spelled ordinal below the highlight
+    this.sliderValues = []; // [1..count]
+    this.sliderCellW = 0;
+    this.sliderCX = 0;
+    this.selectedIndex = 0; // 0-based index under the centre marker
+    this.sliderDrag = null; // { startX, stripStartX, moved } while dragging
 
     // Level / game state.
     this.levelIndex = 0;
@@ -452,7 +482,8 @@ export default class GameScene extends BaseScene {
   setControlsVisible(visible) {
     [this.leftBtn, this.rightBtn].forEach((btn) => btn?.container?.setVisible(visible));
     [this.leftZone, this.rightZone].forEach((z) => z?.setVisible(visible));
-    (this.numberLineParts || []).forEach((o) => o.setVisible(visible));
+    (this.sliderParts || []).forEach((o) => o.setVisible(visible));
+    this.sliderZone?.setVisible(visible);
     if (visible) {
       // Zone input only while the controls are shown (they start hidden).
       this.leftZone?.setInteractive({ useHandCursor: true });
@@ -782,7 +813,7 @@ export default class GameScene extends BaseScene {
         // Big bold number, centred on the body, drawn on top of it.
         const numY = bodyY + TRAIN.number.yOffsetFrac * cartH;
         const num = this.add
-          .text(0, numY, String(numberSeq), {
+          .text(0, numY, ordinalSuffix(numberSeq), {
             fontFamily: TRAIN.number.fontFamily,
             fontSize: `${Math.round(cartW * TRAIN.number.sizeFrac)}px`,
             color: TRAIN.number.color,
@@ -790,7 +821,8 @@ export default class GameScene extends BaseScene {
             stroke: TRAIN.number.stroke,
             strokeThickness: Math.max(1, Math.round(cartW * TRAIN.number.strokeFrac)),
           })
-          .setOrigin(0.5);
+          .setOrigin(0.5)
+          .setAlpha(TRAIN.number.alpha);
         cart.add(num);
         cart.numberText = num;
       } else {
@@ -870,7 +902,7 @@ export default class GameScene extends BaseScene {
     this.leftBtn = this.makeDriveButton(zoneW / 2, y, -1);
     this.rightBtn = this.makeDriveButton(width - zoneW / 2, y, +1);
 
-    this.buildNumberLine();
+    this.buildNumberSlider();
 
     // Hidden until the intro finishes.
     this.setControlsVisible(false);
@@ -924,60 +956,204 @@ export default class GameScene extends BaseScene {
     return { container };
   }
 
-  // A row of 1..N numbers across the top, on a semi-transparent band broken into
-  // cells by thin dividers. Numbers are as large as fits.
-  buildNumberLine() {
-    const { width } = this.scale;
-    const cfg = NUMBER_LINE;
-    const y = this.scale.height * cfg.yFrac;
+  // An interactive strip of 1..N numbers across the top. A window of `visible`
+  // numbers shows at once; the centred one is highlighted and the spelled
+  // ordinal is shown below it. Drag the strip (or tap a number) to slide; on
+  // release it snaps to the nearest whole number.
+  buildNumberSlider() {
+    const { width, height } = this.scale;
+    const cfg = NUMBER_SLIDER;
     const count = cfg.count;
 
-    this.numberLineParts = [];
+    this.sliderParts = [];
 
-    // Evenly spaced cells, symmetric about the screen centre, shifted by xFrac.
-    const shift = width * (cfg.xFrac || 0);
-    const left = width * cfg.sidePadFrac + shift;
-    const right = width * (1 - cfg.sidePadFrac) + shift;
-    const step = (right - left) / Math.max(1, count - 1);
+    // Strip geometry. Cell width is the band width / visible count, and the strip
+    // is laid out at y = 0 with each number at index * cellW; the strip container
+    // is then positioned so it scrolls. `this.sliderCX` is the screen centre.
+    const stripW = width * cfg.widthFrac;
+    const cellW = stripW / cfg.visible;
+    const cx = width / 2 + width * (cfg.xFrac || 0);
+    const bandY = height * cfg.yFrac;
+    this.sliderCX = cx;
+    this.sliderCellW = cellW;
+    this.sliderValues = Array.from({ length: count }, (_, i) => i + 1);
 
-    // Semi-transparent band, sized from the font so it always covers the numbers.
-    // The band extends HALF A STEP past the outer numbers, so the gap from the
-    // first/last number to the band edge equals the number↔divider gap — the
-    // whole row is evenly spaced.
-    const bandH = cfg.fontSizePx * cfg.bandHeightMult;
-    const edgePad = step / 2;
-    const bandX = left - edgePad;
-    const bandW = right - left + edgePad * 2;
+    // The whole strip lives in a container we can slide left/right. Its depth is
+    // ABOVE the band + highlight so the numbers render ON TOP of them (children
+    // inherit the container's depth, so a child depth would not help).
+    const strip = this.add.container(cx, bandY).setDepth(cfg.depth + 2);
+    this.sliderStrip = strip;
+    // `selectedIndex` is the value currently under the centre marker (0-based).
+    this.selectedIndex = 0;
 
-    // One Graphics for the band AND its dividers — fewer display objects and a
-    // single draw, instead of a separate Graphics per divider.
-    const ruler = this.add.graphics().setDepth(cfg.depth);
-    ruler.fillStyle(cfg.bandColor, cfg.bandAlpha);
-    ruler.fillRoundedRect(bandX, y - bandH / 2, bandW, bandH, cfg.bandRadius);
-    const divH = this.scale.height * cfg.dividerHeightFrac;
-    ruler.lineStyle(cfg.dividerWidth, cfg.dividerColor, cfg.dividerAlpha);
-    for (let i = 1; i < count; i += 1) {
-      const x = left + (i - 0.5) * step;
-      ruler.lineBetween(x, y - divH / 2, x, y + divH / 2);
-    }
-    this.numberLineParts.push(ruler);
+    // Clip the strip to the band, so it reads as a fixed 5-wide window the
+    // numbers scroll through (numbers outside the window are hidden).
+    const bandHeight = cfg.number.fontSizePx * cfg.band.heightMult;
+    const maskShape = this.make.graphics({ add: false });
+    maskShape.fillStyle(0xffffff);
+    maskShape.fillRoundedRect(
+      cx - stripW / 2,
+      bandY - bandHeight / 2,
+      stripW,
+      bandHeight,
+      cfg.band.radius
+    );
+    strip.setMask(maskShape.createGeometryMask());
+    this.sliderMask = maskShape;
 
-    // The numbers themselves.
+    // Semi-transparent band, drawn in SCREEN space (not the strip) so it stays
+    // put while the numbers scroll under it.
+    const bandH = cfg.number.fontSizePx * cfg.band.heightMult;
+    const band = this.add.graphics().setDepth(cfg.depth);
+    band.fillStyle(cfg.band.color, cfg.band.alpha);
+    band.fillRoundedRect(cx - stripW / 2, bandY - bandH / 2, stripW, bandH, cfg.band.radius);
+    this.sliderParts.push(band);
+
+    // Highlight pill over the centred cell (screen space, behind the numbers).
+    const hl = this.add.graphics().setDepth(cfg.depth + 1);
+    hl.fillStyle(cfg.highlight.color, cfg.highlight.alpha);
+    hl.fillRoundedRect(
+      cx - cellW / 2 + cfg.highlight.insetX,
+      bandY - cfg.highlight.radius,
+      cellW - cfg.highlight.insetX * 2,
+      cfg.highlight.radius * 2,
+      cfg.highlight.radius
+    );
+    this.sliderHighlight = hl;
+    this.sliderParts.push(hl);
+
+    // The numbers. Each sits at (index) * cellW within the strip (which is
+    // centred on cx). Only `visible + 2` are ever on screen, but the full set is
+    // cheap and keeps the value→position math dead simple.
+    this.sliderNumbers = [];
     for (let i = 0; i < count; i += 1) {
-      const x = left + i * step;
       const label = this.add
-        .text(x, y, String(i + 1), {
-          fontFamily: cfg.fontFamily,
-          fontSize: `${cfg.fontSizePx}px`,
-          color: cfg.color,
+        .text(i * cellW, 0, String(i + 1), {
+          fontFamily: cfg.number.fontFamily,
+          fontSize: `${cfg.number.fontSizePx}px`,
+          color: cfg.number.color,
           fontStyle: 'bold',
-          stroke: cfg.stroke,
-          strokeThickness: cfg.strokeWidth,
+          stroke: cfg.number.stroke,
+          strokeThickness: cfg.number.strokeWidth,
         })
-        .setOrigin(0.5)
-        .setDepth(cfg.depth + 2);
-      this.numberLineParts.push(label);
+        .setOrigin(0.5);
+      strip.add(label);
+      this.sliderNumbers.push(label);
     }
+
+    // The spelled ordinal, below the highlighted number (screen space).
+    this.sliderLabel = this.add
+      .text(cx, bandY + cfg.label.offsetY, '', {
+        fontFamily: cfg.label.fontFamily,
+        fontSize: `${cfg.label.fontSizePx}px`,
+        color: cfg.label.color,
+        fontStyle: 'bold',
+        stroke: cfg.label.stroke,
+        strokeThickness: cfg.label.strokeWidth,
+      })
+      .setOrigin(0.5)
+      .setDepth(cfg.depth + 2);
+    this.sliderParts.push(this.sliderLabel);
+
+    // Make the band the drag surface (covers the whole strip area).
+    this.sliderZone = this.add
+      .zone(cx, bandY, stripW, bandH)
+      .setDepth(cfg.depth + 3)
+      .setInteractive({ useHandCursor: true });
+    this.sliderZone.on('pointerdown', (p) => this.onSliderDown(p));
+    this.sliderZone.on('pointermove', (p) => this.onSliderMove(p));
+    this.sliderZone.on('pointerup', (p) => this.onSliderUp(p));
+    this.sliderParts.push(this.sliderZone);
+
+    // Position the strip for the initial selection and paint it.
+    this.setSliderIndex(0, true);
+  }
+
+  // Move the strip so the current selection is centred, and restyle every number
+  // (the centred one full-size, the rest faded) + update the spelled label.
+  setSliderIndex(index, instant = false) {
+    const cfg = NUMBER_SLIDER;
+    const clamped = Math.max(0, Math.min(this.sliderValues.length - 1, index));
+    this.selectedIndex = clamped;
+
+    // Place the strip so number `clamped` lands on the screen centre. The strip
+    // is allowed to scroll so the FIRST and LAST numbers can also reach centre.
+    const targetX = this.sliderCX - clamped * this.sliderCellW;
+    if (instant) {
+      this.sliderStrip.x = targetX;
+    } else {
+      this.tweens.killTweensOf(this.sliderStrip);
+      this.tweens.add({
+        targets: this.sliderStrip,
+        x: targetX,
+        duration: cfg.snapMs,
+        ease: cfg.snapEase,
+      });
+    }
+
+    // Restyle every number: the centred one full-size, the rest faded + shrunk.
+    this.styleSliderNumbers(clamped);
+
+    // The spelled ordinal for the centred number.
+    this.sliderLabel.setText(this.ordinalFor(this.sliderValues[clamped]));
+  }
+
+  // Apply the selected/unselected look to every number in the strip.
+  styleSliderNumbers(selectedIndex) {
+    const n = NUMBER_SLIDER.number;
+    for (let i = 0; i < this.sliderNumbers.length; i += 1) {
+      const label = this.sliderNumbers[i];
+      const selected = i === selectedIndex;
+      label.setScale(selected ? 1 : n.sideScale);
+      label.setAlpha(selected ? 1 : n.sideAlpha);
+    }
+  }
+
+  // --- Slider input -----------------------------------------------------------
+
+  onSliderDown(pointer) {
+    if (!this.started) return;
+    this.sliderDrag = {
+      startX: pointer.x,
+      stripStartX: this.sliderStrip.x,
+      moved: false,
+    };
+    // Cancel any in-flight snap tween so the drag responds immediately.
+    this.tweens.killTweensOf(this.sliderStrip);
+  }
+
+  onSliderMove(pointer) {
+    const drag = this.sliderDrag;
+    if (!drag) return;
+    const dx = pointer.x - drag.startX;
+    if (Math.abs(dx) > NUMBER_SLIDER.tapThresholdPx) drag.moved = true;
+    // Live-drag the strip (spotlight follows the nearest whole number live).
+    this.sliderStrip.x = drag.stripStartX + dx;
+    const approx = Math.round((this.sliderCX - this.sliderStrip.x) / this.sliderCellW);
+    const clamped = Math.max(0, Math.min(this.sliderValues.length - 1, approx));
+    if (clamped !== this.selectedIndex) {
+      this.selectedIndex = clamped;
+      this.styleSliderNumbers(clamped);
+      this.sliderLabel.setText(this.ordinalFor(this.sliderValues[clamped]));
+    }
+  }
+
+  onSliderUp(pointer) {
+    const drag = this.sliderDrag;
+    if (!drag) return;
+    this.sliderDrag = null;
+
+    if (!drag.moved) {
+      // A tap: select the number nearest the tap x.
+      const approx = Math.round((pointer.x - this.sliderCX) / this.sliderCellW);
+      const idx = this.selectedIndex + approx;
+      this.setSliderIndex(idx);
+      return;
+    }
+
+    // A drag: snap to the nearest whole number.
+    const approx = Math.round((this.sliderCX - this.sliderStrip.x) / this.sliderCellW);
+    this.setSliderIndex(approx);
   }
 
   startDrive(dir) {
