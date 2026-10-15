@@ -120,7 +120,8 @@ export default class GameScene extends BaseScene {
     // and the layout, so they are computed ONCE per level instead of per frame.
     this.trackBaseY = 0;
     this.trackK = 0;
-    this._pan = { lower: 0, upper: 0 };
+    this._pan = { lower: 0, upper: 0 }; // player driving limits
+    this._offscreen = { lower: 0, upper: 0 }; // fully-off-screen limits
     // True only while a tween is animating trainX (intro roll-in / outro) — then
     // update() must not also integrate velocity, or the two would fight.
     this.autoMoving = false;
@@ -285,13 +286,20 @@ export default class GameScene extends BaseScene {
   // Pan limits — the train can leave the screen, but no further than that
   // ---------------------------------------------------------------------------
 
-  // Recompute the pan limits from the current consist. The relX values do not
-  // change during a level, so this runs once per train build (not per frame).
-  // Recompute the pan limits from the current consist. Runs once per train build.
-  // Writes into a reused object so it allocates nothing.
+  // Recompute the movement limits from the current consist. The relX values do
+  // not change during a level, so this runs once per train build (not per frame).
+  // Writes into reused objects so it allocates nothing.
+  //
+  // TWO ranges are computed:
+  //   _pan       — the PLAYER's driving range. Driving right stops with the
+  //                head cart centred; driving left stops with the END cart
+  //                centred, so the train can never be driven off screen.
+  //   _offscreen — the INTRO/OUTRO range: fully off each edge (whole consist
+  //                past the edge), so the train enters from / leaves to nothing.
   cachePanBounds() {
     const width = this.scale.width;
     const half = this.cartW / 2;
+    const mid = width / 2;
     let minRel = Infinity;
     let maxRel = -Infinity;
     for (const c of this.carts) {
@@ -299,11 +307,20 @@ export default class GameScene extends BaseScene {
       if (c.relX > maxRel) maxRel = c.relX;
     }
     const pad = TRAIN.pan.overshootPad;
-    // Most-negative trainX = whole train just off the LEFT edge.
-    this._pan.lower = -maxRel - half - pad;
-    // Most-positive trainX = whole train just off the RIGHT edge.
-    this._pan.upper = width - minRel + half + pad;
+
+    // PLAYER limits: head centred at the right, end cart centred at the left.
+    this._pan.lower = mid - maxRel; // end cart sits on the centre line
+    this._pan.upper = mid - minRel; // head cart sits on the centre line
+
+    // OFF-SCREEN limits: the whole consist clears each edge.
+    this._offscreen.lower = -maxRel - half - pad; // fully off the LEFT
+    this._offscreen.upper = width - minRel + half + pad; // fully off the RIGHT
     return this._pan;
+  }
+
+  // The fully-off-screen bounds (intro roll-in / outro roll-out).
+  offscreenBounds() {
+    return this._offscreen;
   }
 
   panBounds() {
@@ -406,7 +423,7 @@ export default class GameScene extends BaseScene {
   // ---------------------------------------------------------------------------
 
   startIntro() {
-    const { upper } = this.panBounds();
+    const { upper } = this.offscreenBounds();
     const intro = TRAIN.intro;
     // Start fully off the right edge (extra pad so frame 1 is truly empty).
     this.trainX = upper + intro.offscreenPad;
@@ -426,12 +443,11 @@ export default class GameScene extends BaseScene {
   // position where the two intro carts straddle the screen centre.
   flyIn(durationMs, ease, onComplete) {
     const width = this.scale.width;
-    const { upper } = this.panBounds();
     const intro = TRAIN.intro;
     const iFrom = Math.min(intro.centerFrom, this.carts.length - 1);
     const iTo = Math.min(intro.centerTo, this.carts.length - 1);
     const midRel = (this.carts[iFrom].relX + this.carts[iTo].relX) / 2;
-    const endX = Math.min(width / 2 - midRel, upper);
+    const endX = width / 2 - midRel;
     // The tween owns trainX for its duration (see update()).
     this.autoMoving = true;
     this.tweens.add({
@@ -844,7 +860,7 @@ export default class GameScene extends BaseScene {
     // The consist is laid out — cache the pan limits from it (reads cart relX).
     this.cachePanBounds();
     // Start fully off-screen to the right; the intro tween drives trainX in.
-    this.trainX = this._pan.upper;
+    this.trainX = this._offscreen.upper;
     this.layoutCarts();
 
     // Chimney smoke for the head (no-op when there is no head art).
@@ -1254,7 +1270,7 @@ export default class GameScene extends BaseScene {
 
   // Roll the train fully off the left edge, then run `onDone`.
   leaveTrain(onDone) {
-    const { lower } = this.panBounds();
+    const { lower } = this.offscreenBounds();
     const target = lower - TRAIN.intro.offscreenPad;
     // The tween owns trainX for its duration (see update()).
     this.autoMoving = true;
@@ -1297,7 +1313,7 @@ export default class GameScene extends BaseScene {
 
   // Fly the train back in from the right and hand control to the player.
   arriveBack() {
-    const { upper } = this.panBounds();
+    const { upper } = this.offscreenBounds();
     this.trainX = upper + TRAIN.intro.offscreenPad;
     this.layoutCarts();
     this.flyIn(TRAIN.intro.durationMs * 0.85, TRAIN.intro.ease, () => {

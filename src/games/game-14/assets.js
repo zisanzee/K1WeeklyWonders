@@ -61,7 +61,7 @@ export const IMAGES = {
   cardFrame: cld('https://res.cloudinary.com/hijmipga/image/upload/v1791988459/Card-Frame_1_k9kzkg.png'),
 
   // Fullscreen title / start screen.
-  startScreen: cld('https://res.cloudinary.com/hijmipga/image/upload/v1792076551/startscreengame14_x8jsto.png'),
+  startScreen: cld('https://res.cloudinary.com/hijmipga/image/upload/v1792086641/Choo-Choo_to_the_Zoo_Instructions_1_ppvq3w.png'),
 
   // The drive arrow button. This art points RIGHT; the left button is the same
   // image flipped horizontally (see GameScene.makeDriveButton).
@@ -113,7 +113,7 @@ export const AUDIO = {
   trainRunning:
     'https://res.cloudinary.com/hijmipga/video/upload/v1791811411/train_running__1-1791811325786_quxtes.mp3',
 
-  StartscreenVoice: 'https://res.cloudinary.com/hijmipga/video/upload/v1792076589/startVOICE_2_v6kfaw.mp3',
+  StartscreenVoice: 'https://res.cloudinary.com/hijmipga/video/upload/v1792086539/startvoice14_xxgocv.mp3',
   first: 'https://res.cloudinary.com/hijmipga/video/upload/v1792076589/First_sjh18i.mp3',
   second: 'https://res.cloudinary.com/hijmipga/video/upload/v1792076588/second_efct7q.mp3',
   third: 'https://res.cloudinary.com/hijmipga/video/upload/v1792076588/third_vlsids.mp3',
