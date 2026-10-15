@@ -216,12 +216,18 @@ export default class GameScene extends BaseScene {
     // Drag handling is manual (not Phaser's built-in draggable) because riders get
     // reparented between a cart container and the scene, and Phaser's drag deltas
     // are unreliable across that. A scene-level pointermove/up drives it instead.
-    this.input.on('pointermove', (pointer) => this.onPointerMove(pointer));
+    // The number slider's drag is scene-level too: a ZONE's own pointermove stops
+    // firing on touch once the finger leaves the zone, which desynced the drag.
+    this.input.on('pointermove', (pointer) => {
+      this.onPointerMove(pointer);
+      this.onSliderMove(pointer);
+    });
     this.input.on('pointerup', (pointer) => {
       // Nothing drives or drops until the player has tapped Start.
       if (!this.started) return;
       this.stopDrive();
       this.onPointerUp(pointer);
+      this.onSliderUp(pointer);
     });
     this.events.once('shutdown', () => {
       this.stopDrive();
@@ -1055,14 +1061,14 @@ export default class GameScene extends BaseScene {
       .setDepth(cfg.depth + 2);
     this.sliderParts.push(this.sliderLabel);
 
-    // Make the band the drag surface (covers the whole strip area).
+    // The band is the grab surface. It starts the drag (pointerdown); the MOVE
+    // and UP are handled at the scene level (see create) so a finger that slides
+    // off the band keeps driving the slider.
     this.sliderZone = this.add
       .zone(cx, bandY, stripW, bandH)
       .setDepth(cfg.depth + 3)
       .setInteractive({ useHandCursor: true });
     this.sliderZone.on('pointerdown', (p) => this.onSliderDown(p));
-    this.sliderZone.on('pointermove', (p) => this.onSliderMove(p));
-    this.sliderZone.on('pointerup', (p) => this.onSliderUp(p));
     this.sliderParts.push(this.sliderZone);
 
     // Position the strip for the initial selection and paint it.
@@ -1127,10 +1133,18 @@ export default class GameScene extends BaseScene {
     if (!drag) return;
     const dx = pointer.x - drag.startX;
     if (Math.abs(dx) > NUMBER_SLIDER.tapThresholdPx) drag.moved = true;
-    // Live-drag the strip (spotlight follows the nearest whole number live).
-    this.sliderStrip.x = drag.stripStartX + dx;
+
+    const max = this.sliderValues.length - 1;
+    // Clamp the strip to the first/last number so it can never overshoot the ends
+    // (which is what let the centring drift). The strip's x for index i is
+    // sliderCX - i*cellW, so the legal range is [x(max), x(0)].
+    const minX = this.sliderCX - max * this.sliderCellW;
+    const maxX = this.sliderCX;
+    const rawX = drag.stripStartX + dx;
+    this.sliderStrip.x = Math.max(minX, Math.min(maxX, rawX));
+
     const approx = Math.round((this.sliderCX - this.sliderStrip.x) / this.sliderCellW);
-    const clamped = Math.max(0, Math.min(this.sliderValues.length - 1, approx));
+    const clamped = Math.max(0, Math.min(max, approx));
     if (clamped !== this.selectedIndex) {
       this.selectedIndex = clamped;
       this.styleSliderNumbers(clamped);
