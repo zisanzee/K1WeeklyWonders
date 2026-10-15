@@ -29,6 +29,8 @@ export const GAME_ICON_FILES = {
   '10': '/game-icons/game10.png',
   '12': 'https://res.cloudinary.com/hijmipga/image/upload/v1790782996/icon_qnxc7a.png',
   '13': 'https://res.cloudinary.com/hijmipga/image/upload/v1791029534/game13icon_aqhufr.png',
+  // Choo-Choo to the Zoo!
+  '14': 'https://res.cloudinary.com/hijmipga/image/upload/v1792079805/game14icon_z7si4h.png',
 
   // Remote example — paste a Cloudinary URL here (add f_auto,q_auto to let
   // Cloudinary serve the smallest format). Replace the placeholder to enable it:

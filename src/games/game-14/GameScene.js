@@ -1,26 +1,27 @@
 // GameScene.js
-// Game 14 — the train + controls + rider task, across 3 LEVELS.
+// Choo-Choo to the Zoo! — the train + controls + rider task, across 3 LEVELS.
 //
 // What this scene does:
-//   • A horizontal reference line across the middle (the "track").
-//   • A train of cars laid back-to-back, scaled so three fill the screen width,
-//     sitting on the line. A single-image HEAD is the locomotive; the body cars
-//     are numbered 1..N and the LAST one uses the level's `cartBodyEnd` art.
+//   • A train of cars laid back-to-back, scaled so `visibleCarts` fill the screen
+//     width, riding an invisible curved track (the line is reference-only — see
+//     TRACK.show). A single-image HEAD is the locomotive; the body cars are
+//     numbered 1..N and the LAST one uses the level's `cartBodyEnd` art.
 //   • LEVELS (see LEVELS in tuning.js): each swaps the backdrop, the cart
 //     colours and the number of carts — level 1 = 5 green carts (day), level 2 =
 //     7 red carts (autumn), level 3 = 10 blue carts (night, with a dark tint on
-//     the riders + locomotive).
+//     the riders + locomotive). Each level runs `roundsPerLevel` rounds.
 //   • INTRO: on each level the train starts fully off-screen to the right and
 //     rolls in until the head + first cart straddle the centre; only then do the
-//     control buttons and the task card appear.
-//   • Two hold-to-drive buttons slide the whole train along the track — but only
-//     as far as being fully off each edge (see TRAIN.pan), never further.
+//     controls and the task card appear.
+//   • Two hold-to-drive zones flank the card at the bottom (a tap anywhere in
+//     the side area works) with arrow buttons; a 1..N number line sits on top.
+//     The train may only be driven as far as being fully off each edge.
 //   • TASK: ONE card at the bottom shows an animal and the position it belongs
 //     in, spelled as a word ("second"). Deal order is randomised but every
 //     animal and every position is used exactly once. An animal dropped on the
 //     WRONG cart registers a wrong and returns to the card; dropped on the right
 //     cart it stays. When the last one lands the train celebrates (confetti) and
-//     rolls out to the next level — no confirm button.
+//     rolls out to the next round/level — auto, with no confirm button.
 //
 // EVERY adjustable number lives in `tuning.js`, not here. This file is logic only.
 //
@@ -33,6 +34,8 @@ import {
   SKY_THEME,
   CLOUDS,
   BACKGROUND_DEPTH,
+  START_SCREEN,
+  VOICE,
   LEVELS,
   TRAIN,
   TRACK,
@@ -94,10 +97,16 @@ export default class GameScene extends BaseScene {
     this.elapsed = 0; // ms clock, drives the idle bob
     this._prevX = 0; // last frame's trainX, to measure actual movement for sound
     this.carts = [];
-    this.cartScale = 1;
     this.cartW = 0; // one car's on-screen width after scaling
     this.cartH = 0; // one car's on-screen height after scaling
-    this.trackY = 0;
+    // Caches. The track curve constants and pan limits depend only on the level
+    // and the layout, so they are computed ONCE per level instead of per frame.
+    this.trackBaseY = 0;
+    this.trackK = 0;
+    this._pan = { lower: 0, upper: 0 };
+    // True only while a tween is animating trainX (intro roll-in / outro) — then
+    // update() must not also integrate velocity, or the two would fight.
+    this.autoMoving = false;
     this.leftBtn = null;
     this.rightBtn = null;
     this.headCart = null; // the head cart container (null if there is no head art)
@@ -108,9 +117,17 @@ export default class GameScene extends BaseScene {
     this.bgImage = null; // the current level's backdrop image
 
     // Intro / reveal state.
+    this.started = false; // false while the start screen is up
     this.introDone = false;
     this.controlsShown = false;
     this.locked = false; // true during a transition (blocks drags + driving)
+    this.startOverlay = null; // the start screen container
+    this.startBtn = null;
+    // Voice.
+    this.startVoiceSound = null; // the welcome line (cut off on Start)
+    this.voiceSound = null; // the current spoken ordinal line
+    this.soundBtn = null; // the small replay-sound button beside the card
+    this.soundGlow = null; // the glow layer behind the sound button
 
     // Level / game state.
     this.levelIndex = 0;
@@ -144,6 +161,9 @@ export default class GameScene extends BaseScene {
     this.resetRun();
     this.startTime = this.time.now;
 
+    // Track curve constants depend only on the resolution — compute once.
+    this.cacheTrack();
+
     // The level's backdrop (level 1 on load). Missing art falls back to the
     // shared sky gradient + drifting clouds so the canvas is never bare.
     this.buildBackground();
@@ -168,16 +188,24 @@ export default class GameScene extends BaseScene {
     // are unreliable across that. A scene-level pointermove/up drives it instead.
     this.input.on('pointermove', (pointer) => this.onPointerMove(pointer));
     this.input.on('pointerup', (pointer) => {
+      // Nothing drives or drops until the player has tapped Start.
+      if (!this.started) return;
       this.stopDrive();
       this.onPointerUp(pointer);
     });
     this.events.once('shutdown', () => {
       this.stopDrive();
       this.trainSound?.stop();
+      // Voice lines (all belong to the per-Game SoundManager) must not outlive
+      // the scene.
+      this.stopStartVoice();
+      this.voiceSound?.stop();
+      this.voiceSound?.destroy();
+      this.voiceSound = null;
     });
 
-    // Roll the train in from off-screen; on arrival the controls + card appear.
-    this.startIntro();
+    // Hold the whole game behind the start screen; Start begins the roll-in.
+    this.buildStartOverlay();
   }
 
   update(_time, delta) {
@@ -194,44 +222,61 @@ export default class GameScene extends BaseScene {
     // Settle the last trace of speed to rest so a stopped train is exactly still.
     if (!this.driveDir && Math.abs(this.velocity) < TRAIN.settleSpeed) this.velocity = 0;
 
-    this.trainX += this.velocity * dt;
-
-    // Once the intro is over, the train may be driven off either edge — but only
-    // as far as being fully off-screen; past that it is clamped and stopped.
-    if (this.introDone) this.clampPan();
-
-    // Lay every cart on the track for its own position — each cart bends to the
-    // line independently, so the consist follows the arch instead of rotating
-    // as one rigid block.
-    this.layoutCarts();
-    this.emitSmoke(delta);
+    // A tween owns trainX during the intro/outro (autoMoving) — do NOT also
+    // integrate velocity then, or the two would fight over the same property.
+    if (!this.autoMoving) {
+      this.trainX += this.velocity * dt;
+      // Once the intro is over, the train may be driven off either edge — but
+      // only as far as being fully off-screen; past that it is clamped + stopped.
+      if (this.introDone) this.clampPan();
+    }
 
     // Engine sound follows the train's ACTUAL movement, so it chugs during the
     // intro/outro tweens too (those move trainX directly, without `velocity`).
     const speed = dt > 0 ? Math.abs(this.trainX - this._prevX) / dt : 0;
     this._prevX = this.trainX;
     this.updateTrainSound(dt, speed);
+
+    // Lay every cart on the track for its own position — each cart bends to the
+    // line independently, so the consist follows the arch instead of rotating
+    // as one rigid block. (The per-cart bob + the chimney smoke keep running even
+    // when the train is parked, so this is intentionally every frame.)
+    this.layoutCarts();
+    this.emitSmoke(delta);
   }
 
   // ---------------------------------------------------------------------------
   // Pan limits — the train can leave the screen, but no further than that
   // ---------------------------------------------------------------------------
 
-  panBounds() {
+  // Recompute the pan limits from the current consist. The relX values do not
+  // change during a level, so this runs once per train build (not per frame).
+  // Recompute the pan limits from the current consist. Runs once per train build.
+  // Writes into a reused object so it allocates nothing.
+  cachePanBounds() {
     const width = this.scale.width;
     const half = this.cartW / 2;
-    const minRel = Math.min(...this.carts.map((c) => c.relX));
-    const maxRel = Math.max(...this.carts.map((c) => c.relX));
+    let minRel = Infinity;
+    let maxRel = -Infinity;
+    for (const c of this.carts) {
+      if (c.relX < minRel) minRel = c.relX;
+      if (c.relX > maxRel) maxRel = c.relX;
+    }
     const pad = TRAIN.pan.overshootPad;
     // Most-negative trainX = whole train just off the LEFT edge.
-    const lower = -maxRel - half - pad;
+    this._pan.lower = -maxRel - half - pad;
     // Most-positive trainX = whole train just off the RIGHT edge.
-    const upper = width - minRel + half + pad;
-    return { lower, upper };
+    this._pan.upper = width - minRel + half + pad;
+    return this._pan;
   }
 
+  panBounds() {
+    return this._pan;
+  }
+
+  // Clamp trainX into the (cached) pan limits. Cheap enough to run every frame.
   clampPan() {
-    const { lower, upper } = this.panBounds();
+    const { lower, upper } = this._pan;
     if (this.trainX < lower) {
       this.trainX = lower;
       if (this.velocity < 0) this.velocity = 0;
@@ -239,6 +284,85 @@ export default class GameScene extends BaseScene {
       this.trainX = upper;
       if (this.velocity > 0) this.velocity = 0;
     }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Start screen — fullscreen title art with a Start button near the bottom
+  // ---------------------------------------------------------------------------
+
+  buildStartOverlay() {
+    const { width, height } = this.scale;
+    const cfg = START_SCREEN;
+
+    this.startOverlay = this.add.container(0, 0).setDepth(cfg.depth);
+
+    if (this.textures.exists(cfg.key)) {
+      // Title art scaled to COVER the viewport (no letterbox bars).
+      const art = this.add.image(width / 2, height / 2, cfg.key);
+      art.setScale(Math.max(width / art.width, height / art.height));
+      this.startOverlay.add(art);
+    } else {
+      // Art missing: a plain backdrop so the Start button is still reachable.
+      const fallback = this.add.rectangle(width / 2, height / 2, width, height, 0x0f172a, 1);
+      this.startOverlay.add(fallback);
+    }
+
+    const startBtn = this.createPillButton(width / 2, cfg.buttonY, cfg.buttonLabel, {
+      fontSize: cfg.buttonFontSize,
+      paddingX: cfg.buttonPaddingX,
+      paddingY: cfg.buttonPaddingY,
+      depth: cfg.buttonDepth,
+    });
+    // createPillButton returns a wrapper — add its container and tween that.
+    this.startOverlay.add(startBtn.container);
+    this.tweens.add({
+      targets: startBtn.container,
+      scale: cfg.pulseScale,
+      duration: cfg.pulseMs,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut',
+    });
+    startBtn.on('pointerup', () => this.beginPlay());
+    this.startBtn = startBtn;
+
+    // Play the welcome line over the title screen; it is cut off the instant
+    // Start is tapped (beginPlay).
+    if (this.cache.audio.exists(START_SCREEN.voiceKey)) {
+      this.startVoiceSound = this.sound.add(START_SCREEN.voiceKey, {
+        volume: START_SCREEN.voiceVolume,
+      });
+      this.startVoiceSound.play();
+    }
+  }
+
+  stopStartVoice() {
+    this.startVoiceSound?.stop();
+    this.startVoiceSound?.destroy();
+    this.startVoiceSound = null;
+  }
+
+  // Fade the start screen away, then roll the train in for level 1.
+  beginPlay() {
+    if (this.started) return;
+    this.started = true;
+
+    // The welcome line stops the moment Start is tapped.
+    this.stopStartVoice();
+
+    const overlay = this.startOverlay;
+    this.startOverlay = null;
+    this.startBtn = null;
+    const fadeMs = START_SCREEN.fadeMs;
+    this.tweens.add({
+      targets: overlay,
+      alpha: 0,
+      duration: fadeMs,
+      ease: 'Sine.easeOut',
+      onComplete: () => overlay.destroy(true),
+    });
+
+    this.time.delayedCall(fadeMs, () => this.startIntro());
   }
 
   // ---------------------------------------------------------------------------
@@ -272,13 +396,18 @@ export default class GameScene extends BaseScene {
     const iTo = Math.min(intro.centerTo, this.carts.length - 1);
     const midRel = (this.carts[iFrom].relX + this.carts[iTo].relX) / 2;
     const endX = Math.min(width / 2 - midRel, upper);
+    // The tween owns trainX for its duration (see update()).
+    this.autoMoving = true;
     this.tweens.add({
       targets: this,
       trainX: endX,
       duration: durationMs,
       ease,
       onUpdate: () => this.layoutCarts(),
-      onComplete,
+      onComplete: () => {
+        this.autoMoving = false;
+        onComplete();
+      },
     });
   }
 
@@ -304,9 +433,12 @@ export default class GameScene extends BaseScene {
     // Card fades in, then the first task is dealt.
     if (this.taskParts.length) {
       this.setTaskVisible(true);
-      this.taskParts.forEach((o) => o.setAlpha(0));
+      // Fade in everything EXCEPT the sound button's glow, which must keep its
+      // own alpha (a full fade-in would leave it stuck visible).
+      const fadeParts = this.taskParts.filter((o) => !o.isGlow);
+      fadeParts.forEach((o) => o.setAlpha(0));
       this.tweens.add({
-        targets: this.taskParts,
+        targets: fadeParts,
         alpha: 1,
         duration: TRAIN.rider.popInDurationMs,
         ease: 'Sine.easeOut',
@@ -375,6 +507,10 @@ export default class GameScene extends BaseScene {
   // Glide the rate and volume toward targets derived from the current speed.
   // `speed` is the train's actual px/s this frame — from the player's driving OR
   // an intro/outro tween, so the engine is heard whenever the train is moving.
+  //
+  // PERF: when nothing has changed (the train is fully at rest, not driving, and
+  // the rate/volume already sit at their targets) this returns immediately — so
+  // an idle scene does no per-frame audio work at all.
   updateTrainSound(dt, speed) {
     const s = this.trainSound;
     if (!s) return;
@@ -382,6 +518,14 @@ export default class GameScene extends BaseScene {
     const speedFrac = Math.min(1, speed / TRAIN.speed);
     const targetRate = cfg.restRate + cfg.rateRange * speedFrac;
     const targetVol = cfg.quietVolume + (cfg.loudVolume - cfg.quietVolume) * speedFrac;
+    const atRest = this.driveDir === 0 && this.velocity === 0 && !this.autoMoving;
+    if (
+      atRest &&
+      Math.abs(s.rate - targetRate) < 0.001 &&
+      Math.abs(s.volume - targetVol) < 0.001
+    ) {
+      return;
+    }
     // Exponential smoothing, frame-rate independent. setRate() (not a bare
     // `s.rate =`) so the underlying audio node is actually updated.
     s.setRate(s.rate + (targetRate - s.rate) * (1 - Math.exp(-cfg.smoothRate * dt)));
@@ -430,16 +574,21 @@ export default class GameScene extends BaseScene {
 
   // The vertical position of the track line at an internal screen x, in px. The
   // line and the carts share this, so a cart always sits exactly on the line.
+  // Reads the cached curve constants (cacheTrack), so the per-frame cost is one
+  // sin() and a multiply-add.
   trackYAt(x) {
-    const base = this.scale.height * TRACK.yFrac;
-    const k = (Math.PI * 2 * TRACK.curveWaves) / this.scale.width;
-    return base + TRACK.curveAmplitude * Math.sin(k * x + TRACK.curvePhase);
+    return this.trackBaseY + TRACK.curveAmplitude * Math.sin(this.trackK * x + TRACK.curvePhase);
   }
 
   // dY/dX of the track at an x — used to rotate a cart to the local slope.
   trackSlopeAt(x) {
-    const k = (Math.PI * 2 * TRACK.curveWaves) / this.scale.width;
-    return TRACK.curveAmplitude * k * Math.cos(k * x + TRACK.curvePhase);
+    return TRACK.curveAmplitude * this.trackK * Math.cos(this.trackK * x + TRACK.curvePhase);
+  }
+
+  // Compute the constants the track math needs, once per level/resolution.
+  cacheTrack() {
+    this.trackBaseY = this.scale.height * TRACK.yFrac;
+    this.trackK = (Math.PI * 2 * TRACK.curveWaves) / this.scale.width;
   }
 
   // ---------------------------------------------------------------------------
@@ -502,11 +651,9 @@ export default class GameScene extends BaseScene {
 
   buildTrack() {
     const { width } = this.scale;
-    // Base (unbent) y — the mid-height centre line. Always computed, because the
-    // carts ride it, whether or not the line is drawn.
-    this.trackY = this.scale.height * TRACK.yFrac;
 
-    // Reference only — hidden from players (see TRACK.show).
+    // Reference only — hidden from players by default (see TRACK.show). The
+    // carts always ride this curve via trackYAt(), drawn or not.
     if (!TRACK.show) return;
 
     const gfx = this.add.graphics().setDepth(0);
@@ -570,7 +717,6 @@ export default class GameScene extends BaseScene {
       cartH = bodyH + lidH; // the stacked cart's total height
       probe.destroy();
     }
-    this.cartScale = scale;
     this.cartW = cartW;
     this.cartH = cartH;
 
@@ -657,8 +803,10 @@ export default class GameScene extends BaseScene {
       this.carts.push(cart);
     }
 
+    // The consist is laid out — cache the pan limits from it (reads cart relX).
+    this.cachePanBounds();
     // Start fully off-screen to the right; the intro tween drives trainX in.
-    this.trainX = this.panBounds().upper;
+    this.trainX = this._pan.upper;
     this.layoutCarts();
 
     // Chimney smoke for the head (no-op when there is no head art).
@@ -800,20 +948,19 @@ export default class GameScene extends BaseScene {
     const edgePad = step / 2;
     const bandX = left - edgePad;
     const bandW = right - left + edgePad * 2;
-    const band = this.add.graphics().setDepth(cfg.depth);
-    band.fillStyle(cfg.bandColor, cfg.bandAlpha);
-    band.fillRoundedRect(bandX, y - bandH / 2, bandW, bandH, cfg.bandRadius);
-    this.numberLineParts.push(band);
 
-    // Thin dividers between each pair of numbers.
+    // One Graphics for the band AND its dividers — fewer display objects and a
+    // single draw, instead of a separate Graphics per divider.
+    const ruler = this.add.graphics().setDepth(cfg.depth);
+    ruler.fillStyle(cfg.bandColor, cfg.bandAlpha);
+    ruler.fillRoundedRect(bandX, y - bandH / 2, bandW, bandH, cfg.bandRadius);
     const divH = this.scale.height * cfg.dividerHeightFrac;
+    ruler.lineStyle(cfg.dividerWidth, cfg.dividerColor, cfg.dividerAlpha);
     for (let i = 1; i < count; i += 1) {
       const x = left + (i - 0.5) * step;
-      const div = this.add.graphics().setDepth(cfg.depth + 1);
-      div.lineStyle(cfg.dividerWidth, cfg.dividerColor, cfg.dividerAlpha);
-      div.lineBetween(x, y - divH / 2, x, y + divH / 2);
-      this.numberLineParts.push(div);
+      ruler.lineBetween(x, y - divH / 2, x, y + divH / 2);
     }
+    this.numberLineParts.push(ruler);
 
     // The numbers themselves.
     for (let i = 0; i < count; i += 1) {
@@ -833,16 +980,9 @@ export default class GameScene extends BaseScene {
     }
   }
 
-  // Wire a control so holding it drives the train in `dir`. The shared pill
-  // button already provides press feedback; here we add the drive intent.
-  bindHold(button, dir) {
-    button.on('pointerdown', () => this.startDrive(dir));
-    button.on('pointerup', () => this.stopDrive());
-    button.on('pointerout', () => this.stopDrive());
-  }
-
   startDrive(dir) {
-    if (!this.introDone || this.locked) return; // no driving until it has arrived
+    // No driving until Start has been tapped and the train has rolled in.
+    if (!this.started || !this.introDone || this.locked) return;
     this.driveDir = dir;
   }
 
@@ -855,9 +995,9 @@ export default class GameScene extends BaseScene {
   // ---------------------------------------------------------------------------
 
   wrongAnswer() {
-    const cfg = TRAIN.allAboard;
+    const cfg = TRAIN.feedback;
     this.mistakes += 1;
-    this.sound.play(cfg.wrongKey, { volume: 0.7 });
+    this.sound.play(cfg.wrongKey, { volume: cfg.wrongVolume });
 
     // Flash + shake the whole board red so the miss reads instantly.
     const c = cfg.flashColor;
@@ -926,13 +1066,18 @@ export default class GameScene extends BaseScene {
   leaveTrain(onDone) {
     const { lower } = this.panBounds();
     const target = lower - TRAIN.intro.offscreenPad;
+    // The tween owns trainX for its duration (see update()).
+    this.autoMoving = true;
     this.tweens.add({
       targets: this,
       trainX: target,
       duration: TRAIN.placement.leaveDurationMs,
       ease: TRAIN.placement.leaveEase,
       onUpdate: () => this.layoutCarts(),
-      onComplete: onDone,
+      onComplete: () => {
+        this.autoMoving = false;
+        onDone();
+      },
     });
   }
 
@@ -1112,8 +1257,84 @@ export default class GameScene extends BaseScene {
       .setDepth(cfg.depth + 1);
     this.taskParts.push(this.cardLabel);
 
+    this.buildSoundButton();
+
     // Hidden until the intro finishes.
     this.setTaskVisible(false);
+  }
+
+  // The small semi-transparent "hear it again" button, placed to the RIGHT of
+  // the card so the card itself stays uncluttered. Tapping it replays the spoken
+  // ordinal for the current task.
+  buildSoundButton() {
+    const cfg = VOICE.button;
+    if (!this.textures.exists(cfg.key)) return;
+    const cx = this.taskCardPos.x + cfg.dxFrac * this.cardW;
+    const cy = this.taskCardPos.y + cfg.dYFrac * this.cardH;
+
+    const btn = this.add
+      .image(cx, cy, cfg.key)
+      .setOrigin(0.5)
+      .setScale(cfg.scale)
+      .setAlpha(cfg.alpha) // semi-transparent
+      .setDepth(cfg.depth);
+
+    // Forgiving hit area: a rectangle padded generously around the art, so the
+    // tap does not need to be accurate.
+    const pad = cfg.hitPadFrac;
+    const hitW = btn.width * (1 + pad);
+    const hitH = btn.height * (1 + pad);
+    btn.setInteractive(
+      new Phaser.Geom.Rectangle((btn.width - hitW) / 2, (btn.height - hitH) / 2, hitW, hitH),
+      Phaser.Geom.Rectangle.Contains
+    );
+    btn.input.cursor = 'pointer';
+
+    // A glow copy behind the button (ADD-blend, tinted, hidden by default), and
+    // the tween that flashes it and fades it out.
+    const glow = this.add
+      .image(cx, cy, cfg.key)
+      .setOrigin(0.5)
+      .setScale(cfg.scale * cfg.glowScale)
+      .setTint(cfg.glowColor)
+      .setBlendMode(Phaser.BlendModes.ADD)
+      .setAlpha(0)
+      .setDepth(cfg.depth - 1);
+    glow.isGlow = true; // excluded from the reveal fade (see revealControlsAndTask)
+    this.soundGlow = glow; // flashed by playOrdinalVoice()
+    this.taskParts.push(glow);
+
+    // Keep the animations: hover brightens, tap pops. The glow is driven by the
+    // voice itself (playOrdinalVoice), so it pulses on the initial deal too.
+    btn.on('pointerover', () => btn.setAlpha(cfg.alphaHover));
+    btn.on('pointerout', () => btn.setAlpha(cfg.alpha));
+    btn.on('pointerup', () => {
+      this.playOrdinalVoice();
+      this.tweens.add({
+        targets: btn,
+        scale: cfg.scale * VOICE.tapScale,
+        duration: VOICE.tapMs,
+        yoyo: true,
+        ease: 'Sine.easeOut',
+      });
+    });
+
+    this.soundBtn = btn;
+    this.taskParts.push(btn);
+  }
+
+  // Flash the glow to `glowPeakAlpha` then fade it out over `glowMs`.
+  flashGlow(glow) {
+    const cfg = VOICE.button;
+    this.tweens.killTweensOf(glow);
+    glow.setAlpha(cfg.glowPeakAlpha);
+    this.tweens.add({
+      targets: glow,
+      alpha: 0,
+      delay: cfg.glowRiseMs,
+      duration: cfg.glowMs,
+      ease: 'Sine.easeIn',
+    });
   }
 
   // Build the two shuffled queues once per level: one entry per numbered cart
@@ -1140,10 +1361,16 @@ export default class GameScene extends BaseScene {
     this.taskKey = key;
     this.taskNumber = number;
     this.cardLabel.setText(this.ordinalFor(number));
+    // Speak the position as the animal lands on the card.
+    this.playOrdinalVoice(number);
 
     // Replace the card animal (remove it from taskParts too, so the show/hide
     // sweep never touches a destroyed object).
     this.destroyCardAnimal();
+
+    // Animate the card change so it reads as an arrival, not a hard switch.
+    this.animateCardPop();
+
     if (!this.textures.exists(key)) return;
 
     const src = this.textures.get(key).getSourceImage();
@@ -1154,10 +1381,56 @@ export default class GameScene extends BaseScene {
     this.applyRiderTint(sprite);
     sprite.setInteractive({ useHandCursor: true });
     sprite.on('pointerdown', (pointer) => this.beginRiderDrag(sprite, pointer));
+    this.popInAnimal(sprite, s);
 
     this.cardAnimal = sprite;
     this.taskParts.push(sprite);
     if (!this.controlsShown) this.setTaskVisible(false);
+  }
+
+  // Pop-in for a newly dealt task: the label drops + springs in, the animal
+  // springs up — offset slightly so they do not arrive in perfect lock-step.
+  // Tweens only the SPRITE scale/position, so the setTaskVisible() alpha sweep
+  // (which runs when controls first appear) never fights it.
+  animateCardPop() {
+    const cfg = TRAIN.task;
+    const a = cfg.dealAnim;
+    const cx = this.taskCardPos.x;
+    const labelY = this.taskCardPos.y + cfg.labelYFrac * cfg.cardH;
+
+    if (this.cardLabel) {
+      this.tweens.killTweensOf(this.cardLabel);
+      this.cardLabel.setScale(a.labelFromScale);
+      this.cardLabel.setPosition(cx, labelY + a.labelFromYFrac * cfg.cardH);
+      this.tweens.add({
+        targets: this.cardLabel,
+        scale: 1,
+        y: labelY,
+        duration: a.durationMs,
+        delay: a.labelDelayMs,
+        ease: a.ease,
+      });
+    }
+
+    // The animal sprite is created AFTER this call, so its pop is started in
+    // dealTask via popInAnimal(); nothing to do here for it.
+  }
+
+  // Spring-in for the animal sprite just added to the card.
+  popInAnimal(sprite, baseScale) {
+    const cfg = TRAIN.task;
+    const a = cfg.dealAnim;
+    const y = this.taskCardPos.y + cfg.animalYFrac * cfg.cardH;
+    sprite.setScale(baseScale * a.animalFromScale);
+    sprite.setPosition(this.taskCardPos.x, y + a.animalFromYFrac * cfg.cardH);
+    this.tweens.add({
+      targets: sprite,
+      scale: baseScale,
+      y,
+      duration: a.durationMs,
+      delay: a.animalDelayMs,
+      ease: a.ease,
+    });
   }
 
   destroyCardAnimal() {
@@ -1172,6 +1445,20 @@ export default class GameScene extends BaseScene {
   ordinalFor(number) {
     const words = TRAIN.task.ordinals;
     return words[number - 1] || `${number}th`;
+  }
+
+  // Speak the ordinal for a task: the clip key equals the spelled word (see
+  // TASK.ordinals + assets.js AUDIO), so the voice always matches the card text.
+  // Pass no number to replay the CURRENT task's word (used by the sound button).
+  playOrdinalVoice(number = this.taskNumber) {
+    const key = this.ordinalFor(number);
+    if (!key || !this.cache.audio.exists(key)) return;
+    // Cut off the previous line so rapid deals do not overlap.
+    this.voiceSound?.stop();
+    this.voiceSound = this.sound.add(key, { volume: VOICE.volume });
+    this.voiceSound.play();
+    // Pulse the sound button so it reads as the thing speaking.
+    if (this.soundGlow) this.flashGlow(this.soundGlow);
   }
 
   // Darken a rider on the night level (level.riderTint) so it reads as outdoors
@@ -1293,7 +1580,7 @@ export default class GameScene extends BaseScene {
   seatPop(sprite) {
     const cfg = TRAIN.rider;
     // The pop sound fires exactly when an animal is placed on a cart.
-    this.sound.play('pop1', { volume: 0.7 });
+    this.sound.play(cfg.popKey, { volume: cfg.popVolume });
     const base = this.riderScaleFor(sprite.texture.key);
     sprite.setScale(base * cfg.landScaleFrom);
     this.tweens.add({

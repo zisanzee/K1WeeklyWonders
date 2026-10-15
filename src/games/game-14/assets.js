@@ -1,5 +1,5 @@
 // assets.js
-// Game 14 — the single place this game's asset URLs live.
+// Choo-Choo to the Zoo! — the single place this game's asset URLs live.
 //
 // ASSET_MANIFEST is DERIVED from IMAGES/AUDIO, so adding a file is one line in
 // the table below and every loader path picks it up automatically. Keys must be
@@ -60,9 +60,15 @@ export const IMAGES = {
   // The task card frame at the bottom (the animal + spelled position sit on it).
   cardFrame: cld('https://res.cloudinary.com/hijmipga/image/upload/v1791988459/Card-Frame_1_k9kzkg.png'),
 
+  // Fullscreen title / start screen.
+  startScreen: cld('https://res.cloudinary.com/hijmipga/image/upload/v1792076551/startscreengame14_x8jsto.png'),
+
   // The drive arrow button. This art points RIGHT; the left button is the same
   // image flipped horizontally (see GameScene.makeDriveButton).
   arrowButton: cld('https://res.cloudinary.com/hijmipga/image/upload/v1791991315/right-arrow-button_1_zeukod.png'),
+
+  // The small "hear it again" sound button beside the task card.
+  soundButton: cld('https://res.cloudinary.com/hijmipga/image/upload/v1792078506/sound_button_eklvja.png'),
 
   // Riders — the animals the player drags onto each cart.
   riderTurtle: cld('https://res.cloudinary.com/hijmipga/image/upload/v1791816238/Rider-Turtle_rpkqmc.png'),
@@ -106,7 +112,21 @@ export const AUDIO = {
   // speed in GameScene (see TRAIN_SOUND in tuning.js).
   trainRunning:
     'https://res.cloudinary.com/hijmipga/video/upload/v1791811411/train_running__1-1791811325786_quxtes.mp3',
-};
+
+  StartscreenVoice: 'https://res.cloudinary.com/hijmipga/video/upload/v1792076589/startVOICE_2_v6kfaw.mp3',
+  first: 'https://res.cloudinary.com/hijmipga/video/upload/v1792076589/First_sjh18i.mp3',
+  second: 'https://res.cloudinary.com/hijmipga/video/upload/v1792076588/second_efct7q.mp3',
+  third: 'https://res.cloudinary.com/hijmipga/video/upload/v1792076588/third_vlsids.mp3',
+  fourth: 'https://res.cloudinary.com/hijmipga/video/upload/v1792076588/fourth_rurkqi.mp3',
+  fifth: 'https://res.cloudinary.com/hijmipga/video/upload/v1792076587/fifth_nncnhj.mp3',
+  sixth: 'https://res.cloudinary.com/hijmipga/video/upload/v1792076587/sixth_spk0fn.mp3',
+  seventh: 'https://res.cloudinary.com/hijmipga/video/upload/v1792076587/seventh_xcwp7r.mp3',
+  eighth: 'https://res.cloudinary.com/hijmipga/video/upload/v1792076587/eighth_nmsb0j.mp3',
+  ninth: 'https://res.cloudinary.com/hijmipga/video/upload/v1792076587/ninth_um85ak.mp3',
+  tenth: 'https://res.cloudinary.com/hijmipga/video/upload/v1792076586/tenth_yppdlo.mp3',
+
+
+  };
 
 // Phaser picks a codec/extension from the URL itself; some hosts (Cloudinary
 // video uploads) end in an extension it does not recognise as audio and the
@@ -118,6 +138,18 @@ const AUDIO_TYPE_OVERRIDES = {
   // bgMusic is an audio-only Cloudinary .mp4 — not in Phaser's recognised-audio
   // extension list, so without this it silently fails to queue and never plays.
   bgMusic: 'mp3',
+  // The voice lines are all Cloudinary VIDEO uploads too — force mp3.
+  StartscreenVoice: 'mp3',
+  first: 'mp3',
+  second: 'mp3',
+  third: 'mp3',
+  fourth: 'mp3',
+  fifth: 'mp3',
+  sixth: 'mp3',
+  seventh: 'mp3',
+  eighth: 'mp3',
+  ninth: 'mp3',
+  tenth: 'mp3',
 };
 
 // Flattened manifest for BasePreloadScene({ assets: ASSET_MANIFEST, ... }).

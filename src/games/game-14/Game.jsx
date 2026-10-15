@@ -1,5 +1,5 @@
 // Game.jsx
-// Game 14 — wires the game into the shared Phaser shell.
+// Choo-Choo to the Zoo! — wires the game into the shared Phaser shell.
 //
 // No live-tuning panel here (add one later per docs/DEV_TUNING.md if the
 // mechanic needs by-eye numbers) — this keeps the boilerplate minimal.
@@ -18,8 +18,8 @@ export default function Game({ playerName }) {
       key: 'PreloadScene',
       assets: ASSET_MANIFEST,
       nextSceneKey: 'GameScene',
-      loadingEmoji: '\uD83C\uDFB2',
-      loadingText: 'Getting Game 14 ready...',
+      loadingEmoji: '\uD83D\uDE82',
+      loadingText: 'Getting Choo-Choo to the Zoo! ready...',
     }),
     new GameScene(),
   ];

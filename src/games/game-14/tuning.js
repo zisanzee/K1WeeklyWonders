@@ -1,5 +1,5 @@
 // tuning.js
-// Game 14 — THE TUNING FILE. Every adjustable number the scene reads lives here,
+// Choo-Choo to the Zoo! — THE TUNING FILE. Every adjustable number lives here,
 // so the whole game can be re-centred and re-timed by eye without touching any
 // logic in GameScene.js. Nothing in this file is stateful and it imports nothing,
 // so it is safe to edit and save; Vite hot-reloads it.
@@ -29,6 +29,65 @@ export const CLOUDS = [
 
 // Background depth — shared by every level's backdrop image.
 export const BACKGROUND_DEPTH = -10; // behind the track (0) and every cart
+
+// ---------------------------------------------------------------------------
+// START SCREEN — the fullscreen title art shown before each run, with a Start
+// button near the bottom. Tap Start to fade it away and roll the train in.
+// ---------------------------------------------------------------------------
+export const START_SCREEN = {
+  key: 'startScreen', // must match the IMAGES key in assets.js
+  depth: 200, // above the whole game
+  // Start button.
+  buttonY: 980, // button centre, in internal px (720x1080 canvas)
+  buttonLabel: 'Start \u25B6',
+  buttonFontSize: '36px',
+  buttonPaddingX: 56,
+  buttonPaddingY: 22,
+  buttonDepth: 201,
+  // Gentle attention pulse on the button.
+  pulseScale: 1.06,
+  pulseMs: 780,
+  // Fade-out when Start is tapped, then the run begins.
+  fadeMs: 420,
+  // Welcome voice line, played over the title screen and CUT OFF the moment
+  // Start is tapped (see GameScene.beginPlay).
+  voiceKey: 'StartscreenVoice', // must match an assets.js AUDIO key
+  voiceVolume: 0.9,
+};
+
+// ---------------------------------------------------------------------------
+// VOICE + UI SOUND — the spoken ordinal ("first", "second", …) and the small
+// button BESIDE the card that replays it on demand.
+// ---------------------------------------------------------------------------
+export const VOICE = {
+  volume: 0.95,
+  // The ordinal clips are keyed exactly like TASK.ordinals ('first'…'tenth'), so
+  // the spoken word matches the card text automatically.
+  // Sound button: an IMAGE (assets.js `soundButton`), semi-transparent, placed to
+  // the RIGHT of the card so it does not clutter it.
+  button: {
+    key: 'soundButton', // must match the IMAGES key in assets.js
+    dxFrac: 0.70, // x offset from the card centre, as a fraction of the card width
+    dYFrac: -0.28, // y offset from the card centre, as a fraction of the card height
+    scale: 0.5, // image scale
+    alpha: 0.75, // semi-transparent
+    alphaHover: 1, // fully opaque on hover
+    depth: 30, // above the card (TASK.depth)
+    // Forgiving tap area: pad on every side, as a fraction of the image's own
+    // frame size, so the tap need not be accurate.
+    hitPadFrac: 0.6,
+    // Glow: an ADD-blend copy of the art, tinted and scaled up a little, that
+    // pulses softly whenever the ordinal voice plays. Deliberately subtle.
+    glowColor: 0xffe9a8,
+    glowScale: 1.25,
+    glowPeakAlpha: 0.4,
+    glowRiseMs: 120,
+    glowMs: 1600,
+  },
+  // Small pop when the button is tapped.
+  tapScale: 0.88,
+  tapMs: 90,
+};
 
 // ---------------------------------------------------------------------------
 // LEVELS — the 3 levels. Each level swaps the backdrop, the cart colours and
@@ -115,9 +174,6 @@ export const TRAIN = {
   // Where the train sits vertically, as a fraction of the canvas height. Matches
   // TRACK.yFrac so the carts rest on the line.
   yFrac: 0.5,
-  // The train's starting position as a fraction of the screen width, so a few
-  // carts have already rolled into frame at load.
-  startFrac: 0.62,
   // Fraction of the visible cart width the train covers per second at rest, and
   // the top speed in internal px/s while a control is held.
   speed: 610,
@@ -166,6 +222,9 @@ export const TRAIN = {
   rider: {
     // A landed rider is scaled to this fraction of a cart's width.
     scaleFrac: 0.8,
+    // Sound played at the moment an animal is placed on a cart.
+    popKey: 'pop1', // must match an assets.js AUDIO key
+    popVolume: 0.7,
     // WHERE A LANDED RIDER SITS. Coordinates are relative to the CART's own
     // centre (0,0 = dead centre of the whole cart), so the full travel is the
     // cart's own size — not the (much shorter) body's.
@@ -241,26 +300,30 @@ export const TRAIN = {
     grabEase: 'Back.easeOut',
     // Returning a mis-dropped animal to the card.
     returnMs: 240,
-    doneText: 'All aboard!',
+
+    // POP-IN when a new task is dealt: the label drops in and the animal springs
+    // up, so the card change reads as an arrival rather than a hard switch.
+    dealAnim: {
+      labelFromScale: 0.5,
+      labelFromYFrac: -0.13, // extra fall, as a fraction of the card height
+      labelDelayMs: 0,
+      animalFromScale: 0.3,
+      animalFromYFrac: 0.16, // extra rise, as a fraction of the card height
+      animalDelayMs: 70,
+      durationMs: 320,
+      ease: 'Back.easeOut',
+    },
   },
 
-  // ALL ABOARD — the confirm button between the two arrows. It appears once
-  // every animal has been placed somewhere. Tapping it checks the placements:
-  // right → the train leaves; wrong → the board flashes red and it counts a
-  // wrong.
-  allAboard: {
-    label: 'All aboard!',
-    yFrac: 0.16, // button centre, as a fraction of the canvas height
-    fontSize: '30px',
-    minWidth: 250,
-    minHeight: 84,
-    depth: 60,
-    // Wrong-answer feedback.
+  // WRONG-ANSWER FEEDBACK — an animal dropped on the wrong cart registers a
+  // wrong and the board flashes + shakes red.
+  feedback: {
     flashDurationMs: 420,
     flashColor: 0xff6b6b,
     shakeAmplitude: 12,
     shakeDurationMs: 380,
     wrongKey: 'wrong', // must match an assets.js AUDIO key
+    wrongVolume: 0.7,
   },
 
   // The correct placement: the N-th RIDER_KEY (in its shuffled deal order) rides
@@ -314,8 +377,8 @@ export const TRAIN = {
     // Where on the head the chimney sits, as a fraction of the head's width from
     // its centre. NEGATIVE = left of centre, POSITIVE = right. Fixed on purpose:
     // the plume must always rise from the SAME spot and never follow travel.
-    chimneyX: -0.1633,
-    topOffset: 8, // px down from the head's top edge where a puff starts
+    chimneyX: -0.2500,
+    topOffset: -9, // px down from the head's top edge where a puff starts
     lifeMinMs: 700,
     lifeMaxMs: 1100,
     riseMin: -130, // negative = drifts UP the screen
@@ -481,6 +544,8 @@ export const CONFETTI = {
 // whole config at once.
 export const TUNING = {
   LEVELS,
+  START_SCREEN,
+  VOICE,
   TRAIN,
   TRACK,
   CONTROLS,
