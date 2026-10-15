@@ -261,7 +261,12 @@ export default class GameScene extends BaseScene {
 
     // A tween owns trainX during the intro/outro (autoMoving) — do NOT also
     // integrate velocity then, or the two would fight over the same property.
-    if (!this.autoMoving) {
+    //
+    // ALSO skip while `locked` (a level/round transition): the train is parked
+    // BEYOND the player's pan limit during the outro, and clamping there would
+    // yank it back to the end-cart-centred position — the mid-screen flash
+    // between the roll-out and the next roll-in.
+    if (!this.autoMoving && !this.locked) {
       this.trainX += this.velocity * dt;
       // Once the intro is over, the train may be driven off either edge — but
       // only as far as being fully off-screen; past that it is clamped + stopped.
