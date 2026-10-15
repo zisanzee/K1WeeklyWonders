@@ -359,6 +359,10 @@ export const TRAIN = {
   bobAmplitude: 2,
   bobPeriodMs: 140,
   bobPhaseStep: 0.6,
+  // Below this change in rotation (radians), layoutCarts skips the rotation
+  // write — an old phone repaints far less when the train is parked. Raise it to
+  // trade a hair of tilt accuracy for fewer transform updates.
+  rotEpsilon: 0.0015,
 
   // The coloured block used when neither the cart nor the head art has loaded.
   placeholderAspect: 0.5, // placeholder height as a fraction of its width

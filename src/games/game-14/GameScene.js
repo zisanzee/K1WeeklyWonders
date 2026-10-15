@@ -524,16 +524,32 @@ export default class GameScene extends BaseScene {
   // and its own rotation from the local slope. Called every frame, and once when
   // the train is first built.
   layoutCarts() {
-    for (let i = 0; i < this.carts.length; i += 1) {
-      const cart = this.carts[i];
+    // Per-frame cache of the track trig constants (see cacheTrack) — one Sin/Cos
+    // each instead of recomputing the 2π·waves/width scale per cart.
+    const baseY = this.trackBaseY;
+    const k = this.trackK;
+    const phase = TRACK.curvePhase;
+    const amp = TRACK.curveAmplitude;
+    const slopeAmp = amp * k;
+    const bobT = this.elapsed / TRAIN.bobPeriodMs;
+    const bobAmp = TRAIN.bobAmplitude;
+    const carts = this.carts;
+    for (let i = 0; i < carts.length; i += 1) {
+      const cart = carts[i];
       const x = this.trainX + cart.relX;
       cart.x = x;
       // Its own point on the line, plus a gentle per-cart bob phase-shifted
       // along the consist so the cars ripple like a real train.
-      cart.y =
-        this.trackYAt(x) +
-        Math.sin(this.elapsed / TRAIN.bobPeriodMs + i * TRAIN.bobPhaseStep) * TRAIN.bobAmplitude;
-      cart.rotation = Math.atan(this.trackSlopeAt(x));
+      const angle = k * x + phase;
+      cart.y = baseY + amp * Math.sin(angle) + Math.sin(bobT + i * TRAIN.bobPhaseStep) * bobAmp;
+      // Rotation: `atan` is the costly part, and the tilt only visibly changes as
+      // the train travels. Skip the write when the new angle is within a hair of
+      // the previous one (parks the scene at ~zero trig + zero rotation writes).
+      const rot = Math.atan(slopeAmp * Math.cos(angle));
+      if (cart._rot === undefined || Math.abs(rot - cart._rot) > TRAIN.rotEpsilon) {
+        cart._rot = rot;
+        cart.rotation = rot;
+      }
     }
   }
 
