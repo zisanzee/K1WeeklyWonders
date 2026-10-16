@@ -149,7 +149,10 @@ export const TRAIN = {
     ease: 'Cubic.easeOut',
     centerFrom: 0,
     centerTo: 1,
-    offscreenPad: 40,
+    // Extra px past "fully off screen" the train starts (and ends the outro), so
+    // no part of it peeks in on frame 1. Generous so a wide head art + its
+    // offset cannot show at the edge.
+    offscreenPad: 260,
   },
   // PAN LIMIT: the train may be driven off either edge only as far as being
   // fully off-screen; `overshootPad` allows a little extra past that (0 = stop
@@ -428,6 +431,13 @@ export const TRAIN_SOUND = {
   // accelerating and stopping swell/settle smoothly rather than stepping.
   smoothRate: 3,
   smoothVolume: 3,
+
+  // One-shot honk played as the train rolls into frame at the start of each
+  // round (see GameScene.playIntroHonk). A short delay lets it land a beat after
+  // the roll-in begins so it reads as the train announcing itself.
+  honkKey: 'trainHonk', // must match the key in assets.js AUDIO
+  honkVolume: 0.85,
+  honkDelayMs: 150,
 };
 
 // ---------------------------------------------------------------------------

@@ -113,6 +113,10 @@ export const AUDIO = {
   trainRunning:
     'https://res.cloudinary.com/hijmipga/video/upload/v1791811411/train_running__1-1791811325786_quxtes.mp3',
 
+  // A one-shot honk, played as the train arrives at the start of each round.
+  trainHonk:
+    'https://res.cloudinary.com/hijmipga/video/upload/v1792137054/trainhonk_gcxqs2.mp3',
+
   StartscreenVoice: 'https://res.cloudinary.com/hijmipga/video/upload/v1792086539/startvoice14_xxgocv.mp3',
   first: 'https://res.cloudinary.com/hijmipga/video/upload/v1792076589/First_sjh18i.mp3',
   second: 'https://res.cloudinary.com/hijmipga/video/upload/v1792076588/second_efct7q.mp3',
@@ -135,6 +139,8 @@ const AUDIO_TYPE_OVERRIDES = {
   // A Cloudinary VIDEO upload ends in .mp3 but Phaser would not trust that
   // extension on its own — force the type so it is actually queued.
   trainRunning: 'mp3',
+  // The intro honk is a Cloudinary VIDEO upload too — force mp3.
+  trainHonk: 'mp3',
   // bgMusic is an audio-only Cloudinary .mp4 — not in Phaser's recognised-audio
   // extension list, so without this it silently fails to queue and never plays.
   bgMusic: 'mp3',

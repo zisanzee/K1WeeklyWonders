@@ -246,35 +246,50 @@ export default class GameScene extends BaseScene {
   }
 
   update(_time, delta) {
+    // Nothing needs updating behind the start screen — the train is parked off
+    // screen and the overlay has its own pulse tween. Keep _prevX synced so the
+    // first in-game frame does not read a huge "speed" spike (audio blip).
+    if (!this.started) {
+      this._prevX = this.trainX;
+      return;
+    }
+
     const dt = Math.min(delta, TRAIN.maxDeltaMs) / 1000; // clamp a tab-wake step
     this.elapsed += delta;
 
-    // Ease the velocity toward the target (full speed while held, 0 when idle)
-    // with exponential coasting — the train rolls away from a standstill and
-    // eases to a stop rather than snapping, so it reads like a real train.
-    const target = this.locked ? 0 : this.driveDir * TRAIN.speed;
-    const rate = this.driveDir ? TRAIN.accel : TRAIN.brake;
-    this.velocity += (target - this.velocity) * (1 - Math.exp(-rate * dt));
+    // PERF: the velocity easing + integration + clamp are only needed while the
+    // train can actually be moving. When it is fully at rest (parked, nothing
+    // held) that whole block (two exp() + a clamp every frame) is skipped.
+    const moving = this.driveDir !== 0 || this.velocity !== 0 || this.autoMoving;
+    if (moving) {
+      // Ease the velocity toward the target (full speed while held, 0 when idle)
+      // with exponential coasting — the train rolls away from a standstill and
+      // eases to a stop rather than snapping, so it reads like a real train.
+      const target = this.locked ? 0 : this.driveDir * TRAIN.speed;
+      const rate = this.driveDir ? TRAIN.accel : TRAIN.brake;
+      this.velocity += (target - this.velocity) * (1 - Math.exp(-rate * dt));
 
-    // Settle the last trace of speed to rest so a stopped train is exactly still.
-    if (!this.driveDir && Math.abs(this.velocity) < TRAIN.settleSpeed) this.velocity = 0;
+      // Settle the last trace of speed to rest so a stopped train is exactly still.
+      if (!this.driveDir && Math.abs(this.velocity) < TRAIN.settleSpeed) this.velocity = 0;
 
-    // A tween owns trainX during the intro/outro (autoMoving) — do NOT also
-    // integrate velocity then, or the two would fight over the same property.
-    //
-    // ALSO skip while `locked` (a level/round transition): the train is parked
-    // BEYOND the player's pan limit during the outro, and clamping there would
-    // yank it back to the end-cart-centred position — the mid-screen flash
-    // between the roll-out and the next roll-in.
-    if (!this.autoMoving && !this.locked) {
-      this.trainX += this.velocity * dt;
-      // Once the intro is over, the train may be driven off either edge — but
-      // only as far as being fully off-screen; past that it is clamped + stopped.
-      if (this.introDone) this.clampPan();
+      // A tween owns trainX during the intro/outro (autoMoving) — do NOT also
+      // integrate velocity then, or the two would fight over the same property.
+      //
+      // ALSO skip while `locked` (a level/round transition): the train is parked
+      // BEYOND the player's pan limit during the outro, and clamping there would
+      // yank it back to the end-cart-centred position — the mid-screen flash
+      // between the roll-out and the next roll-in.
+      if (!this.autoMoving && !this.locked) {
+        this.trainX += this.velocity * dt;
+        // Once the intro is over, the train may be driven off either edge — but
+        // only as far as being fully off-screen; past that it is clamped + stopped.
+        if (this.introDone) this.clampPan();
+      }
     }
 
     // Engine sound follows the train's ACTUAL movement, so it chugs during the
     // intro/outro tweens too (those move trainX directly, without `velocity`).
+    // (updateTrainSound is a no-op at rest, so this is cheap when parked.)
     const speed = dt > 0 ? Math.abs(this.trainX - this._prevX) / dt : 0;
     this._prevX = this.trainX;
     this.updateTrainSound(dt, speed);
@@ -444,6 +459,17 @@ export default class GameScene extends BaseScene {
     });
   }
 
+  // One-shot honk as the train rolls in at the start of a round. Fired from
+  // flyIn() so it plays on EVERY intro — the game's first roll-in AND every
+  // round/level arrival (arriveBack also goes through flyIn).
+  playIntroHonk() {
+    const cfg = TRAIN_SOUND;
+    if (!this.cache.audio.exists(cfg.honkKey)) return;
+    this.time.delayedCall(cfg.honkDelayMs, () => {
+      this.sound.play(cfg.honkKey, { volume: cfg.honkVolume });
+    });
+  }
+
   // Fly the train from its current (off-screen) position to the centred rest
   // position where the two intro carts straddle the screen centre.
   flyIn(durationMs, ease, onComplete) {
@@ -453,6 +479,8 @@ export default class GameScene extends BaseScene {
     const iTo = Math.min(intro.centerTo, this.carts.length - 1);
     const midRel = (this.carts[iFrom].relX + this.carts[iTo].relX) / 2;
     const endX = width / 2 - midRel;
+    // Honk on every roll-in (see playIntroHonk).
+    this.playIntroHonk();
     // The tween owns trainX for its duration (see update()).
     this.autoMoving = true;
     this.tweens.add({
@@ -539,14 +567,25 @@ export default class GameScene extends BaseScene {
     const bobT = this.elapsed / TRAIN.bobPeriodMs;
     const bobAmp = TRAIN.bobAmplitude;
     const carts = this.carts;
+    // VIEWPORT CULLING: a cart more than one cart-width outside the canvas gets
+    // no transform work at all and is hidden, so Phaser skips it too. On the
+    // 11-cart level this cuts the per-frame cost by well over half whenever part
+    // of the consist is off screen (which is most of the time).
+    const width = this.scale.width;
+    const cull = this.cartW;
     for (let i = 0; i < carts.length; i += 1) {
       const cart = carts[i];
       const x = this.trainX + cart.relX;
+      if (x < -cull || x > width + cull) {
+        if (cart.visible) cart.setVisible(false);
+        continue;
+      }
+      if (!cart.visible) cart.setVisible(true);
       cart.x = x;
       // Its own point on the line, plus a gentle per-cart bob phase-shifted
       // along the consist so the cars ripple like a real train.
       const angle = k * x + phase;
-      cart.y = baseY + amp * Math.sin(angle) + Math.sin(bobT + i * TRAIN.bobPhaseStep) * bobAmp;
+      cart.y = baseY + amp * Math.sin(angle) + Math.sin(bobT + cart.bobPhase) * bobAmp;
       // Rotation: `atan` is the costly part, and the tilt only visibly changes as
       // the train travels. Skip the write when the new angle is within a hair of
       // the previous one (parks the scene at ~zero trig + zero rotation writes).
@@ -634,6 +673,8 @@ export default class GameScene extends BaseScene {
   emitSmoke(delta) {
     const emitter = this.smokeEmitter;
     if (!emitter || !this.headCart || !this.headSprite) return;
+    // Don't puff while the head is culled off screen (its position is stale).
+    if (!this.headCart.visible) return;
 
     this.smokeAccum += delta;
     if (this.smokeAccum < TRAIN.smoke.everyMs) return;
@@ -816,6 +857,8 @@ export default class GameScene extends BaseScene {
       // in front of the carts rather than tucked behind its neighbour.
       const cart = this.add.container(0, 0).setDepth(isHead ? TRAIN.headDepth : TRAIN.cartDepth);
       cart.relX = startOffset + i * step;
+      // Pre-computed bob phase (see layoutCarts) so the hot loop has no multiply.
+      cart.bobPhase = i * TRAIN.bobPhaseStep;
       cart.isHead = isHead;
       cart.riderSlot = null; // the rider image once one is dropped here
       cart.number = null; // the cart's 1..N number (body cars only)
@@ -880,8 +923,10 @@ export default class GameScene extends BaseScene {
 
     // The consist is laid out — cache the pan limits from it (reads cart relX).
     this.cachePanBounds();
-    // Start fully off-screen to the right; the intro tween drives trainX in.
-    this.trainX = this._offscreen.upper;
+    // Start fully off-screen to the right. Include the SAME pad the intro uses, or
+    // the newly-built consist would sit only just past the edge and a sliver of
+    // the head would flash during a level's background swap before the roll-in.
+    this.trainX = this._offscreen.upper + TRAIN.intro.offscreenPad;
     this.layoutCarts();
 
     // Chimney smoke for the head (no-op when there is no head art).
