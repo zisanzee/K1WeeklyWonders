@@ -1722,6 +1722,10 @@ export default class GameScene extends BaseScene {
     // A transition asked the character to run for a moment. Keep the walk cycle
     // alive until that window closes, so this per-frame joystick logic doesn't
     // immediately idle the character the frame after the celebration started.
+    //
+    // Once the deadline passes this method runs again (the idle fast path in
+    // update() includes the walk cycle in its "settled" test precisely so that
+    // this code is reached), and the `axis === 0` branch below parks the sprite.
     if (this.celebrationUntil > this.time.now) {
       return;
     }
@@ -1807,7 +1811,14 @@ export default class GameScene extends BaseScene {
     // A new round is a NEW SHELF LINE-UP, so it always rebuilds the world. Only
     // flash/celebrate when the COUNTING SIDE changed — otherwise moving from one
     // list to the next inside the same round would flash on every three taps.
-    const sideChanged = this.lastRoundDirection !== this.currentRound.direction;
+    //
+    // `null` means "no previous round" (the FIRST round of a run). That is NOT a
+    // side change, and treating it as one made the character run a celebration
+    // walk the instant the game started — before the child had touched anything —
+    // and only settle once they moved and stopped.
+    const hasPreviousRound = this.lastRoundDirection !== null;
+    const sideChanged =
+      hasPreviousRound && this.lastRoundDirection !== this.currentRound.direction;
     this.lastRoundDirection = this.currentRound.direction;
 
     if (sideChanged) {
@@ -2659,20 +2670,30 @@ export default class GameScene extends BaseScene {
   }
 
   // True when the scene has nothing left to animate, so `update()` can return
-  // immediately. Every term must be something this method itself would change:
-  //   axis === 0        → the camera and the lean have no target to move toward
-  //   drift === 0       → the lean has settled (snapped, see update())
-  //   !movementAudible  → both audio loops are already faded out and stopped
-  //   celebration over  → no transition walk is being forced
+  // immediately. Every term must be something `update()` itself would change:
+  //   axis === 0             → the camera and the lean have no target to move toward
+  //   drift === 0            → the lean has settled (snapped, see update())
+  //   !movementAudible       → both audio loops are already faded out and stopped
+  //   celebration over       → no transition walk is being forced
+  //   walk cycle not playing → the sprite has actually been parked
   //
   // `celebrationUntil` is compared against `time.now`, not a flag, because the
   // celebration is deadline-based — it expires on its own with no teardown.
+  //
+  // The WALK-CYCLE term is NOT redundant with the celebration term. When a
+  // celebration expires it leaves the animation PLAYING, and it is
+  // updateCharacterAnimation() that pauses it and swaps in the idle pose. Without
+  // this term the scene would count as settled the instant the deadline passed,
+  // update() would return before reaching that code, and the character would walk
+  // forever at rest — which is exactly the reported symptom: animating as the
+  // game starts, and only settling once the child moves and stops again.
   sceneIsSettled() {
     return (
       this.axis === 0 &&
       this.drift === 0 &&
       !this.movementAudible &&
-      this.celebrationUntil <= this.time.now
+      this.celebrationUntil <= this.time.now &&
+      !this.characterSprite?.anims.isPlaying
     );
   }
 
