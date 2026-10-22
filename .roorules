@@ -381,9 +381,25 @@ catalogue (`GAME_CATALOG`) and the homepage prefetch — so nothing else is edit
 7. Ensure `title`, on-screen heading and catalogue `label` all agree, and no other
    game already uses that name (a duplicate is invisible in the panel and has
    shipped a mismatch before).
-8. Optional icon: `public/game-icons/<slug>.png` + one line in
-   `@/games/gameIcons.js` (root-relative `/game-icons/…` so cache headers and the
-   service worker both cover it).
+8. **A boilerplate is scaffolding, not a game.** When asked for boilerplate, ship
+   ONLY the wiring: `GamePage.jsx` (both gates), `Game.jsx` (BaseGame +
+   BasePreloadScene, dormant `completeEventName`/`onComplete`), a `GameScene.js`
+   that just paints the shared sky + mute button, an empty `IMAGES` in
+   `assets.js`, and a `tuning.js` holding nothing but backdrop/placeholder/mute
+   positions. **Do not invent a mechanic** — no rounds/levels generator, no
+   scoring, no HUD, no start/end screens, no placeholder gameplay. The mechanic
+   is built afterwards, incrementally.
+9. **An unfinished game is named `(in works)`.** A boilerplate/placeholder game
+   must ship with `meta.label` and `meta.title` both `'(in works)'`, the same
+   string in `GamePage.jsx`'s `gameLabel` values and any on-screen heading, and a
+   subtitle/description that says it is not finished. Keep the card's emoji and
+   colours deliberately generic too, so it implies no mechanic. This makes a
+   half-built game unmistakable in the catalogue instead of it silently looking
+   shipped. Rename all of these together only once the game actually works — the
+   `key`/`slug`/`route`/`progressKey` are identity and never change.
+10. Optional icon: `public/game-icons/<slug>.png` + one line in
+    `@/games/gameIcons.js` (root-relative `/game-icons/…` so cache headers and the
+    service worker both cover it).
 
 **Never** re-add a `lazy()` import or `<Route>` in `main.jsx`, and never edit
 `GAME_CATALOG` directly — both derive from the registry, and hand-editing is how

@@ -337,6 +337,32 @@ export const GAME_REGISTRY = [
     },
     load: () => import('@/games/game-14/GamePage'),
   },
+  {
+    // BOILERPLATE PLACEHOLDER. An unfinished game is deliberately named
+    // "(in works)" so nobody — child, teacher or admin — mistakes it for a
+    // shipped game in the catalogue. Rename it to the real title only when the
+    // game actually works. Change label/title/subtitle in tandem with
+    // GamePage.jsx's gate labels, or the lock screen and the card disagree.
+    key: '15',
+    slug: 'game-15',
+    route: '/73492',
+    term: 4,
+    progressKey: 'game15',
+    meta: {
+      // Deliberately generic: no mechanic exists yet, so the card must not imply
+      // one. Emoji/label/colours are replaced once the game has an identity.
+      emoji: '\uD83D\uDEC0',
+      label: '(in works)',
+      title: '(in works)',
+      subtitle: 'Boilerplate\n(not finished yet)',
+      description: 'Placeholder for an unfinished game — the mechanic is still being built.',
+      hue: '#94A3B8',
+      tint: '#F8FAFC',
+      gradient: 'linear-gradient(135deg, #CBD5E1 0%, #94A3B8 55%, #64748B 100%)',
+      ring: 'ring-[#E2E8F0]',
+    },
+    load: () => import('@/games/game-15/GamePage'),
+  },
 ];
 
 // The catalogue shape the UI consumes: identity + routing + metadata, flattened.

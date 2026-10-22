@@ -76,6 +76,30 @@ Add **one** entry to `GAME_REGISTRY`:
 }
 ```
 
+### A boilerplate is scaffolding, not a game
+
+When asked for **boilerplate**, create only the wiring — do not invent a mechanic:
+
+- `GamePage.jsx` with both gates
+- `Game.jsx` wiring `BaseGame` + `BasePreloadScene` (complete-event hook present
+  but dormant)
+- a `GameScene.js` that paints the shared sky and mounts the shared mute button
+- an `assets.js` with an empty `IMAGES` table
+- a `tuning.js` containing only backdrop / placeholder / mute positions
+
+No rounds or levels generator, no scoring, no HUD, no start/end screens, no
+placeholder gameplay. The mechanic is added afterwards, one system at a time.
+
+### An unfinished game is named `(in works)`
+
+A boilerplate/placeholder game must ship with `meta.label` and `meta.title` both
+`'(in works)'`, the same string in `GamePage.jsx`'s `gameLabel` values and any
+on-screen heading, plus a subtitle/description saying it is not finished. Keep
+the card emoji and colours deliberately generic so they imply no mechanic. That
+way a half-built game is unmistakable in the catalogue instead of silently
+looking shipped. Rename all of these together only once it actually works —
+`key`/`slug`/`route`/`progressKey` are identity and never change.
+
 ### Field notes
 
 | Field | Why it matters |
