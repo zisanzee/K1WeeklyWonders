@@ -1,6 +1,7 @@
 // GamePage.jsx
-// Game 15 — page chrome. The `gameLabel` values here must match the catalogue
-// entry's label/title in registry.js, or the lock screen and the card disagree.
+// Grocery Run! — page chrome. The `gameLabel` values here must match the
+// catalogue entry's label/title in registry.js, or the lock screen and the card
+// disagree.
 import { Link } from 'react-router-dom';
 import Game from '@/games/game-15/Game';
 import NameGate from '@/auth/NameGate';
@@ -9,8 +10,8 @@ import { usePlayerStore } from '@/auth/playerStore';
 
 export default function GamePage() {
   return (
-    <NameGate gameLabel="Game 15: (in works)">
-      <GameAccessGate gameNumber={15} gameLabel="(in works)">
+    <NameGate gameLabel="Grocery Run!">
+      <GameAccessGate gameNumber={15} gameLabel="Grocery Run!">
         <GamePageInner />
       </GameAccessGate>
     </NameGate>

@@ -1,5 +1,5 @@
 // assets.js
-// Game 15 — the single place this game's asset URLs live.
+// Grocery Run! — the single place this game's asset URLs live.
 //
 // ASSET_MANIFEST is DERIVED from IMAGES / SPRITESHEETS / FRAME_ANIMATIONS / AUDIO,
 // so adding a file is one line in the table below and every loader path picks it

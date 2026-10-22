@@ -1,5 +1,5 @@
 // tuning.js
-// Game 15 — THE TUNING FILE.
+// Grocery Run! — THE TUNING FILE.
 //
 // Every adjustable number the game reads lives here, so the layout and feel can
 // be re-tuned by eye without touching any logic in GameScene.js. Nothing in this
@@ -108,6 +108,15 @@ export const WORLD = {
   // Largest simulation step (ms). A backgrounded tab hands a huge delta on
   // return; clamping keeps that from becoming one giant jump on the first frame.
   maxDeltaMs: 50,
+
+  // PERF — how close to settled the lean must be to count as "at rest" (px).
+  //
+  // Exponential easing approaches its target but never exactly reaches it, so
+  // without an epsilon `drift` is always a tiny non-zero number and the scene can
+  // never be declared idle. Snapping below this threshold is what lets update()
+  // skip its whole body while the child stands still reading a prompt — which is
+  // most of a round. 0.05px is far below one device pixel, so it is invisible.
+  restDriftEpsilon: 0.05,
 };
 
 // ---------------------------------------------------------------------------
@@ -208,6 +217,20 @@ export const SHELF = {
     // Negative = higher. At 1.0 the label sits just above the tallest a product
     // can be, so it clears the art rather than overlapping it.
     aboveBoxHeightFrac: 1.35,
+
+    // PERF — how many label Texts to create ONCE and then reuse for the whole run,
+    // instead of destroying and recreating one per product on every round.
+    //
+    // A Phaser Text is canvas-backed: creating one allocates and rasterises a
+    // texture, destroying one frees GPU memory. The old couple-of-dozen
+    // allocations per run is the churn that shows up as a hitch at each round
+    // change on a low-end tablet.
+    //
+    // This must be at least the largest `products` count in LEVELS. The scene
+    // still takes the MAX of this and the round's count, so a future bigger level
+    // grows the pool automatically — this value is a starting size, not a hard
+    // ceiling.
+    maxLabels: 10,
 
     // Label size, as a fraction of the canvas width (so it scales with the game).
     fontSizeFracOfWidth: 0.065,

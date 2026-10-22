@@ -1,5 +1,5 @@
 // GameScene.js
-// Game 15 — the exploration mechanic.
+// Grocery Run! — the exploration mechanic.
 //
 // What this scene does:
 //   • Splits the canvas into three bands: shelf (top 40%), empty prompt space
@@ -174,6 +174,12 @@ export default class GameScene extends BaseScene {
     // Mirrored-horizontally state; null = not yet applied. Kept so a sprite
     // rebuilt later starts out facing the right way.
     this.characterFlipped = null;
+
+    // Ordinal-label POOL. Created once, reused for every round, and deliberately
+    // NOT destroyed with the world (see ensureOrdinalLabelPool). `ordinalLabels`
+    // above is the per-round SLICE that maps slot → label.
+    this.ordinalLabelPool = null;
+    this.ordinalLabelLayer = null;
     this.cartBaseX = 0; // cart offset for the UNMIRRORED facing
     this.cartFacingSign = 1; // +1 unmirrored, -1 when the cart sits on the other side
 
@@ -239,7 +245,14 @@ export default class GameScene extends BaseScene {
     // Direction of the round most recently started, so startRound() can tell
     // whether the counting side actually changed (and only then transition).
     this.lastRoundDirection = null;
+    // Every WRONG product dropped into the cart, for the whole run. This is the
+    // `mistakes` field the server stores, so it must accumulate rather than
+    // reset per round — that is what starsEarned() and the stats screen read.
     this.mistakes = 0;
+    // Longest run of CORRECT drops between two mistakes. Reported as
+    // `peakStreak`, matching the other games' payload.
+    this.streak = 0;
+    this.peakStreak = 0;
     this.roundsCleared = 0;
     this.transitioning = false; // blocks drops during a round/level change
     this.finished = false;
@@ -320,6 +333,14 @@ export default class GameScene extends BaseScene {
       this.stopPromptVoice();
       this.stopIntroVoice();
       this.stopMusic(true);
+      // The pooled label Texts are NOT children of the world, so destroying the
+      // world does not free them. They must be released here or a later mount
+      // inherits live Text objects holding GPU textures.
+      if (this.ordinalLabelLayer) {
+        this.ordinalLabelLayer.destroy(true);
+        this.ordinalLabelLayer = null;
+        this.ordinalLabelPool = null;
+      }
     });
   }
 
@@ -687,6 +708,18 @@ export default class GameScene extends BaseScene {
     const shelfBottom = height * BANDS.shelfEndFrac;
     const boxH = height * SHELF.boxHeightFrac;
 
+    // Detach the POOLED ordinal-label layer from the old world BEFORE destroying
+    // it, or `destroy(true)` would recursively destroy the pool along with the
+    // rest of the children — which is precisely the churn the pool exists to
+    // avoid, and would leave a dead reference for the next round.
+    //
+    // `remove(child, destroyChild = false)` is the container-level detach;
+    // `removeFromDisplayList()` is a SCENE-level operation and does not detach a
+    // container child.
+    if (this.world && this.ordinalLabelLayer) {
+      this.world.remove(this.ordinalLabelLayer, false);
+    }
+
     // Tear down the previous world (and its masks/children) before rebuilding.
     if (this.world) {
       this.world.destroy(true);
@@ -717,11 +750,14 @@ export default class GameScene extends BaseScene {
     // Children are drawn in insertion order (Phaser does not sort a container's
     // children), so this order IS the z-order: backdrop → shelf art → labels →
     // products.
+    //
     this.world = this.add.container(0, 0);
     this.products = [];
-    // The label set was destroyed with the old world, so forget both the array
-    // and the remembered direction (a rebuilt shelf starts in default order).
+    // The label ARRAY is per-world (it maps slot → label); the Texts themselves
+    // belong to the pool and outlive it.
     this.ordinalLabels = [];
+    // A rebuilt shelf starts in default order, so the remembered direction is
+    // cleared and the first prompt re-applies its own side.
     this.ordinalDirection = null;
     this.clearCartItems();
 
@@ -767,6 +803,11 @@ export default class GameScene extends BaseScene {
     // Ordinal labels are added BEFORE the products so they draw behind the art:
     // a tall product overlaps its own label instead of the label sitting on top
     // of it. One label per slot, centred on the same x as the product.
+    //
+    // The pooled layer is re-parented into THIS world first: it must be a child
+    // of the world (so it pans and is drawn in this world's z-order) but must not
+    // be destroyed with it on the next rebuild, because its Texts are reused.
+    this.attachOrdinalLabels(round.products);
     this.buildOrdinalLabels(baselineY, boxH, round.products);
 
     // One product per slot. `round.lineup[i]` is the ART index for slot i, so a
@@ -839,18 +880,87 @@ export default class GameScene extends BaseScene {
   // The labels are KEPT (not just drawn) because they RENUMBER per prompt: when
   // the prompt counts from the right, the labels must count from the right too,
   // so the child can count along the shelf in the direction they were asked.
+  // Puts the pooled label layer into the CURRENT world at the correct z index.
+  //
+  // Called before the products are added, so the labels sit after the shelving
+  // and before the art. The layer is removed from whatever parent it had (the
+  // previous world, already destroyed) and re-added, which is what keeps the
+  // Texts alive across rebuilds.
+  attachOrdinalLabels(productCount) {
+    // Create/seed the pool if this is the first round.
+    this.ensureOrdinalLabelPool(Math.max(productCount, SHELF.ordinals.maxLabels));
+
+    const layer = this.ordinalLabelLayer;
+    if (!layer) return;
+
+    // Already detached by buildWorld before the old world was destroyed; this
+    // guards the FIRST round (no parent yet) and any future caller.
+    if (layer.parentContainer) layer.parentContainer.remove(layer, false);
+    this.world.add(layer);
+  }
+
+  // Positions and re-letters the labels for this round's slot count.
+  //
+  // The Texts themselves already exist (see ensureOrdinalLabelPool) — this only
+  // sets text/position/visibility, which is a cheap property write rather than a
+  // texture allocation. Font size is applied once when the pool is created.
   buildOrdinalLabels(baselineY, boxH, productCount) {
+    // Distance ABOVE the baseline, from the tuning fraction of the box height.
+    const y = baselineY - boxH * SHELF.ordinals.aboveBoxHeightFrac;
+
+    // PERF — the label set is CAPPED at the largest product count the curriculum
+    // can ask for and POOLED across rebuilds.
+    //
+    // Every rebuild used to destroy up to ten Texts and create ten new ones. A
+    // Phaser Text is a canvas-backed object: each creation allocates a texture
+    // and rasterises glyphs, and each destruction frees GPU memory. Ten of those
+    // per round on a low-end tablet is exactly the churn that causes a visible
+    // hitch at the round change and fragments GPU memory over a long session.
+    //
+    // The pool is solved from LEVELS, so it can never be too small — adding a
+    // bigger level grows the pool automatically.
+    const pool = this.ensureOrdinalLabelPool(Math.max(productCount, SHELF.ordinals.maxLabels));
+
+    this.ordinalLabels = pool.slice(0, productCount);
+    this.ordinalLabels.forEach((label, i) => {
+      label.setText(ordinalLabel(i + 1));
+      label.setPosition(this.layout.productCenters[i], y);
+      label.setVisible(true);
+    });
+
+    // Any pooled labels beyond this round's count are hidden rather than
+    // destroyed, so the next rebuild can reuse them.
+    for (let i = productCount; i < pool.length; i += 1) pool[i].setVisible(false);
+  }
+
+  // Creates the ordinal-label Texts once and keeps them for the whole run.
+  //
+  // The pool lives in its OWN container, which `buildWorld` re-parents into the
+  // new world on every rebuild. That is what makes the pooling work at all: the
+  // world container is destroyed each round, so labels parented directly to it
+  // would be destroyed with it. Re-parenting keeps the container (and its Texts,
+  // and their GPU textures) alive while still putting the labels at the correct
+  // insertion point — after the shelving, before the products — so they pan with
+  // the shelf and stay BEHIND the product art.
+  ensureOrdinalLabelPool(count) {
+    if (this.ordinalLabelPool && this.ordinalLabelPool.length >= count) {
+      return this.ordinalLabelPool;
+    }
+
     const cfg = SHELF.ordinals;
     const { width } = this.scale;
     const fontSize = width * cfg.fontSizeFracOfWidth;
-    // Distance ABOVE the baseline, from the tuning fraction of the box height.
-    const y = baselineY - boxH * cfg.aboveBoxHeightFrac;
 
-    this.ordinalLabels = [];
+    // One container for the whole pool, at the world's depth band. Created on
+    // first use and reused for the rest of the run.
+    if (!this.ordinalLabelLayer) {
+      this.ordinalLabelLayer = this.add.container(0, 0);
+    }
 
-    for (let i = 0; i < productCount; i += 1) {
+    this.ordinalLabelPool = this.ordinalLabelPool || [];
+    for (let i = this.ordinalLabelPool.length; i < count; i += 1) {
       const label = this.add
-        .text(this.layout.productCenters[i], y, ordinalLabel(i + 1), {
+        .text(0, 0, '', {
           fontSize: `${Math.round(fontSize)}px`,
           fontFamily: cfg.fontFamily,
           color: cfg.color,
@@ -861,10 +971,12 @@ export default class GameScene extends BaseScene {
           fontStyle: 'bold',
         })
         .setOrigin(0.5, 1)
-        .setAlpha(cfg.alpha);
-      this.world.add(label);
-      this.ordinalLabels.push(label);
+        .setAlpha(cfg.alpha)
+        .setVisible(false);
+      this.ordinalLabelLayer.add(label);
+      this.ordinalLabelPool.push(label);
     }
+    return this.ordinalLabelPool;
   }
 
   // Renumbers the shelf labels to match the prompt's counting direction.
@@ -1300,12 +1412,22 @@ export default class GameScene extends BaseScene {
           console.warn('[game15] seatInCart failed (visual only):', err);
         }
         this.playSound(FLOW.correctSound, FLOW.correctVolume);
+        // Streak: a correct drop extends the run of clean answers, and the PEAK
+        // of that run is what gets reported as `peakStreak` with `mistakes`.
+        this.streak += 1;
+        this.peakStreak = Math.max(this.peakStreak, this.streak);
         this.advanceAfterCorrect();
         return;
       }
 
       // Wrong product: refuse it — sound, red flash, fly back to the shelf.
+      //
+      // EVERY wrong product counts, including a repeat of the same wrong one: the
+      // child put the wrong item in the cart, and that is the unit the stats
+      // screen reports. The streak resets here, which is what makes peakStreak a
+      // count of CORRECT answers between mistakes.
       this.mistakes += 1;
+      this.streak = 0;
       this.playSound(FLOW.wrongSound, FLOW.wrongVolume);
       this.flashPromptWrong();
       this.returnToShelf(held);
@@ -2080,10 +2202,16 @@ export default class GameScene extends BaseScene {
     this.fadeOutMusic();
 
     const elapsedSeconds = Math.round((this.time.now - this.startTime) / 1000);
+    // Same payload shape as the other games (game-13/game-14 `finish()`):
+    //   mistakes    — every WRONG product dropped, accumulated over the run
+    //   peakStreak  — longest run of correct drops between mistakes
+    //   totalRounds — derived from LEVELS, never hardcoded
+    //   stars       — derived from mistakes by starsEarned()
+    // Game.jsx listens for this event and calls logPlaySession exactly once.
     this.game.events.emit('game15-complete', {
       stars: this.starsEarned(),
       totalRounds: TOTAL_ROUNDS,
-      peakStreak: 0,
+      peakStreak: this.peakStreak,
       mistakes: this.mistakes,
       elapsedSeconds,
     });
@@ -2469,13 +2597,27 @@ export default class GameScene extends BaseScene {
   // ---------------------------------------------------------------------------
 
   update(_time, delta) {
-    // Clamp a tab-wake delta so the world cannot jump a whole screen at once.
-    const dt = Math.min(delta, WORLD.maxDeltaMs) / 1000;
-
     // The start poster is up: there is no shelf to pan and no run to advance, so
     // none of the per-frame gameplay work should happen. Returning here also
     // means the world/character branches below can assume a run exists.
     if (!this.started) return;
+
+    // PERF — the idle fast path.
+    //
+    // A child spends most of a round standing still READING the prompt, and in
+    // that state nothing in this method has any work to do: the camera cannot
+    // move (axis 0), the lean is already settled, the walk cycle is paused and
+    // both audio loops are silent. Without this the scene still ran the easing
+    // maths, wrote character.x/y and called into the animation + audio helpers
+    // every single frame for no visual change.
+    //
+    // The condition is deliberately "is everything settled", not "was there
+    // input", so a transition that just finished still gets the frames it needs
+    // to come to rest before the scene goes quiet.
+    if (this.sceneIsSettled()) return;
+
+    // Clamp a tab-wake delta so the world cannot jump a whole screen at once.
+    const dt = Math.min(delta, WORLD.maxDeltaMs) / 1000;
 
     // Camera: deflection sets the speed. The bounds are cached per round, so this
     // is just a clamp — pushing past either end stops the scroll instead of
@@ -2495,6 +2637,13 @@ export default class GameScene extends BaseScene {
     const targetDrift = this.axis * WORLD.characterDriftPx;
     this.drift += (targetDrift - this.drift) * (1 - Math.exp(-WORLD.driftEase * dt));
 
+    // Snap the tail of the easing so `drift` actually REACHES zero. Exponential
+    // easing only approaches its target, so without this the lean would sit at a
+    // fraction of a pixel forever and the idle fast path above would never fire.
+    if (Math.abs(this.drift - targetDrift) < WORLD.restDriftEpsilon) {
+      this.drift = targetDrift;
+    }
+
     if (this.character) {
       this.character.x = this.characterBaseX + this.drift;
       this.character.y = this.characterBaseY;
@@ -2507,6 +2656,24 @@ export default class GameScene extends BaseScene {
 
     // Feet + cart, pitched and cross-faded from the same |axis|.
     this.updateMovementAudio(dt);
+  }
+
+  // True when the scene has nothing left to animate, so `update()` can return
+  // immediately. Every term must be something this method itself would change:
+  //   axis === 0        → the camera and the lean have no target to move toward
+  //   drift === 0       → the lean has settled (snapped, see update())
+  //   !movementAudible  → both audio loops are already faded out and stopped
+  //   celebration over  → no transition walk is being forced
+  //
+  // `celebrationUntil` is compared against `time.now`, not a flag, because the
+  // celebration is deadline-based — it expires on its own with no teardown.
+  sceneIsSettled() {
+    return (
+      this.axis === 0 &&
+      this.drift === 0 &&
+      !this.movementAudible &&
+      this.celebrationUntil <= this.time.now
+    );
   }
 
   // ---------------------------------------------------------------------------
@@ -2628,6 +2795,15 @@ export default class GameScene extends BaseScene {
       // and a leftover stopped-but-live handle would carry the old volume into
       // the new run.
       this.stopMusic(true);
+      // Destroy the pooled label Texts explicitly. restart() re-runs create() on
+      // the same instance and resetRun() drops the references, so without this
+      // the old Texts would survive as orphans in the display list and
+      // accumulate on every replay.
+      if (this.ordinalLabelLayer) {
+        this.ordinalLabelLayer.destroy(true);
+        this.ordinalLabelLayer = null;
+        this.ordinalLabelPool = null;
+      }
       this.scene.restart();
     });
   }

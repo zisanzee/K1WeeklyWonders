@@ -1,10 +1,9 @@
 // Game.jsx
-// Game 15 — wires the scaffold into the shared Phaser shell.
+// Grocery Run! — wires the game into the shared Phaser shell.
 //
-// This is plumbing only: preload the (currently empty) asset manifest, then
-// hand off to GameScene. The completion→logPlaySession hook is wired up but
-// intentionally dormant — nothing emits 'game15-complete' until the scene has
-// a real end-of-run. Add the dev live-tuning sidebar later per
+// This is plumbing only: preload the asset manifest, then hand off to GameScene.
+// The scene emits 'game15-complete' at the end of a run and this file forwards
+// it to logPlaySession. Add the dev live-tuning sidebar later per
 // docs/DEV_TUNING.md if the mechanic needs by-eye numbers (see game-13/Game.jsx
 // for the DevTuningFrame pattern).
 import BaseGame from '@/phaser/BaseGame';
@@ -21,9 +20,8 @@ export default function Game({ playerName }) {
       key: 'PreloadScene',
       assets: ASSET_MANIFEST,
       nextSceneKey: 'GameScene',
-      // Placeholder until the game has an identity — swap for its emoji.
-      loadingEmoji: '\uD83D\uDEC0',
-      loadingText: 'Getting Game 15 ready...',
+      loadingEmoji: '\uD83D\uDC3B',
+      loadingText: 'Getting Grocery Run! ready...',
     }),
     new GameScene(),
   ];

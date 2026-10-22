@@ -1,5 +1,5 @@
 // world.js
-// Game 15 — pure shelf/world maths. No Phaser, no DOM, so the layout can be unit
+// Grocery Run! — pure shelf/world maths. No Phaser, no DOM, so the layout can be unit
 // tested: how long the world is, where each product sits, and how far the camera
 // may travel.
 //

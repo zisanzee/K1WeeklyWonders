@@ -1,5 +1,6 @@
 // levels.js
-// Game 15 — level / round / list curriculum. PURE: no Phaser, no DOM, no stores,
+// Grocery Run! — level / round / list curriculum. PURE: no Phaser, no DOM, no
+// stores,
 // so the whole "which product is the answer" decision is unit-testable. The scene
 // never recomputes correctness; it only asks "is this product the prompt's target?".
 //
