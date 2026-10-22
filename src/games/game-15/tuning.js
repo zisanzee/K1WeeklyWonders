@@ -188,19 +188,31 @@ export const SHELF = {
     // shelf box height. THIS is the knob for moving the whole line up or down.
     // Negative = higher. At 1.0 the label sits just above the tallest a product
     // can be, so it clears the art rather than overlapping it.
-    aboveBoxHeightFrac: 1.27,
+    aboveBoxHeightFrac: 1.35,
 
     // Label size, as a fraction of the canvas width (so it scales with the game).
-    fontSizeFracOfWidth: 0.06,
+    fontSizeFracOfWidth: 0.065,
     fontFamily: 'Fredoka, sans-serif',
     color: '#ffffff',
-    // Dark stroke keeps white text legible over a busy shop backdrop.
-    stroke: '#0f172a',
+    // Dark GREEN stroke keeps white text legible over a busy shop backdrop while
+    // staying in the game's palette (cf. the shelf board's green end-caps).
+    stroke: '#166534',
     strokeWidthFrac: 0.22, // multiplies the font size
     alpha: 1,
     // Draw them behind the products, so a tall item can overlap its label rather
     // than the label floating on top of the art.
     depth: -1,
+  },
+
+  // When a product is taken to the cart, a fresh copy of the SAME art pops back
+  // into its slot, so the shelf always reads as fully stocked.
+  respawn: {
+    // Starting scale, as a fraction of the fitted slot scale. Small = a more
+    // obvious pop-in. The tween eases up to the full fitted scale.
+    fromScale: 0.4,
+    durationMs: 260,
+    // A small overshoot so the refill reads as deliberate, not a flicker.
+    ease: 'Back.easeOut',
   },
 
   // One colour per product; the list is cycled if `WORLD.products` is larger.
@@ -293,7 +305,7 @@ export const CHARACTER = {
     // ---- ITEMS SEATED IN THE CART --------------------------------------
     // A dropped product shrinks to this size and stacks inside the cart.
     // A fraction of the cart WIDTH, so items always fit however the cart is sized.
-    itemSizeFracOfCartWidth: 0.26,
+    itemSizeFracOfCartWidth: 0.20,
     // Gap between items, as a fraction of an ITEM's own size.
     itemGapFracOfItem: 0.15,
     // Items per row before wrapping onto the next row.
@@ -462,11 +474,200 @@ export const CONTROLS = {
 };
 
 // ---------------------------------------------------------------------------
+// PROMPT — the instruction card in the empty band: above the character, below
+// the arrows, left of the joystick.
+//
+// The prompt is TWO Text objects laid out side by side, not one, because the
+// ordinal ("third") needs a dark-green outline while "right" is blue and "left"
+// is red. A single Text can only have one fill/stroke style per string.
+// ---------------------------------------------------------------------------
+export const PROMPT = {
+  // The prompt is positioned in the empty band as a fraction of the canvas.
+    //
+    // VERTICAL STACKING: with the character at `CHARACTER.anim.heightFracOfCanvas`
+    // its sprite top lands at y ≈ 0.5 × canvas, so the only clear space is the gap
+    // between the shelf band (ends 0.4) and the character (starts 0.5). The prompt
+    // sits low in that gap and the edge arrows sit just above it, which is what
+    // gives the requested order: arrows → prompt → character.
+    // Horizontal centre: the midpoint between the LEFT SCREEN EDGE (x = 0) and
+    // the LEFT EDGE OF THE JOYSTICK (≈ x 493), i.e. x ≈ 246. Derived rather than
+    // eyeballed, so it stays centred if the joystick moves.
+    xFrac: 0.342,
+    // Vertical centre of the clear band between the edge arrows (bottom ≈ y 433)
+    // and the character sprite (top ≈ y 540) — that band is only ~107px tall, so
+    // the card is centred at y ≈ 487 and sized to leave a few px of air above and
+    // below rather than butting against both.
+    yFrac: 0.5,
+
+  // Padding around the prompt text, in px. Sizes the backing card.
+  padX: 26,
+  // NOTE: this is smaller than a one-line prompt would take, because the card is
+  // now THREE lines tall and the whole thing must fit the ~107px band between the
+  // arrows and the character. The card still ends up taller than before (≈108px
+  // vs ≈84px), so it reads as more padded overall.
+  padY: 9,
+  cardRadius: 20,
+  // White card, so the words read clearly against the busy shop art.
+  cardColor: 0xf8e8cb,
+  cardAlpha: 1,
+  cardDepth: 40,
+
+  // ---- WHOLE-CARD SCALE ---------------------------------------------------
+  // ONE multiplier applied to the ENTIRE prompt card: the font size, the line
+  // gaps, the padding and therefore the card behind them all scale together, so
+  // the card keeps its proportions instead of distorting when it is resized.
+  //
+  // 1 = the fitted default (chosen to fill the ~107px band between the edge
+  // arrows and the character). Measured actual card heights:
+  //   0.8  →  80px   fits
+  //   1.0  → 100px   fits  ← default
+  //   1.05 → 105px   fits  (the practical ceiling)
+  //   1.1  → 110px   DOES NOT FIT — overlaps the arrows/character
+  // To go larger, reduce `padY` or `lineGap` (or `yFrac` if the band allows).
+  cardScale: 1.8,
+
+  // Text. Sized so THREE lines plus their gaps plus the vertical padding fit the
+  // band between the arrows and the character (≈107px at 1080 tall).
+  fontSizeFracOfWidth: 0.036,
+  fontFamily: 'Fredoka, sans-serif',
+  // Vertical gap between the three stacked lines, in px. Kept tight so the block
+  // stays a single visual unit rather than three floating words.
+  lineGap: 2,
+  textDepth: 41,
+
+  // The ordinal: WHITE fill with a dark green outline, so it reads as the key
+  // word on the white card. Same green as the shelf ordinals so the two read as
+  // one visual language.
+  ordinalColor: '#ffffff',
+  ordinalStroke: '#166534', // matches SHELF.ordinals.stroke
+  // Generous outline: the glyphs are white on a white card, so the green outline
+  // IS the letterform's contrast. Too thin and the word washes out.
+  ordinalStrokeWidthFrac: 0.24, // multiplies the font size
+  ordinalFontStyle: 'bold',
+
+  // "from the" — plain, no outline, muted so it recedes next to the key words.
+  fromTheColor: '#475569',
+
+  // The direction word: coloured per direction, bold, and outlined so it matches
+  // the ordinal's weight. Only THIS word is blue or red.
+  leftColor: '#ef4444', // red — matches the left edge arrow
+  rightColor: '#3b82f6', // blue — matches the right edge arrow
+  directionStroke: '#0f172a',
+  directionStrokeWidthFrac: 0.14,
+  directionFontStyle: 'bold',
+
+  // ---- PROMPT TRANSITION -------------------------------------------------
+  // A prompt change is deliberately UNAMBIGUOUS motion: the old prompt slides
+  // left and fades, then the new one slides in from the right and fades up.
+  // A pure cross-fade at 160/260ms was indistinguishable from an instant swap on
+  // a busy backdrop, which made it look like there was no transition at all.
+  //
+  // Distances are in px at the 720-wide internal resolution.
+  fadeInMs: 340,
+  fadeInEase: 'Cubic.easeOut',
+  // How far right of its resting spot the incoming prompt starts.
+  fadeInOffsetX: 60,
+  // How far left of its resting spot the outgoing prompt ends.
+  fadeOutOffsetX: -60,
+  fadeOutMs: 220,
+  // Both halves ease so the text never snaps at the ends.
+  fadeOutEase: 'Cubic.easeIn',
+
+  // ---- CHARACTER CELEBRATION WALK ----------------------------------------
+  // During a transition the character runs its walk cycle even though nobody is
+  // driving it, so the character participates in the change instead of standing
+  // frozen while everything else moves.
+  //
+  // `durationMs` is how long the forced walk lasts. It should outlast the flash
+  // (flashRiseMs + flashFallMs ≈ 380) so the walk is still visible as the veil
+  // clears.
+  celebratoryWalkMs: 520,
+  // Playback rate for the forced walk. 1 = the normal full-speed stride; kept
+  // near 1 so it reads as purposeful running rather than a scrub.
+  celebratoryWalkTimeScale: 1.15,
+
+  // ---- FULL-SCREEN FLASH -------------------------------------------------
+  // A brief white veil over the ENTIRE canvas on every prompt change, so the
+  // whole scene — backdrop, shelf, character, cart, prompt — reads as one
+  // transition rather than only the prompt text animating.
+  //
+  // It peaks instantly then fades out, which is what makes it read as a camera
+  // flash rather than a screen wipe. It sits ABOVE everything except the mute
+  // button, and it is non-interactive so it never blocks a tap.
+  flashColor: 0xffffff,
+  flashPeakAlpha: 0.55,
+  // Rise is near-instant (the "pop"); fall is the visible part.
+  flashRiseMs: 60,
+  flashFallMs: 320,
+  // Depth above EVERY game layer — including a product being dragged (900) and
+  // the celebration confetti (999) — but still below the mute button
+  // (CONTROLS.muteDepth = 1000), so the flash covers the whole scene without ever
+  // hiding the mute toggle. A flash that left the dragged product or confetti
+  // floating on top would not read as a full-scene transition.
+  flashDepth: 995,
+
+  // Wrong-answer flash on the prompt card.
+  wrongFlashColor: 0xef4444,
+  wrongFlashAlpha: 0.55,
+  wrongFlashMs: 260,
+};
+
+// ---------------------------------------------------------------------------
+// CAMERA — where the shelf is parked when a round starts.
+//
+// A round that counts "from the right" is much easier to answer from the right
+// end of the shelf, and vice versa, so each round opens framed at the end it
+// counts from. It is a starting position, not a lock: the child can still drive
+// away with the joystick.
+// ---------------------------------------------------------------------------
+export const CAMERA = {
+  // Park the shelf at the counting side's end as each ROUND starts, so a
+  // "from the right" round begins with the child standing at the right end of
+  // the shelf instead of having to drive there first. A round counts from ONE
+  // side for all of its lists, so this happens once per round — not per list and
+  // not per prompt.
+  //
+  // Snapped, never glided: the world is rebuilt for the new line-up in the same
+  // frame, so there is nothing to sweep across — and on a side change the flash
+  // covers the cut anyway. There is deliberately no glide duration/easing here;
+  // the joystick is the only thing that animates the camera.
+  startAtDirectionEnd: true,
+
+  // How far short of the absolute end to park, as a fraction of one product cell.
+  // A small inset keeps the end product clear of the screen edge rather than
+  // jammed against it.
+  endInsetFracOfCell: 0.15,
+};
+
+// ---------------------------------------------------------------------------
+// ROUND FLOW — pacing between prompts, rounds and levels.
+// ---------------------------------------------------------------------------
+export const FLOW = {
+  // Beat after a correct drop, before the next prompt is dealt.
+  afterCorrectMs: 420,
+  // Beat after the third correct product, while the fanfare plays.
+  afterRoundMs: 1500,
+  // Confetti piece count for a round/level completion.
+  confettiCount: 30,
+  // Confetti depth. Above the game content but BELOW the full-screen flash
+  // (PROMPT.flashDepth), so a round transition can flash over the celebration.
+  confettiDepth: 500,
+
+  // Sound keys, matching AUDIO in assets.js.
+  correctSound: 'pop1',
+  correctVolume: 0.7,
+  wrongSound: 'wrong',
+  wrongVolume: 0.6,
+  successSound: 'success',
+  successVolume: 0.8,
+};
+
+// ---------------------------------------------------------------------------
 // EDGE ARROWS — the left/right direction hints pinned to the screen edges.
 //
 // These are SCREEN-space UI (they do not pan with the world): red on the left,
-// blue on the right, pointing outward from each edge. They sit behind the
-// content so they never block a drag, and they are purely decorative — no input.
+// blue on the right. They sit behind the content so they never block a drag, and
+// they are purely decorative — no input.
 //
 // The "animation" is a small looping tween on x and alpha, shared by both arrows.
 // Cheap on purpose: two tweens total, no textures, no per-frame work.
@@ -547,5 +748,8 @@ export const TUNING = {
   CHARACTER,
   JOYSTICK,
   EDGE_ARROWS,
+  PROMPT,
+  CAMERA,
+  FLOW,
   SOUND,
 };

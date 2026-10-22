@@ -172,6 +172,17 @@ export const AUDIO = {
   // bgMusic is looked up by that fixed key in ensureBgMusic(), so it is the one
   // clip a scaffold needs. Add SFX keys as the mechanic needs them.
   bgMusic: '/PhaserAssets/bg_music.m4a',
+
+  // Wrong product dropped in the cart.
+  wrong: '/PhaserAssets/wrong.wav',
+
+  // A product successfully seated / a prompt completed.
+  pop1: '/PhaserAssets/pop_fx/pop-1.mp3',
+
+  // Round or level completion fanfare. A Cloudinary VIDEO upload served as mp3,
+  // so it needs an explicit type override (see AUDIO_TYPE_OVERRIDES).
+  success:
+    'https://res.cloudinary.com/hijmipga/video/upload/v1790786703/success_-_Sound_Effect_n4qnDaSidJs_-cut-1790786683179_paqgqf.mp3',
 };
 
 // Phaser picks a codec/extension from the URL. A host that serves audio under
@@ -179,7 +190,9 @@ export const AUDIO = {
 // would be silently skipped, so force a real type for any such clip here.
 const AUDIO_TYPE_OVERRIDES = {
   // '/PhaserAssets/bg_music.m4a' ends in a recognised audio extension, so no
-  // override is needed. Add entries like `someClip: 'mp3'` when they are.
+  // override is needed. The Cloudinary success clip is a VIDEO upload whose URL
+  // Phaser will not trust as audio without being told.
+  success: 'mp3',
 };
 
 // Flattened manifest for BasePreloadScene({ assets: ASSET_MANIFEST, ... }).
