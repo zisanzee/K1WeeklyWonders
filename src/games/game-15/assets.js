@@ -17,6 +17,10 @@ export const IMAGES = {
     'https://res.cloudinary.com/hijmipga/image/upload/v1792593173/idle_mrdddv.png'
   ),
 
+  startArt: cld(
+    'https://res.cloudinary.com/hijmipga/image/upload/v1792685460/Grocery_Run_Instruction_Poster_1_qjny2f.png'
+  ),
+
   // The supermarket backdrop. 720x1080 and horizontally loopable, so it is drawn
   // as a tiled sprite scaled to the canvas height and repeated across the full
   // world width — it therefore covers the scene at any aspect, and keeps
@@ -171,7 +175,7 @@ export const AUDIO = {
   // Shared cross-game audio, referenced by URL exactly like the other games do.
   // bgMusic is looked up by that fixed key in ensureBgMusic(), so it is the one
   // clip a scaffold needs. Add SFX keys as the mechanic needs them.
-  bgMusic: '/PhaserAssets/bg_music.m4a',
+  bgMusic: 'https://res.cloudinary.com/hijmipga/video/upload/v1790786420/game12bg_vhxokd.mp4',
 
   // Wrong product dropped in the cart.
   wrong: '/PhaserAssets/wrong.wav',
@@ -179,21 +183,51 @@ export const AUDIO = {
   // A product successfully seated / a prompt completed.
   pop1: '/PhaserAssets/pop_fx/pop-1.mp3',
 
-  // Round or level completion fanfare. A Cloudinary VIDEO upload served as mp3,
-  // so it needs an explicit type override (see AUDIO_TYPE_OVERRIDES).
+  // Round or level completion fanfare.
   success:
     'https://res.cloudinary.com/hijmipga/video/upload/v1790786703/success_-_Sound_Effect_n4qnDaSidJs_-cut-1790786683179_paqgqf.mp3',
-};
+
+  IntroSound: 'https://res.cloudinary.com/hijmipga/video/upload/v1792684525/introsound_z8siau.mp3',
+
+
+  'from the left': 'https://res.cloudinary.com/hijmipga/video/upload/v1792684528/from_the_left_ogscst.mp3',
+  'from the right': 'https://res.cloudinary.com/hijmipga/video/upload/v1792684527/from_the_right_lg9okw.mp3',
+
+  first: 'https://res.cloudinary.com/hijmipga/video/upload/v1792684519/VFirst_fxsdcp.mp3',
+  second: 'https://res.cloudinary.com/hijmipga/video/upload/v1792684518/Vsecond_wrqjmi.mp3',
+  third: 'https://res.cloudinary.com/hijmipga/video/upload/v1792684516/Vthird_rx5acw.mp3',
+  fourth: 'https://res.cloudinary.com/hijmipga/video/upload/v1792684514/Vfourth_cfbtec.mp3',
+  fifth: 'https://res.cloudinary.com/hijmipga/video/upload/v1792684513/Vfifth_dwjqyw.mp3',
+  sixth: 'https://res.cloudinary.com/hijmipga/video/upload/v1792684511/Vsixth_t5coas.mp3',
+  seventh: 'https://res.cloudinary.com/hijmipga/video/upload/v1792684509/Vseventh_ldndge.mp3',
+  eighth: 'https://res.cloudinary.com/hijmipga/video/upload/v1792684508/Veighth_z6guqq.mp3',
+  ninth: 'https://res.cloudinary.com/hijmipga/video/upload/v1792684506/Vninth_g3yzum.mp3',
+  tenth: 'https://res.cloudinary.com/hijmipga/video/upload/v1792684506/Vtenth_2_ltdg5w.mp3',
+
+
+
+  steps: 'https://res.cloudinary.com/hijmipga/video/upload/v1792684523/steps-sound_bpdk5r.mp3',
+  cartPushingSound: 'https://res.cloudinary.com/hijmipga/video/upload/v1792684521/cart_sound_fs3mzs.mp3',
+
+
+
+  };
 
 // Phaser picks a codec/extension from the URL. A host that serves audio under
-// an extension Phaser does not treat as audio (e.g. a Cloudinary video upload)
-// would be silently skipped, so force a real type for any such clip here.
-const AUDIO_TYPE_OVERRIDES = {
-  // '/PhaserAssets/bg_music.m4a' ends in a recognised audio extension, so no
-  // override is needed. The Cloudinary success clip is a VIDEO upload whose URL
-  // Phaser will not trust as audio without being told.
-  success: 'mp3',
-};
+// an extension Phaser does not treat as audio would be silently skipped, so the
+// type is forced for any such clip.
+//
+// DERIVED rather than hand-listed: every Cloudinary `/video/upload/` clip needs
+// the override, and this game now has a dozen of them (intro, both direction
+// phrases, all ten ordinals, steps, cart). Listing keys by hand meant each new
+// voice line was a silent no-play waiting to happen. Files served as real audio
+// (e.g. '/PhaserAssets/bg_music.m4a') are left alone — their extension is
+// already recognised.
+const AUDIO_TYPE_OVERRIDES = Object.fromEntries(
+  Object.entries(AUDIO)
+    .filter(([, url]) => typeof url === 'string' && url.includes('/video/upload/'))
+    .map(([key]) => [key, 'mp3'])
+);
 
 // Flattened manifest for BasePreloadScene({ assets: ASSET_MANIFEST, ... }).
 export const ASSET_MANIFEST = [

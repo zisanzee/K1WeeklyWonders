@@ -40,6 +40,9 @@ import {
   PROMPT,
   CAMERA,
   FLOW,
+  MOVEMENT_AUDIO,
+  PROMPT_VOICE,
+  START_SCREEN,
 } from '@/games/game-15/tuning';
 
 // Re-exported so `import GameScene, { BACKGROUND_COLOR }` keeps working for
@@ -174,6 +177,31 @@ export default class GameScene extends BaseScene {
     this.cartBaseX = 0; // cart offset for the UNMIRRORED facing
     this.cartFacingSign = 1; // +1 unmirrored, -1 when the cart sits on the other side
 
+    // Start screen. The run does not exist until Start is tapped, so every guard
+    // that used to be implicit ("create() always built a level") is explicit now.
+    this.started = false;
+    this.startOverlay = null;
+    this.startBtn = null;
+    this.introSound = null;
+
+    // Background music. `bgMusic` is the Sound handle ensureBgMusic gave us;
+    // `musicStopping` guards the fade-out's stop against a replay restarting it.
+    this.bgMusic = null;
+    this.musicStopping = false;
+
+    // Movement audio: two loops (feet + cart) driven by the joystick.
+    this.stepsSound = null;
+    this.cartSound = null;
+    this.movementAudible = false; // false = both loops are faded out / stopped
+    this.movementRate = 1; // last written rate, so an idle frame does no work
+    this.movementVolume = 0;
+
+    // Spoken prompt: the clip currently speaking and its pending chained timers.
+    // Tracked so a new prompt (or a round change) can cut the previous one off
+    // instead of two voices overlapping.
+    this.voiceTimers = [];
+    this.voiceSound = null;
+
     // Products + drag.
     this.products = []; // one record per shelf product
     this.productBoxW = 0;
@@ -262,22 +290,320 @@ export default class GameScene extends BaseScene {
     // prompt shows the arrow for its direction.
     this.buildEdgeArrows();
 
-    // Start the run: level 1, round 1. This builds the first shelf too.
-    this.startTime = this.time.now;
-    this.startLevel(0);
+    // The whole scene above is BUILT but held: no shelf, no prompt, no run. The
+    // start poster sits over it and Start is what actually begins level 1.
+    this.buildStartOverlay();
 
-    // Shared bg music + first-tap unlock, plus the shared mute button. Mute is
-    // a property of the player (one localStorage key) — never per-game.
-    ensureBgMusic(this, SOUND.bgMusicVolume);
-    this.input.once('pointerdown', () => ensureBgMusic(this, SOUND.bgMusicVolume));
+    // Shared mute button. Mute is a property of the player (one localStorage
+    // key) — never per-game.
     addMuteButton(this, CONTROLS.muteX, CONTROLS.muteY, {
       anchor: 'topLeft',
       depth: CONTROLS.muteDepth,
     });
 
+    // WHEN the music plays is this game's decision, not ensureBgMusic's — that
+    // helper only knows how to create/reuse the Sound and set its volume.
+    //
+    // With `startMusicOnPlay` the poster is voiced by the intro clip ALONE and
+    // the loop begins with level 1. Starting both at create() made two audio
+    // beds fight on the start screen, so the music arrived buried under the
+    // narration and read as broken rather than as a level that was too quiet.
+    if (!SOUND.startMusicOnPlay) this.startMusic();
+
     // Keep the character's "resting" position in sync with any resize.
     this.scale.on('resize', this.layoutCharacter, this);
-    this.events.once('shutdown', () => this.scale.off('resize', this.layoutCharacter, this));
+    // Loops and one-shots belong to this run, so they are torn down with the
+    // scene. Without this a replay would stack a second steps loop on the first.
+    this.events.once('shutdown', () => {
+      this.scale.off('resize', this.layoutCharacter, this);
+      this.stopMovementAudio(true);
+      this.stopPromptVoice();
+      this.stopIntroVoice();
+      this.stopMusic(true);
+    });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Start screen — the instruction poster
+  // ---------------------------------------------------------------------------
+
+  // Covers the whole canvas with the poster art and puts the Start button near
+  // the bottom. The run is NOT created here; only `beginPlay()` does that.
+  buildStartOverlay() {
+    const { width, height } = this.scale;
+    const cfg = START_SCREEN;
+
+    const overlay = this.add.container(0, 0).setDepth(cfg.depth);
+    this.startOverlay = overlay;
+
+    if (this.textures.exists(cfg.key)) {
+      // COVER, not fit: the poster is instruction art, so it should fill the
+      // frame with no letterbox bars, even if the edges are cropped.
+      const art = this.add.image(width / 2, height / 2, cfg.key);
+      art.setScale(Math.max(width / art.width, height / art.height));
+      overlay.add(art);
+    } else {
+      // Art missing: a plain backdrop, so the Start button is still reachable
+      // rather than the scene being unstartable.
+      overlay.add(this.add.rectangle(width / 2, height / 2, width, height, cfg.fallbackColor, 1));
+    }
+
+    // No explicit depth: createPillButton parents the button to the overlay's
+    // container, so the container's depth (cfg.depth) governs it. Passing a
+    // per-button depth would lift it ABOVE the mute button and hide the only
+    // control that can silence the intro.
+    const startBtn = this.createPillButton(width / 2, height * cfg.buttonYFrac, cfg.buttonLabel, {
+      fontSize: cfg.buttonFontSize,
+      paddingX: cfg.buttonPaddingX,
+      paddingY: cfg.buttonPaddingY,
+    });
+    // createPillButton returns a wrapper; the CONTAINER is what gets parented.
+    overlay.add(startBtn.container);
+    this.tweens.add({
+      targets: startBtn.container,
+      scale: cfg.pulseScale,
+      duration: cfg.pulseMs,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut',
+    });
+    startBtn.on('pointerup', () => this.beginPlay());
+    this.startBtn = startBtn;
+
+    this.playIntroVoice();
+  }
+
+  // The intro narration loops under the poster. It is a one-shot, not a loop: if
+  // it finishes before the child presses Start, the screen just waits quietly.
+  playIntroVoice() {
+    const cfg = START_SCREEN;
+    if (!this.cache.audio.exists(cfg.voiceKey)) return;
+
+    this.introSound = this.sound.add(cfg.voiceKey, { volume: cfg.voiceVolume });
+    this.introSound.play();
+  }
+
+  stopIntroVoice() {
+    if (!this.introSound) return;
+    this.introSound.stop();
+    this.introSound.destroy();
+    this.introSound = null;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Background music lifecycle
+  //
+  // `ensureBgMusic` handles create/reuse/volume, but it has no idea WHEN a game
+  // wants music. These three helpers give this game that control: start at the
+  // level, fade out at the end card, and release the Sound on shutdown.
+  // ---------------------------------------------------------------------------
+
+  // Starts the loop (fading in from silence) at this game's level.
+  //
+  // `ensureBgMusic` is called rather than `sound.play()` on a cached handle,
+  // because the Sound is OWNED by the SoundManager and shared across scenes: it
+  // may already be playing from a previous scene, or the browser may still be
+  // deciding whether to allow audio at all. ensureBgMusic also re-applies the
+  // volume, which is what stops this game inheriting the last game's level.
+  startMusic() {
+    const music = ensureBgMusic(this, 0);
+    if (!music) return null;
+
+    this.bgMusic = music;
+    music.setVolume(0);
+
+    // Fade up to the tuned level. Starting at 0 and tweening avoids the click an
+    // abrupt `play()` at full level makes.
+    // A fade-out may still be in flight; this start wins.
+    this.musicStopping = false;
+    this.tweens.killTweensOf(music);
+    this.tweens.add({
+      targets: music,
+      volume: SOUND.bgMusicVolume,
+      duration: SOUND.fadeInMs,
+      ease: 'Sine.easeIn',
+    });
+    return music;
+  }
+
+  // Fades the music out and stops it. Used at the end card so the fanfare and the
+  // result are not fighting a loop.
+  fadeOutMusic() {
+    const music = this.bgMusic || this.sound.get('bgMusic');
+    if (!music) return;
+
+    // `musicStopping` is what makes the onComplete safe: a replay can call
+    // startMusic() while this fade is still running, and that must win. Without
+    // the guard the stale stop would silence the freshly started loop.
+    this.musicStopping = true;
+
+    this.tweens.killTweensOf(music);
+    this.tweens.add({
+      targets: music,
+      volume: 0,
+      duration: SOUND.fadeOutMs,
+      ease: 'Sine.easeOut',
+      onComplete: () => {
+        if (!this.musicStopping) return;
+        this.musicStopping = false;
+        if (music.isPlaying) music.stop();
+      },
+    });
+  }
+
+  // Releases the Sound on shutdown. Destroyed rather than just stopped, so a
+  // remount does not inherit a stale handle holding the previous volume.
+  stopMusic(destroy = false) {
+    const music = this.bgMusic || this.sound.get('bgMusic');
+    this.bgMusic = null;
+    this.musicStopping = false;
+    if (!music) return;
+
+    this.tweens.killTweensOf(music);
+    if (music.isPlaying) music.stop();
+    if (destroy) music.destroy();
+  }
+
+  // Start: silence the intro, build level 1 behind the poster, then fade it away.
+  //
+  // The run is built FIRST and the poster faded over the top, so the child never
+  // sees an empty shelf on the way in. `started` guards against a double tap
+  // building two runs, which would leave an orphaned world and duplicate audio.
+  beginPlay() {
+    if (this.started) return;
+    this.started = true;
+
+    this.stopIntroVoice();
+
+    // The run's clock starts here, not in create() — the poster is not playtime.
+    this.startTime = this.time.now;
+    this.startLevel(0);
+    this.buildMovementAudio();
+
+    // Music begins with the level, so the poster was voiced by the intro alone.
+    if (SOUND.startMusicOnPlay) this.startMusic();
+
+    const overlay = this.startOverlay;
+    this.startOverlay = null;
+    this.startBtn = null;
+    if (!overlay) return;
+
+    this.tweens.add({
+      targets: overlay,
+      alpha: 0,
+      duration: START_SCREEN.fadeMs,
+      ease: 'Sine.easeOut',
+      onComplete: () => overlay.destroy(true),
+    });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Movement audio — feet + cart, both locked to the joystick
+  // ---------------------------------------------------------------------------
+
+  // Creates both loops once, silent and paused, so a later play() has no setup
+  // cost and cannot be blocked by the browser's autoplay rules (the tap that got
+  // us here already unlocked audio).
+  buildMovementAudio() {
+    const cfg = MOVEMENT_AUDIO;
+
+    // Always created at volume 0: both loops fade in from silence, so a created
+    // sound is never briefly audible at a stale level.
+    const add = (key, rate) => {
+      if (!this.cache.audio.exists(key)) return null;
+      return this.sound.add(key, { loop: true, rate, volume: 0 });
+    };
+
+    this.stepsSound = add(cfg.stepsKey, cfg.stepsRateMin);
+    this.cartSound = add(cfg.cartKey, cfg.cartRateMin);
+    this.movementAudible = false;
+    this.movementVolume = 0;
+  }
+
+  // Drives rate + volume from |axis| every frame.
+  //
+  // PERF: when the character is stopped and both loops are already silent this
+  // returns after a single comparison, so an idle scene does no audio work.
+  updateMovementAudio(dt) {
+    const cfg = MOVEMENT_AUDIO;
+    const sound1 = this.stepsSound;
+    const sound2 = this.cartSound;
+    if (!sound1 && !sound2) return;
+
+    const strength = Math.abs(this.axis);
+    const moving = strength > cfg.stopBelowAxis;
+
+    // Stopped: fade out once, then stay out.
+    if (!moving) {
+      if (!this.movementAudible) return;
+      this.movementAudible = false;
+      this.fadeMovementOut();
+      return;
+    }
+
+    // The character has started moving, OR is already moving and needs a rate
+    // update. `targetVolume` reaches its max at full deflection.
+    if (!this.movementAudible) {
+      this.movementAudible = true;
+      // Starting a stopped loop from where it left off sounds stitched, so the
+      // loops restart rather than resume.
+      for (const s of [sound1, sound2]) {
+        if (!s) continue;
+        if (s.isPlaying) s.stop();
+        s.play();
+      }
+    }
+
+    // Rate/volume follow deflection. Exponential smoothing keeps a flick of the
+    // stick from jumping the pitch, which would sound like a glitch.
+    const k = 1 - Math.exp(-cfg.smoothRate * dt);
+    const kv = 1 - Math.exp(-cfg.smoothVolume * dt);
+
+    const apply = (s, rateMin, rateMax, volMin, volMax) => {
+      if (!s) return;
+      const tRate = rateMin + (rateMax - rateMin) * strength;
+      const tVol = volMin + (volMax - volMin) * strength;
+      // setRate()/setVolume() — NOT bare property writes, which would not reach
+      // the underlying audio node.
+      s.setRate(s.rate + (tRate - s.rate) * k);
+      s.setVolume(s.volume + (tVol - s.volume) * kv);
+    };
+
+    apply(sound1, cfg.stepsRateMin, cfg.stepsRateMax, cfg.stepsVolumeMin, cfg.stepsVolumeMax);
+    apply(sound2, cfg.cartRateMin, cfg.cartRateMax, cfg.cartVolumeMin, cfg.cartVolumeMax);
+  }
+
+  // Ramps both loops to silence and stops them. Tweening (rather than stopping
+  // outright) avoids the click an abrupt stop makes on a looped clip.
+  fadeMovementOut() {
+    for (const s of [this.stepsSound, this.cartSound]) {
+      if (!s) continue;
+      this.tweens.add({
+        targets: s,
+        volume: 0,
+        duration: MOVEMENT_AUDIO.fadeMs,
+        ease: 'Sine.easeOut',
+        onComplete: () => {
+          // The loop may have been restarted mid-fade (the child pushed again),
+          // in which case it must keep playing.
+          if (this.movementAudible) return;
+          if (s.isPlaying) s.stop();
+        },
+      });
+    }
+  }
+
+  // Hard stop, for shutdown. `destroy` frees the sound object itself.
+  stopMovementAudio(destroy = false) {
+    this.movementAudible = false;
+    for (const key of ['stepsSound', 'cartSound']) {
+      const s = this[key];
+      if (!s) continue;
+      this.tweens.killTweensOf(s);
+      s.stop();
+      if (destroy) s.destroy();
+      this[key] = null;
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -1373,11 +1699,13 @@ export default class GameScene extends BaseScene {
       this.playCelebrationWalk(this.currentRound.direction);
     }
 
-    // A pending prompt fade-out must not fire into the new round.
+    // A pending prompt fade-out must not fire into the new round, and a voice
+    // still being spoken belongs to the round that just ended.
     if (this.promptTransition) {
       this.promptTransition.remove(false);
       this.promptTransition = null;
     }
+    this.stopPromptVoice();
     // The new round's first prompt appears without fading out an old one.
     this.promptVisible = false;
 
@@ -1426,6 +1754,92 @@ export default class GameScene extends BaseScene {
     this.showArrowForDirection(prompt.direction);
     this.animatePromptIn();
     this.promptVisible = true;
+    // Speak it: "third" … "from the left". Same words the card shows, so a child
+    // who cannot read the small text still hears the whole question.
+    this.speakPrompt(prompt);
+  }
+
+  // Speaks a prompt as two clips in sequence: the ordinal, then the direction
+  // phrase ("third" + "from the left").
+  //
+  // The wait before the phrase is the ORDINAL'S OWN LENGTH plus a tail, not a
+  // fixed beat. The ordinals differ in length ("first" vs "seventh"), so a single
+  // hardcoded delay cuts the long ones off mid-word — which is exactly what a
+  // short fixed gap did. Reading `sound.duration` guarantees the word finishes.
+  //
+  // CHAINED ON A TIMER, not on each clip's COMPLETE event. A clip that fails to
+  // load never emits COMPLETE, so an event chain can stall and silence every
+  // later prompt; timers always fire. Each timer is tracked in `voiceTimers` so a
+  // newer prompt can cancel the whole chain instead of two voices overlapping.
+  speakPrompt(prompt) {
+    this.stopPromptVoice();
+    if (!prompt) return;
+
+    const cfg = PROMPT_VOICE;
+    const directionKey = prompt.direction === 'left' ? cfg.leftKey : cfg.rightKey;
+
+    // Identity keys: the ordinal word and the direction phrase both live in AUDIO.
+    const first = prompt.ordinal;
+    const second = directionKey;
+    if (!this.cache.audio.exists(first) && !this.cache.audio.exists(second)) return;
+
+    // Beat so the card is visible before the voice begins.
+    const startTimer = this.time.delayedCall(cfg.startDelayMs, () => {
+      const ordinal = this.playVoiceClip(first);
+
+      // Let the whole ordinal play before the phrase: its real length in seconds
+      // (0 when unknown) plus the breathing room.
+      const holdMs = this.voiceClipHoldMs(ordinal);
+      const gapTimer = this.time.delayedCall(holdMs, () => this.playVoiceClip(second));
+      this.voiceTimers.push(gapTimer);
+    });
+    this.voiceTimers.push(startTimer);
+  }
+
+  // How long to wait before the next spoken clip, in ms.
+  //
+  // `duration` is populated from the decoded audio buffer (or the HTML5 element's
+  // metadata), so it is the CLIP's length rather than a guess. The 1000 floor
+  // guards the degenerate `duration === 0` case — a clip whose metadata has not
+  // arrived — with the tuning fallback instead of skipping the word entirely.
+  voiceClipHoldMs(sound) {
+    const cfg = PROMPT_VOICE;
+    const seconds = sound && Number.isFinite(sound.duration) ? sound.duration : 0;
+    if (seconds <= 0) return cfg.fallbackHoldMs;
+    return seconds * 1000 + cfg.ordinalTailMs;
+  }
+
+  // Plays one spoken clip and returns the Sound, so the caller can read its
+  // duration to schedule the next one.
+  playVoiceClip(key) {
+    if (!key || !this.cache.audio.exists(key)) return null;
+    // Kill the PREVIOUS clip only, not the whole chain: this is the second half
+    // of the same prompt.
+    if (this.voiceSound) {
+      this.voiceSound.stop();
+      this.voiceSound.destroy();
+    }
+    const sound = this.sound.add(key, { volume: PROMPT_VOICE.volume });
+    sound.play();
+    // Self-cleaning, so a finished clip does not linger in the manager.
+    sound.once('complete', () => {
+      if (this.voiceSound === sound) this.voiceSound = null;
+      sound.destroy();
+    });
+    this.voiceSound = sound;
+    return sound;
+  }
+
+  // Cuts off whatever is being spoken and drops any pending chain timers.
+  stopPromptVoice() {
+    for (const timer of this.voiceTimers) timer.remove(false);
+    this.voiceTimers = [];
+
+    if (this.voiceSound) {
+      this.voiceSound.stop();
+      this.voiceSound.destroy();
+      this.voiceSound = null;
+    }
   }
 
   // Fades/slides the current prompt away, then runs `onDone`.
@@ -1657,6 +2071,13 @@ export default class GameScene extends BaseScene {
     if (this.finished) return;
     this.finished = true;
     this.transitioning = true;
+
+    // The run is over: no walking bed, no half-finished prompt being read out
+    // over the end card, and the music fades away so the fanfare and the result
+    // are not fighting a loop.
+    this.stopMovementAudio();
+    this.stopPromptVoice();
+    this.fadeOutMusic();
 
     const elapsedSeconds = Math.round((this.time.now - this.startTime) / 1000);
     this.game.events.emit('game15-complete', {
@@ -1949,6 +2370,11 @@ export default class GameScene extends BaseScene {
   // tracking until the pointer is released.
   bindJoystickInput() {
     this.input.on('pointerdown', (pointer) => {
+      // The start poster owns the screen until Start is tapped: no shelf to grab
+      // and no stick to push yet. (Without this the input handlers below would
+      // run against a world that has not been built.)
+      if (!this.started) return;
+
       // A product grab is checked FIRST and takes the pointer outright, so
       // tapping a box on the shelf can never also nudge the stick. Without this
       // branch products are not draggable at all — the joystick hit test below
@@ -2046,6 +2472,11 @@ export default class GameScene extends BaseScene {
     // Clamp a tab-wake delta so the world cannot jump a whole screen at once.
     const dt = Math.min(delta, WORLD.maxDeltaMs) / 1000;
 
+    // The start poster is up: there is no shelf to pan and no run to advance, so
+    // none of the per-frame gameplay work should happen. Returning here also
+    // means the world/character branches below can assume a run exists.
+    if (!this.started) return;
+
     // Camera: deflection sets the speed. The bounds are cached per round, so this
     // is just a clamp — pushing past either end stops the scroll instead of
     // running off the shelf.
@@ -2053,7 +2484,7 @@ export default class GameScene extends BaseScene {
     // The joystick is the ONLY thing that moves the camera now: a round opens
     // framed at its counting side (see cameraStartFor) and then stays wherever
     // the child leaves it, so there is no tween to arbitrate with here.
-    if (this.axis !== 0) {
+    if (this.axis !== 0 && this.world) {
       const next = this.cameraX + this.axis * WORLD.scrollSpeed * dt;
       this.cameraX = Math.min(this.cameraMax, Math.max(this.cameraMin, next));
       this.world.x = -this.cameraX;
@@ -2064,13 +2495,18 @@ export default class GameScene extends BaseScene {
     const targetDrift = this.axis * WORLD.characterDriftPx;
     this.drift += (targetDrift - this.drift) * (1 - Math.exp(-WORLD.driftEase * dt));
 
-    this.character.x = this.characterBaseX + this.drift;
-    this.character.y = this.characterBaseY;
+    if (this.character) {
+      this.character.x = this.characterBaseX + this.drift;
+      this.character.y = this.characterBaseY;
+    }
 
     // The walk cycle is driven by the SAME axis as the scroll above: direction
     // picks forward (1..27) or reverse (27..1), and |axis| scales the stride so
     // the feet stay locked to the moving background.
     this.updateCharacterAnimation();
+
+    // Feet + cart, pitched and cross-faded from the same |axis|.
+    this.updateMovementAudio(dt);
   }
 
   // ---------------------------------------------------------------------------
@@ -2180,6 +2616,19 @@ export default class GameScene extends BaseScene {
       depth: CONTROLS.muteDepth,
     });
     panel.add(btn.container);
-    btn.on('pointerup', () => this.scene.restart());
+
+    // scene.restart() re-runs create() on the SAME instance, so the loops and
+    // the intro voice have to be released here as well as on shutdown — a
+    // restart does not always fire 'shutdown' before create() again.
+    btn.on('pointerup', () => {
+      this.stopMovementAudio(true);
+      this.stopPromptVoice();
+      this.stopIntroVoice();
+      // Release the music too: restart() re-runs create() on the same instance,
+      // and a leftover stopped-but-live handle would carry the old volume into
+      // the new run.
+      this.stopMusic(true);
+      this.scene.restart();
+    });
   }
 }

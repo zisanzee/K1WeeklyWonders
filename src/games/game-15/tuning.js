@@ -15,10 +15,29 @@
 // backdrop draws is not a bare canvas.
 export const BACKGROUND_COLOR = '#0b1220';
 
-// Background music level for THIS game. Mute itself stays global (see
+// Background music for THIS game. Mute itself stays global (see
 // @/phaser/common/audioState) — never add a per-game mute key.
+//
+// The music is a LOOP. `ensureBgMusic` owns creating/reusing the Sound and
+// applying the volume; what it cannot know is WHEN this game wants it, so the
+// lifecycle (start on Start, fade under the end card) lives in GameScene and the
+// numbers live here.
 export const SOUND = {
+  // Playback level. This is also the level the music sits at while the intro
+  // narration is talking over it, so it is deliberately low.
   bgMusicVolume: 0.27,
+
+  // Gate the music behind Start. With this true the poster is voiced by the
+  // intro clip ALONE, and the music begins with the first level — which is what
+  // stops two audio beds competing on the start screen.
+  //
+  // Set false to have the music run under the intro instead.
+  startMusicOnPlay: true,
+
+  // Fade-in when the music starts, and fade-out when the run ends. Tweened
+  // rather than hard-started/stopped so the loop never clicks in or out.
+  fadeInMs: 700,
+  fadeOutMs: 600,
 };
 
 // ---------------------------------------------------------------------------
@@ -781,6 +800,136 @@ export const EDGE_ARROWS = {
   ease: 'Sine.easeInOut',
 };
 
+// ---------------------------------------------------------------------------
+// MOVEMENT AUDIO — the walking bed, driven by the joystick.
+//
+// Two loops run together while the character is moving: `steps` (the feet) and
+// `cartPushingSound` (the cart rolling along the floor). Both are pitched and
+// cross-faded from the SAME |axis| value that scrolls the world and drives the
+// walk cycle, so feet, cart and background can never disagree.
+//
+// Why loops rather than one-shots: the world scrolls continuously, so a retrigger
+// cadence would audibly drift out of step with the movement. Two loops whose rate
+// tracks the movement exactly cannot drift at all.
+// ---------------------------------------------------------------------------
+export const MOVEMENT_AUDIO = {
+  // Identity keys, matching AUDIO in assets.js.
+  stepsKey: 'steps',
+  cartKey: 'cartPushingSound',
+
+  // Playback rate at rest and at FULL deflection. Steps reach 1.7x flat out (the
+  // requested top speed); the cart ramps more gently because a cart does not
+  // hurry as much as footsteps do.
+  stepsRateMin: 0.85,
+  stepsRateMax: 1.7,
+  cartRateMin: 0.9,
+  cartRateMax: 1.35,
+
+  // Level at rest and at full deflection. Both start from silence-ish so the bed
+  // fades in as the child pushes rather than slamming on at the first touch.
+  stepsVolumeMin: 0.12,
+  stepsVolumeMax: 0.8,
+  cartVolumeMin: 0.08,
+  cartVolumeMax: 0.55,
+
+  // Deflection below this counts as "stopped": the loops fade out completely
+  // rather than droning at a slow rate. Matches the joystick's own deadZone idea,
+  // but is separate — movement audio can be silent slightly before the world
+  // actually stops.
+  stopBelowAxis: 0.02,
+
+  // Silence ramp when starting/stopping, and the smoothing on rate/volume while
+  // moving. Short enough to feel attached to the stick, long enough to avoid a
+  // click. `fadeMs` is a tween; the rest are exponential smoothing constants.
+  fadeMs: 180,
+  smoothRate: 10,
+  smoothVolume: 12,
+};
+
+// ---------------------------------------------------------------------------
+// PROMPT VOICE — the spoken version of each prompt, assembled from clips.
+//
+// A prompt is "third product from the left", so it is played as two separate
+// one-shots in sequence: the ordinal clip, then the direction phrase. Using clips
+// (rather than generating speech) keeps the voice consistent with the videos the
+// app already ships, and avoids a TTS dependency.
+//
+// The gap before the phrase is measured from the ORDINAL CLIP'S OWN LENGTH, not a
+// fixed beat: the ordinals are different lengths ("first" is not as long as
+// "seventh"), so one hardcoded delay either clips the short ones or leaves a dead
+// pause after the long ones. Chaining off the real duration makes every ordinal
+// finish before the phrase starts.
+//
+// Chained on a TIMER rather than the clip's COMPLETE event: a clip that fails to
+// load never fires COMPLETE, which would leave the chain stuck and every later
+// prompt silent. A timer always runs.
+// ---------------------------------------------------------------------------
+export const PROMPT_VOICE = {
+  // Identity keys, matching AUDIO in assets.js.
+  leftKey: 'from the left',
+  rightKey: 'from the right',
+
+  // Breathing room AFTER the ordinal clip finishes, in ms, before the direction
+  // phrase starts. This is the "let it land" pause — raise it if the two words
+  // still feel rushed, lower it if the prompt starts to drag.
+  ordinalTailMs: 240,
+
+  // Fallback hold, used ONLY when a clip's duration is not known (e.g. metadata
+  // has not arrived, or a silent placeholder). Long enough for a typical ordinal.
+  fallbackHoldMs: 900,
+
+  // Volume for the spoken prompt. Deliberately above the movement bed so the
+  // instruction wins over the ambience.
+  volume: 0.9,
+
+  // Delay before speaking a freshly dealt prompt, so the words appear on screen
+  // a beat before the voice starts. Matches the prompt's fade-in.
+  startDelayMs: 220,
+};
+
+// ---------------------------------------------------------------------------
+// START SCREEN — the instruction poster shown before the run begins.
+//
+// The run does not exist yet on this screen: no shelf, no prompt, no movement
+// audio. Start is what builds level 1, which is why `create()` no longer starts
+// the run itself.
+// ---------------------------------------------------------------------------
+export const START_SCREEN = {
+  // Identity key, matching IMAGES in assets.js.
+  key: 'startArt',
+
+  // Depth. Above the game content, the confetti (500) AND the flash veil (995)
+  // so nothing in the scene can poke through or fade over the poster — but one
+  // step BELOW the mute button (CONTROLS.muteDepth, 1000), because the intro
+  // voice is playing and the child must be able to silence it without being
+  // forced to press Start.
+  depth: 999,
+
+  // Fallback fill if the poster image fails to load, so Start is still reachable.
+  fallbackColor: 0x0f172a,
+
+  // Button vertical position, as a fraction of the canvas HEIGHT. "Towards the
+  // bottom" but kept off the very edge so the tap target is comfortable.
+  buttonYFrac: 0.92,
+  buttonLabel: 'Start \u25B6',
+  buttonFontSize: '34px',
+  buttonPaddingX: 54,
+  buttonPaddingY: 20,
+
+  // Gentle pulse so the button reads as the thing to press.
+  pulseScale: 1.06,
+  pulseMs: 900,
+
+  // Intro narration, played while the poster is up and cut the instant Start is
+  // tapped. Identity key, matching AUDIO in assets.js.
+  voiceKey: 'IntroSound',
+  voiceVolume: 0.9,
+
+  // Fade of the whole poster when Start is tapped. The run is built at the START
+  // of the fade, so the scene behind is already playable as the poster clears.
+  fadeMs: 300,
+};
+
 // A single aggregate, handy for a live-tuning panel or for printing the whole
 // config at once.
 export const TUNING = {
@@ -795,4 +944,7 @@ export const TUNING = {
   CAMERA,
   FLOW,
   SOUND,
+  MOVEMENT_AUDIO,
+  PROMPT_VOICE,
+  START_SCREEN,
 };
