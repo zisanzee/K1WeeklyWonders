@@ -168,6 +168,11 @@ export default class GameScene extends BaseScene {
     this.cartLocalY = 0;
     this.cartItemCount = 0; // how many products are seated, drives the stack grid
     this.isIdle = null; // current pose state; null = not yet applied
+    // Mirrored-horizontally state; null = not yet applied. Kept so a sprite
+    // rebuilt later starts out facing the right way.
+    this.characterFlipped = null;
+    this.cartBaseX = 0; // cart offset for the UNMIRRORED facing
+    this.cartFacingSign = 1; // +1 unmirrored, -1 when the cart sits on the other side
 
     // Products + drag.
     this.products = []; // one record per shelf product
@@ -703,11 +708,38 @@ export default class GameScene extends BaseScene {
     });
   }
 
-  buildCharacter() {
-    const { width, height } = this.scale;
-    const size = width * CHARACTER.sizeFrac;
+  // The character's resting x, in screen pixels.
+  //
+  // Centring is applied to the BODY only — the cart is ignored on purpose. The
+  // cart hangs off one side and flips with the facing, so including it would
+  // shift the body by half the cart offset, in opposite directions on left and
+  // right rounds, leaving the character in two different places. Body-centred
+  // means both sides land on exactly the same x.
+  characterAnchorX() {
+    const { width } = this.scale;
+    const base = CHARACTER.centerOnScreen
+      ? width / 2
+      : width * CHARACTER.xFrac;
+    return base + width * CHARACTER.centerNudgeFrac;
+  }
 
-    this.characterBaseX = width * CHARACTER.xFrac;
+  // Recomputes the character's resting spot from the CURRENT canvas size. Called
+  // once at build time and again on every resize, so one rule serves both — a
+  // resize can never leave the character off-centre.
+  layoutCharacter() {
+    if (!this.character) return;
+    const { height } = this.scale;
+    this.characterBaseX = this.characterAnchorX();
+    this.characterBaseY = height * CHARACTER.yFrac;
+    this.character.x = this.characterBaseX + this.drift;
+    this.character.y = this.characterBaseY;
+  }
+
+  buildCharacter() {
+    const { height } = this.scale;
+    const size = this.scale.width * CHARACTER.sizeFrac;
+
+    this.characterBaseX = this.characterAnchorX();
     this.characterBaseY = height * CHARACTER.yFrac;
 
     this.character = this.add.container(this.characterBaseX, this.characterBaseY).setDepth(CHARACTER.depth);
@@ -744,7 +776,15 @@ export default class GameScene extends BaseScene {
     this.cartH = height * cfg.heightFrac;
     // Offsets are fractions of the CART's own size, so the box can be moved by
     // eye without recalculating pixels when its size changes.
-    this.cartLocalX = cfg.xFrac * this.cartW;
+    //
+    // `cartBaseX` is the UNMIRRORED offset. `cartLocalX` is derived from it by
+    // `applyCartFacing()`, which flips its sign when the character is mirrored so
+    // the cart stays on the same side of the body. Everything that needs the
+    // cart's screen position (the drop zone included) reads `cartLocalX`, so a
+    // flip automatically moves the hit area with the box.
+    this.cartBaseX = cfg.xFrac * this.cartW;
+    this.cartFacingSign = 1;
+    this.cartLocalX = this.cartBaseX;
     this.cartLocalY = cfg.yFrac * this.cartH;
 
     // Seated items live in their own container, added FIRST so the cart box (when
@@ -1156,6 +1196,46 @@ export default class GameScene extends BaseScene {
     if (this.characterSprite) this.characterSprite.setVisible(!idle);
   }
 
+  // Mirrors the character's SPRITES so the art points the way the current round
+  // is counted from — on a "from the right" round the character faces the other
+  // way, matching the side the child is being asked to count along.
+  //
+  // Only individual sprites are flipped, NEVER `this.character` (the container):
+  // the cart and the seated products are children of it, so mirroring the
+  // container would move the cart to the character's other side and show every
+  // product backwards. Flip state is cached because Phaser's `setFlipX` is cheap
+  // but this is called on every prompt.
+  applyCharacterFacing(direction) {
+    const flip = Boolean(CHARACTER.facing.flipOnRight) && direction === 'right';
+    if (this.characterFlipped === flip) return;
+    this.characterFlipped = flip;
+
+    if (this.characterSprite) this.characterSprite.setFlipX(flip);
+    if (this.idleSprite) this.idleSprite.setFlipX(flip);
+
+    // The cart has to move with the facing, or a mirrored character ends up
+    // pushing a cart through its own face.
+    this.applyCartFacing(flip);
+  }
+
+  // Mirrors the cart's OFFSET (not the cart art) so it stays on the same side of
+  // the body however the character faces.
+  //
+  // Only the x offset flips: the box and the items stacked inside it keep their
+  // own orientation, so product art is never rendered backwards. The box and the
+  // item container are both repositioned, and because `cartLocalX` is the value
+  // `cartDropRect()` reads, the DROP ZONE moves with them — a child aiming at
+  // the visible cart always hits the real one.
+  applyCartFacing(flip) {
+    const sign = flip && CHARACTER.cart.mirrorXWithFacing ? -1 : 1;
+    if (this.cartFacingSign === sign) return;
+    this.cartFacingSign = sign;
+
+    this.cartLocalX = this.cartBaseX * sign;
+    if (this.cartItems) this.cartItems.x = this.cartLocalX;
+    if (this.cartBox) this.cartBox.x = this.cartLocalX;
+  }
+
   // The original placeholder box, kept so the game still reads before the art
   // lands (and if a frame URL ever 404s).
   buildCharacterFallback(size) {
@@ -1209,10 +1289,15 @@ export default class GameScene extends BaseScene {
     // Moving: show the walk cycle and stop the breathing tween.
     this.applyCharacterPose(false);
 
-    const direction = axis > 0 ? 1 : -1;
+    // `axis > 0` is the WORLD moving right, which is the character walking
+    // right across it. `walkForwardFor` turns that into a frame order, because a
+    // mirrored sprite encodes travel in the opposite order.
+    const direction = this.walkForwardFor(axis > 0) ? 1 : -1;
 
     // Only (re)start when the direction actually changes — restarting every
-    // frame would reset playback to frame 0 and the walk would stutter.
+    // frame would reset playback to frame 0 and the walk would stutter. A
+    // sideways flip changes `direction` too, so the cycle restarts correctly
+    // after the character turns around.
     if (this.characterFacing !== direction) {
       this.characterFacing = direction;
       if (direction > 0) {
@@ -1238,12 +1323,15 @@ export default class GameScene extends BaseScene {
     sprite.anims.timeScale = timeScale;
   }
 
-  // Re-derive the character's resting spot after a resize.
-  layoutCharacter() {
-    if (!this.character) return;
-    const { width, height } = this.scale;
-    this.characterBaseX = width * CHARACTER.xFrac;
-    this.characterBaseY = height * CHARACTER.yFrac;
+  // Which frame order produces travel in the given VISUAL direction.
+  //
+  // The 27 frames are drawn walking to the RIGHT, so unmirrored:
+  //   visual right → 1..27 forward, visual left → 27..1 reverse.
+  // When the sprite is mirrored (a "from the right" round) those same frames
+  // depict walking LEFT, so the order has to invert — otherwise a mirrored
+  // character would moonwalk, with the feet skating backwards against the shelf.
+  walkForwardFor(visualRight) {
+    return this.characterFlipped ? !visualRight : visualRight;
   }
 
   // ---------------------------------------------------------------------------
@@ -1330,6 +1418,9 @@ export default class GameScene extends BaseScene {
     // The shelf labels must count from the SAME side the prompt does, so the
     // child can count along the shelf in the direction they were asked.
     this.updateOrdinalDirection(prompt.direction);
+    // …and the character should LOOK that way too, so the body agrees with the
+    // prompt instead of facing against it.
+    this.applyCharacterFacing(prompt.direction);
     // Only the arrow for the side being counted from is shown, so the hint is
     // unambiguous: red for "from the left", blue for "from the right".
     this.showArrowForDirection(prompt.direction);
@@ -1405,13 +1496,16 @@ export default class GameScene extends BaseScene {
     if (!sprite) return;
 
     // Face the direction being counted from, so the character looks the way the
-    // child is about to look.
-    const walkRight = direction === 'right';
-    this.characterFacing = walkRight ? 1 : -1;
+    // child is about to look — including the mirror, so a "from the right" walk
+    // shows the mirrored art with the stride running the matching way round.
+    this.applyCharacterFacing(direction);
+
+    const walkForward = this.walkForwardFor(direction === 'right');
+    this.characterFacing = walkForward ? 1 : -1;
 
     this.applyCharacterPose(false);
 
-    if (walkRight) {
+    if (walkForward) {
       sprite.play({ key: CHARACTER.anim.key, startFrame: 0, repeat: -1 });
     } else {
       const lastIndex = Math.max(0, this.heroFrameCount - 1);

@@ -258,7 +258,24 @@ export const SHELF = {
 // ---------------------------------------------------------------------------
 export const CHARACTER = {
   sizeFrac: 0.22, // side length of the FALLBACK box, as a fraction of the canvas
-  xFrac: 0.44, // base x (the lean is added on top of this)
+
+  // ---- HORIZONTAL PLACEMENT -------------------------------------------
+  // Pin the character's OWN centre to the canvas midline, for every round and
+  // whichever side the round counts from.
+  //
+  // The cart is deliberately NOT part of that calculation. It hangs off one side
+  // and flips with the facing, so centring "the character plus its cart" would
+  // push the body off the midline by half the cart offset — and in OPPOSITE
+  // directions on left and right rounds, so the two would sit in visibly
+  // different places. Centring the body alone makes both identical.
+  centerOnScreen: true,
+  // Base x used only when `centerOnScreen` is false, as a fraction of the width.
+  xFrac: 0.5,
+  // Fine nudge applied AFTER centring, as a fraction of the width. Positive =
+  // right, negative = left. Use it to breathe room from the joystick without
+  // giving up the centring rule.
+  centerNudgeFrac: 0,
+
   yFrac: 0.8, // vertical centre, inside the bottom band
   radius: 16,
   color: 0x38bdf8,
@@ -297,6 +314,15 @@ export const CHARACTER = {
     alpha: 0.9,
     outline: 0x0f172a,
     outlineWidth: 4,
+
+    // Mirror the cart's X OFFSET when the character is mirrored, so the cart
+    // stays on the same side of the body relative to the way it faces. Without
+    // this, a mirrored character would have its cart pop over to the other side,
+    // in front of the face it is now looking with.
+    //
+    // Only the offset flips — the box itself (and the items stacked inside it)
+    // are NOT mirror-flipped, so digits/labels on the cart art stay readable.
+    mirrorXWithFacing: true,
 
     // Draw the cart box itself. Items dropped into it still appear even when the
     // box is hidden, so this only controls the placeholder rectangle.
@@ -394,6 +420,23 @@ export const CHARACTER = {
     // walk still feels hurried, raise them if it feels sluggish.
     minTimeScale: 0.35,
     maxTimeScale: 1.35,
+  },
+
+  // ---------------------------------------------------------------------
+  // FACING — which way the character's art points.
+  //
+  // The walk cycle has ONE drawn facing, but a round can count from either side
+  // of the shelf. Mirroring the sprite on a "from the right" round makes the
+  // character look the way the child is being asked to count.
+  //
+  // Only the SPRITES are mirrored, never the container: the cart and the seated
+  // products live in that container, and mirroring it would fling the cart onto
+  // the other side of the character and show every product back to front.
+  // ---------------------------------------------------------------------
+  facing: {
+    // Flip horizontally on rounds/lists that count from the right.
+    // Set to false if the art is drawn facing the other way.
+    flipOnRight: true,
   },
 
   // ---------------------------------------------------------------------
