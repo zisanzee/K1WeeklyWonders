@@ -2,6 +2,17 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { motion } from 'motion/react';
 import { fetchWeeklyMission } from '@/api/logPlaySession';
 import { GAME_CATALOG } from '@/games/gameAccess';
+import {
+  ErrorIcon,
+  LoadingIcon,
+  MissionHeroesIcon,
+  PastWinnersIcon,
+  RankIcon,
+  RefreshIcon,
+  StatsIcon,
+  TargetIcon,
+  WinnerIcon,
+} from '@/ui/statsIcons';
 
 // Map a PlaySession game slug (game1…game9, bonusGame1) to a friendly emoji +
 // title for the "which games they played" chips. Unknown slugs fall back to a
@@ -18,7 +29,8 @@ function infoFor(slug) {
   return SLUG_INFO[String(slug).toLowerCase()] || { emoji: '🎮', label: slug };
 }
 
-const MEDALS = ['🥇', '🥈', '🥉'];
+// Medal tint per position. The glyph is RankIcon (lucide) — see statsIcons.js.
+const MEDAL_COLORS = ['text-amber-200', 'text-slate-200', 'text-orange-200'];
 const RANK_COLORS = [
   'linear-gradient(135deg,#ffd76a,#f59e0b)',
   'linear-gradient(135deg,#e2e8f0,#94a3b8)',
@@ -70,24 +82,33 @@ export default function MissionHeroes({ teacherCode, onSwitchView = null }) {
   return (
     <div className="overflow-hidden rounded-3xl aura-card">
       {/* Header */}
-      <div className="flex items-center justify-between gap-3 border-b border-white/10 bg-gradient-to-r from-amber-500/15 via-white/5 to-pink-500/15 px-4 py-3 sm:px-6 sm:py-4">
-        <h2 className="flex items-center gap-2.5">
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-400 to-orange-500 text-lg shadow-md sm:h-11 sm:w-11 sm:text-xl">
-            🏆
+      <div className="flex items-center justify-between gap-2 border-b border-white/10 bg-gradient-to-r from-amber-500/15 via-white/5 to-pink-500/15 px-4 py-3 sm:gap-3 sm:px-6 sm:py-4">
+        <h2 className="flex min-w-0 flex-1 items-center gap-2 sm:gap-2.5">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-400 to-orange-500 text-white shadow-md sm:h-11 sm:w-11">
+            {/* Sparkles, not a trophy: the StatsPanel header pairs a
+                "Mission heroes" button with a "Past weekly winners" trophy, and
+                using a trophy here made the two indistinguishable on a phone
+                where the labels are hidden. */}
+            <MissionHeroesIcon className="h-5 w-5 sm:h-6 sm:w-6" aria-hidden="true" />
           </span>
-          <span style={{ fontFamily: "'Fredoka', sans-serif" }} className="text-lg font-bold aura-heading sm:text-2xl">
+          <span
+            style={{ fontFamily: "'Fredoka', sans-serif" }}
+            className="block min-w-0 truncate text-base font-bold aura-heading sm:text-2xl"
+          >
             Weekly Mission Heroes
           </span>
         </h2>
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
           {onSwitchView && (
             <button
               type="button"
               onClick={onSwitchView}
-              className="aura-ghost h-9 gap-1.5 whitespace-nowrap px-3 text-xs font-black active:scale-95 sm:h-11 sm:px-4 sm:text-sm"
+              aria-label="Stats"
+              title="Stats"
+              className="aura-ghost h-9 w-9 shrink-0 p-0 active:scale-95 sm:h-11 sm:w-auto sm:gap-1.5 sm:px-4"
             >
-              <span aria-hidden="true">📊</span>
-              Stats
+              <StatsIcon className="h-4.5 w-4.5 sm:h-4 sm:w-4" aria-hidden="true" />
+              <span className="hidden text-sm font-black sm:inline">Stats</span>
             </button>
           )}
           <button
@@ -96,16 +117,20 @@ export default function MissionHeroes({ teacherCode, onSwitchView = null }) {
             disabled={status === 'loading'}
             aria-label="Refresh mission heroes"
             title="Refresh"
-            className="aura-icon-btn h-9 w-9 text-lg active:scale-90 disabled:opacity-50 sm:h-11 sm:w-11"
+            className="aura-icon-btn h-9 w-9 active:scale-90 disabled:opacity-50 sm:h-11 sm:w-11"
           >
-            <span className={status === 'loading' ? 'inline-block animate-spin' : ''}>🔄</span>
+            <RefreshIcon
+              className={`h-4.5 w-4.5 sm:h-5 sm:w-5 ${status === 'loading' ? 'animate-spin' : ''}`}
+              aria-hidden="true"
+            />
           </button>
         </div>
       </div>
 
       <div className="px-4 py-3 sm:px-6">
-        <p className="text-center text-sm font-bold aura-soft">
-          Played <span className="font-black aura-text">{target} different games</span> this week 🎯
+        <p className="flex flex-wrap items-center justify-center gap-1.5 text-center text-sm font-bold aura-soft">
+          Played <span className="font-black aura-text">{target} different games</span> this week
+          <TargetIcon className="h-4 w-4 shrink-0 text-amber-300" aria-hidden="true" />
         </p>
         <p className="mt-0.5 text-center text-[11px] font-semibold aura-muted">
           Resets every Friday at noon — same as Weekly Champions
@@ -115,14 +140,14 @@ export default function MissionHeroes({ teacherCode, onSwitchView = null }) {
       <div className="flex-1 px-4 pb-5 sm:px-6">
         {status === 'loading' && (
           <div className="flex flex-col items-center justify-center gap-2 py-12 aura-muted">
-            <span className="animate-bounce text-4xl">🏅</span>
+            <LoadingIcon className="h-8 w-8 animate-spin" aria-hidden="true" />
             <p className="font-bold">Finding this week's heroes…</p>
           </div>
         )}
 
         {status === 'error' && (
           <div className="flex flex-col items-center justify-center gap-3 py-12 text-center aura-muted">
-            <span className="text-4xl">😕</span>
+            <ErrorIcon className="h-9 w-9" aria-hidden="true" />
             <p className="font-bold aura-soft">Couldn't load mission heroes.</p>
             <button
               type="button"
@@ -139,9 +164,9 @@ export default function MissionHeroes({ teacherCode, onSwitchView = null }) {
             <motion.span
               animate={{ rotate: [0, 8, -8, 0] }}
               transition={{ duration: 3, repeat: Infinity }}
-              className="inline-block text-5xl"
+              className="inline-flex"
             >
-              🎯
+              <TargetIcon className="h-12 w-12 text-amber-300" aria-hidden="true" />
             </motion.span>
             <p className="mt-3 text-base font-black aura-text">No heroes yet this week</p>
             <p className="mx-auto mt-1 max-w-xs text-sm font-semibold aura-soft">
@@ -161,7 +186,10 @@ export default function MissionHeroes({ teacherCode, onSwitchView = null }) {
                 className="relative overflow-hidden rounded-2xl aura-card p-3.5 sm:p-4"
               >
                 {i === 0 && (
-                  <div className="pointer-events-none absolute -right-4 -top-4 text-7xl opacity-10">👑</div>
+                  <WinnerIcon
+                    className="pointer-events-none absolute -right-3 -top-3 h-20 w-20 text-amber-200 opacity-10"
+                    aria-hidden="true"
+                  />
                 )}
                 <div className="flex items-center gap-3">
                   {/* Rank medal or number */}
@@ -172,7 +200,7 @@ export default function MissionHeroes({ teacherCode, onSwitchView = null }) {
                     }}
                   >
                     {i === 0 ? (
-                      <span className="text-2xl">{MEDALS[0]}</span>
+                      <RankIcon className={`h-6 w-6 ${MEDAL_COLORS[0]}`} aria-label="Position 1" />
                     ) : (
                       <span className="text-base sm:text-lg">{i + 1}</span>
                     )}
@@ -193,7 +221,10 @@ export default function MissionHeroes({ teacherCode, onSwitchView = null }) {
                     <p className="mt-1 text-xs font-bold aura-muted">
                       {kid.distinctGames}/{target} games
                       <span className="mx-1.5 text-white/20">•</span>
-                      <span className="text-amber-300">🏆 {kid.trophies}</span>
+                      <span className="inline-flex items-center gap-1 align-middle text-amber-300">
+                        <PastWinnersIcon className="h-3.5 w-3.5" aria-hidden="true" />
+                        {kid.trophies}
+                      </span>
                     </p>
                   </div>
                 </div>

@@ -24,6 +24,35 @@ import { confirmDialog } from '@/ui/confirmDialog';
 import GameIcon from '@/ui/GameIcon';
 import { makeStudentKey, studentDetailPath } from '@/games/studentKey';
 import {
+  AccessCodeIcon,
+  CatalogueTabIcon,
+  ClassGamesIcon,
+  ClassesTabIcon,
+  ClassIcon,
+  CopyLinkIcon,
+  DeleteIcon,
+  EditIcon,
+  FeaturedIcon,
+  GamesTabIcon,
+  GreetingIcon,
+  GuideIcon,
+  PreviewIcon,
+  PrivateIcon,
+  PublicIcon,
+  RestoreIcon,
+  SearchEmptyIcon,
+  SearchIcon,
+  SettingsTabIcon,
+  StatsTabIcon,
+  StudentsTabIcon,
+  TermIcon,
+  TryItIcon,
+  UndoIcon,
+  UnlockScheduleIcon,
+  WarningIcon,
+  WelcomeIcon,
+} from '@/ui/statsIcons';
+import {
   addGameForClass,
   fetchGameAccessForClass,
   GAME_CATALOG,
@@ -83,35 +112,39 @@ const MissionHeroes = lazy(() => import('@/pages/MissionHeroes'));
 // A teacher manages exactly their own class; the admin manages every class plus
 // global settings. The tab sets differ by role so neither sees controls they
 // can't actually use.
+// `icon` is a COMPONENT from @/ui/statsIcons, not an emoji. Emoji tabs render at
+// a different weight on every platform (and at a different optical size than the
+// lucide icons used throughout this panel), so a tab bar built from them never
+// lined up with anything else on the page.
 const TEACHER_TABS = [
   {
     key: 'games',
     label: 'Games',
-    icon: '🎮',
+    icon: GamesTabIcon,
     description: 'Reorder games and choose what is locked or featured for your class.',
   },
   {
     key: 'catalogue',
     label: 'Catalogue',
-    icon: '📚',
+    icon: CatalogueTabIcon,
     description: 'Browse the game catalogue and add or remove games for your class.',
   },
   {
     key: 'students',
     label: 'Students',
-    icon: '🧑‍🎓',
+    icon: StudentsTabIcon,
     description: 'Manage your class roster, student codes, badges, and merged identities.',
   },
   {
     key: 'stats',
     label: 'Stats',
-    icon: '📊',
+    icon: StatsTabIcon,
     description: 'See who has been playing and how they are doing.',
   },
   {
     key: 'settings',
     label: 'Settings',
-    icon: '⚙️',
+    icon: SettingsTabIcon,
     description:
       'Your class code and share link, class details, privacy, and your own name and access code.',
   },
@@ -121,25 +154,25 @@ const ADMIN_TABS = [
   {
     key: 'classes',
     label: 'Classes',
-    icon: '🏫',
+    icon: ClassesTabIcon,
     description: 'Create classes, edit their details and teachers, and manage each class\'s games.',
   },
   {
     key: 'catalogue',
     label: 'Catalogue',
-    icon: '📚',
+    icon: CatalogueTabIcon,
     description: 'Browse the game catalogue and add or remove games for your own class.',
   },
   {
     key: 'stats',
     label: 'Stats',
-    icon: '📊',
+    icon: StatsTabIcon,
     description: 'Every class at a glance, with a per-class drill-down.',
   },
   {
     key: 'settings',
     label: 'Settings',
-    icon: '⚙️',
+    icon: SettingsTabIcon,
     description: 'Admin identity and the global maintenance mode.',
   },
 ];
@@ -166,7 +199,7 @@ function TabBar({ tabs, activeTab, onChange, disabled }) {
                 isActive ? 'text-white' : 'text-white/60 hover:text-white'
               }`}
             >
-              <span className="text-sm leading-none sm:text-base">{tab.icon}</span>
+              <tab.icon className="h-4 w-4 shrink-0 sm:h-[18px] sm:w-[18px]" aria-hidden="true" />
               {tab.label}
               {isActive && (
                 <motion.span
@@ -551,15 +584,17 @@ function SortableGameSlot({
               {game.subtitle}
             </p>
             {game.shiny && (
-              <span className="mt-1 inline-flex rounded-full bg-amber-500/25 px-1.5 py-0.5 text-[8px] font-black text-amber-100 sm:text-[9px]">
-                ✨ Featured
+              <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-amber-500/25 px-1.5 py-0.5 text-[8px] font-black text-amber-100 sm:text-[9px]">
+                <FeaturedIcon className="h-2.5 w-2.5 shrink-0" aria-hidden="true" />
+                Featured
               </span>
             )}
             {/* Only meaningful while the game is still locked — once it is
                 unlocked the schedule has served its purpose. */}
             {!game.unlocked && game.unlockAt && (
               <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-sky-500/25 px-1.5 py-0.5 text-[8px] font-black text-sky-100 sm:text-[9px]">
-                ⏰ Unlocks {formatUnlockAt(game.unlockAt)}
+                <UnlockScheduleIcon className="h-2.5 w-2.5 shrink-0" aria-hidden="true" />
+                Unlocks {formatUnlockAt(game.unlockAt)}
               </span>
             )}
           </div>
@@ -609,19 +644,29 @@ function SortableGameSlot({
               </>
             )}
 
+            {/* Featured toggle. A STAR, not ✨: a sparkle reads as decoration,
+                whereas a star is the conventional "featured/pinned" marker and
+                stays legible at this size. Filled when on, outline when off, so
+                the state is visible without relying on the background colour
+                alone. */}
             <button
               type="button"
               onClick={() => onToggleShiny(game.key, !game.shiny)}
               disabled={disabled}
               aria-pressed={game.shiny}
-              aria-label={`${game.shiny ? 'Remove shiny mark from' : 'Mark as shiny'} ${game.label}`}
-              className={`flex h-8 w-8 items-center justify-center rounded-lg text-sm transition disabled:cursor-not-allowed disabled:opacity-50 sm:h-10 sm:w-10 sm:rounded-xl sm:text-lg ${
+              aria-label={`${game.shiny ? 'Remove featured mark from' : 'Mark as featured'} ${game.label}`}
+              title={game.shiny ? 'Featured — tap to remove' : 'Mark as featured'}
+              className={`flex h-8 w-8 items-center justify-center rounded-lg transition disabled:cursor-not-allowed disabled:opacity-50 sm:h-10 sm:w-10 sm:rounded-xl ${
                 game.shiny
                   ? 'bg-gradient-to-br from-amber-400 to-orange-500 text-white shadow-sm'
                   : 'bg-amber-500/25 text-amber-100 hover:bg-amber-500/40'
               }`}
             >
-              ✨
+              <FeaturedIcon
+                className="h-4 w-4 sm:h-[18px] sm:w-[18px]"
+                fill={game.shiny ? 'currentColor' : 'none'}
+                aria-hidden="true"
+              />
             </button>
 
             <AccessToggle game={game} disabled={disabled} onToggle={onToggleAccess} />
@@ -823,7 +868,7 @@ function GameAccessEditor({
       confirmLabel: 'Cancel schedule',
       cancelLabel: 'Keep it',
       danger: true,
-      icon: '⏰',
+      icon: UnlockScheduleIcon,
     });
     if (!ok) return;
 
@@ -953,7 +998,7 @@ function GameAccessEditor({
             exit={{ opacity: 0, y: -6 }}
             className="mb-3 rounded-2xl border border-rose-500/30 bg-rose-500/20 px-3 py-3 text-sm font-bold text-rose-100"
           >
-            ⚠️ {localError}
+            <WarningIcon className="mr-1 inline-block h-3.5 w-3.5 align-[-2px]" aria-hidden="true" />{localError}
           </motion.p>
         )}
       </AnimatePresence>
@@ -1015,7 +1060,7 @@ function GameAccessEditor({
 
           {isReady && slottedGames.length === 0 && (
             <div className="rounded-2xl border border-dashed border-white/25 bg-white/10 px-5 py-8 text-center">
-              <span className="text-4xl">🎮</span>
+              <ClassGamesIcon className="mx-auto h-10 w-10 text-indigo-200" aria-hidden="true" />
               <p className="mt-3 text-base font-black aura-text">No games yet</p>
               <p className="mt-1 text-sm font-semibold aura-soft">Add games from the Catalogue tab.</p>
             </div>
@@ -1396,9 +1441,10 @@ function GameCatalogue({ classId, teacherCode, isAdmin = false }) {
             : 'Add a game to make it available to your class, or remove one to take it back out.'}
         </p>
         <div className="relative mt-3">
-          <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-sm aura-muted">
-            🔍
-          </span>
+          <SearchIcon
+            className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 aura-muted"
+            aria-hidden="true"
+          />
           <input
             type="search"
             value={query}
@@ -1417,7 +1463,7 @@ function GameCatalogue({ classId, teacherCode, isAdmin = false }) {
             exit={{ opacity: 0, y: -6 }}
             className="mb-3 rounded-2xl border border-rose-500/30 bg-rose-500/20 px-3 py-3 text-sm font-bold text-rose-100"
           >
-            ⚠️ {error}
+            <WarningIcon className="mr-1 inline-block h-3.5 w-3.5 align-[-2px]" aria-hidden="true" />{error}
           </motion.p>
         )}
       </AnimatePresence>
@@ -1465,9 +1511,14 @@ function GameCatalogue({ classId, teacherCode, isAdmin = false }) {
                     ▸
                   </span>
                   <span className="flex items-center gap-2">
-                    <span className="text-lg leading-none" aria-hidden="true">
-                      {isPreview ? '🧪' : '📁'}
-                    </span>
+                    {/* A term folder vs the unpublished Preview folder. The two
+                        are different KINDS of group, so they get different
+                        glyphs — folder vs flask — matching the amber styling. */}
+                    {isPreview ? (
+                      <PreviewIcon className="h-4 w-4 shrink-0 text-amber-100" aria-hidden="true" />
+                    ) : (
+                      <TermIcon className="h-4 w-4 shrink-0 text-indigo-100" aria-hidden="true" />
+                    )}
                     <h3
                       className={`text-sm font-black uppercase tracking-wide ${
                         isPreview ? 'text-amber-100' : 'text-indigo-100'
@@ -1568,7 +1619,7 @@ function GameCatalogue({ classId, teacherCode, isAdmin = false }) {
                               : 'bg-white/12 aura-text ring-white/20 hover:bg-white/20'
                           }`}
                         >
-                          <span aria-hidden="true">👁</span>
+                          <TryItIcon className="h-3.5 w-3.5" aria-hidden="true" />
                           {isPreviewOnly ? 'Try it' : 'Preview'}
                         </a>
                         {/* An unpublished game has no Add button at all. The
@@ -1609,7 +1660,7 @@ function GameCatalogue({ classId, teacherCode, isAdmin = false }) {
 
       {status === 'ready' && filteredCount === 0 && (
         <div className="rounded-2xl border border-dashed border-white/25 bg-white/10 px-5 py-8 text-center">
-          <span className="text-4xl">🔍</span>
+          <SearchEmptyIcon className="mx-auto h-10 w-10 aura-muted" aria-hidden="true" />
           <p className="mt-3 text-base font-black aura-text">No games found</p>
           <p className="mt-1 text-sm font-semibold aura-soft">
             Nothing matches “{query.trim()}”. Try another word like “counting” or “bonds”.
@@ -1737,7 +1788,7 @@ function AddStudentForm({ classId, teacherCode, onAdded }) {
 
       {error && (
         <p className="mt-2 rounded-xl bg-rose-500/20 px-3 py-2 text-xs font-bold text-rose-100" role="alert">
-          ⚠️ {error}
+          <WarningIcon className="mr-1 inline-block h-3.5 w-3.5 align-[-2px]" aria-hidden="true" />{error}
         </p>
       )}
     </form>
@@ -1804,7 +1855,7 @@ function IdentityRow({
       confirmLabel: 'Remove',
       cancelLabel: 'Keep',
       danger: true,
-      icon: '🗑️',
+      icon: DeleteIcon,
     });
     if (!ok) return;
     setDeleting(true);
@@ -1834,7 +1885,7 @@ function IdentityRow({
     <li className="rounded-2xl aura-card p-3 transition sm:p-4">
       {error && (
         <p className="mb-2.5 rounded-xl bg-rose-500/20 px-3 py-2 text-xs font-bold text-rose-100" role="alert">
-          ⚠️ {error}
+          <WarningIcon className="mr-1 inline-block h-3.5 w-3.5 align-[-2px]" aria-hidden="true" />{error}
         </p>
       )}
 
@@ -2045,7 +2096,7 @@ function StudentsTab({ classId, teacherCode, className }) {
     setStatus('loading');
     setSelected(new Set());
     load();
-    // Loaded up front as well, because the "🗑️ Deleted (n)" toggle only appears
+    // Loaded up front as well, because the "Deleted (n)" toggle only appears
     // when there is something in the trash — so the count has to be known
     // before the teacher opens it.
     loadDeleted();
@@ -2056,7 +2107,7 @@ function StudentsTab({ classId, teacherCode, className }) {
       // `info` comes from IdentityRow: { kind, name, studentId }.
       setLastRemoved(info);
       load();
-      // Always refresh the trash: `deleted` drives the "🗑️ Deleted (n)" toggle
+      // Always refresh the trash: `deleted` drives the "Deleted (n)" toggle
       // count, so it must stay accurate even while the list is closed.
       loadDeleted();
     },
@@ -2121,7 +2172,7 @@ function StudentsTab({ classId, teacherCode, className }) {
       confirmLabel: 'Delete forever',
       cancelLabel: 'Keep',
       danger: true,
-      icon: '🗑️',
+      icon: DeleteIcon,
     });
     if (!ok) return;
     setError(null);
@@ -2194,7 +2245,7 @@ function StudentsTab({ classId, teacherCode, className }) {
       title: `Unmerge "${memberName}"?`,
       message: 'They will become their own identity again and their stats will split out.',
       confirmLabel: 'Unmerge',
-      icon: '↩️',
+      icon: RestoreIcon,
     });
     if (!ok) return;
     setBusy(true);
@@ -2220,7 +2271,7 @@ function StudentsTab({ classId, teacherCode, className }) {
       >
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-sm font-black aura-text">🗑️ Deleted students</p>
+            <p className="text-sm font-black aura-text">Deleted students</p>
             <p className="mt-0.5 text-[11px] font-semibold aura-soft">
               Hidden from the roster and from stats. Restore to bring them back, or delete
               forever.
@@ -2242,7 +2293,7 @@ function StudentsTab({ classId, teacherCode, className }) {
         {deletedStatus === 'error' && (
           <div className="mt-3 flex flex-wrap items-center gap-3">
             <p className="text-xs font-bold text-rose-100">
-              ⚠️ Could not load deleted students.
+              <WarningIcon className="mr-1 inline-block h-3.5 w-3.5 align-[-2px]" aria-hidden="true" /> Could not load deleted students.
             </p>
             <button
               type="button"
@@ -2282,7 +2333,7 @@ function StudentsTab({ classId, teacherCode, className }) {
                     onClick={() => restoreDeleted(row)}
                     className="aura-ghost rounded-xl px-3 py-2 text-xs font-black"
                   >
-                    ↩️ Restore
+                    Restore
                   </button>
                   <button
                     type="button"
@@ -2328,7 +2379,14 @@ function StudentsTab({ classId, teacherCode, className }) {
                 disabled={undoBusy}
                 className="aura-btn aura-btn-violet min-h-9 px-3 text-xs disabled:opacity-50"
               >
-                {undoBusy ? 'Restoring…' : '↩️ Undo'}
+                {undoBusy ? (
+                  'Restoring…'
+                ) : (
+                  <>
+                    <UndoIcon className="h-3.5 w-3.5" aria-hidden="true" />
+                    Undo
+                  </>
+                )}
               </button>
               <button
                 type="button"
@@ -2345,7 +2403,7 @@ function StudentsTab({ classId, teacherCode, className }) {
 
       {error && (
         <p className="mb-3 rounded-2xl border border-rose-500/30 bg-rose-500/20 px-3 py-3 text-sm font-bold text-rose-100">
-          ⚠️ {error}
+          <WarningIcon className="mr-1 inline-block h-3.5 w-3.5 align-[-2px]" aria-hidden="true" />{error}
         </p>
       )}
 
@@ -2358,7 +2416,7 @@ function StudentsTab({ classId, teacherCode, className }) {
 
       {status === 'ready' && identities.length === 0 && (
         <div className="rounded-2xl border border-dashed border-white/25 bg-white/10 px-5 py-10 text-center">
-          <span className="text-4xl">🧑‍🎓</span>
+          <StudentsTabIcon className="mx-auto h-10 w-10 text-indigo-200" aria-hidden="true" />
           <p className="mt-3 text-base font-black aura-text">No students yet</p>
           <p className="mt-1 text-sm font-semibold aura-soft">
             Add your first student using the form above.
@@ -2373,7 +2431,7 @@ function StudentsTab({ classId, teacherCode, className }) {
               aria-expanded={showDeleted}
               className="aura-ghost mt-4 gap-1.5 rounded-xl px-3 py-2 text-xs"
             >
-              🗑️ Deleted ({deleted.length}) {showDeleted ? '▴' : '▾'}
+              Deleted ({deleted.length}) {showDeleted ? '▴' : '▾'}
             </button>
           )}
 
@@ -2404,7 +2462,7 @@ function StudentsTab({ classId, teacherCode, className }) {
                 aria-expanded={showDeleted}
                 className="aura-ghost gap-1.5 px-3 py-2 text-xs"
               >
-                🗑️ Deleted{deleted.length > 0 ? ` (${deleted.length})` : ''}{' '}
+                Deleted{deleted.length > 0 ? ` (${deleted.length})` : ''}{' '}
                 {showDeleted ? '▴' : '▾'}
               </button>
               <button
@@ -2889,7 +2947,7 @@ function TeacherSettings({ classId, teacherCode, teacherName, onClose, resetPlay
       confirmLabel: value ? 'Make public' : 'Make private',
       cancelLabel: 'Cancel',
       danger: !value,
-      icon: value ? '🌐' : '🔒',
+      icon: value ? PublicIcon : PrivateIcon,
     });
     if (!ok) return;
     setSavingPublic(true);
@@ -2939,7 +2997,7 @@ function TeacherSettings({ classId, teacherCode, teacherName, onClose, resetPlay
               confirmLabel: 'Sign out',
               cancelLabel: 'Stay',
               danger: true,
-              icon: '👋',
+              icon: WelcomeIcon,
             });
             if (ok) {
               resetPlayer();
@@ -2961,7 +3019,7 @@ function TeacherSettings({ classId, teacherCode, teacherName, onClose, resetPlay
 
       {status === 'error' && (
         <p className="rounded-2xl border border-rose-500/30 bg-rose-500/20 px-3 py-3 text-sm font-bold text-rose-100">
-          ⚠️ {error || 'Could not load class information.'}
+          <WarningIcon className="mr-1 inline-block h-3.5 w-3.5 align-[-2px]" aria-hidden="true" />{error || 'Could not load class information.'}
         </p>
       )}
 
@@ -2995,7 +3053,14 @@ function TeacherSettings({ classId, teacherCode, teacherName, onClose, resetPlay
                 }}
                 className="aura-ghost min-h-10 shrink-0 rounded-xl px-4 text-xs font-black"
               >
-                {editingCode ? 'Cancel' : '✏️ Edit code'}
+                {editingCode ? (
+                  'Cancel'
+                ) : (
+                  <>
+                    <EditIcon className="h-3.5 w-3.5" aria-hidden="true" />
+                    Edit code
+                  </>
+                )}
               </button>
             </div>
 
@@ -3006,7 +3071,14 @@ function TeacherSettings({ classId, teacherCode, teacherName, onClose, resetPlay
                 disabled={!classLink}
                 className="aura-btn aura-btn-violet min-h-11 flex-1 px-4 text-sm disabled:cursor-not-allowed disabled:opacity-50 sm:flex-none"
               >
-                {copiedLink ? '✓ Link copied' : '🔗 Copy class link'}
+                {copiedLink ? (
+                  '✓ Link copied'
+                ) : (
+                  <>
+                    <CopyLinkIcon className="h-3.5 w-3.5" aria-hidden="true" />
+                    Copy class link
+                  </>
+                )}
               </button>
             </div>
             {classLink && (
@@ -3016,7 +3088,7 @@ function TeacherSettings({ classId, teacherCode, teacherName, onClose, resetPlay
             )}
             {linkError && (
               <p className="mt-2 rounded-xl bg-rose-500/20 px-3 py-2 text-xs font-bold text-rose-100">
-                ⚠️ {linkError}
+                <WarningIcon className="mr-1 inline-block h-3.5 w-3.5 align-[-2px]" aria-hidden="true" />{linkError}
               </p>
             )}
 
@@ -3055,7 +3127,7 @@ function TeacherSettings({ classId, teacherCode, teacherName, onClose, resetPlay
                 </div>
                 {codeError && (
                   <p className="mt-2 rounded-xl bg-rose-500/20 px-3 py-2 text-xs font-bold text-rose-100">
-                    ⚠️ {codeError}
+                    <WarningIcon className="mr-1 inline-block h-3.5 w-3.5 align-[-2px]" aria-hidden="true" />{codeError}
                   </p>
                 )}
               </div>
@@ -3087,7 +3159,14 @@ function TeacherSettings({ classId, teacherCode, teacherName, onClose, resetPlay
                 }
                 className="aura-ghost min-h-10 shrink-0 rounded-xl px-4 text-xs font-black"
               >
-                {editingDetails ? 'Cancel' : '✏️ Edit'}
+                {editingDetails ? (
+                  'Cancel'
+                ) : (
+                  <>
+                    <EditIcon className="h-3.5 w-3.5" aria-hidden="true" />
+                    Edit
+                  </>
+                )}
               </button>
             </div>
 
@@ -3195,7 +3274,7 @@ function TeacherSettings({ classId, teacherCode, teacherName, onClose, resetPlay
                 </div>
                 {detailsError && (
                   <p className="rounded-xl bg-rose-500/20 px-3 py-2 text-xs font-bold text-rose-100">
-                    ⚠️ {detailsError}
+                    <WarningIcon className="mr-1 inline-block h-3.5 w-3.5 align-[-2px]" aria-hidden="true" />{detailsError}
                   </p>
                 )}
               </div>
@@ -3223,7 +3302,14 @@ function TeacherSettings({ classId, teacherCode, teacherName, onClose, resetPlay
                 }
                 className="aura-ghost min-h-10 shrink-0 rounded-xl px-4 text-xs font-black"
               >
-                {editingOwnName ? 'Cancel' : '✏️ Edit'}
+                {editingOwnName ? (
+                  'Cancel'
+                ) : (
+                  <>
+                    <EditIcon className="h-3.5 w-3.5" aria-hidden="true" />
+                    Edit
+                  </>
+                )}
               </button>
             </div>
 
@@ -3262,7 +3348,7 @@ function TeacherSettings({ classId, teacherCode, teacherName, onClose, resetPlay
                 </div>
                 {ownNameError && (
                   <p className="mt-2 rounded-xl bg-rose-500/20 px-3 py-2 text-xs font-bold text-rose-100">
-                    ⚠️ {ownNameError}
+                    <WarningIcon className="mr-1 inline-block h-3.5 w-3.5 align-[-2px]" aria-hidden="true" />{ownNameError}
                   </p>
                 )}
               </>
@@ -3290,7 +3376,8 @@ function TeacherSettings({ classId, teacherCode, teacherName, onClose, resetPlay
                   }}
                   className="aura-btn aura-btn-violet min-h-10 px-4 text-xs"
                 >
-                  🔑 Change code
+                  <AccessCodeIcon className="h-3.5 w-3.5" aria-hidden="true" />
+                  Change code
                 </button>
               </div>
             </div>
@@ -3313,7 +3400,10 @@ function TeacherSettings({ classId, teacherCode, teacherName, onClose, resetPlay
                     : 'border-white/15 bg-white/5 hover:bg-white/10'
                 }`}
               >
-                <p className="text-sm font-black aura-text">🔒 Private</p>
+                <p className="flex items-center gap-1.5 text-sm font-black aura-text">
+                  <PrivateIcon className="h-3.5 w-3.5" aria-hidden="true" />
+                  Private
+                </p>
                 <p className="mt-0.5 text-[11px] font-semibold aura-soft">
                   Students need an individual code.
                 </p>
@@ -3328,7 +3418,10 @@ function TeacherSettings({ classId, teacherCode, teacherName, onClose, resetPlay
                     : 'border-white/15 bg-white/5 hover:bg-white/10'
                 }`}
               >
-                <p className="text-sm font-black aura-text">🌐 Public</p>
+                <p className="flex items-center gap-1.5 text-sm font-black aura-text">
+                  <PublicIcon className="h-3.5 w-3.5" aria-hidden="true" />
+                  Public
+                </p>
                 <p className="mt-0.5 text-[11px] font-semibold aura-soft">
                   Join with the class code + name.
                 </p>
@@ -3378,7 +3471,8 @@ function TeacherSettings({ classId, teacherCode, teacherName, onClose, resetPlay
               </button>
 
               <p id="change-code-title" className="pr-8 text-base font-black aura-text">
-                🔑 Change your access code
+                <AccessCodeIcon className="h-3.5 w-3.5" aria-hidden="true" />
+                Change your access code
               </p>
               <p className="mt-1 text-xs font-semibold aura-soft">
                 Confirm your current code, then choose a new one. Every other device still using
@@ -3466,7 +3560,7 @@ function TeacherSettings({ classId, teacherCode, teacherName, onClose, resetPlay
 
                 {teacherCodeError && (
                   <p className="rounded-xl bg-rose-500/20 px-3 py-2 text-xs font-bold text-rose-100">
-                    ⚠️ {teacherCodeError}
+                    <WarningIcon className="mr-1 inline-block h-3.5 w-3.5 align-[-2px]" aria-hidden="true" />{teacherCodeError}
                   </p>
                 )}
 
@@ -3703,7 +3797,7 @@ function NewClassForm({ teacherCode, onCreated, onCancel }) {
 
       {error && (
         <p className="mt-3 rounded-xl bg-rose-500/20 px-3 py-2 text-xs font-bold text-rose-100">
-          ⚠️ {error}
+          <WarningIcon className="mr-1 inline-block h-3.5 w-3.5 align-[-2px]" aria-hidden="true" />{error}
         </p>
       )}
 
@@ -3825,7 +3919,7 @@ function AdminClassDetail({ classId, teacherCode, onBack, onSaved }) {
 
       {status === 'error' && (
         <p className="rounded-2xl border border-rose-500/30 bg-rose-500/20 px-3 py-3 text-sm font-bold text-rose-100">
-          ⚠️ {error || 'Could not load this class.'}
+          <WarningIcon className="mr-1 inline-block h-3.5 w-3.5 align-[-2px]" aria-hidden="true" />{error || 'Could not load this class.'}
         </p>
       )}
 
@@ -3891,7 +3985,7 @@ function AdminClassDetail({ classId, teacherCode, onBack, onSaved }) {
                       confirmLabel: next ? 'Make public' : 'Make private',
                       cancelLabel: 'Cancel',
                       danger: !next,
-                      icon: next ? '🌐' : '🔒',
+                      icon: next ? PublicIcon : PrivateIcon,
                     });
                     if (ok) setForm((f) => ({ ...f, isPublic: next }));
                   }}
@@ -3925,7 +4019,7 @@ function AdminClassDetail({ classId, teacherCode, onBack, onSaved }) {
 
           {error && (
             <p className="rounded-xl bg-rose-500/20 px-3 py-2 text-xs font-bold text-rose-100">
-              ⚠️ {error}
+              <WarningIcon className="mr-1 inline-block h-3.5 w-3.5 align-[-2px]" aria-hidden="true" />{error}
             </p>
           )}
 
@@ -3946,14 +4040,17 @@ function AdminClassDetail({ classId, teacherCode, onBack, onSaved }) {
               onClick={() => setShowGames((v) => !v)}
               className="aura-ghost w-full justify-between px-4 py-2.5 text-sm"
             >
-              <span>🎮 Games for this class</span>
+              <span className="inline-flex items-center gap-1.5">
+                <ClassGamesIcon className="h-3.5 w-3.5" aria-hidden="true" />
+                Games for this class
+              </span>
               <span>{showGames ? 'Hide' : 'Manage'}</span>
             </button>
             {showGames && (
               <div className="mt-4">
                 {globalError && (
                   <p className="mb-3 rounded-xl bg-rose-500/20 px-3 py-2 text-xs font-bold text-rose-100">
-                    ⚠️ {globalError}
+                    <WarningIcon className="mr-1 inline-block h-3.5 w-3.5 align-[-2px]" aria-hidden="true" />{globalError}
                   </p>
                 )}
                 <GameAccessEditor
@@ -4051,13 +4148,13 @@ function AdminClasses({ teacherCode }) {
 
       {status === 'error' && (
         <p className="rounded-2xl border border-rose-500/30 bg-rose-500/20 px-3 py-3 text-sm font-bold text-rose-100">
-          ⚠️ {error}
+          <WarningIcon className="mr-1 inline-block h-3.5 w-3.5 align-[-2px]" aria-hidden="true" />{error}
         </p>
       )}
 
       {status === 'ready' && classes.length === 0 && (
         <div className="rounded-2xl border border-dashed border-white/25 bg-white/10 px-5 py-10 text-center">
-          <span className="text-4xl">🏫</span>
+          <ClassIcon className="mx-auto h-10 w-10 text-indigo-200" aria-hidden="true" />
           <p className="mt-3 text-base font-black aura-text">No classes yet</p>
           <p className="mt-1 text-sm font-semibold aura-soft">Create your first class above.</p>
         </div>
@@ -4073,7 +4170,7 @@ function AdminClasses({ teacherCode }) {
                 className="aura-card flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left transition hover:bg-white/10 active:scale-[0.99]"
               >
                 <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500/40 to-violet-500/40 text-lg">
-                  🏫
+                  <ClassIcon className="h-5 w-5 text-indigo-100" aria-hidden="true" />
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -4087,7 +4184,17 @@ function AdminClasses({ teacherCode }) {
                           : 'bg-white/10 text-slate-200'
                       }`}
                     >
-                      {c.isPublic ? '🌐 Public' : '🔒 Private'}
+                      {c.isPublic ? (
+                        <>
+                          <PublicIcon className="h-3 w-3" aria-hidden="true" />
+                          Public
+                        </>
+                      ) : (
+                        <>
+                          <PrivateIcon className="h-3 w-3" aria-hidden="true" />
+                          Private
+                        </>
+                      )}
                     </span>
                     {!c.active && (
                       <span className="rounded-full bg-rose-500/25 px-2 py-0.5 text-[10px] font-black text-rose-100">
@@ -4198,7 +4305,7 @@ function AdminSettings({ teacherName, onClose, resetPlayer }) {
               confirmLabel: 'Sign out',
               cancelLabel: 'Stay',
               danger: true,
-              icon: '👋',
+              icon: GreetingIcon,
             });
             if (ok) {
               resetPlayer();
@@ -4248,7 +4355,8 @@ function AdminSettings({ teacherName, onClose, resetPlayer }) {
 
         {maintenanceMode && (
           <p className="mt-3 rounded-xl bg-amber-400/20 px-3 py-2 text-[11px] font-black text-amber-100">
-            ⚠ Students currently see a maintenance screen.
+            <WarningIcon className="mr-1 inline-block h-3.5 w-3.5 align-[-2px]" aria-hidden="true" />
+            Students currently see a maintenance screen.
           </p>
         )}
       </div>
@@ -4313,7 +4421,7 @@ function AdminSettings({ teacherName, onClose, resetPlayer }) {
 
       {error && (
         <p className="rounded-xl bg-rose-500/20 px-3 py-2 text-xs font-bold text-rose-100">
-          ⚠️ {error}
+          <WarningIcon className="mr-1 inline-block h-3.5 w-3.5 align-[-2px]" aria-hidden="true" />{error}
         </p>
       )}
     </div>
@@ -4366,8 +4474,8 @@ export default function GameAccessPanel({ onClose, initialTab }) {
             ←
           </button>
 
-          <span className="hidden h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white/15 text-2xl leading-none shadow-sm ring-1 ring-white/25 sm:flex">
-            🏫
+          <span className="hidden h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white/15 shadow-sm ring-1 ring-white/25 sm:flex">
+            <ClassIcon className="h-6 w-6 text-white" aria-hidden="true" />
           </span>
 
           <div className="min-w-0 flex-1">
@@ -4387,9 +4495,7 @@ export default function GameAccessPanel({ onClose, initialTab }) {
             aria-label="Open the teacher guide"
             className="flex h-10 shrink-0 items-center gap-1.5 rounded-xl border border-white/25 bg-white/15 px-3 text-xs font-black text-white shadow-sm transition hover:bg-white/25 sm:h-11 sm:px-4 sm:text-sm"
           >
-            <span aria-hidden="true" className="text-base leading-none">
-              📘
-            </span>
+            <GuideIcon className="h-4 w-4 shrink-0" aria-hidden="true" />
             <span className="hidden sm:inline">Teacher guide</span>
           </Link>
         </div>
@@ -4411,7 +4517,7 @@ export default function GameAccessPanel({ onClose, initialTab }) {
               exit={{ opacity: 0, y: -6 }}
               className="mb-3 rounded-2xl border border-rose-500/30 bg-rose-500/20 px-3 py-3 text-sm font-bold text-rose-100"
             >
-              ⚠️ {globalError}
+              <WarningIcon className="mr-1 inline-block h-3.5 w-3.5 align-[-2px]" aria-hidden="true" />{globalError}
             </motion.p>
           )}
         </AnimatePresence>

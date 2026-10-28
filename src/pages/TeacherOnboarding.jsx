@@ -11,6 +11,15 @@ import {
   ONBOARDING_SECTIONS,
 } from '@/pages/teacherOnboardingContent';
 import { ICON_URL } from '@/ui/brand';
+import {
+  GuideCompleteIcon,
+  GuideGamesIcon,
+  GuideHomeIcon,
+  GuideIcon,
+  GuideLoginIcon,
+  GuidePanelIcon,
+  GuideStatsIcon,
+} from '@/ui/statsIcons';
 
 // A short teacher-facing guide to the control panel, readable BEFORE signing in
 // — the panel it links to is the gate, so there is nothing here worth guarding.
@@ -141,9 +150,7 @@ function TeacherOnboardingContent() {
               aria-label="Open the control panel"
               className="flex h-9 shrink-0 items-center gap-1.5 rounded-xl border border-white/25 bg-white/15 px-2.5 text-xs font-black text-white shadow-sm transition hover:bg-white/25 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/70 sm:h-11 sm:px-4 sm:text-sm"
             >
-              <span aria-hidden="true" className="text-base leading-none">
-                🏫
-              </span>
+              <GuidePanelIcon className="h-4 w-4 shrink-0" aria-hidden="true" />
               <span className="hidden md:inline">Control Panel</span>
               <span className="md:hidden">Panel</span>
             </Link>
@@ -173,9 +180,7 @@ function TeacherOnboardingContent() {
                         : 'bg-white/10 text-white/75 hover:bg-white/20 hover:text-white'
                     }`}
                   >
-                    <span aria-hidden="true" className="text-sm leading-none">
-                      {section.icon}
-                    </span>
+                    <section.icon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
                     {section.title}
                   </button>
                 </li>
@@ -193,9 +198,10 @@ function TeacherOnboardingContent() {
           transition={{ type: 'spring', stiffness: 260, damping: 24 }}
           className="relative overflow-hidden rounded-[1.5rem] aura-panel px-4 py-5 sm:rounded-[2.25rem] sm:px-8 sm:py-9"
         >
-          <div className="pointer-events-none absolute -right-5 -top-5 text-[5rem] opacity-10 sm:text-[9rem]">
-            📘
-          </div>
+          <GuideIcon
+            className="pointer-events-none absolute -right-5 -top-5 h-20 w-20 text-white opacity-10 sm:h-36 sm:w-36"
+            aria-hidden="true"
+          />
           <p className="text-[10px] font-black uppercase tracking-[0.18em] text-indigo-200 sm:text-[11px]">
             Getting started
           </p>
@@ -210,17 +216,15 @@ function TeacherOnboardingContent() {
 
           <div className="mt-5 grid grid-cols-1 gap-2.5 sm:mt-6 sm:grid-cols-3 sm:gap-3">
             {[
-              { icon: '🔑', title: 'Log in', text: 'Find your class and open the panel.' },
-              { icon: '🎮', title: 'Set up games', text: 'Choose what to add, lock and unlock.' },
-              { icon: '📊', title: 'Follow progress', text: 'See who is playing and how they do.' },
+              { icon: GuideLoginIcon, title: 'Log in', text: 'Find your class and open the panel.' },
+              { icon: GuideGamesIcon, title: 'Set up games', text: 'Choose what to add, lock and unlock.' },
+              { icon: GuideStatsIcon, title: 'Follow progress', text: 'See who is playing and how they do.' },
             ].map((item) => (
               <div
                 key={item.title}
                 className="flex items-start gap-3 rounded-2xl border border-white/15 bg-white/5 px-3.5 py-3 sm:px-4 sm:py-3.5"
               >
-                <span aria-hidden="true" className="text-xl leading-none sm:text-2xl">
-                  {item.icon}
-                </span>
+                <item.icon className="mt-0.5 h-5 w-5 shrink-0 sm:h-6 sm:w-6" aria-hidden="true" />
                 <div className="min-w-0 text-left">
                   <p className="text-sm font-black aura-text">{item.title}</p>
                   <p className="mt-0.5 text-xs font-semibold leading-snug aura-muted">
@@ -248,9 +252,10 @@ function TeacherOnboardingContent() {
         <section className="mt-8 overflow-hidden rounded-[1.5rem] aura-panel sm:mt-14 sm:rounded-[2rem]">
           <div className="h-1.5 w-full bg-gradient-to-r from-violet-400 via-pink-400 to-amber-300" />
           <div className="px-5 py-7 text-center sm:px-8 sm:py-10">
-            <span aria-hidden="true" className="text-4xl sm:text-5xl">
-              🎉
-            </span>
+            <GuideCompleteIcon
+              className="mx-auto h-10 w-10 text-amber-300 sm:h-12 sm:w-12"
+              aria-hidden="true"
+            />
             <h2 className="mt-3 font-heading text-xl font-black text-white sm:text-3xl">
               That is everything
             </h2>
@@ -265,21 +270,24 @@ function TeacherOnboardingContent() {
                   to="/game-access"
                   className="aura-btn aura-btn-violet min-h-12 px-6 text-sm font-black sm:min-h-11"
                 >
-                  🏫 Open Control Panel
+                  <GuidePanelIcon className="h-4 w-4" aria-hidden="true" />
+                  Open Control Panel
                 </Link>
               ) : (
                 <Link
                   to="/"
                   className="aura-btn aura-btn-violet min-h-12 px-6 text-sm font-black sm:min-h-11"
                 >
-                  🔑 Sign in to get started
+                  <GuideLoginIcon className="h-4 w-4" aria-hidden="true" />
+                  Sign in to get started
                 </Link>
               )}
               <Link
                 to="/"
                 className="aura-ghost min-h-12 justify-center px-6 text-sm font-black sm:min-h-11"
               >
-                🏠 Back home
+                <GuideHomeIcon className="h-4 w-4" aria-hidden="true" />
+                Back home
               </Link>
             </div>
 
@@ -373,9 +381,9 @@ function OnboardingSection({ section, flip, onOpenGif }) {
             <div className="flex items-center gap-2.5">
               <span
                 aria-hidden="true"
-                className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${section.accent} text-lg font-black shadow-sm sm:h-10 sm:w-10 sm:text-xl`}
+                className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${section.accent} text-white shadow-sm sm:h-10 sm:w-10`}
               >
-                {section.icon}
+                <section.icon className="h-4.5 w-4.5 sm:h-5 sm:w-5" aria-hidden="true" />
               </span>
               <div className="min-w-0">
                 <p className="text-[10px] font-black uppercase tracking-[0.16em] text-indigo-200">
@@ -447,9 +455,7 @@ function Block({ block }) {
             className="rounded-2xl border border-white/15 bg-white/5 px-3.5 py-3"
           >
             <div className="flex items-center gap-2">
-              <span aria-hidden="true" className="text-lg leading-none">
-                {item.icon}
-              </span>
+              <item.icon className="h-4 w-4 shrink-0" aria-hidden="true" />
               <p className="text-sm font-black aura-text">{item.title}</p>
             </div>
             <p className="mt-1 text-xs font-semibold leading-snug aura-muted">{item.text}</p>
@@ -474,9 +480,7 @@ function Block({ block }) {
                 className="rounded-xl border border-white/15 bg-white/5 px-3 py-2.5"
               >
                 <div className="flex items-center gap-2">
-                  <span aria-hidden="true" className="text-lg leading-none">
-                    {item.icon}
-                  </span>
+                  <item.icon className="h-4 w-4 shrink-0" aria-hidden="true" />
                   <p className="text-sm font-black aura-text">{item.title}</p>
                 </div>
                 <p className="mt-1 text-xs font-semibold leading-snug aura-muted">{item.text}</p>
@@ -506,9 +510,7 @@ function Block({ block }) {
   if (block.type === 'callout') {
     return (
       <div className="flex items-start gap-3 rounded-2xl border border-amber-300/35 bg-amber-400/15 px-3.5 py-3">
-        <span aria-hidden="true" className="text-xl leading-none">
-          {block.icon}
-        </span>
+        <block.icon className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
         <div className="min-w-0">
           <p className="text-sm font-black text-amber-100">{block.title}</p>
           <p className="mt-0.5 text-xs font-semibold leading-relaxed text-amber-50/85">
@@ -535,9 +537,7 @@ function GifFrame({ section, onOpen }) {
   if (!src || failed) {
     return (
       <div className="flex aspect-[4/3] w-full flex-col items-center justify-center gap-2.5 rounded-2xl border-2 border-dashed border-white/25 bg-white/5 px-4 text-center sm:gap-3">
-        <span aria-hidden="true" className="text-3xl opacity-70 sm:text-4xl">
-          {section.icon}
-        </span>
+        <section.icon className="h-8 w-8 opacity-70 sm:h-10 sm:w-10" aria-hidden="true" />
         <div>
           <p className="text-sm font-black aura-text">Animation coming soon</p>
           <p className="mx-auto mt-1 max-w-[16rem] text-xs font-semibold leading-snug aura-muted">

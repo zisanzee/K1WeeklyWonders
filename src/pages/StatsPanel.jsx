@@ -11,6 +11,27 @@ import {
 } from '@/api/logPlaySession';
 import { usePlayerStore } from '@/auth/playerStore';
 import { GAME_CATALOG } from '@/games/registry';
+import {
+  AllPlaysIcon,
+  CloseIcon,
+  DeleteIcon,
+  DeviceIcon,
+  ErrorIcon,
+  LoadingIcon,
+  MissionHeroesIcon,
+  MistakesIcon,
+  PastWinnersIcon,
+  PlayersIcon,
+  RankIcon,
+  RefreshIcon,
+  SearchIcon,
+  SlowIcon,
+  StatsIcon,
+  StreakIcon,
+  SummaryIcon,
+  TimeIcon,
+  WinnerIcon,
+} from '@/ui/statsIcons';
 
 // Compact "emoji name" labels for the stats chrome (dropdown trigger, row
 // captions). These are deliberately text-only: the per-game ICON IMAGES are
@@ -101,17 +122,19 @@ function isBonusGame(gameKey) {
   return /^bonusGame/i.test(gameKey || '');
 }
 
-const DEVICE_ICONS = { mobile: '📱', tablet: '💻', desktop: '🖥️', unknown: '❔' };
+// NOTE: there is no emoji map here any more. The per-device glyph used to be a
+// 📱/💻/🖥️ table, but the device column now renders one DeviceIcon (lucide) for
+// every kind — the KIND is already spelled out in the text beside it, so a second
+// one-per-kind glyph was redundant decoration rather than information.
 const DEVICE_KIND_LABEL = { mobile: 'Mobile', tablet: 'Tablet', desktop: 'Desktop', unknown: 'Unknown' };
 
 // Older plays logged before device tracking was added won't have this field.
 function formatDevice(device) {
-  if (!device) return { icon: '❔', text: 'Unknown', title: 'No device info recorded for this play.' };
-  const icon = DEVICE_ICONS[device.kind] || '❔';
+  if (!device) return { text: 'Unknown', title: 'No device info recorded for this play.' };
   const kindLabel = DEVICE_KIND_LABEL[device.kind] || 'Unknown';
   const text = device.os && device.os !== 'Unknown OS' ? `${kindLabel} · ${device.os}` : kindLabel;
   const title = [device.browser, device.os, device.userAgent].filter(Boolean).join(' · ') || 'No further detail available.';
-  return { icon, text, title };
+  return { text, title };
 }
 
 const DEFAULT_SORT_DIR = {
@@ -283,7 +306,7 @@ function ListState({ list, kind }) {
     if (list.status === 'loading') {
       return (
         <div className="flex flex-col items-center justify-center gap-2 py-10 aura-muted sm:py-16">
-          <span className="animate-bounce text-4xl">⏳</span>
+          <LoadingIcon className="h-7 w-7 animate-spin" aria-hidden="true" />
           <p className="font-bold">Loading {kind === 'all' ? 'every play' : 'stats'}…</p>
         </div>
       );
@@ -293,7 +316,7 @@ function ListState({ list, kind }) {
   if (list.status === 'error') {
     return (
       <div className="flex flex-col items-center justify-center gap-3 py-10 text-center aura-muted sm:py-16">
-        <span className="text-4xl">😕</span>
+        <ErrorIcon className="h-9 w-9" aria-hidden="true" />
         <p className="font-bold aura-soft">Couldn't load {kind === 'all' ? 'every play' : 'the stats'}.</p>
         <p className="max-w-xs text-xs">Check your connection and try again.</p>
         <button
@@ -318,7 +341,10 @@ function formatWeekRange(startISO, endISO) {
   return `${start} – ${end}`;
 }
 
-const MEDALS = ['🥇', '🥈', '🥉'];
+// Medal colours for the top three past-winners rows. The glyph itself comes from
+// RankIcon (lucide); only the tint differs by position, so the ranking still
+// reads instantly without a colour-blind-hostile emoji set.
+const MEDAL_COLORS = ['text-amber-300', 'text-slate-300', 'text-orange-400'];
 
 // "Past winners" — an accordion (folder) list of the top 3 players for each of
 // the last few completed weeks. Rows are fetched once from
@@ -386,8 +412,8 @@ function WeeklyWinners({ refetchToken = 0 }) {
                   aria-expanded={open}
                   className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors active:bg-white/10 sm:hover:bg-white/10"
                 >
-                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-amber-400/80 to-orange-500/80 text-lg shadow-sm">
-                    📁
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-amber-400/80 to-orange-500/80 text-white shadow-sm">
+                    <WinnerIcon className="h-4.5 w-4.5" aria-hidden="true" />
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm font-black aura-text sm:text-base">
@@ -422,14 +448,25 @@ function WeeklyWinners({ refetchToken = 0 }) {
                             key={w.playerName}
                             className="flex items-center gap-3 rounded-xl px-2 py-2.5"
                           >
-                            <span className="w-7 shrink-0 text-center text-xl">
-                              {MEDALS[rank] || `#${rank + 1}`}
+                            {/* Medals for the top three, a plain rank after.
+                                The glyph is coloured gold/silver/bronze so the
+                                order still reads at a glance without emoji. */}
+                            <span className="flex w-7 shrink-0 items-center justify-center">
+                              {rank < 3 ? (
+                                <RankIcon
+                                  className={`h-5 w-5 ${MEDAL_COLORS[rank]}`}
+                                  aria-label={`Position ${rank + 1}`}
+                                />
+                              ) : (
+                                <span className="text-xs font-black aura-muted">#{rank + 1}</span>
+                              )}
                             </span>
                             <span className="min-w-0 flex-1 truncate font-bold aura-text">
                               {w.playerName}
                             </span>
-                            <span className="shrink-0 rounded-full bg-amber-400/20 px-2.5 py-1 text-xs font-black text-amber-100">
-                              🏆 {w.trophies}
+                            <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-amber-400/20 px-2.5 py-1 text-xs font-black text-amber-100">
+                              <PastWinnersIcon className="h-3.5 w-3.5" aria-hidden="true" />
+                              {w.trophies}
                             </span>
                           </li>
                         ))}
@@ -685,29 +722,47 @@ function TeacherStatsPanel({ onClose, embedded = false, onSwitchView = null }) {
         }
         .animate-wake-progress { animation: wake-progress 1.4s ease-in-out infinite; }
       `}</style>
-        <div className="flex items-center justify-between border-b border-white/10 bg-gradient-to-r from-pink-500/15 via-white/5 to-purple-500/15 px-4 py-3 sm:px-6 sm:py-4">
-          <h2 className="flex items-center gap-2.5">
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-pink-500 to-purple-500 text-lg shadow-md sm:h-11 sm:w-11 sm:text-xl">
-              📊
+        {/* HEADER — three shrinkable zones: title, switch, icon buttons.
+            On a 360px phone the old row could not fit "Who's been playing?" plus
+            a "Mission heroes" label plus two 36px buttons, so it overflowed or
+            squashed the title to an ellipsis. The title is now allowed to shrink
+            (min-w-0 + truncate) and the switch collapses to its icon below sm,
+            keeping its accessible name via sr-only text. */}
+        <div className="flex items-center justify-between gap-2 border-b border-white/10 bg-gradient-to-r from-pink-500/15 via-white/5 to-purple-500/15 px-4 py-3 sm:gap-3 sm:px-6 sm:py-4">
+          <h2 className="flex min-w-0 flex-1 items-center gap-2 sm:gap-2.5">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-pink-500 to-purple-500 text-white shadow-md sm:h-11 sm:w-11">
+              <StatsIcon className="h-5 w-5 sm:h-6 sm:w-6" aria-hidden="true" />
             </span>
-            <span style={{ fontFamily: "'Fredoka', sans-serif" }} className="text-lg font-bold aura-heading sm:text-2xl">
+            {/* `min-w-0` must be ON the truncating element, not only its parent.
+                Without it the span's intrinsic text width won the flex
+                negotiation and the title rendered mid-glyph ("Who's been pla")
+                with no ellipsis. */}
+            <span
+              style={{ fontFamily: "'Fredoka', sans-serif" }}
+              className="block min-w-0 truncate text-base font-bold aura-heading sm:text-2xl"
+            >
               Who's been playing?
             </span>
           </h2>
-          <div className="flex shrink-0 items-center gap-2">
-            {/* Switch to Mission Heroes, from inside the panel. Sits first so the
-                icon buttons (past winners / refresh / close) keep their familiar
-                positions on the right. Hidden on the narrowest screens by text
-                length only — it is a text button, not an icon, because "Mission
-                heroes" is a destination, not a mode a glyph can convey. */}
+          <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+            {/* Switch to Mission Heroes, from inside the panel. Icon-only below
+                sm because the label is what overflowed; the sr-only text keeps
+                the button named for a screen reader at every width. */}
+            {/* MISSION HEROES used to render 🏆 here — the SAME glyph the
+                past-winners toggle used one button along. With labels hidden
+                below `sm`, the phone header showed two identical trophies and
+                no way to tell them apart. They now use distinct icons:
+                sparkles for the mission view, a trophy only for past winners. */}
             {onSwitchView && (
               <button
                 type="button"
                 onClick={onSwitchView}
-                className="aura-ghost h-9 gap-1.5 whitespace-nowrap px-3 text-xs font-black active:scale-95 sm:h-11 sm:px-4 sm:text-sm"
+                aria-label="Mission heroes"
+                title="Mission heroes"
+                className="aura-ghost h-9 w-9 shrink-0 p-0 active:scale-95 sm:h-11 sm:w-auto sm:gap-1.5 sm:px-4"
               >
-                <span aria-hidden="true">🏆</span>
-                Mission heroes
+                <MissionHeroesIcon className="h-4.5 w-4.5 sm:h-4 sm:w-4" aria-hidden="true" />
+                <span className="hidden text-sm font-black sm:inline">Mission heroes</span>
               </button>
             )}
             <button
@@ -715,28 +770,35 @@ function TeacherStatsPanel({ onClose, embedded = false, onSwitchView = null }) {
               aria-label={view === 'winners' ? 'Back to stats' : 'Past weekly winners'}
               title={view === 'winners' ? 'Back to stats' : 'Past weekly winners'}
               aria-pressed={view === 'winners'}
-              className={`aura-icon-btn h-9 w-9 text-lg active:scale-90 sm:h-11 sm:w-11 ${
+              className={`aura-icon-btn h-9 w-9 active:scale-90 sm:h-11 sm:w-11 ${
                 view === 'winners' ? 'ring-2 ring-pink-400' : ''
               }`}
             >
-              {view === 'winners' ? '📊' : '🏆'}
+              {view === 'winners' ? (
+                <StatsIcon className="h-4.5 w-4.5 sm:h-5 sm:w-5" aria-hidden="true" />
+              ) : (
+                <PastWinnersIcon className="h-4.5 w-4.5 sm:h-5 sm:w-5" aria-hidden="true" />
+              )}
             </button>
             <button
               onClick={refresh}
               disabled={statsStatus === 'loading'}
               aria-label="Refresh stats"
               title="Refresh"
-              className="aura-icon-btn h-9 w-9 text-lg active:scale-90 disabled:opacity-50 sm:h-11 sm:w-11"
+              className="aura-icon-btn h-9 w-9 active:scale-90 disabled:opacity-50 sm:h-11 sm:w-11"
             >
-              <span className={statsStatus === 'loading' ? 'inline-block animate-spin' : ''}>🔄</span>
+              <RefreshIcon
+                className={`h-4.5 w-4.5 sm:h-5 sm:w-5 ${statsStatus === 'loading' ? 'animate-spin' : ''}`}
+                aria-hidden="true"
+              />
             </button>
             {!embedded && (
               <button
                 onClick={onClose}
                 aria-label="Close"
-                className="aura-icon-btn h-9 w-9 text-lg font-bold active:scale-90 sm:h-11 sm:w-11"
+                className="aura-icon-btn h-9 w-9 active:scale-90 sm:h-11 sm:w-11"
               >
-                ✕
+                <CloseIcon className="h-4.5 w-4.5 sm:h-5 sm:w-5" aria-hidden="true" />
               </button>
             )}
           </div>
@@ -753,82 +815,122 @@ function TeacherStatsPanel({ onClose, embedded = false, onSwitchView = null }) {
             for screen readers, and lets the panel start sooner. */}
         {statsStatus === 'ready' && stats && (
           <div className="border-b border-white/10 px-4 py-3 sm:px-6">
-            <div
-              role="group"
-              aria-label="Filter and search plays"
-              className="flex flex-col gap-3 sm:flex-row sm:items-end"
-            >
-              <GameFilterSelect
-                options={filterOptions}
-                value={filter}
-                onChange={setFilter}
-                counts={filterCounts}
-              />
-
-              <div className="w-full sm:max-w-xs">
-                <label
-                  htmlFor="stats-player-search"
-                  className="mb-1 block text-[11px] font-black uppercase tracking-wide aura-muted"
-                >
-                  Player
-                </label>
-                <div className="relative">
-                  <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-sm aura-muted" aria-hidden="true">
-                    🔍
-                  </span>
-                  <input
-                    id="stats-player-search"
-                    type="search"
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    placeholder="Search a player…"
-                    className="font-body aura-input h-11 py-0 pl-9 pr-9 text-sm font-semibold"
-                  />
-                  {search && (
-                    <button
-                      type="button"
-                      onClick={() => setSearch('')}
-                      aria-label="Clear player search"
-                      className="absolute right-1.5 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full aura-muted transition-colors hover:bg-white/10 hover:text-indigo-200 active:bg-white/10"
-                    >
-                      ✕
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {/* A real toggle, so its state is announced. `aria-pressed` tells a
-                  screen reader "pressed" rather than leaving the checked state
-                  implied by a colour change only. */}
-              <button
-                type="button"
-                onClick={handleToggleShowAll}
-                aria-pressed={showAll}
-                className={`font-body flex h-11 w-full shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-2xl px-4 text-sm font-bold transition-all active:scale-95 sm:w-auto ${
-                  showAll
-                    ? 'bg-gradient-to-r from-pink-500 to-purple-500 text-white shadow-md'
-                    : 'bg-white/10 text-white active:bg-white/20 sm:hover:bg-white/20'
-                }`}
+              <div
+                role="group"
+                aria-label="Filter and search plays"
+                className="flex flex-col gap-3 text-left"
               >
-                {showAll ? '📋 Show summary' : '🧾 Show all plays'}
-              </button>
+                {/* PHONE: filter and search sit SIDE BY SIDE. Stacking them full
+                    width cost ~110px of vertical space before any data appeared —
+                    the single biggest reason the first row started below the fold.
+                    They share one row down to 320px, at which point the labels are
+                    dropped (the placeholder and the chevron are self-explanatory)
+                    to keep both fields usable. */}
+                <div className="flex items-end gap-2">
+                  <div className="min-w-0 flex-1 sm:flex-none sm:w-56">
+                    <GameFilterSelect
+                      options={filterOptions}
+                      value={filter}
+                      onChange={setFilter}
+                      counts={filterCounts}
+                    />
+                  </div>
+  
+                  <div className="min-w-0 flex-1 sm:flex-none sm:w-56">
+                    <label
+                      htmlFor="stats-player-search"
+                      className="mb-1 block text-[11px] font-black uppercase tracking-wide aura-muted"
+                    >
+                      Player
+                    </label>
+                    <div className="relative">
+                      <SearchIcon
+                        className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 aura-muted"
+                        aria-hidden="true"
+                      />
+                      <input
+                        id="stats-player-search"
+                        type="search"
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                        placeholder="Search a player…"
+                        className="font-body aura-input h-11 w-full py-0 pl-8 pr-8 text-sm font-semibold sm:pl-9 sm:pr-9"
+                      />
+                      {search && (
+                        <button
+                          type="button"
+                          onClick={() => setSearch('')}
+                          aria-label="Clear player search"
+                          className="absolute right-1 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full aura-muted transition-colors hover:bg-white/10 hover:text-indigo-200 active:bg-white/10"
+                        >
+                          <CloseIcon className="h-4 w-4" aria-hidden="true" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+  
+                  {/* The toggle moves up beside the fields on tablet+ and drops to
+                      a full-width row on a phone, where it is the primary action. */}
+                  <button
+                    type="button"
+                    onClick={handleToggleShowAll}
+                    aria-pressed={showAll}
+                    className={`font-body hidden h-11 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-2xl px-4 text-sm font-bold transition-all active:scale-95 sm:flex ${
+                      showAll
+                        ? 'bg-gradient-to-r from-pink-500 to-purple-500 text-white shadow-md'
+                        : 'bg-white/10 text-white sm:hover:bg-white/20'
+                    }`}
+                  >
+                    {showAll ? (
+                      <>
+                        <SummaryIcon className="h-4 w-4" aria-hidden="true" />
+                        Show summary
+                      </>
+                    ) : (
+                      <>
+                        <AllPlaysIcon className="h-4 w-4" aria-hidden="true" />
+                        Show all plays
+                      </>
+                    )}
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleToggleShowAll}
+                  aria-pressed={showAll}
+                  className={`font-body flex h-11 w-full shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-2xl px-4 text-sm font-bold transition-all active:scale-[0.98] sm:hidden ${
+                    showAll
+                      ? 'bg-gradient-to-r from-pink-500 to-purple-500 text-white shadow-md'
+                      : 'bg-white/10 text-white active:bg-white/20'
+                  }`}
+                >
+                  {showAll ? (
+                    <>
+                      <SummaryIcon className="h-4 w-4" aria-hidden="true" />
+                      Show summary
+                    </>
+                  ) : (
+                    <>
+                      <AllPlaysIcon className="h-4 w-4" aria-hidden="true" />
+                      Show all plays
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
-
-            
-          </div>
-        )}
+          )}
 
         <div className="font-body flex-1 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
           {statsStatus === 'loading' && !slow && (
             <div className="flex flex-col items-center justify-center gap-2 py-10 aura-muted sm:py-16">
-              <span className="animate-bounce text-4xl">⏳</span>
+              <LoadingIcon className="h-7 w-7 animate-spin" aria-hidden="true" />
               <p className="font-bold">Loading stats…</p>
             </div>
           )}
 
           {statsStatus === 'loading' && slow && (
             <div className="flex flex-col items-center justify-center gap-3 py-10 text-center aura-muted sm:py-16">
-              <span className="animate-pulse text-4xl">☕</span>
+              <SlowIcon className="h-9 w-9 animate-pulse" aria-hidden="true" />
               <p className="font-bold aura-soft">Waking things up…</p>
               <p className="max-w-xs text-xs">This can take a few extra seconds after a quiet spell. Hang tight!</p>
               <div className="mt-1 h-1.5 w-40 overflow-hidden rounded-full bg-white/10">
@@ -839,7 +941,7 @@ function TeacherStatsPanel({ onClose, embedded = false, onSwitchView = null }) {
 
           {statsStatus === 'error' && (
             <div className="flex flex-col items-center justify-center gap-3 py-10 text-center aura-muted sm:py-16">
-              <span className="text-4xl">😕</span>
+              <ErrorIcon className="h-9 w-9" aria-hidden="true" />
               <p className="font-bold aura-soft">Couldn't load the stats.</p>
               <p className="max-w-xs text-xs">Check your connection and try again.</p>
               <button
@@ -869,12 +971,18 @@ function TeacherStatsPanel({ onClose, embedded = false, onSwitchView = null }) {
                 {/* A labelled <section> rather than a bare grid, so the summary
                     numbers are announced as a group ("Headline numbers") instead
                     of a stream of disconnected values before the table. */}
+                {/* Stat cards.
+                    "All games" shows 2 cards, so they are centred rather than
+                    left-aligned in a 4-wide grid. A single game shows 4 cards on
+                    one row from 2 columns up — `grid-cols-2` on the smallest
+                    phones keeps each card wide enough for its number and label
+                    instead of shrinking to an unreadable sliver. */}
                 <section
                   aria-label={filter === 'all' ? 'Headline numbers for all games' : `Numbers for ${gameLabel(filter)}`}
                   className={
                     filter === 'all'
-                      ? 'mx-auto grid max-w-xs grid-cols-2 gap-3'
-                      : 'grid grid-cols-2 gap-3 sm:grid-cols-3 md:[grid-template-columns:repeat(auto-fit,minmax(120px,1fr))]'
+                      ? 'mx-auto grid max-w-sm grid-cols-2 gap-2.5 sm:gap-3'
+                      : 'grid grid-cols-2 gap-2.5 sm:grid-cols-4 sm:gap-3'
                   }
                 >
                   {filter === 'all' ? (
@@ -892,15 +1000,19 @@ function TeacherStatsPanel({ onClose, embedded = false, onSwitchView = null }) {
                       <StatCard
                         label="Wrong / play"
                         value={(activeGameStats.avgMistakes ?? 0).toFixed(1)}
-                        sub="❌ average"
+                        sub="average"
                       />
                       {activeIsBonus ? (
-                        <StatCard label="Avg time" value={formatSeconds(activeGameStats.avgElapsedSeconds)} sub="⏱️ per play" />
+                        <StatCard
+                          label="Avg time"
+                          value={formatSeconds(activeGameStats.avgElapsedSeconds)}
+                          sub="per play"
+                        />
                       ) : (
                         <StatCard
                           label="Avg streak"
                           value={(activeGameStats.avgBestStreak ?? 0).toFixed(1)}
-                          sub="🔥 per player"
+                          sub="per player"
                         />
                       )}
                     </>
@@ -925,19 +1037,30 @@ function TeacherStatsPanel({ onClose, embedded = false, onSwitchView = null }) {
                     )}
                     {summaryList.status === 'ready' && summaryList.rows.length > 0 && (
                       <>
-                        {/* Phones: stacked cards avoid the sideways-scrolling table below. */}
-                        <div className="mt-6 space-y-2.5 sm:hidden">
+                        {/* Phones: stacked cards avoid the sideways-scrolling table below.
+
+                            `text-left` is load-bearing, not cosmetic: #root sets
+                            `text-align: center` for the app shell, and every
+                            descendant inherits it. Left unset, a player's name,
+                            their game line and the metric chips were all
+                            centre-aligned, which read as broken text rather than
+                            a list. Tables and cards reset it explicitly. */}
+                        <div className="mt-6 space-y-2.5 text-left sm:hidden">
                           {summaryList.rows.map((row) => {
                             const key = `${row.playerName}::${row.game}`;
                             const isConfirming = confirmDeleteKey === key;
                             const isDeleting = deletingKey === key;
                             return (
-                              <div key={key} className="aura-card rounded-2xl p-3.5">
+                              <div key={key} className="aura-card rounded-2xl p-3.5 text-left">
+                                {/* Name + game on the left, delete on the right.
+                                    The delete button is `self-start` so it sits
+                                    level with the name rather than floating in
+                                    the middle of a taller row. */}
                                 <div className="flex items-start justify-between gap-2">
-                                  <div>
+                                  <div className="min-w-0 flex-1">
                                     <PlayerName name={row.playerName} timesPlayed={row.timesPlayed} />
                                     {filter === 'all' && (
-                                      <p className="mt-0.5 text-xs font-semibold aura-muted">
+                                      <p className="mt-0.5 truncate text-xs font-semibold aura-muted">
                                         {gameLabel(row.game)}
                                         <span className="ml-1 opacity-70">{roundsHint(row.game)}</span>
                                       </p>
@@ -947,23 +1070,53 @@ function TeacherStatsPanel({ onClose, embedded = false, onSwitchView = null }) {
                                     onClick={() => handleDeleteClick(row)}
                                     disabled={isDeleting}
                                     title={isConfirming ? 'Tap again to confirm' : `Delete ${row.playerName}'s ${gameLabel(row.game)} record`}
-                                    className={`min-w-11 shrink-0 rounded-full px-3 py-2 text-xs font-bold transition-all active:scale-90 disabled:opacity-50 ${
+                                    className={`min-w-11 shrink-0 self-start rounded-full px-3 py-2 text-xs font-bold transition-all active:scale-90 disabled:opacity-50 ${
                                       isConfirming
                                         ? 'bg-rose-500 text-white shadow-sm'
                                         : 'bg-transparent text-rose-200 active:bg-rose-500/20 active:text-rose-100 sm:hover:bg-rose-500/20 sm:hover:text-rose-100'
                                     }`}
                                   >
-                                    {isDeleting ? '…' : isConfirming ? 'Confirm?' : '🗑️'}
+                                    {isDeleting ? (
+                                      '…'
+                                    ) : isConfirming ? (
+                                      'Confirm?'
+                                    ) : (
+                                      <DeleteIcon className="h-4 w-4" aria-hidden="true" />
+                                    )}
                                   </button>
                                 </div>
-                                <div className="mt-2.5 flex items-center justify-between text-xs font-semibold aura-muted">
-                                  <span>❌ {(row.avgMistakes ?? 0).toFixed(1)} wrong/play</span>
-                                  <span>🔥 {row.bestStreak} best</span>
-                                  <span>
-                                    {new Date(row.lastPlayedAt).toLocaleString(undefined, {
-                                      dateStyle: 'medium',
-                                      timeStyle: 'short',
-                                    })}
+
+                                {/* METRICS as labelled chips that WRAP, instead of
+                                    three spans forced onto one line by
+                                    justify-between. On a narrow phone the old row
+                                    squeezed the timestamp into two lines and
+                                    pushed it against the edge; chips wrap cleanly
+                                    and each keeps its own label readable. */}
+                                <div className="mt-2.5 flex flex-wrap items-center gap-1.5 text-[11px] font-bold">
+                                  <span className="inline-flex items-center gap-1 rounded-full bg-white/8 px-2 py-1 aura-soft">
+                                    <MistakesIcon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                                    {(row.avgMistakes ?? 0).toFixed(1)} / play
+                                  </span>
+                                  <span className="inline-flex items-center gap-1 rounded-full bg-white/8 px-2 py-1 aura-soft">
+                                    <StreakIcon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                                    {row.bestStreak} best
+                                  </span>
+                                  <span className="rounded-full bg-white/8 px-2 py-1 aura-muted">
+                                    {/* Date only on a phone: the time added a
+                                        second line for information a teacher
+                                        rarely needs at a glance. */}
+                                    <span className="sm:hidden">
+                                      {new Date(row.lastPlayedAt).toLocaleDateString(undefined, {
+                                        day: 'numeric',
+                                        month: 'short',
+                                      })}
+                                    </span>
+                                    <span className="hidden sm:inline">
+                                      {new Date(row.lastPlayedAt).toLocaleString(undefined, {
+                                        dateStyle: 'medium',
+                                        timeStyle: 'short',
+                                      })}
+                                    </span>
                                   </span>
                                 </div>
                               </div>
@@ -1021,9 +1174,17 @@ function TeacherStatsPanel({ onClose, embedded = false, onSwitchView = null }) {
                                         </td>
                                       )}
                                       <td className="px-4 py-3.5 text-center aura-soft">
-                                        {(row.avgMistakes ?? 0).toFixed(1)}
+                                        <span className="inline-flex items-center gap-1">
+                                          <MistakesIcon className="h-3.5 w-3.5" aria-hidden="true" />
+                                          {(row.avgMistakes ?? 0).toFixed(1)}
+                                        </span>
                                       </td>
-                                      <td className="px-4 py-3.5 text-center aura-soft">🔥{row.bestStreak}</td>
+                                      <td className="px-4 py-3.5 text-center aura-soft">
+                                        <span className="inline-flex items-center gap-1">
+                                          <StreakIcon className="h-3.5 w-3.5" aria-hidden="true" />
+                                          {row.bestStreak}
+                                        </span>
+                                      </td>
                                       <td className="px-4 py-3.5 text-center aura-muted">
                                         {new Date(row.lastPlayedAt).toLocaleString(undefined, {
                                           dateStyle: 'medium',
@@ -1041,7 +1202,13 @@ function TeacherStatsPanel({ onClose, embedded = false, onSwitchView = null }) {
                                               : 'bg-transparent text-rose-200 active:bg-rose-500/20 active:text-rose-100 sm:hover:bg-rose-500/20 sm:hover:text-rose-100'
                                           }`}
                                         >
-                                          {isDeleting ? '…' : isConfirming ? 'Confirm?' : '🗑️'}
+                                          {isDeleting ? (
+                                            '…'
+                                          ) : isConfirming ? (
+                                            'Confirm?'
+                                          ) : (
+                                            <DeleteIcon className="h-4 w-4" aria-hidden="true" />
+                                          )}
                                         </button>
                                       </td>
                                     </tr>
@@ -1064,36 +1231,64 @@ function TeacherStatsPanel({ onClose, embedded = false, onSwitchView = null }) {
                     {noRowsForList(allPlaysList) && <EmptyState search={search} filter={filter} />}
                     {allPlaysList.status === 'ready' && allPlaysList.rows.length > 0 && (
                       <>
-                        {/* Phones: stacked cards, one per play. */}
-                        <div className="space-y-2.5 sm:hidden">
+                        {/* Phones: stacked cards, one per play.
+                            `text-left` resets the inherited centre alignment
+                            from #root — see the note on the summary cards. */}
+                        <div className="space-y-2.5 text-left sm:hidden">
                           {allPlaysList.rows.map((row, i) => {
                             const device = formatDevice(row.device);
                             const bonus = isBonusGame(row.game);
                             return (
                               <div
                                 key={`${row.playerName}::${row.game}::${row.completedAt}::${i}`}
-                                className="aura-card rounded-2xl p-3.5"
+                                className="aura-card rounded-2xl p-3.5 text-left"
                               >
-                                <p className="font-bold aura-text">{row.playerName}</p>
+                                <p className="truncate font-bold aura-text">{row.playerName}</p>
                                 {filter === 'all' && (
-                                  <p className="mt-0.5 text-xs font-semibold aura-muted">{gameLabel(row.game)}</p>
+                                  <p className="mt-0.5 truncate text-xs font-semibold aura-muted">{gameLabel(row.game)}</p>
                                 )}
-                                <div className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-semibold aura-muted">
+                                {/* Same chip treatment as the summary cards: up
+                                    to five values that used to wrap raggedly as
+                                    plain spans, now each bounded and aligned. */}
+                                <div className="mt-2.5 flex flex-wrap items-center gap-1.5 text-[11px] font-bold">
                                   {/* Wrong answers and streak per play. `stars`
                                       is gone from here: it always hit the max,
                                       so it told the teacher nothing. */}
-                                  <span>❌ {row.mistakes ?? 0} wrong</span>
-                                  <span>🔥 {row.peakStreak}</span>
-                                  {bonus && (
-                                    <span>⏱️ {row.elapsedSeconds != null ? `${row.elapsedSeconds}s` : '—'}</span>
-                                  )}
-                                  <span>
-                                    {new Date(row.completedAt).toLocaleString(undefined, {
-                                      dateStyle: 'medium',
-                                      timeStyle: 'short',
-                                    })}
+                                  <span className="inline-flex items-center gap-1 rounded-full bg-white/8 px-2 py-1 aura-soft">
+                                    <MistakesIcon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                                    {row.mistakes ?? 0} wrong
                                   </span>
-                                  <span title={device.title}>
+                                  <span className="inline-flex items-center gap-1 rounded-full bg-white/8 px-2 py-1 aura-soft">
+                                    <StreakIcon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                                    {row.peakStreak}
+                                  </span>
+                                  {bonus && (
+                                    <span className="inline-flex items-center gap-1 rounded-full bg-white/8 px-2 py-1 aura-soft">
+                                      <TimeIcon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                                      {row.elapsedSeconds != null ? `${row.elapsedSeconds}s` : '—'}
+                                    </span>
+                                  )}
+                                  <span className="rounded-full bg-white/8 px-2 py-1 aura-muted">
+                                    {/* Date only on a phone — the time forced a
+                                        second line for detail rarely needed at
+                                        a glance. */}
+                                    <span className="sm:hidden">
+                                      {new Date(row.completedAt).toLocaleDateString(undefined, {
+                                        day: 'numeric',
+                                        month: 'short',
+                                      })}
+                                    </span>
+                                    <span className="hidden sm:inline">
+                                      {new Date(row.completedAt).toLocaleString(undefined, {
+                                        dateStyle: 'medium',
+                                        timeStyle: 'short',
+                                      })}
+                                    </span>
+                                  </span>
+                                  <span
+                                    className="rounded-full bg-white/8 px-2 py-1 aura-muted"
+                                    title={device.title}
+                                  >
                                     {device.icon} {device.text}
                                   </span>
                                 </div>
@@ -1141,9 +1336,24 @@ function TeacherStatsPanel({ onClose, embedded = false, onSwitchView = null }) {
                                       {filter === 'all' && (
                                         <td className="px-4 py-3.5 text-center aura-soft">{gameLabel(row.game)}</td>
                                       )}
-                                      <td className="px-4 py-3.5 text-center aura-soft">❌{row.mistakes ?? 0}</td>
                                       <td className="px-4 py-3.5 text-center aura-soft">
-                                        {bonus ? `⏱️ ${row.elapsedSeconds != null ? `${row.elapsedSeconds}s` : '—'}` : `🔥${row.peakStreak}`}
+                                        <span className="inline-flex items-center gap-1">
+                                          <MistakesIcon className="h-3.5 w-3.5" aria-hidden="true" />
+                                          {row.mistakes ?? 0}
+                                        </span>
+                                      </td>
+                                      <td className="px-4 py-3.5 text-center aura-soft">
+                                        {bonus ? (
+                                          <span className="inline-flex items-center gap-1">
+                                            <TimeIcon className="h-3.5 w-3.5" aria-hidden="true" />
+                                            {row.elapsedSeconds != null ? `${row.elapsedSeconds}s` : '—'}
+                                          </span>
+                                        ) : (
+                                          <span className="inline-flex items-center gap-1">
+                                            <StreakIcon className="h-3.5 w-3.5" aria-hidden="true" />
+                                            {row.peakStreak}
+                                          </span>
+                                        )}
                                       </td>
                                       <td className="px-4 py-3.5 text-center aura-muted">
                                         {new Date(row.completedAt).toLocaleString(undefined, {
@@ -1152,7 +1362,10 @@ function TeacherStatsPanel({ onClose, embedded = false, onSwitchView = null }) {
                                         })}
                                       </td>
                                       <td className="px-4 py-3.5 text-center aura-soft" title={device.title}>
-                                        {device.icon} {device.text}
+                                        <span className="inline-flex items-center gap-1">
+                                          <DeviceIcon className="h-3.5 w-3.5" aria-hidden="true" />
+                                          {device.text}
+                                        </span>
                                       </td>
                                     </tr>
                                   );
@@ -1363,7 +1576,7 @@ function GameFilterSelect({ options, value, onChange, counts }) {
   const selectedCount = counts?.[selected.key];
 
   return (
-    <div className="w-full sm:max-w-xs">
+    <div className="w-full text-left sm:max-w-xs">
       <span
         id="stats-game-filter-label"
         className="mb-1 block text-[11px] font-black uppercase tracking-wide aura-muted"
@@ -1383,7 +1596,7 @@ function GameFilterSelect({ options, value, onChange, counts }) {
           onClick={() => (open ? setOpen(false) : openList())}
           onKeyDown={handleKeyDown}
           style={{ fontFamily: "'Fredoka', sans-serif" }}
-          className={`flex h-11 w-full items-center gap-2.5 rounded-xl border px-3 pr-9 text-sm font-bold text-white shadow-sm transition-all active:scale-[0.99] focus-visible:border-violet-300/90 focus-visible:outline-none focus-visible:shadow-[0_0_0_4px_rgba(167,139,250,0.28)] ${
+          className={`flex h-11 w-full items-center gap-2 rounded-xl border px-2.5 pr-8 text-sm font-bold text-white shadow-sm transition-all active:scale-[0.99] focus-visible:border-violet-300/90 focus-visible:outline-none focus-visible:shadow-[0_0_0_4px_rgba(167,139,250,0.28)] sm:gap-2.5 sm:px-3 sm:pr-9 ${
             value === 'all'
               ? 'border-white/25 bg-white/10 hover:bg-white/15'
               : 'border-pink-400/60 bg-gradient-to-r from-pink-500/25 to-purple-500/25 hover:from-pink-500/30 hover:to-purple-500/30'
@@ -1392,9 +1605,13 @@ function GameFilterSelect({ options, value, onChange, counts }) {
           <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-pink-500/25 text-sm leading-none">
             {selected.emoji}
           </span>
+          {/* The name gets the remaining width. The count pill is HIDDEN below
+              sm: it was stealing ~34px from a field that only has ~150px, which
+              is why "All games" truncated to "All g…". The count is still on
+              every row inside the open list, where there is room for it. */}
           <span className="min-w-0 flex-1 truncate text-left">{selected.name}</span>
           {typeof selectedCount === 'number' && (
-            <span className="shrink-0 rounded-full bg-white/15 px-1.5 py-0.5 text-[10px] font-extrabold aura-soft">
+            <span className="hidden shrink-0 rounded-full bg-white/15 px-1.5 py-0.5 text-[10px] font-extrabold aura-soft sm:inline">
               {selectedCount}
             </span>
           )}
@@ -1631,7 +1848,10 @@ function AdminStatsView({ onClose, embedded }) {
               title="Refresh"
               className="aura-icon-btn h-9 w-9 text-lg active:scale-90 disabled:opacity-50 sm:h-11 sm:w-11"
             >
-              <span className={status === 'loading' ? 'inline-block animate-spin' : ''}>🔄</span>
+              <RefreshIcon
+                className={`h-4.5 w-4.5 sm:h-5 sm:w-5 ${status === 'loading' ? 'animate-spin' : ''}`}
+                aria-hidden="true"
+              />
             </button>
           )}
           {!embedded && (
@@ -1670,8 +1890,8 @@ function AdminStatsView({ onClose, embedded }) {
                           onClick={() => openClass(c)}
                           className="aura-card flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left transition hover:bg-white/10 active:scale-[0.99]"
                         >
-                          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500/40 to-cyan-500/40 text-lg">
-                            🏫
+                          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500/40 to-cyan-500/40 text-white">
+                            <PlayersIcon className="h-5 w-5" aria-hidden="true" />
                           </span>
                           <span className="min-w-0 flex-1">
                             <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -1755,12 +1975,27 @@ function AdminStatsView({ onClose, embedded }) {
                             <td className="px-4 py-3.5 text-center aura-soft">{g.plays ?? 0}</td>
                             <td className="px-4 py-3.5 text-center aura-soft">{g.players ?? 0}</td>
                             <td className="px-4 py-3.5 text-center aura-soft">
-                              {g.avgMistakes != null ? `❌ ${Number(g.avgMistakes).toFixed(1)}` : '—'}
+                              {g.avgMistakes != null ? (
+                                <span className="inline-flex items-center gap-1">
+                                  <MistakesIcon className="h-3.5 w-3.5" aria-hidden="true" />
+                                  {Number(g.avgMistakes).toFixed(1)}
+                                </span>
+                              ) : (
+                                '—'
+                              )}
                             </td>
                             <td className="px-4 py-3.5 text-center aura-soft">
-                              {isBonusGame(g._id)
-                                ? `⏱️ ${formatSeconds(g.avgElapsedSeconds)}`
-                                : `🔥 ${Number(g.avgBestStreak ?? g.bestStreak ?? 0).toFixed(1)}`}
+                              {isBonusGame(g._id) ? (
+                                <span className="inline-flex items-center gap-1">
+                                  <TimeIcon className="h-3.5 w-3.5" aria-hidden="true" />
+                                  {formatSeconds(g.avgElapsedSeconds)}
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1">
+                                  <StreakIcon className="h-3.5 w-3.5" aria-hidden="true" />
+                                  {Number(g.avgBestStreak ?? g.bestStreak ?? 0).toFixed(1)}
+                                </span>
+                              )}
                             </td>
                           </tr>
                         ))}

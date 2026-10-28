@@ -1,4 +1,23 @@
 // ---------------------------------------------------------------------------
+import {
+  GuideCatalogueIcon,
+  GuideCodeIcon,
+  GuideGamesIcon,
+  GuideHintIcon,
+  GuideLinkIcon,
+  GuideLockedIcon,
+  GuideLoginIcon,
+  GuidePrintIcon,
+  GuidePrivacyIcon,
+  GuideScheduleIcon,
+  GuideSettingsIcon,
+  GuideStatsIcon,
+  GuideStudentsIcon,
+  GuideTapIcon,
+  GuideTrashIcon,
+  GuideUnlockedIcon,
+  GuideWarningIcon,
+} from '@/ui/statsIcons';
 // Teacher onboarding content
 // ---------------------------------------------------------------------------
 // All copy and imagery for the /teacher-onboarding guide lives here so the page
@@ -46,7 +65,7 @@ export const ONBOARDING_SECTIONS = [
   {
     id: 'login',
     number: 1,
-    icon: '🔑',
+    icon: GuideLoginIcon,
     eyebrow: 'Step 1',
     title: 'Log in',
     summary: 'Sign in with your teacher code and find your Control Panel.',
@@ -72,7 +91,7 @@ export const ONBOARDING_SECTIONS = [
       },
       {
         type: 'callout',
-        icon: '💡',
+        icon: GuideHintIcon,
         title: 'Your code is all you need',
         text: 'There is no username or password — just your teacher code. Keep it to yourself, since it gives full access to your class.',
       },
@@ -81,7 +100,7 @@ export const ONBOARDING_SECTIONS = [
   {
     id: 'games',
     number: 2,
-    icon: '🎮',
+    icon: GuideGamesIcon,
     eyebrow: 'Step 2',
     title: 'Games',
     summary: 'Decide what your students can play, and when they can play it.',
@@ -95,17 +114,17 @@ export const ONBOARDING_SECTIONS = [
         type: 'cards',
         items: [
           {
-            icon: '🔒',
+            icon: GuideLockedIcon,
             title: 'Lock a game',
             text: 'Stop students from playing it.',
           },
           {
-            icon: '🔓',
+            icon: GuideUnlockedIcon,
             title: 'Unlock a game',
             text: 'Make it available immediately.',
           },
           {
-            icon: '⏰',
+            icon: GuideScheduleIcon,
             title: 'Schedule an unlock',
             text: 'Choose a future date and time for the game to open.',
           },
@@ -131,7 +150,7 @@ export const ONBOARDING_SECTIONS = [
       },
       {
         type: 'callout',
-        icon: '👆',
+        icon: GuideTapIcon,
         title: 'Remember to save',
         text: 'Locking, unlocking and reordering are staged as a draft. Press Confirm changes when you are done — scheduling saves on its own.',
       },
@@ -140,7 +159,7 @@ export const ONBOARDING_SECTIONS = [
   {
     id: 'catalogue',
     number: 3,
-    icon: '📚',
+    icon: GuideCatalogueIcon,
     eyebrow: 'Step 3',
     title: 'Catalogue',
     summary: 'Choose which games appear in your class.',
@@ -156,7 +175,7 @@ export const ONBOARDING_SECTIONS = [
       },
       {
         type: 'callout',
-        icon: '🔒',
+        icon: GuideLockedIcon,
         title: 'New games start locked',
         text: 'Games you add to your class start locked. This lets you decide when students should gain access to them.',
       },
@@ -178,7 +197,7 @@ export const ONBOARDING_SECTIONS = [
   {
     id: 'students',
     number: 4,
-    icon: '🧑‍🎓',
+    icon: GuideStudentsIcon,
     eyebrow: 'Step 4',
     title: 'Students',
     summary: 'Add your class, share login details, and tidy up duplicates.',
@@ -193,17 +212,17 @@ export const ONBOARDING_SECTIONS = [
         type: 'cards',
         items: [
           {
-            icon: '🔗',
+            icon: GuideLinkIcon,
             title: 'Copy their login link',
             text: 'Share the student’s personal link for quick access.',
           },
           {
-            icon: '🔢',
+            icon: GuideCodeIcon,
             title: 'Copy their student code',
             text: 'Use their unique code to log in.',
           },
           {
-            icon: '🖨️',
+            icon: GuidePrintIcon,
             title: 'Print their Game Pass',
             text: 'Print an individual badge with their QR code.',
           },
@@ -219,12 +238,12 @@ export const ONBOARDING_SECTIONS = [
         text: 'Your class can be set to Public or Private. You can change this at any time in Settings.',
         cards: [
           {
-            icon: '🌐',
+            icon: GuidePrivacyIcon,
             title: 'Public class',
             text: 'Students can enter the class code and join simply by entering their name.',
           },
           {
-            icon: '🔒',
+            icon: GuideLockedIcon,
             title: 'Private class',
             text: 'Only students you have added to the class, who have the required student code, can join.',
           },
@@ -248,7 +267,7 @@ export const ONBOARDING_SECTIONS = [
   {
     id: 'stats',
     number: 5,
-    icon: '📊',
+    icon: GuideStatsIcon,
     eyebrow: 'Step 5',
     title: 'Stats',
     summary: 'See how your class is really using the games.',
@@ -284,7 +303,7 @@ export const ONBOARDING_SECTIONS = [
       },
       {
         type: 'callout',
-        icon: '🗑️',
+        icon: GuideTrashIcon,
         title: 'Removing a single result',
         text: 'In the Summary view you can delete an individual student’s result for one game — useful after a test run or a mis-typed name.',
       },
@@ -293,7 +312,7 @@ export const ONBOARDING_SECTIONS = [
   {
     id: 'settings',
     number: 6,
-    icon: '⚙️',
+    icon: GuideSettingsIcon,
     eyebrow: 'Step 6',
     title: 'Settings',
     summary: 'Class privacy, your class code, and signing out.',
@@ -313,7 +332,7 @@ export const ONBOARDING_SECTIONS = [
       },
       {
         type: 'callout',
-        icon: '⚠️',
+        icon: GuideWarningIcon,
         title: 'Changing your class code',
         text: 'Any printed badges or shared links containing the old code will stop working. Regenerate and reprint them if you make this change.',
       },

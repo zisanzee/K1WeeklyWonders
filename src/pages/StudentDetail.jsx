@@ -35,6 +35,19 @@ import { GAME_CATALOG } from '@/games/registry';
 import { parseStudentKey } from '@/games/studentKey';
 import { favouriteGame, strongestGames, hardestGames } from '@/games/studentRankings';
 import { GameIcon } from '@/ui/GameIcon';
+import {
+  ArrowLeftIcon,
+  ErrorIcon,
+  FavouriteIcon,
+  HardestIcon,
+  LoadingIcon,
+  MistakesIcon,
+  PlayedAtIcon,
+  PlayersIcon,
+  PlayIcon,
+  StreakIcon,
+  StrongestIcon,
+} from '@/ui/statsIcons';
 
 // Compact "emoji name" labels, derived from the registry so a renamed game can't
 // leave this page showing an old name. Same approach as StatsPanel.
@@ -290,9 +303,14 @@ function MetricToggle({ metric, onChange }) {
 // Small building blocks
 // ---------------------------------------------------------------------------
 function StatCard({ icon, label, value, sub, delta }) {
+  // `icon` is a component from ui/statsIcons (e.g. PlayIcon), not an emoji —
+  // see the note there on why interface icons are a single family.
+  const Icon = icon;
   return (
     <div className="aura-card rounded-2xl px-3 py-3.5 text-center">
-      <p className="text-base leading-none" aria-hidden="true">{icon}</p>
+      {Icon ? (
+        <Icon className="mx-auto h-4 w-4 text-pink-300" aria-hidden="true" />
+      ) : null}
       <p className="mt-1.5 bg-gradient-to-r from-pink-400 to-purple-400 bg-clip-text text-2xl font-bold text-transparent">
         {value ?? 0}
       </p>
@@ -319,7 +337,9 @@ function Pill({ children, tone = 'plain' }) {
     warn: 'bg-rose-400/15 text-rose-100',
   };
   return (
-    <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${tones[tone]}`}>
+    <span
+      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-black ${tones[tone]}`}
+    >
       {children}
     </span>
   );
@@ -336,10 +356,22 @@ function GameRankRow({ rank, game, tone }) {
       <span className="min-w-0 flex-1">
         <span className="block truncate text-sm font-bold aura-text">{info.label}</span>
         <span className="mt-1 flex flex-wrap gap-1">
-          <Pill tone={tone}>{fmt1(game.avgMistakes)} wrong / play</Pill>
+          <Pill tone={tone}>
+            <MistakesIcon className="h-3 w-3" aria-hidden="true" />
+            {fmt1(game.avgMistakes)} wrong / play
+          </Pill>
           {/* A zero-streak game is judged on mistakes alone, so say so rather
               than printing "streak 0.0", which would look like a bug. */}
-          <Pill>{game.avgStreak > 0 ? `streak ${fmt1(game.avgStreak)}` : 'no streak yet'}</Pill>
+          <Pill>
+            {game.avgStreak > 0 ? (
+              <>
+                <StreakIcon className="h-3 w-3" aria-hidden="true" />
+                streak {fmt1(game.avgStreak)}
+              </>
+            ) : (
+              'no streak yet'
+            )}
+          </Pill>
         </span>
       </span>
       <span className="shrink-0 text-[10px] font-black aura-muted">{plural(game.plays, 'play')}</span>
@@ -347,10 +379,14 @@ function GameRankRow({ rank, game, tone }) {
   );
 }
 
-function SectionTitle({ children, className = 'aura-text', hint }) {
+function SectionTitle({ children, className = 'aura-text', hint, icon }) {
+  const Icon = icon;
   return (
     <div className="mb-2">
-      <h2 className={`text-sm font-black ${className}`}>{children}</h2>
+      <h2 className={`flex items-center gap-1.5 text-sm font-black ${className}`}>
+        {Icon ? <Icon className="h-4 w-4 shrink-0" aria-hidden="true" /> : null}
+        {children}
+      </h2>
       {hint && <p className="text-[11px] font-semibold aura-muted">{hint}</p>}
     </div>
   );
@@ -420,7 +456,7 @@ export default function StudentDetail() {
 
       {status === 'loading' && (
         <div className="flex flex-col items-center justify-center gap-2 py-16 aura-muted" role="status">
-          <span className="animate-bounce text-4xl">⏳</span>
+          <LoadingIcon className="h-8 w-8 animate-spin" aria-hidden="true" />
           <p className="font-bold">Loading {displayName}&apos;s progress…</p>
         </div>
       )}
@@ -446,7 +482,7 @@ function Shell({ name, lastPlayedAt, children }) {
             to="/game-access?tab=students"
             className="aura-ghost h-10 gap-1.5 px-3 text-xs font-black sm:text-sm"
           >
-            <span aria-hidden="true">←</span> Students
+            <ArrowLeftIcon className="h-4 w-4" aria-hidden="true" /> Students
           </Link>
         </div>
 
@@ -485,7 +521,7 @@ function Shell({ name, lastPlayedAt, children }) {
 function ErrorBox({ title, body, onRetry }) {
   return (
     <div className="aura-card flex flex-col items-center gap-3 rounded-2xl px-5 py-10 text-center" role="alert">
-      <span className="text-4xl">😕</span>
+      <ErrorIcon className="h-9 w-9" aria-hidden="true" />
       <p className="font-black aura-text">{title}</p>
       {body && <p className="max-w-sm text-sm font-semibold aura-soft">{body}</p>}
       {onRetry && (
@@ -527,7 +563,7 @@ function DetailBody({ data, name }) {
   if (!hasPlays) {
     return (
       <div className="aura-card rounded-2xl px-5 py-12 text-center">
-        <span className="text-4xl">🎮</span>
+        <PlayIcon className="mx-auto h-10 w-10 text-violet-300" aria-hidden="true" />
         <p className="mt-2 font-black aura-text">No plays recorded yet</p>
         <p className="mt-1 text-sm font-semibold aura-soft">
           Once {name} plays a game, their progress will appear here.
@@ -541,16 +577,16 @@ function DetailBody({ data, name }) {
       {/* Headline numbers. aria-label groups them for a screen reader rather
           than announcing four loose values. */}
       <section aria-label={`${name}'s totals`} className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <StatCard icon="🎯" label="Total plays" value={total.plays} />
-        <StatCard icon="🧩" label="Games played" value={total.games} sub="all time" />
+        <StatCard icon={PlayIcon} label="Total plays" value={total.plays} />
+        <StatCard icon={PlayersIcon} label="Games played" value={total.games} sub="all time" />
         <StatCard
-          icon="📅"
+          icon={PlayedAtIcon}
           label="Plays this week"
           value={thisWeek.plays}
           delta={highlights.delta}
         />
         <StatCard
-          icon="🔥"
+          icon={StreakIcon}
           label="Week streak"
           value={highlights.activeStreak}
           sub={`${highlights.activeWeeks} of ${weeks.length} weeks active`}
@@ -615,7 +651,9 @@ function DetailBody({ data, name }) {
           aria-hidden="true"
           className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full bg-pink-400/20 blur-2xl"
         />
-        <SectionTitle>⭐ Favourite game</SectionTitle>
+        <SectionTitle icon={FavouriteIcon} className="text-amber-200">
+          Favourite game
+        </SectionTitle>
         {favourite ? (
           <div className="flex items-center gap-3">
             <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-white/10">
@@ -640,10 +678,11 @@ function DetailBody({ data, name }) {
         {/* Strongest */}
         <section aria-label="Strongest games" className="aura-card rounded-2xl p-4">
           <SectionTitle
+            icon={StrongestIcon}
             className="text-emerald-200"
             hint="Fewest mistakes and longest streaks"
           >
-            💪 Strongest games
+            Strongest games
           </SectionTitle>
           {strongest.length > 0 ? (
             <ol className="space-y-2">
@@ -659,10 +698,11 @@ function DetailBody({ data, name }) {
         {/* Hardest */}
         <section aria-label="Hardest games" className="aura-card rounded-2xl p-4">
           <SectionTitle
+            icon={HardestIcon}
             className="text-rose-200"
             hint="Most mistakes and shortest streaks"
           >
-            🧩 Hardest games
+            Hardest games
           </SectionTitle>
           {hardest.length > 0 ? (
             <ol className="space-y-2">
