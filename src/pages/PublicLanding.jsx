@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { GAME_CATALOG } from '@/games/gameAccess';
+import { PUBLISHED_GAMES } from '@/games/gameAccess';
 import { ICON_URL, LOGO_URL } from '@/ui/brand';
 import GameIcon from '@/ui/GameIcon';
 
@@ -52,13 +52,15 @@ const SKILLS = [
   'Number order — before, after and missing numbers, ascending and descending',
 ];
 
-// Rendered from GAME_CATALOG so the public list can never drift from the games
-// the app actually ships. Each row is a game card, so it shows the game's icon
-// image where one exists (GameIcon falls back to the emoji otherwise).
+// Rendered from PUBLISHED_GAMES so the public list can never drift from the
+// games the app actually ships — while still excluding unpublished (`preview`)
+// ones, which must not be advertised on a public page. Each row is a game card,
+// so it shows the game's icon image where one exists (GameIcon falls back to the
+// emoji otherwise).
 function GameList() {
   return (
     <ul className="mt-4 grid gap-3 sm:grid-cols-2">
-      {GAME_CATALOG.map((game) => (
+      {PUBLISHED_GAMES.map((game) => (
         <li key={game.key}>
           <Link
             to={game.to}

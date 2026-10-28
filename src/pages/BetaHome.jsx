@@ -7,7 +7,7 @@ import NameGate from "@/auth/NameGate";
 import NextGameTimer from "@/pages/NextGameTimer";
 import { usePlayerStore } from "@/auth/playerStore";
 import {
-  GAME_CATALOG,
+  PUBLISHED_GAMES,
   useGameAccessStore,
   useNextScheduledGame,
   isGameUnlockedNow,
@@ -1500,11 +1500,17 @@ function BetaHomeContent() {
   const unlocked = useGameAccessStore((s) => s.unlocked);
   const orderedGames = useGameAccessStore((s) => s.games);
 
-  // Admins aren't bound to a class, so they see the ENTIRE catalog (every game
-  // playable) and the app must not block on per-class game-access loading.
+  // Admins aren't bound to a class, so they see the whole PUBLISHED catalog
+  // (every game playable) and the app must not block on per-class game-access
+  // loading.
+  //
+  // PUBLISHED_GAMES, not GAME_CATALOG: this grid is a kid-facing surface, and an
+  // unpublished (`preview`) game must not appear on it even for an admin. An
+  // admin reaches those from the Catalogue's Preview folder, which is the one
+  // place they are meant to be launched from.
   const adminCatalogGames = useMemo(
     () =>
-      GAME_CATALOG.map((game, index) => ({
+      PUBLISHED_GAMES.map((game, index) => ({
         ...game,
         unlocked: true,
         shiny: false,

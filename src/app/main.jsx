@@ -4,6 +4,9 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import "./index.css";
 
 import { HelmetProvider } from "react-helmet-async";
+import { useParams } from "react-router-dom";
+import NameGate from "@/auth/NameGate";
+import TeacherClassGate from "@/auth/TeacherClassGate";
 import { warmupSpeech } from "@/phaser/common/speech";
 import { recoverFromStaleChunk } from "@/pwa/staleChunkRecovery";
 import RotateHint from "@/ui/RotateHint";
@@ -78,7 +81,22 @@ const GAME_ROUTES = GAME_REGISTRY.map((game) => ({
 }));
 
 const GameAccessPage = lazy(() => import("@/pages/GameAccessPage"));
+// The per-student data page. Lazy like every other route: it is staff-only and
+// pulls in the ranking helpers + chart, none of which belong in the first paint.
+const StudentDetail = lazy(() => import("@/pages/StudentDetail"));
 const TeacherOnboarding = lazy(() => import("@/pages/TeacherOnboarding"));
+
+// Reads :classId off the URL and hands it to TeacherClassGate, so the gate does
+// not have to hard-code a param name in two places. Kept here (not in the gate
+// module) because it is Router-aware and the gate is a plain component.
+function StudentDetailGate() {
+  const { classId } = useParams();
+  return (
+    <TeacherClassGate classId={classId}>
+      <StudentDetail />
+    </TeacherClassGate>
+  );
+}
 const StudentLogin = lazy(() => import("@/pages/StudentLogin"));
 const BetaHome = lazy(() => import("@/pages/BetaHome"));
 // An unlisted keepsake, NOT a game: it is deliberately absent from
@@ -148,6 +166,29 @@ function AppRoutes({ resetKey }) {
             ));
           })}
           <Route path="/game-access" element={<GameAccessPage />} />
+          {/* One child's own data page.
+              `:classId` is its own segment — NOT folded into the key — so the
+              same name in two classes resolves to two different pages, and the
+              server can filter every lookup by the class it is authorised for.
+              `:studentKey` is prefixed ('s_<id>' | 'n_<name>'); see
+              games/studentKey.js.
+
+              Guards, in order: NameGate (signed in) → an inner boundary (a
+              failed lazy chunk must not blank the app) → TeacherClassGate
+              (staff, and this teacher's own class). TeacherClassGate is UI
+              convenience only — the real boundary is requireClassAccess on the
+              endpoint, which re-derives the class from the path and compares it
+              to the authenticated teacher. */}
+          <Route
+            path="/game-access/student/:classId/:studentKey"
+            element={
+              <NameGate gameLabel="Student progress">
+                <ErrorBoundary>
+                  <StudentDetailGate />
+                </ErrorBoundary>
+              </NameGate>
+            }
+          />
           <Route path="/teacher-onboarding" element={<TeacherOnboarding />} />
           {/* Unlisted keepsake — see the lazy import above. Not a game route. */}
           <Route path="/4yearsoflove" element={<FourYearsOfLove />} />

@@ -8,7 +8,12 @@ import {
   GAME_CATALOG,
   GAME_KEYS,
   GAME_TERMS,
+  PREVIEW_GROUP_ID,
+  PUBLISHED_GAMES,
+  buildPreviewGroup,
   groupGamesByTerm,
+  isPreviewGame,
+  splitCatalogByPreview,
 } from '@/games/gameAccess';
 
 // The homepage reads game access through a 7-day localStorage cache that is
@@ -169,15 +174,110 @@ describe('GAME_CATALOG', () => {
     const groups = groupGamesByTerm();
     const groupedKeys = groups.flatMap((g) => g.games.map((game) => game.key));
 
-    // Every game lands in exactly one term group, and the flattened order
-    // matches the catalogue order.
-    expect(groupedKeys).toEqual(GAME_KEYS);
+    // Every PUBLISHED game lands in exactly one term group, and the flattened
+    // order matches the catalogue order. Unpublished games are excluded by
+    // design (see the Preview suite below), so the expectation is the published
+    // keys, not GAME_KEYS.
+    expect(groupedKeys).toEqual(PUBLISHED_GAMES.map((game) => game.key));
     expect(groups.map((g) => g.id).sort()).toEqual(GAME_TERMS.map((t) => t.id).sort());
+  });
+
+  it('keeps a term group tab-free of unpublished games', () => {
+    // The reason the preview group exists: an unfinished game must never sit in
+    // a term folder where a teacher expects to add a finished one.
+    for (const group of groupGamesByTerm()) {
+      for (const game of group.games) {
+        expect(isPreviewGame(game), `${game.label} is unpublished but in ${group.label}`).toBe(
+          false
+        );
+      }
+    }
   });
 
   it('drops terms that have no games in the input', () => {
     const groups = groupGamesByTerm([{ key: '1', term: 3 }]);
     expect(groups.map((g) => g.id)).toEqual([3]);
+  });
+});
+
+// The Preview group is the publishing switch: a game with `preview: true` in
+// registry.js stays out of its term folder and out of every class-facing
+// surface, and is reachable only from this group. These tests pin that contract
+// because getting it wrong either hides a finished game or leaks an unfinished
+// one to a five-year-old.
+describe('preview (unpublished) games', () => {
+  const published = { key: 'p', term: 4, label: 'Published' };
+  const unpublished = { key: 'u', term: 4, label: 'Unpublished', preview: true };
+
+  it('treats only `preview: true` as unpublished', () => {
+    expect(isPreviewGame(unpublished)).toBe(true);
+    expect(isPreviewGame(published)).toBe(false);
+    // Tolerates the loose shapes the callers can hand it.
+    expect(isPreviewGame(undefined)).toBe(false);
+    expect(isPreviewGame(null)).toBe(false);
+    expect(isPreviewGame({})).toBe(false);
+    // A falsy flag is published, so `preview: false` is a valid way to publish.
+    expect(isPreviewGame({ preview: false })).toBe(false);
+  });
+
+  it('returns null when nothing is unpublished, so no empty group is drawn', () => {
+    expect(buildPreviewGroup([published])).toBeNull();
+    expect(buildPreviewGroup([])).toBeNull();
+    expect(buildPreviewGroup(null)).toBeNull();
+  });
+
+  it('collects only the unpublished games and is not shaped like a term', () => {
+    const group = buildPreviewGroup([published, unpublished]);
+
+    expect(group.games.map((g) => g.key)).toEqual(['u']);
+    expect(group.kind).toBe('preview');
+    expect(group.id).toBe(PREVIEW_GROUP_ID);
+    // No `term` field at all: it must be impossible to mistake for a term, and a
+    // string id guarantees no collision with a numeric term id.
+    expect(group).not.toHaveProperty('term');
+    expect(typeof group.id).toBe('string');
+  });
+
+  it('places the preview group LAST, below every term folder', () => {
+    // The catalogue is for adding games to a class, so the term folders own the
+    // top of the page; unpublished games are a publishing concern and sit below
+    // them instead of pushing Term 3 down the screen.
+    const groups = splitCatalogByPreview([published, unpublished]);
+
+    expect(groups[groups.length - 1].kind).toBe('preview');
+    expect(groups.slice(0, -1).every((g) => g.kind === 'term')).toBe(true);
+  });
+
+  it('returns exactly the term groups when everything is published', () => {
+    const groups = splitCatalogByPreview([published]);
+
+    expect(groups.every((g) => g.kind === 'term')).toBe(true);
+    expect(groups.map((g) => g.id)).toEqual([4]);
+  });
+
+  it('never loses a game between the two groupings', () => {
+    const input = [published, unpublished];
+    const grouped = splitCatalogByPreview(input).flatMap((g) => g.games.map((x) => x.key));
+
+    expect(grouped.sort()).toEqual(['p', 'u']);
+  });
+
+  it('keeps PUBLISHED_GAMES in step with the preview flag', () => {
+    expect(PUBLISHED_GAMES.every((game) => !isPreviewGame(game))).toBe(true);
+    expect(PUBLISHED_GAMES.length + GAME_CATALOG.filter(isPreviewGame).length).toBe(
+      GAME_CATALOG.length
+    );
+  });
+
+  it('excludes unpublished games from mergeRows, so no class grid can show one', () => {
+    // Belt-and-braces: the Catalogue refuses to add a preview game, but a class
+    // may have added one BEFORE it was unpublished. The merge is the single
+    // choke point every class-facing read goes through.
+    const previewKey = GAME_CATALOG.find(isPreviewGame)?.key;
+    if (!previewKey) return; // nothing unpublished right now — rule still holds
+
+    const merged = mergeRows([{ gameKey: previewKey, unlocked: true }]);
+    expect(merged).toEqual([]);
   });
 });
 

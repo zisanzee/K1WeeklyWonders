@@ -22,18 +22,21 @@ import { CSS } from '@dnd-kit/utilities';
 import { usePlayerStore } from '@/auth/playerStore';
 import { confirmDialog } from '@/ui/confirmDialog';
 import GameIcon from '@/ui/GameIcon';
+import { makeStudentKey, studentDetailPath } from '@/games/studentKey';
 import {
   addGameForClass,
   fetchGameAccessForClass,
   GAME_CATALOG,
   GAME_TERMS,
-  groupGamesByTerm,
+  PREVIEW_GROUP_ID,
+  isPreviewGame,
   mergeRows,
   removeGameForClass,
   setGameOrderForClass,
   setGameShinyForClass,
   setGameUnlockedForClass,
   setGameUnlockScheduleForClass,
+  splitCatalogByPreview,
 } from '@/games/gameAccess';
 import {
   checkCodeAvailable,
@@ -1217,11 +1220,16 @@ function GameCatalogue({ classId, teacherCode, isAdmin = false }) {
   const [error, setError] = useState(null);
   const [query, setQuery] = useState('');
   const [savingKey, setSavingKey] = useState(null);
-  // Term ids currently collapsed in the grouped catalogue. Stored as a Set of
-  // ids (not booleans per term). Starts with every term folded so the catalogue
-  // opens as a compact set of folders; a teacher expands the term they want.
+  // Group ids currently collapsed in the grouped catalogue. Stored as a Set of
+  // ids (not booleans per term). Starts with EVERY group folded — the terms and
+  // the Preview folder alike — so the catalogue opens as a compact set of
+  // folders and the teacher expands only what they came for.
+  //
+  // The Preview id is included even though it only exists while something is
+  // unpublished: seeding an id that has no group is harmless, and it means the
+  // folder is folded the moment it appears rather than depending on render order.
   const [collapsedTerms, setCollapsedTerms] = useState(
-    () => new Set(GAME_TERMS.map((term) => term.id))
+    () => new Set([...GAME_TERMS.map((term) => term.id), PREVIEW_GROUP_ID])
   );
 
   // An admin has NO class of their own — playerStore.classId is null for them —
@@ -1278,24 +1286,33 @@ function GameCatalogue({ classId, teacherCode, isAdmin = false }) {
 
   // Match against the title and the description so a teacher can search either
   // by game name or by what the game teaches (e.g. "number bonds", "counting").
-  // The catalogue is grouped by academic term. Matching is still run across the
-  // whole catalogue first, then grouped, so a term with no matches collapses
-  // cleanly rather than leaving an empty heading behind.
+  // Matching is still run across the whole catalogue first, then grouped, so a
+  // group with no matches collapses cleanly rather than leaving an empty heading
+  // behind. Unpublished games group into the Preview folder at the BOTTOM
+  // instead of their term — see splitCatalogByPreview.
   const filteredGroups = useMemo(() => {
-    const term = query.trim().toLowerCase();
-    const matches = !term
+    const needle = query.trim().toLowerCase();
+    const matches = !needle
       ? GAME_CATALOG
       : GAME_CATALOG.filter((game) => {
           const haystack = `${game.title} ${game.label} ${game.subtitle} ${game.description || ''}`
             .toLowerCase();
-          return haystack.includes(term);
+          return haystack.includes(needle);
         });
-    return groupGamesByTerm(matches);
+    return splitCatalogByPreview(matches);
   }, [query]);
 
   const filteredCount = useMemo(
     () => filteredGroups.reduce((sum, group) => sum + group.games.length, 0),
     [filteredGroups]
+  );
+
+  // How many games are still unpublished. Shown in the header so the state is
+  // visible without expanding the Preview folder — "0 of 17 added" alone never
+  // tells you whether anything is waiting to be published.
+  const previewCount = useMemo(
+    () => GAME_CATALOG.filter(isPreviewGame).length,
+    []
   );
 
   const toggleTerm = (id) => {
@@ -1309,6 +1326,10 @@ function GameCatalogue({ classId, teacherCode, isAdmin = false }) {
 
   const toggle = async (game) => {
     if (!addedKeys || savingKey || !effectiveClassId) return;
+    // An unpublished game must never be added to a class. The UI hides the
+    // button, but guard the handler too: this is the only path to the server,
+    // and a future surface could call it without going through that render.
+    if (isPreviewGame(game)) return;
     const isAdded = addedKeys.has(game.key);
     setSavingKey(game.key);
     setError(null);
@@ -1334,9 +1355,16 @@ function GameCatalogue({ classId, teacherCode, isAdmin = false }) {
       <div className="mb-4 rounded-2xl aura-card p-4 sm:p-5">
         <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
           <p className="text-sm font-black aura-text">Game catalogue</p>
-          <p className="text-[11px] font-black uppercase tracking-wide aura-muted">
-            {addedCount} of {GAME_CATALOG.length} added
-          </p>
+          <div className="flex items-center gap-2">
+            {previewCount > 0 && (
+              <span className="rounded-full bg-amber-400/25 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-amber-100 ring-1 ring-amber-300/40">
+                {previewCount} unpublished
+              </span>
+            )}
+            <p className="text-[11px] font-black uppercase tracking-wide aura-muted">
+              {addedCount} of {GAME_CATALOG.length} added
+            </p>
+          </div>
         </div>
 
         {/* Admins own no class, so they must pick the target here. A class is
@@ -1405,18 +1433,28 @@ function GameCatalogue({ classId, teacherCode, isAdmin = false }) {
         <div className="flex flex-col gap-3">
           {filteredGroups.map((group) => {
             const isCollapsed = collapsedTerms.has(group.id);
+            // The Preview folder must be unmistakable next to the term folders:
+            // amber border + filled header + a flask icon instead of a folder,
+            // so nobody confuses unfinished games with a term's games.
+            const isPreview = group.kind === 'preview';
             return (
               <section
                 key={group.id}
-                aria-label={group.label}
-                className="overflow-hidden rounded-2xl border border-white/15 bg-white/5"
+                aria-label={isPreview ? 'Preview — unpublished games' : group.label}
+                className={`overflow-hidden rounded-2xl border ${
+                  isPreview
+                    ? 'border-amber-300/45 bg-amber-400/10'
+                    : 'border-white/15 bg-white/5'
+                }`}
               >
                 <button
                   type="button"
                   onClick={() => toggleTerm(group.id)}
                   aria-expanded={!isCollapsed}
                   aria-controls={`catalogue-term-${group.id}`}
-                  className="flex w-full items-center gap-2.5 px-4 py-3 text-left transition hover:bg-white/5"
+                  className={`flex w-full items-center gap-2.5 px-4 py-3 text-left transition ${
+                    isPreview ? 'hover:bg-amber-400/15' : 'hover:bg-white/5'
+                  }`}
                 >
                   <span
                     className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-xs font-black text-white/70 transition-transform duration-200 ${
@@ -1428,13 +1466,26 @@ function GameCatalogue({ classId, teacherCode, isAdmin = false }) {
                   </span>
                   <span className="flex items-center gap-2">
                     <span className="text-lg leading-none" aria-hidden="true">
-                      📁
+                      {isPreview ? '🧪' : '📁'}
                     </span>
-                    <h3 className="text-sm font-black uppercase tracking-wide text-indigo-100">
+                    <h3
+                      className={`text-sm font-black uppercase tracking-wide ${
+                        isPreview ? 'text-amber-100' : 'text-indigo-100'
+                      }`}
+                    >
                       {group.label}
                     </h3>
+                    {isPreview && (
+                      <span className="rounded-full bg-amber-400/30 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-amber-50">
+                        not published
+                      </span>
+                    )}
                   </span>
-                  <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-black text-white/60">
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-[10px] font-black ${
+                      isPreview ? 'bg-amber-400/25 text-amber-50' : 'bg-white/10 text-white/60'
+                    }`}
+                  >
                     {group.games.length}
                   </span>
                 </button>
@@ -1443,15 +1494,29 @@ function GameCatalogue({ classId, teacherCode, isAdmin = false }) {
                   id={`catalogue-term-${group.id}`}
                   className={isCollapsed ? 'hidden' : ''}
                 >
+                  {isPreview && group.note && (
+                    <p className="px-4 pb-2 text-[11px] font-semibold leading-snug text-amber-100/80">
+                      {group.note}
+                    </p>
+                  )}
                   <ul className="grid grid-cols-1 gap-2.5 p-3 pt-0 sm:grid-cols-2">
                 {group.games.map((game) => {
                   const isAdded = addedKeys.has(game.key);
                   const isSavingThis = savingKey === game.key;
                   const isBusy = Boolean(savingKey);
+                  // Unpublished games are try-it-only: the Add/Remove control is
+                  // replaced by a "Preview only" chip, so the locked state is
+                  // stated rather than shown as a disabled button the reader has
+                  // to guess about.
+                  const isPreviewOnly = isPreviewGame(game);
                   return (
                     <li
                       key={game.key}
-                      className="flex flex-col gap-3 rounded-2xl aura-card p-3.5 sm:p-4"
+                      className={`flex flex-col gap-3 rounded-2xl p-3.5 sm:p-4 ${
+                        isPreviewOnly
+                          ? 'border border-amber-300/35 bg-amber-400/10'
+                          : 'aura-card'
+                      }`}
                     >
                       <div className="flex items-start gap-3">
                         <GameTileIcon game={game} />
@@ -1462,12 +1527,14 @@ function GameCatalogue({ classId, teacherCode, isAdmin = false }) {
                             </p>
                             <span
                               className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-black ${
-                                isAdded
-                                  ? 'bg-emerald-500/25 text-emerald-100'
-                                  : 'bg-white/10 text-white/60'
+                                isPreviewOnly
+                                  ? 'bg-amber-400/30 text-amber-50'
+                                  : isAdded
+                                    ? 'bg-emerald-500/25 text-emerald-100'
+                                    : 'bg-white/10 text-white/60'
                               }`}
                             >
-                              {isAdded ? 'Added' : 'Not added'}
+                              {isPreviewOnly ? 'Not published' : isAdded ? 'Added' : 'Not added'}
                             </span>
                           </div>
                           <p className="mt-0.5 whitespace-pre-line text-[11px] font-semibold leading-snug aura-muted">
@@ -1495,23 +1562,39 @@ function GameCatalogue({ classId, teacherCode, isAdmin = false }) {
                           target="_blank"
                           rel="noreferrer"
                           aria-label={`Preview ${game.label} in a new tab`}
-                          className="flex min-h-10 shrink-0 items-center gap-1.5 rounded-xl bg-white/12 px-3 text-xs font-black aura-text ring-1 ring-white/20 transition hover:bg-white/20"
-                        >
-                          <span aria-hidden="true">👁</span>
-                          Preview
-                        </a>
-                        <button
-                          type="button"
-                          onClick={() => toggle(game)}
-                          disabled={isBusy}
-                          className={`min-h-10 flex-1 rounded-xl px-3 text-xs font-black transition disabled:cursor-not-allowed disabled:opacity-55 ${
-                            isAdded
-                              ? 'bg-rose-500/25 text-rose-100 hover:bg-rose-500/40'
-                              : 'bg-indigo-600 text-white hover:bg-indigo-500'
+                          className={`flex min-h-10 shrink-0 items-center gap-1.5 rounded-xl px-3 text-xs font-black ring-1 transition ${
+                            isPreviewOnly
+                              ? 'bg-amber-400/25 text-amber-50 ring-amber-300/40 hover:bg-amber-400/35'
+                              : 'bg-white/12 aura-text ring-white/20 hover:bg-white/20'
                           }`}
                         >
-                          {isSavingThis ? 'Saving…' : isAdded ? 'Remove' : '+ Add'}
-                        </button>
+                          <span aria-hidden="true">👁</span>
+                          {isPreviewOnly ? 'Try it' : 'Preview'}
+                        </a>
+                        {/* An unpublished game has no Add button at all. The
+                            chip explains WHY instead of presenting a disabled
+                            button: the blocker is a registry flag ('preview' in
+                            registry.js), not a permission the reader can grant,
+                            so telling them what to do is more useful than
+                            offering an action that will fail. */}
+                        {isPreviewOnly ? (
+                          <span className="flex min-h-10 flex-1 items-center justify-center rounded-xl border border-dashed border-amber-300/40 px-3 text-center text-[11px] font-bold leading-tight text-amber-100/85">
+                            Preview only
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => toggle(game)}
+                            disabled={isBusy}
+                            className={`min-h-10 flex-1 rounded-xl px-3 text-xs font-black transition disabled:cursor-not-allowed disabled:opacity-55 ${
+                              isAdded
+                                ? 'bg-rose-500/25 text-rose-100 hover:bg-rose-500/40'
+                                : 'bg-indigo-600 text-white hover:bg-indigo-500'
+                            }`}
+                          >
+                            {isSavingThis ? 'Saving…' : isAdded ? 'Remove' : '+ Add'}
+                          </button>
+                        )}
                       </div>
                     </li>
                   );
@@ -1825,6 +1908,23 @@ function IdentityRow({
               for every identity, because a rostered student and a light name
               are each removable. */}
           <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+            {/* Details opens the child's own data page. Rendered for EVERY
+                identity, rostered or light: a "light" child (name only, no
+                code) still has play history, and their page is addressed by
+                name via the 'n_' key. The key is built from the SAME helper the
+                route parses, so the two can never disagree. */}
+            <Link
+              to={studentDetailPath(classId, makeStudentKey(identity))}
+              title={`View ${identity.name}'s progress`}
+              aria-label={`View ${identity.name}'s progress`}
+              className="aura-ghost h-9 gap-1 px-2.5 text-[11px] font-black active:scale-95"
+            >
+              <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor" aria-hidden="true">
+                <path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z" />
+              </svg>
+              Details
+            </Link>
+
             {identity.rostered && (
               <>
                 <button
@@ -4339,45 +4439,24 @@ export default function GameAccessPanel({ onClose, initialTab }) {
           <StudentsTab classId={classId} teacherCode={teacherCode} className={className} />
         )}
 
+        {/* No tab strip here any more. Stats and Mission Heroes are one surface
+            with a switch INSIDE the box: each view renders its own button to the
+            other, beside the refresh control. Two pills above the card read as a
+            separate navigation layer for what is really one question ("how are
+            the kids doing?"), and cost a full row on a phone. */}
         {activeTab === 'stats' && (
-          <div>
-            {!isAdmin && (
-              <div className="mb-4 flex items-center justify-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setStatsView('stats')}
-                  className={`flex h-10 items-center gap-1.5 rounded-full px-4 text-sm font-black transition-all active:scale-95 sm:h-11 sm:px-5 ${
-                    statsView === 'stats'
-                      ? 'bg-gradient-to-r from-pink-500 to-purple-500 text-white shadow-md'
-                      : 'bg-white/10 text-white hover:bg-white/20'
-                  }`}
-                >
-                  📊 Stats
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setStatsView('mission')}
-                  className={`flex h-10 items-center gap-1.5 rounded-full px-4 text-sm font-black transition-all active:scale-95 sm:h-11 sm:px-5 ${
-                    statsView === 'mission'
-                      ? 'bg-gradient-to-r from-amber-400 to-orange-500 text-white shadow-md'
-                      : 'bg-white/10 text-white hover:bg-white/20'
-                  }`}
-                >
-                  🏆 Mission heroes
-                </button>
-              </div>
+          <Suspense fallback={null}>
+            {isAdmin ? (
+              <StatsPanel embedded adminMode />
+            ) : statsView === 'mission' ? (
+              <MissionHeroes
+                teacherCode={teacherCode}
+                onSwitchView={() => setStatsView('stats')}
+              />
+            ) : (
+              <StatsPanel embedded onSwitchView={() => setStatsView('mission')} />
             )}
-
-            <Suspense fallback={null}>
-              {isAdmin ? (
-                <StatsPanel embedded adminMode />
-              ) : statsView === 'mission' ? (
-                <MissionHeroes teacherCode={teacherCode} />
-              ) : (
-                <StatsPanel embedded />
-              )}
-            </Suspense>
-          </div>
+          </Suspense>
         )}
 
         {activeTab === 'settings' && !isAdmin && (

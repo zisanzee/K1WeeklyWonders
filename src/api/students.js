@@ -210,6 +210,27 @@ async function jsonRequest(path, { method = 'GET', body } = {}) {
   return data;
 }
 
+// One student's own data page (GET /api/classes/:classId/students/:studentKey/stats).
+//
+// `studentKey` is the prefixed identity key from @/games/studentKey ('s_<id>' or
+// 'n_<name>'). It is passed through ENCODED but otherwise untouched: the server
+// owns the parse, and re-deriving it here would be a second place to keep in
+// sync.
+//
+// `weekStart` is the CALLER'S local Friday-noon boundary (ISO). Sending it is
+// what makes "this week" and the 8-week chart match the child's own timezone
+// rather than the server's; when omitted the server falls back to its own.
+//
+// Errors surface as thrown ApiError (from jsonRequest) so the page can tell a
+// 403 "not your class" from a 404 "no such student" and show the right message.
+export async function fetchStudentStats(classId, studentKey, teacherCode, weekStart) {
+  const query = new URLSearchParams({ teacherCode: teacherCode || '' });
+  if (weekStart) query.set('weekStart', weekStart);
+  return jsonRequest(
+    `/api/classes/${encodeURIComponent(classId)}/students/${encodeURIComponent(studentKey)}/stats?${query.toString()}`
+  );
+}
+
 // The merge UI's source list: roster students ∪ distinct play-session names.
 export async function fetchClassIdentities(classId, teacherCode) {
   return jsonRequest(

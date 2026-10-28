@@ -28,7 +28,12 @@ const RANK_COLORS = [
 // Teacher's view of who finished this week's mission — kids who played at
 // least 4 different games since the last Friday. Loaded fresh whenever the
 // component mounts (or the refresh button is tapped).
-export default function MissionHeroes({ teacherCode }) {
+//
+// `onSwitchView` (optional) renders a "Stats" button in the header, the mirror
+// of the "Mission heroes" button in StatsPanel. The pair replaces two pills that
+// used to float above both boxes: the switch now lives inside whatever is on
+// screen, next to the other view controls, instead of as separate chrome.
+export default function MissionHeroes({ teacherCode, onSwitchView = null }) {
   const [state, setState] = useState({
     status: 'loading', // loading | error | ready
     target: 4,
@@ -74,16 +79,28 @@ export default function MissionHeroes({ teacherCode }) {
             Weekly Mission Heroes
           </span>
         </h2>
-        <button
-          type="button"
-          onClick={load}
-          disabled={status === 'loading'}
-          aria-label="Refresh mission heroes"
-          title="Refresh"
-          className="aura-icon-btn h-9 w-9 text-lg active:scale-90 disabled:opacity-50 sm:h-11 sm:w-11"
-        >
-          <span className={status === 'loading' ? 'inline-block animate-spin' : ''}>🔄</span>
-        </button>
+        <div className="flex shrink-0 items-center gap-2">
+          {onSwitchView && (
+            <button
+              type="button"
+              onClick={onSwitchView}
+              className="aura-ghost h-9 gap-1.5 whitespace-nowrap px-3 text-xs font-black active:scale-95 sm:h-11 sm:px-4 sm:text-sm"
+            >
+              <span aria-hidden="true">📊</span>
+              Stats
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={load}
+            disabled={status === 'loading'}
+            aria-label="Refresh mission heroes"
+            title="Refresh"
+            className="aura-icon-btn h-9 w-9 text-lg active:scale-90 disabled:opacity-50 sm:h-11 sm:w-11"
+          >
+            <span className={status === 'loading' ? 'inline-block animate-spin' : ''}>🔄</span>
+          </button>
+        </div>
       </div>
 
       <div className="px-4 py-3 sm:px-6">

@@ -5,9 +5,9 @@ import { API_BASE, fetchWithTimeout } from '@/api/apiClient';
 // The catalogue itself lives in games/registry.js — the single place a game is
 // declared. Re-exported here so every existing `from '@/games/gameAccess'`
 // import keeps working and this file stays the store-side entry point.
-import { GAME_CATALOG, GAME_KEYS } from '@/games/registry';
+import { GAME_CATALOG, GAME_KEYS, PUBLISHED_GAMES } from '@/games/registry';
 
-export { GAME_CATALOG, GAME_KEYS };
+export { GAME_CATALOG, GAME_KEYS, PUBLISHED_GAMES };
 
 let latestGameAccessRequest = 0;
 
@@ -27,15 +27,71 @@ export const GAME_TERMS = [
   { id: 4, label: 'Term 4' },
 ];
 
+// Id of the separate, non-term group holding unpublished games. Deliberately a
+// STRING so it can never collide with a numeric term id (3, 4, …) — the
+// collapsed-set and React keys treat them as one namespace.
+export const PREVIEW_GROUP_ID = 'preview';
+
+// The single definition of what "unpublished" means. Everything else in the app
+// asks this rather than reading `game.preview` directly, so the rule lives in
+// one place if it ever needs to grow (e.g. a `beta` flag for teacher-only games).
+export function isPreviewGame(game) {
+  return Boolean(game?.preview);
+}
+
 // Groups a list of games by term for a grouped catalogue view. Preserves the
 // input order within each term (GAME_CATALOG order when called with the full
 // catalogue) and drops terms that have no games.
+//
+// Unpublished (`preview`) games are EXCLUDED — they belong to the separate
+// preview group below, not to their term folder, because an unfinished game must
+// never sit where a teacher expects to add a finished one.
 export function groupGamesByTerm(games = GAME_CATALOG) {
   const list = Array.isArray(games) ? games : [];
   return GAME_TERMS.map((term) => ({
-    ...term,
-    games: list.filter((game) => game.term === term.id),
+    id: term.id,
+    label: term.label,
+    kind: 'term',
+    games: list.filter((game) => game.term === term.id && !isPreviewGame(game)),
   })).filter((group) => group.games.length > 0);
+}
+
+// The preview group, or null when nothing is unpublished. A different SHAPE from
+// a term group on purpose:
+//   • no `term` id — so it is not a term and cannot be mistaken for one
+//   • `kind: 'preview'` — the catalogue renders it with its own styling and
+//     without an Add button
+// Returning null (not an empty group) is what keeps the section entirely absent
+// once every game is published.
+export function buildPreviewGroup(games = GAME_CATALOG) {
+  const list = Array.isArray(games) ? games : [];
+  const previewGames = list.filter(isPreviewGame);
+  if (previewGames.length === 0) return null;
+  return {
+    id: PREVIEW_GROUP_ID,
+    kind: 'preview',
+    label: 'Preview',
+    // Shown under the heading. Spells out the two things a teacher must not
+    // assume: these are unfinished, and they are not in any class.
+    note: 'Unfinished games. Try them here — they cannot be added to a class until they are published.',
+    games: previewGames,
+  };
+}
+
+// The catalogue layout: the term folders in GAME_TERMS order, then the preview
+// group (when it exists) LAST.
+//
+// Deliberately last, not first. The Catalogue exists so a teacher can add games
+// to their class; that is the job, so it gets the top of the page. Unpublished
+// games are a developer/publisher concern that most teachers will never open, so
+// they sit below the fold instead of pushing Term 3's games down the screen.
+// A preview game has a `term` too, so it has to be excluded from the term
+// folders (see groupGamesByTerm) or it would be silently buried inside one.
+export function splitCatalogByPreview(games = GAME_CATALOG) {
+  const list = Array.isArray(games) ? games : [];
+  const preview = buildPreviewGroup(list);
+  const terms = groupGamesByTerm(list);
+  return preview ? [...terms, preview] : terms;
 }
 
 function normalizeKey(gameKey) {
@@ -45,13 +101,20 @@ function normalizeKey(gameKey) {
 // Merges raw server rows (with gameKey, unlocked, shiny, order) with
 // GAME_CATALOG entries to produce full game objects with emoji, label,
 // hue, etc. Only includes games that have a server row (i.e. "added").
+//
+// Unpublished games are filtered out here too. This is the belt-and-braces half
+// of the preview rule: the Catalogue refuses to add one, but a class may have
+// added a game BEFORE it was unpublished (or the flag may have been flipped
+// while a 7-day access cache still holds the old row). Filtering at the ONE
+// choke point every class-facing read goes through means unpublishing a game
+// removes it from every home grid immediately, with no DB cleanup needed.
 export function mergeRows(rows) {
   const rowsByKey = new Map(
     (Array.isArray(rows) ? rows : []).map((row) => [row.gameKey, row])
   );
 
   return GAME_CATALOG
-    .filter((game) => rowsByKey.has(game.key))
+    .filter((game) => rowsByKey.has(game.key) && !isPreviewGame(game))
     .map((game, defaultOrder) => {
       const row = rowsByKey.get(game.key);
 

@@ -29,6 +29,14 @@
 //                'bonusGame1'). Must match what the game passes to
 //                logPlaySession({ game }).
 //   isBonus      Optional. Marks a bonus game (affects catalogue grouping).
+//   preview      Optional. `true` = UNPUBLISHED. The game is pulled out of its
+//                term folder in the admin Catalogue and shown in a separate
+//                "Preview" group instead, where it can be launched to try it but
+//                CANNOT be added to a class. Publishing it = deleting this line
+//                (or setting it false); it then drops into its `term` folder and
+//                becomes addable. Like `term`, this is frontend-only — no server
+//                change and no DB write, so an unpublished game never leaves a
+//                trace on any class.
 //   meta         Everything the card renders: emoji, label, title, subtitle,
 //                description, hue, tint, gradient, ring.
 //   load         `() => import(...)` returning a module whose DEFAULT export is
@@ -367,6 +375,40 @@ export const GAME_REGISTRY = [
     },
     load: () => import('@/games/game-15/GamePage'),
   },
+  {
+    // Game 16 — BOILERPLATE. Ships deliberately unfinished: `label` and `title`
+    // are the placeholder '(in works)', matching GamePage.jsx's gate labels and
+    // the on-screen heading, so a half-built game is unmistakable in the
+    // catalogue. Rename all of them together once it actually works.
+    //
+    // `key`, `slug`, `route` and `progressKey` are IDENTITY and never change:
+    // they are what saved play sessions, unlock state and the catalogue
+    // reference. The emoji and colours are deliberately generic (a balloon and
+    // a neutral sky) so the card implies no mechanic.
+    //
+    // PUBLISHING IT: this `preview: true` line is the only switch. Delete it (or
+    // set it to false) once the game works, and it moves out of the Catalogue's
+    // Preview group into the Term 4 folder, where it can be added to a class.
+    // `term` stays set meanwhile so publishing needs no second edit.
+    key: '16',
+    slug: 'game-16',
+    route: '/48137',
+    term: 4,
+    progressKey: 'game16',
+    preview: true,
+    meta: {
+      emoji: '\uD83C\uDF88',
+      label: '(in works)',
+      title: '(in works)',
+      subtitle: 'Coming soon',
+      description: 'This game is still being built — it will appear here once it is ready to play.',
+      hue: '#0EA5E9',
+      tint: '#E0F2FE',
+      gradient: 'linear-gradient(135deg, #7DD3FC 0%, #0EA5E9 55%, #0369A1 100%)',
+      ring: 'ring-[#BAE6FD]',
+    },
+    load: () => import('@/games/game-16/GamePage'),
+  },
 ];
 
 // The catalogue shape the UI consumes: identity + routing + metadata, flattened.
@@ -377,20 +419,34 @@ export const GAME_CATALOG = GAME_REGISTRY.map((game) => ({
   to: game.route,
   progressKey: game.progressKey,
   ...(game.isBonus ? { isBonus: true } : {}),
+  // Unpublished games keep their entry but are grouped separately in the admin
+  // Catalogue (see splitCatalogByPreview in gameAccess.js). Only spread when
+  // true, so a published game carries no `preview` key at all and a
+  // `game.preview` check is a simple truthiness test.
+  ...(game.preview ? { preview: true } : {}),
   ...game.meta,
 }));
 
 export const GAME_KEYS = GAME_CATALOG.map((game) => game.key);
 
+// Published games only. Used by the kid-facing surfaces (home grid, public
+// landing) so an unfinished game can never appear there, even if a class's
+// access row somehow still references it from before it was unpublished.
+export const PUBLISHED_GAMES = GAME_CATALOG.filter((game) => !game.preview);
+
 // Prefetch every game the current player can actually open, so a card click is
 // instant. Takes the caller's unlock predicate rather than importing the store,
 // keeping this module dependency-free (it is in the eager entry graph).
+//
+// Unpublished games are skipped: they are on no card, so prefetching one would
+// download an unfinished chunk on every home-page visit for nothing. Staff reach
+// them from the Catalogue's Preview folder, where the route loads on demand.
 //
 // Deliberately fire-and-forget: a prefetch is an optimisation, so a failed
 // import must be swallowed — the real navigation will surface the error.
 export function prefetchUnlockedGames(isUnlockedNow, isTeacher) {
   for (const game of GAME_REGISTRY) {
-    if (isUnlockedNow(game.key, isTeacher)) {
+    if (!game.preview && isUnlockedNow(game.key, isTeacher)) {
       game.load().catch(() => {});
     }
   }
