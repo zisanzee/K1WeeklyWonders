@@ -1,40 +1,37 @@
 // Game.jsx
-// Game 16 (in works) — wires the game into the shared Phaser shell.
+// Game 16 — wires the five-scene run into the shared Phaser shell, with the
+// shared live-tuning sidebar mounted through <DevTuningFrame>.
 //
-// This is plumbing only: preload the (currently empty) asset manifest, then hand
-// off to GameScene. There is no mechanic yet, so the complete-event hook is
-// present but DORMANT — nothing in the scene emits it.
+// The frame owns the single DEV gate (see @/devTuning/panel.js), so this file has
+// no `if` and no lazy()/Suspense: in production the frame returns the game alone
+// — no extra DOM, no sidebar chunk. `enabled` is this game's own local-dev switch.
 //
-// When real gameplay lands, the scene emits 'game16-complete' with
-// { stars, totalRounds, peakStreak, mistakes, elapsedSeconds } and this file
-// forwards it to logPlaySession. Add the dev live-tuning sidebar at that point
-// per docs/DEV_TUNING.md if the mechanic needs by-eye numbers (see
-// game-13/Game.jsx for the DevTuningFrame pattern).
+// See plans/game-16-five-scenes.md for how the hub (GameScene.js) runs the five
+// mini-games, and scenes.js for the scene registry.
 import BaseGame from '@/phaser/BaseGame';
 import BasePreloadScene from '@/phaser/BasePreloadScene';
 import GameScene, { BACKGROUND_COLOR } from '@/games/game-16/GameScene';
 import { ASSET_MANIFEST } from '@/games/game-16/assets';
+import { DEV_TUNING_ENABLED, TUNING, TUNING_SCHEMA } from '@/games/game-16/tuning';
 import { logPlaySession } from '@/api/logPlaySession';
+import DevTuningFrame from '@/devTuning/DevTuningFrame';
 
 export default function Game({ playerName }) {
-  // Factory (not a static array) — BaseGame calls this once per mount, so a
-  // fresh set of scene instances is created each time. No level select for a
-  // boilerplate: PreloadScene goes straight into GameScene.
+  // Factory (not a static array) — BaseGame calls this once per mount, so a fresh
+  // set of scene instances is created each time. The hub is a single scene: it
+  // mounts the five mini-games itself.
   const buildScenes = () => [
     new BasePreloadScene({
       key: 'PreloadScene',
       assets: ASSET_MANIFEST,
       nextSceneKey: 'GameScene',
-      // Generic balloon, matching the catalogue's placeholder emoji: a scaffold
-      // must not imply a mechanic with its art either.
       loadingEmoji: '\uD83C\uDF88',
       loadingText: 'Getting this game ready\u2026',
     }),
     new GameScene(),
   ];
 
-  // Dormant until the mechanic exists. Kept wired so enabling play logging is
-  // one emit from the scene rather than a refactor of this file.
+  // The hub emits 'game16-complete' once the 15th round is finished.
   const handleComplete = (payload, currentPlayerName) => {
     logPlaySession({
       // Must equal the registry progressKey. The server validates the `game`
@@ -46,16 +43,23 @@ export default function Game({ playerName }) {
     });
   };
 
-  return (
+  const game = (
     <BaseGame
       playerName={playerName}
       buildScenes={buildScenes}
       completeEventName="game16-complete"
       onComplete={handleComplete}
-      // Opaque canvas: the scene paints its own sky, so the platform gradient
+      // Opaque canvas: the hub paints its own backdrop, so the platform gradient
       // must not show through.
       backgroundColor={BACKGROUND_COLOR}
       transparent={false}
     />
+  );
+
+  // Production (or the editor switched off) → the frame returns `game` as-is.
+  return (
+    <DevTuningFrame tuning={TUNING} schema={TUNING_SCHEMA} enabled={DEV_TUNING_ENABLED}>
+      {game}
+    </DevTuningFrame>
   );
 }
