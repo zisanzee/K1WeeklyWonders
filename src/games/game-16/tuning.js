@@ -50,18 +50,6 @@ import ownSource from '@/games/game-16/tuning.js?raw';
 // Phaser canvas clear colour (see Game.jsx). Also the backdrop fallback.
 export const BACKGROUND_COLOR = '#0b1220';
 
-// The 3-stop sky the loading scene hands off from, so there is no seam.
-export const SKY_THEME = {
-  bgColors: ['#3fb6ea', '#8fe0fa', '#ffe9a8'],
-  groundColor: '#8ee06a',
-};
-
-// Drifting clouds from BaseScene.addDriftingClouds().
-export const CLOUDS = [
-  { xr: 0.18, yr: 0.16, scale: 1, alpha: 0.85 },
-  { xr: 0.78, yr: 0.1, scale: 0.8, alpha: 0.7 },
-];
-
 // Per-game local-dev switch for the tuning editor. Production folds it away
 // regardless, via import.meta.env.DEV in @/devTuning/panel.js.
 export const DEV_TUNING_ENABLED = true;
@@ -77,6 +65,54 @@ export const ENGINE = {
   crossfade: 0.5,
   // Dev-only: draw the placeholder frame, ids and per-scene accent.
   devChrome: true,
+
+  // ---- THE SCENE CHANGE ---------------------------------------------------
+  // A scene change is the one moment the run can feel like a slideshow of
+  // unrelated mini-games, so it gets a deliberate two-beat transition instead of
+  // a bare fade:
+  //
+  //   1. WIPE IN   a full-width panel sweeps across in the OUTGOING scene's own
+  //                accent colour. Using the scene's colour is what makes the
+  //                change read as "that chapter ended" rather than as a flash.
+  //   2. WIPE OUT  the new scene is already mounted underneath, and the panel
+  //                sweeps away to reveal it.
+  //
+  // The panel is ONE rectangle whose x is tweened — not a stack of slices — so
+  // the whole transition costs a single quad of overdraw on a school tablet.
+  //
+  // 0 on `wipeMs` disables it and falls back to the plain crossfade.
+  wipeMs: 260,
+  wipeColor: null, // null = the outgoing scene's `color` from the registry
+  // How far past the canvas the panel starts and ends, so no sliver shows at
+  // either edge during the sweep.
+  wipeOverscanPx: 40,
+  // The title card that rides ON the wipe: the incoming scene's name, so the
+  // change is announced rather than merely animated.
+  wipeTitle: true,
+  wipeTitleFontSize: 52,
+  wipeTitleColor: '#ffffff',
+
+  // ---- CELEBRATION --------------------------------------------------------
+  // Confetti after EVERY completed scene (not just the run), because reaching the
+  // end of a mini-game is the achievement, and the run's own finish is then just
+  // the last of them.
+  //
+  // ONE ParticleEmitter per burst, not N tweened images. A pooled emitter is a
+  // single batched draw call that Phaser can recycle; forty individual Images each
+  // carrying a tween is forty display objects, forty tweens, and forty destructions
+  // — which is what makes confetti the thing that stutters on a low-end tablet.
+  sceneConfetti: 26,
+  finishConfetti: 44,
+  confettiMs: 1500,
+  // The gravity the pieces feel, so they arc rather than fall like curtains.
+  confettiGravityY: 620,
+  confettiSpeedMin: 220,
+  confettiSpeedMax: 520,
+  confettiSpreadDeg: 55,
+  // Cap on simultaneously live confetti particles across the WHOLE game. A burst
+  // arriving while the previous one is still falling trims to this, so a fast
+  // child chaining scenes cannot stack thousands of quads.
+  confettiMaxLive: 90,
 };
 
 // ---------------------------------------------------------------------------
@@ -1081,6 +1117,13 @@ export const BUILDING = {
   // A child aiming at a circle taps slightly off it; the HIT area is the disc's
   // radius times this, so a near miss still counts.
   optionHitPad: 1.25,
+  // THE LONGEST PRESS THAT STILL COUNTS AS A TAP. The options sit over the
+  // scrollable building, so a press has to be distinguished from a scroll
+  // gesture — and from a finger resting on the screen while a child thinks. A
+  // press held longer than this is discarded silently: no answer, no penalty.
+  tapMaxMs: 700,
+
+  // ---- FEEDBACK ------------------------------------------------------------
   // THE SHELF behind the row — OFF by default.
   //
   // It was a full-width band to make the discs' overlap with the wall look
@@ -1093,7 +1136,6 @@ export const BUILDING = {
   optionShelfEdgeColor: 0xd2b48c,
   optionShelfEdgeWidth: 5,
 
-  // ---- FEEDBACK ------------------------------------------------------------
   // The floor we were asking about is OUTLINED while the child looks for it, so
   // the answer is findable by counting rather than by luck.
   highlightFloor: true,
@@ -1136,31 +1178,109 @@ export const BUILDING = {
   emphasisStrokeColor: '#fff7ed',
   emphasisStrokeThickness: 0,
 
-  // ---- SCROLL EASING + ACCELERATION ---------------------------------------
-  // THREE stages, deliberately separate, because together they are what makes a
-  // swipe feel like pushing something with weight:
+  // ---- SCROLL: NATIVE-STYLE FLING ------------------------------------------
+  // THE MODEL. This is a momentum scroller, not an eased chase. It has exactly two
+  // states, which is what makes it predictable:
   //
-  //   1. ACCELERATION  the target itself ramps up toward where the finger is,
-  //                    instead of jumping to it. This is the stage that makes the
-  //                    start feel smooth rather than twitchy.
-  //   2. SMOOTHING     the visible position chases the target. This is the trailing
-  //                    "heaviness".
-  //   3. EASE-OUT      on release, the glide loses speed so it settles instead of
-  //                    stopping dead.
+  //   DRAGGING  the content is pinned 1:1 to the finger (times `scrollGain`). No
+  //             easing at all — the thing follows your thumb, which is what makes
+  //             a scroll feel direct rather than laggy.
   //
-  // Each is a fraction applied per 60fps frame, so the feel does not change with
-  // the frame rate.
+  //   FLINGING  the finger has lifted. The content travels on its own at
+  //             `velocity`, losing `scrollFriction` of it per second, so a HARD
+  //             flick goes a long way and a gentle one barely moves. It stops when
+  //             the speed falls below `scrollStopSpeed`.
   //
-  // `accel` 0 = the target snaps to the finger (old behaviour: responsive but
-  // twitchy). 1 = the target barely moves (sluggish). 0.45 reaches the finger
-  // quickly while still ramping.
-  scrollAccel: 0.45,
-  scrollSmoothing: 0.22,
-  scrollEaseOut: 0.14,
+  // WHY THE OLD MODEL WAS WRONG. It ran three chained easing stages (accel towards
+  // a goal, smoothing towards a target, ease-out on release). Each stage chased the
+  // previous one, so the content always trailed the finger, and the release speed
+  // was read from a single frame — which meant a fast flick and a slow drag ended
+  // up travelling almost the same distance. That is the "not intuitive" part: the
+  // gesture had no weight behind it.
+  //
+  // DISTANCES here are in px/second, which is what makes the feel survive a change
+  // of frame rate or device.
+  //
+  // Deceleration as a fraction of speed lost per second. 3.2 means a flick at
+  // 3000px/s has ~0.9s of travel left; 5 would stop in about half that.
+  // 2.6 puts a maximum flick at 4200/2.6 ≈ 1600px — about a screen and a half —
+  // and settles in roughly two seconds. That is close to a phone's own scrolling;
+  // 3.2 (the first guess) topped out at 1300px and felt short of a throw.
+  scrollFriction: 2.6,
+  // The fastest the content may travel, whether dragged or flung. Caps a violent
+  // flick so the building cannot teleport past the floor the child was reading.
+  scrollMaxVelocity: 4200,
+  // Below this speed (px/s) the glide is over and the content snaps to rest, so it
+  // cannot creep for a second after a tap.
+  scrollStopSpeed: 14,
   // MULTIPLIES the distance a swipe travels, so the building covers more ground for
   // the same finger movement. 1 = exactly follow the finger; 1.6 = noticeably
   // faster without losing the connection to the gesture.
   scrollGain: 1.6,
+
+  // A DRAG ONLY BECOMES A SCROLL after this much movement. Below it the gesture
+  // stays a TAP, which is what stops the options firing while a child is trying to
+  // scroll the building — the commonest mis-fire in a game where the play targets
+  // sit over a scrollable surface.
+  scrollDragThresholdPx: 10,
+  // Sampling window for the release velocity, in pointermove events. The speed is
+  // averaged over these, so one jittery frame cannot launch or kill a fling.
+  scrollVelocitySamples: 5,
+  // A finger that STOPS before lifting produces no more move events, so the only
+  // evidence of the stop is the gap before the release. Longer than this and the
+  // gesture counts as a hold: the content stays put instead of shooting away from
+  // a speed the finger no longer has.
+  scrollReleaseIdleMs: 60,
+};
+
+// ---------------------------------------------------------------------------
+// THE END SCREEN
+// ---------------------------------------------------------------------------
+// Shown once the whole run is over. A replay button is the one thing a finished
+// run genuinely needs: a child who has just completed a game wants to play it
+// again, and the alternative is backing out and finding it in the catalogue.
+export const END_SCREEN = {
+  // The scrim over the finished game, so the panel reads as a separate surface.
+  scrimColor: 0x0b1220,
+  scrimAlpha: 0.62,
+  // The panel. Fractions of the canvas, so it scales.
+  panelWidthFrac: 0.82,
+  panelMaxWidth: 560,
+  panelHeightFrac: 0.46,
+  panelColor: 0xffffff,
+  panelBorderColor: 0xf59e0b,
+  panelBorderWidth: 6,
+  panelRadius: 32,
+  // The entrance punch, so the panel arrives rather than appearing.
+  popMs: 380,
+  // The headline.
+  titleText: 'Mission Complete!',
+  titleColor: '#3b2f1e',
+  titleFontSize: 44,
+  titleYOffsetFrac: -0.26,
+  // One star per finished scene, drawn BIG and sequentially, so the run feels
+  // counted rather than summarised.
+  starSize: 54,
+  starGapPx: 18,
+  starColor: 0xfbbf24,
+  starEmptyColor: 0xe5e7eb,
+  starYOffsetFrac: -0.04,
+  starPopMs: 240,
+  starStaggerMs: 110,
+  // The summary line under the stars.
+  summaryFontSize: 26,
+  summaryColor: '#6b4423',
+  summaryYOffsetFrac: 0.13,
+  // The replay button.
+  buttonLabel: 'Play Again',
+  buttonFontSize: 28,
+  buttonYOffsetFrac: 0.31,
+  buttonBgColor: 0xf59e0b,
+  buttonTextColor: '#ffffff',
+  buttonPaddingX: 36,
+  buttonPaddingY: 16,
+  // The completion burst behind the panel. 0 turns it off.
+  confettiCount: 40,
 };
 
 // The ten rooms, in BUILDING order: index 0 is the TOP floor.
@@ -1366,6 +1486,7 @@ const inCurrentRound = (rows) => rows.filter((row) => row.round === devRound);
 const TABLES = {
   ENGINE,
   HUD,
+  END_SCREEN,
   SCENE1,
   SCENE2,
   MIRROR_ROUNDS,
@@ -1386,6 +1507,7 @@ export const TUNING = createTuning({ id: 'G16', tables: TABLES });
 // ---------------------------------------------------------------------------
 export const getEngine = () => TUNING.get('ENGINE');
 export const getHud = () => TUNING.get('HUD');
+export const getEndScreen = () => TUNING.get('END_SCREEN');
 export const getScene1 = () => TUNING.get('SCENE1');
 export const getScene2 = () => TUNING.get('SCENE2');
 export const getMirrorRounds = () => TUNING.get('MIRROR_ROUNDS') || [];
@@ -1456,20 +1578,55 @@ function field(key, value, indent = '  ') {
   return `${indent}${key}: ${value},`;
 }
 
-// Engine and HUD are short, hand-commented blocks, so they are emitted with
-// their comments rather than from a key list.
+// ENGINE is emitted from ONE ordered key list, not hand-written lines.
+//
+// It was hand-written until the celebration and transition values landed in it —
+// at which point a paste silently dropped twelve tunables back to whatever the
+// source file happened to say. A key list cannot do that: a key that is not
+// listed is a visible omission here rather than an invisible default at runtime.
+const ENGINE_FIELDS = [
+  ['transitionMs', 'n'], ['crossfade', 'n'], ['devChrome', 'b'],
+  // The scene-change wipe.
+  ['wipeMs', 'n'], ['wipeColor', 'h'], ['wipeOverscanPx', 'n'],
+  ['wipeTitle', 'b'], ['wipeTitleFontSize', 'n'], ['wipeTitleColor', 's'],
+  // Celebration.
+  ['sceneConfetti', 'n'], ['finishConfetti', 'n'], ['confettiMs', 'n'],
+  ['confettiGravityY', 'n'], ['confettiSpeedMin', 'n'], ['confettiSpeedMax', 'n'],
+  ['confettiSpreadDeg', 'n'], ['confettiMaxLive', 'n'],
+];
+
 function renderEngine(v) {
-  return [
-    'export const ENGINE = {',
-    '  // How long the scene-to-scene handover takes. A short dip keeps the run',
-    '  // feeling continuous; 0 makes it a hard cut.',
-    field('transitionMs', fmt(v.transitionMs)),
-    '  // Fade the incoming scene in over this fraction of transitionMs.',
-    field('crossfade', fmt(v.crossfade)),
-    '  // Dev-only: draw the placeholder frame, ids and per-scene accent.',
-    field('devChrome', bool(v.devChrome)),
-    '};',
-  ].join('\n');
+  const lines = ['export const ENGINE = {'];
+  ENGINE_FIELDS.forEach(([key, kind]) => lines.push(field(key, scalar(kind, v[key]))));
+  lines.push('};');
+  return lines.join('\n');
+}
+
+// The end screen is a long but flat block, emitted from one ordered key list for
+// the same reason SCENE1 is — every field is either a number, a colour or a
+// string, so a hand-written line per field would only drift.
+const END_SCREEN_FIELDS = [
+  ['scrimColor', 'h'], ['scrimAlpha', 'n'],
+  ['panelWidthFrac', 'n'], ['panelMaxWidth', 'n'], ['panelHeightFrac', 'n'],
+  ['panelColor', 'h'], ['panelBorderColor', 'h'], ['panelBorderWidth', 'n'],
+  ['panelRadius', 'n'], ['popMs', 'n'],
+  ['titleText', 's'], ['titleColor', 's'], ['titleFontSize', 'n'],
+  ['titleYOffsetFrac', 'n'],
+  ['starSize', 'n'], ['starGapPx', 'n'], ['starColor', 'h'],
+  ['starEmptyColor', 'h'], ['starYOffsetFrac', 'n'],
+  ['starPopMs', 'n'], ['starStaggerMs', 'n'],
+  ['summaryFontSize', 'n'], ['summaryColor', 's'], ['summaryYOffsetFrac', 'n'],
+  ['buttonLabel', 's'], ['buttonFontSize', 'n'], ['buttonYOffsetFrac', 'n'],
+  ['buttonBgColor', 'h'], ['buttonTextColor', 's'],
+  ['buttonPaddingX', 'n'], ['buttonPaddingY', 'n'],
+  ['confettiCount', 'n'],
+];
+
+function renderEndScreen(v) {
+  const lines = ['export const END_SCREEN = {'];
+  END_SCREEN_FIELDS.forEach(([key, kind]) => lines.push(field(key, scalar(kind, v[key]))));
+  lines.push('};');
+  return lines.join('\n');
 }
 
 function renderHud(v) {
@@ -1780,8 +1937,9 @@ const BUILDING_FIELDS = [
   ['scrollSwipe', 'b'], ['scrollWheel', 'b'], ['scrollSensitivity', 'n'],
   ['momentum', 'n'], ['momentumMinPx', 'n'], ['clampScroll', 'b'],
   ['scrollTopInsetFrac', 'n'], ['scrollBottomInsetFrac', 'n'],
-  ['scrollAccel', 'n'], ['scrollSmoothing', 'n'], ['scrollEaseOut', 'n'],
-  ['scrollGain', 'n'],
+  ['scrollFriction', 'n'], ['scrollMaxVelocity', 'n'], ['scrollStopSpeed', 'n'],
+  ['scrollGain', 'n'], ['scrollDragThresholdPx', 'n'], ['scrollVelocitySamples', 'n'],
+  ['scrollReleaseIdleMs', 'n'],
   ['wallAlpha', 'n'], ['roomAlpha', 'n'],
   ['buildingShadowAlpha', 'n'], ['buildingShadowOffsetPx', 'n'],
   ['showFloorLines', 'b'], ['floorLineColor', 'h'], ['floorLineAlpha', 'n'],
@@ -1812,7 +1970,7 @@ const BUILDING_FIELDS = [
   ['optionBobPx', 'n'], ['optionBobMs', 'n'], ['optionHitPad', 'n'],
   ['optionShelfHeight', 'n'], ['optionShelfColor', 'h'],
   ['optionShelfAlpha', 'n'], ['optionShelfEdgeColor', 'h'],
-  ['optionShelfEdgeWidth', 'n'],
+  ['optionShelfEdgeWidth', 'n'], ['tapMaxMs', 'n'],
   // Feedback.
   ['highlightFloor', 'b'], ['floorHighlightColor', 'h'],
   ['floorHighlightAlpha', 'n'], ['floorHighlightWidth', 'n'],
@@ -1959,6 +2117,7 @@ export function formatTuningCode() {
 
   out = replaceBlock(out, 'export const ENGINE = {', renderEngine(engine));
   out = replaceBlock(out, 'export const HUD = {', renderHud(hud));
+  out = replaceBlock(out, 'export const END_SCREEN = {', renderEndScreen(getEndScreen()));
   out = replaceBlock(out, 'export const SCENE1 = {', renderScene1(s1));
   out = replaceBlock(out, 'export const SCENE2 = {', renderScene2(s2));
   out = replaceBlock(out, 'export const MIRROR_ROUNDS = [', renderMirrorRounds(rounds));
@@ -2010,8 +2169,19 @@ export const TUNING_SCHEMA = {
   groups: [
     {
       key: 'ENGINE',
-      label: 'Engine (whole run)',
+      label: 'Engine · transition & celebration',
       fields: [
+        // THE SCENE CHANGE. 0 on `wipe` turns it off and falls back to a cut.
+        { path: 'wipeMs', label: 'scene wipe', min: 0, max: 900, step: 10, suffix: 'ms' },
+        { path: 'wipeTitle', label: 'wipe title', type: 'toggle' },
+        { path: 'wipeTitleFontSize', label: 'wipe title size', min: 16, max: 96, step: 1, suffix: 'px' },
+        // CONFETTI. `max live` is the hard population cap, so a burst cannot grow
+        // the particle count past it however fast the scenes go by.
+        { path: 'sceneConfetti', label: 'scene confetti', min: 0, max: 120, step: 1 },
+        { path: 'finishConfetti', label: 'finish confetti', min: 0, max: 200, step: 1 },
+        { path: 'confettiMaxLive', label: 'confetti cap', min: 10, max: 400, step: 5 },
+        { path: 'confettiMs', label: 'confetti life', min: 300, max: 4000, step: 50, suffix: 'ms' },
+        { path: 'confettiSpreadDeg', label: 'confetti spread', min: 5, max: 89, step: 1, suffix: '°' },
         { path: 'transitionMs', label: 'transition', min: 0, max: 1200, step: 10, suffix: 'ms' },
         { path: 'crossfade', label: 'crossfade', min: 0, max: 1, step: 0.05 },
         { path: 'devChrome', label: 'dev chrome', type: 'toggle' },
@@ -2226,12 +2396,18 @@ export const TUNING_SCHEMA = {
         // 0 at the bottom keeps the end wall flush with the screen edge.
         { path: 'scrollTopInsetFrac', label: 'top inset', min: 0, max: 0.3, step: 0.005 },
         { path: 'scrollBottomInsetFrac', label: 'bottom inset', min: 0, max: 0.3, step: 0.005 },
-        // Acceleration ramps the target toward the finger; 0 = snap, 1 = sluggish.
-        { path: 'scrollAccel', label: 'acceleration', min: 0, max: 0.9, step: 0.02 },
-        { path: 'scrollSmoothing', label: 'smoothing', min: 0, max: 0.9, step: 0.02 },
-        { path: 'scrollEaseOut', label: 'ease out', min: 0, max: 0.5, step: 0.01 },
+        // THE FLING, as real physics: `friction` is how fast a released flick
+        // slows down (higher stops sooner), and `max speed` caps a violent swipe.
+        { path: 'scrollFriction', label: 'friction', min: 0.5, max: 10, step: 0.1 },
+        { path: 'scrollMaxVelocity', label: 'max speed', min: 500, max: 9000, step: 100, suffix: 'px/s' },
+        { path: 'scrollStopSpeed', label: 'stop below', min: 0, max: 200, step: 2, suffix: 'px/s' },
         // Distance multiplier: >1 makes the same swipe travel further.
         { path: 'scrollGain', label: 'speed ×', min: 0.5, max: 4, step: 0.05 },
+        // A gesture must travel this far before it counts as a SCROLL. Below it
+        // the touch stays a TAP, which is what keeps the options from firing.
+        { path: 'scrollDragThresholdPx', label: 'drag starts', min: 2, max: 60, step: 1, suffix: 'px' },
+        { path: 'scrollReleaseIdleMs', label: 'fling idle', min: 0, max: 300, step: 5, suffix: 'ms' },
+        { path: 'tapMaxMs', label: 'tap max hold', min: 100, max: 3000, step: 25, suffix: 'ms' },
         // Look.
         { path: 'buildingShadowAlpha', label: 'shadow alpha', min: 0, max: 1, step: 0.02 },
         { path: 'buildingShadowOffsetPx', label: 'shadow offset', min: 0, max: 40, step: 1 },
@@ -2326,6 +2502,25 @@ export const TUNING_SCHEMA = {
         { path: 'optionRowYFrac', label: 'options y', min: 0, max: 1, step: 0.005 },
         { path: 'optionSizeFrac', label: 'option size', min: 0.04, max: 0.24, step: 0.002 },
         { path: 'sendOffSpeed', label: 'send-off', min: 60, max: 1400, step: 10, suffix: 'px/s' },
+      ],
+    },
+    // THE END SCREEN. Only the things worth adjusting by eye — the panel's shape
+    // and the button it has to hold.
+    {
+      key: 'END_SCREEN',
+      label: 'End screen',
+      fields: [
+        { path: 'panelWidthFrac', label: 'panel width', min: 0.4, max: 1, step: 0.01 },
+        { path: 'panelHeightFrac', label: 'panel height', min: 0.2, max: 0.9, step: 0.01 },
+        { path: 'panelRadius', label: 'corner', min: 0, max: 80, step: 1 },
+        { path: 'titleFontSize', label: 'title size', min: 16, max: 80, step: 1, suffix: 'px' },
+        { path: 'starSize', label: 'star size', min: 16, max: 120, step: 1, suffix: 'px' },
+        { path: 'starGapPx', label: 'star gap', min: 0, max: 80, step: 1, suffix: 'px' },
+        { path: 'starStaggerMs', label: 'star stagger', min: 0, max: 600, step: 10, suffix: 'ms' },
+        { path: 'summaryFontSize', label: 'summary size', min: 12, max: 60, step: 1, suffix: 'px' },
+        { path: 'buttonFontSize', label: 'button size', min: 12, max: 60, step: 1, suffix: 'px' },
+        { path: 'scrimAlpha', label: 'scrim alpha', min: 0, max: 1, step: 0.02 },
+        { path: 'confettiCount', label: 'confetti', min: 0, max: 120, step: 1 },
       ],
     },
     // ONE GROUP PER SCENE. Generated from the registry, so five scenes means

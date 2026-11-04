@@ -57,6 +57,20 @@ import {
 
 const CONFIG = SCENES.find((s) => s.id === 'building');
 
+/**
+ * Cap a velocity at the tuned maximum, preserving its direction.
+ *
+ * A fling's speed comes from the gesture, so it is unbounded in principle — a
+ * violent flick across a tablet would otherwise launch the building past several
+ * floors in one frame, which is worse than no momentum at all. This is the one
+ * place that limit is applied, so drag, fling and wheel cannot disagree.
+ */
+function clampVelocity(v, t) {
+  const max = Number.isFinite(t.scrollMaxVelocity) ? Math.abs(t.scrollMaxVelocity) : 4200;
+  if (!Number.isFinite(v)) return 0;
+  return Math.max(-max, Math.min(max, v));
+}
+
 export default class BuildingScene extends SceneBase {
   constructor() {
     super({ id: CONFIG.id, accent: CONFIG.color });
@@ -92,8 +106,6 @@ export default class BuildingScene extends SceneBase {
     this.gapEdges = [];
     this.layerContent = null;
     this.scroll = 0;
-    this.scrollTarget = 0;
-    this.scrollGoal = 0;
     this.scrollBounds = 0;
     this.velocity = 0;
     this.drag = null;
@@ -358,16 +370,13 @@ export default class BuildingScene extends SceneBase {
     if (t.showFloorNumbers) this.buildFloorNumbers(ctx, t, centres, heights, roomX);
 
     // Put the content where the scroll says it should be, and work out how far it
-    // may travel. The TARGET starts level with the position, so the easing has
-    // nothing to chase until the child touches the screen.
+    // may travel. The velocity is already 0 (a fresh round is at rest), so there is
+    // nothing that could move until the child touches the screen.
     this.measureScroll(t, H);
     // `startScrollPx` is an OFFSET, but it has to land inside the valid range — at
     // 0 the building's top is far above the viewport, so 0 may not even be reachable.
     this.setScroll((this.scrollBounds?.min ?? 0) + t.startScrollPx);
-    // Position, target and goal all start level, so nothing moves until the child
-    // touches the screen.
-    this.scrollTarget = this.scroll;
-    this.scrollGoal = this.scroll;
+    this.stopFling();
   }
 
   // A soft shadow behind the wall, so the building lifts off the backdrop instead
@@ -713,8 +722,11 @@ export default class BuildingScene extends SceneBase {
    * clamping cannot be skipped by one of them. Clamping matters: without it a
    * child can swipe the building entirely off screen and has no cue to swipe back.
    */
-  setScroll(value) {
-    const t = getBuilding();
+  // `t` is OPTIONAL so the hot path can pass the block it already resolved. The
+  // tuning accessors deep-merge a fresh object on every call in dev, and this runs
+  // once every frame while the wall glides — so calling `getBuilding()` here AND in
+  // `update()` meant two allocations per frame just to read four numbers.
+  setScroll(value, t = getBuilding()) {
     const next = t.clampScroll ? clampToBounds(value, this.scrollBounds) : value;
 
     this.scroll = next;
@@ -723,23 +735,16 @@ export default class BuildingScene extends SceneBase {
   }
 
   /**
-   * Ask the content to travel to `value`.
+   * Move the content to `value` IMMEDIATELY, respecting the bounds.
    *
-   * This is the EASED path: it records a TARGET and `update()` chases it, so the
-   * motion spreads over a few frames instead of snapping. Everything the finger
-   * does, and the wheel, goes through here — `setScroll` stays as the immediate
-   * form used for the initial placement and for clamping after a rebuild.
+   * There is no easing layer any more: in a momentum scroller the only two states
+   * are "pinned to the finger" and "coasting on its own velocity", and both write
+   * the position directly. Anything that wants a smooth arrival has to go through
+   * the velocity, not through a target the frame loop chases.
    */
   requestScroll(value) {
     const t = getBuilding();
-    // `scrollGoal` is where the finger WANTS the content; `scrollTarget` is where
-    // it is allowed to be right now. update() ramps the second toward the first,
-    // and that ramp is the acceleration.
-    this.scrollGoal = t.clampScroll ? clampToBounds(value, this.scrollBounds) : value;
-
-    // With acceleration off, the target tracks the goal exactly — the old,
-    // immediately-responsive behaviour.
-    if (!(t.scrollAccel > 0)) this.scrollTarget = this.scrollGoal;
+    this.setScroll(t.clampScroll ? clampToBounds(value, this.scrollBounds) : value);
   }
 
   // ---------------------------------------------------------------------------
@@ -750,120 +755,210 @@ export default class BuildingScene extends SceneBase {
 
     this.onDown = (pointer) => {
       if (this.devDrag) return;
-      this.drag = { pointerY: pointer.y, startScroll: this.scroll, moved: false };
+      this.drag = {
+        pointerY: pointer.y,
+        startScroll: this.scroll,
+        moved: false,
+        // Timestamped samples of the finger's y, for the release velocity. A
+        // RING of the last few, so the average covers ~5 events rather than the
+        // whole gesture — a flick is decided by how it ENDED.
+        samples: [{ y: pointer.y, t: pointer.timestamp ?? performance.now() }],
+        id: pointer.id,
+      };
       this.velocity = 0;
+      this.flinging = false;
     };
 
     this.onMove = (pointer) => {
       if (!this.drag || this.devDrag) return;
-      const t = getBuilding();
-      // Dragging DOWN moves the content down, i.e. scrolls toward the TOP of the
-      // building — so the scroll offset decreases as the pointer's y increases.
-      // GAIN multiplies the finger's travel, so the building covers more ground for
-      // the same gesture — the "faster" half of the request. Sensitivity divides it,
-      // for when the movement needs to be finer.
-      const gain = Number.isFinite(t.scrollGain) ? t.scrollGain : 1;
-      const dy =
-        ((pointer.y - this.drag.pointerY) * gain) / (t.scrollSensitivity || 1);
-      if (Math.abs(dy) > 2) this.drag.moved = true;
+      // ONE finger drives the scroll. A second finger landing mid-drag would
+      // otherwise yank the content to its position.
+      if (pointer.id !== this.drag.id) return;
 
-      // EASED, not immediate: the goal is where the finger is, the target ramps
-      // toward it (acceleration) and the content chases the target (smoothing).
-      this.requestScroll(this.drag.startScroll - dy);
+      const t = getBuilding();
+      const gain = Number.isFinite(t.scrollGain) ? t.scrollGain : 1;
+      const travel = (pointer.y - this.drag.pointerY) / (t.scrollSensitivity || 1);
+
+      // A DRAG IS NOT A TAP UNTIL IT MOVES ENOUGH. This is the guard that stops a
+      // scroll gesture answering a question: the options sit over the scrollable
+      // building, so without a threshold every flick that started on a disc would
+      // also choose that animal.
+      if (!this.drag.moved && Math.abs(travel) > (t.scrollDragThresholdPx ?? 10)) {
+        this.drag.moved = true;
+        // A scroll that has become a scroll must not leave a disc looking pressed.
+        this.releaseAllOptions();
+      }
+
+      // Sample for the fling. Capped at `scrollVelocitySamples` so the average
+      // tracks the END of the gesture rather than its whole duration.
+      const now = pointer.timestamp ?? performance.now();
+      this.drag.samples.push({ y: pointer.y, t: now });
+      const maxSamples = Math.max(2, t.scrollVelocitySamples ?? 5);
+      while (this.drag.samples.length > maxSamples) this.drag.samples.shift();
+
+      // PINNED TO THE FINGER — no easing. The content is exactly where the thumb
+      // put it (times gain), which is what makes a scroll feel direct.
+      this.requestScroll(this.drag.startScroll - travel * gain);
     };
 
     this.onUp = (pointer) => {
       if (!this.drag) return;
+      if (pointer.id !== this.drag.id) return;
+
       const t = getBuilding();
-      const moved = this.drag.moved;
+      const drag = this.drag;
       this.drag = null;
 
-      if (!moved || !t.momentum) return;
+      // A TAP, or too short a gesture to have a direction: no fling. The content
+      // stays exactly where it is.
+      if (!drag.moved) {
+        this.velocity = 0;
+        return;
+      }
 
-      // Momentum: the last movement's velocity carries on, so a flick travels.
-      // Read from the pointer's own travel since the last move, not from a
-      // timer — a single flick then decays naturally.
-      this.velocity = -(pointer.y - this.lastPointerY || 0);
+      const releaseAt = pointer.timestamp ?? performance.now();
+      this.velocity = this.flingVelocity(drag, t, releaseAt);
+      this.flinging = Math.abs(this.velocity) > 0;
+    };
+
+    this.onUpOutside = () => {
+      // Lifting outside the canvas still ends the gesture — otherwise the content
+      // would stay pinned to a finger that is no longer there.
+      if (!this.drag) return;
+      const drag = this.drag;
+      this.drag = null;
+      this.velocity = 0;
+      void drag;
     };
 
     this.onWheel = (_pointer, _objects, _dx, dy) => {
       const t = getBuilding();
       if (!t.scrollWheel) return;
-      // Stepped through the GOAL, so a burst of wheel events accumulates into one
-      // movement instead of fighting itself (and the acceleration then smooths the
-      // whole burst).
-      this.requestScroll((this.scrollGoal ?? this.scroll) + dy);
-    };
-
-    this.onPointerMoveTrack = (pointer) => {
-      this.lastPointerY = pointer.y;
+      // A wheel step means the pointer is nowhere near committing to a tap, so any
+      // disc held down is released.
+      this.releaseAllOptions();
+      // A wheel step is a tiny GESTURE, so it feeds the same velocity the fling
+      // uses: quick scrolls on a trackpad accumulate into a fast glide, and one
+      // notch still moves one step. Additive on the existing speed, which is what
+      // makes a trackpad feel continuous rather than stepped.
+      this.velocity = clampVelocity(this.velocity + dy * 8, t);
+      this.flinging = true;
     };
 
     if (getBuilding().scrollSwipe) {
       scene.input.on('pointerdown', this.onDown);
       scene.input.on('pointermove', this.onMove);
       scene.input.on('pointerup', this.onUp);
+      scene.input.on('pointerupoutside', this.onUpOutside);
     }
-    scene.input.on('pointermove', this.onPointerMoveTrack);
     scene.input.on('wheel', this.onWheel);
   }
 
+  /**
+   * How fast the content should be travelling when the finger lifts.
+   *
+   * Measured over the LAST FEW samples rather than the whole drag, because a flick
+   * is defined by how it ended — dragging slowly then snapping your thumb away
+   * should throw the content, and dragging fast then holding still before lifting
+   * should not. Returns 0 for a sample window too short to be a real speed.
+   *
+   * The sign is inverted: a finger moving DOWN (increasing y) pushes the content
+   * toward the TOP of the building, i.e. the scroll offset DECREASES.
+   */
+  flingVelocity(drag, t, releaseAt) {
+    const s = drag.samples;
+    if (!s || s.length < 2) return 0;
+
+    const first = s[0];
+    const last = s[s.length - 1];
+
+    // THE FINGER STOPPED BEFORE IT LIFTED.
+    //
+    // This is the case that a naive "average the last few samples" gets wrong, and
+    // it gets it wrong in the direction of feeling broken: a child drags fast, then
+    // HOLDS still to read the floor, then lifts — and the content shoots away
+    // because the samples still remember the speed.
+    //
+    // A resting finger produces no `pointermove` events at all, so the evidence of
+    // the stop is the GAP between the last sample and the release.
+    const idleMs = Math.max(0, releaseAt - last.t);
+    if (idleMs > (t.scrollReleaseIdleMs ?? 60)) return 0;
+
+    const dtMs = last.t - first.t;
+    // Under this the timestamps are noise (or the whole gesture was one frame), so
+    // treat it as a hold rather than a throw.
+    if (dtMs <= 8) return 0;
+
+    const gain = Number.isFinite(t.scrollGain) ? t.scrollGain : 1;
+    // px per SECOND, in content space: the finger's travel × gain.
+    const speed = (((last.y - first.y) * gain) / dtMs) * 1000;
+
+    return clampVelocity(-speed, t);
+  }
+
+  /** Stop any glide dead — used when the player answers while the wall is moving. */
+  stopFling() {
+    this.velocity = 0;
+    this.flinging = false;
+  }
+
+  /**
+   * THE FLING. One integration step of the momentum model.
+   *
+   * NOTHING HERE EASES TOWARD A TARGET. While the finger is down the position is
+   * written straight from the pointer (see `onMove`), so this loop only runs while
+   * the content is coasting — which is what keeps the two states from fighting.
+   *
+   * The deceleration is EXPONENTIAL (`v *= exp(-k·dt)`), so the content loses a
+   * fixed FRACTION of its speed per second: a hard flick keeps most of its speed
+   * for a while and then settles, rather than stopping abruptly. That is the
+   * "fast scrolling should scroll far and stop later" behaviour.
+   */
   update(_ctx, _time, delta) {
+    // THE GUARD COMES FIRST. When the wall is at rest — which is almost every
+    // frame of a round — this returns without touching tuning at all. It used to
+    // resolve `getBuilding()` BEFORE the check, which deep-merged a fresh object
+    // 60 times a second for a scene that was not moving.
+    if (this.drag || Math.abs(this.velocity) <= 0) return;
+
+    // A backgrounded tab hands back a huge delta on return. Clamping means the
+    // content resumes where it was instead of teleporting by the seconds the tab
+    // spent hidden.
+    const dtSec = Math.min(delta, 50) / 1000;
+
+    // Resolved ONCE for this step, then handed to `setScroll`.
     const t = getBuilding();
-    // One clamped step, regardless of frame rate: a backgrounded tab hands back a
-    // huge delta on return, and an unclamped one would teleport the building.
-    const dt = Math.min(delta, 50) / 16.666;
 
-    // MOMENTUM runs on the GOAL, not the visible position, so a flick and a swipe
-    // compose instead of fighting: the glide continues from wherever the finger
-    // left it.
-    if (!this.drag && Math.abs(this.velocity) > 0) {
-      this.scrollGoal = clampToBounds((this.scrollGoal ?? this.scroll) + this.velocity * dt, this.scrollBounds);
+    // EXPONENTIAL DECAY. Frame-rate independent by construction: the speed is
+    // raised to the elapsed TIME, not multiplied per frame, so 30fps and 120fps
+    // travel the same distance.
+    const friction = Number.isFinite(t.scrollFriction) ? Math.max(0, t.scrollFriction) : 3.2;
+    const decay = Math.exp(-friction * dtSec);
 
-      // `scrollEaseOut` bleeds the glide off as well as the decay, so it settles
-      // rather than stopping dead.
-      this.velocity *= Math.pow(t.momentum, dt);
-      if (t.scrollEaseOut > 0) this.velocity *= 1 - Math.min(0.9, t.scrollEaseOut * dt);
+    // Integrating the exponential EXACTLY (rather than `v * dt`) keeps a flick's
+    // total travel independent of the frame rate — with a plain `v * dt` the same
+    // gesture would go further on a fast device.
+    const travel = friction > 0 ? (this.velocity * (1 - decay)) / friction : this.velocity * dtSec;
 
-      if (Math.abs(this.velocity) < t.momentumMinPx) this.velocity = 0;
-    }
+    const next = this.scroll + travel;
+    const clamped = t.clampScroll ? clampToBounds(next, this.scrollBounds) : next;
 
-    // STAGE 1 — ACCELERATION. The target ramps toward the goal rather than jumping
-    // to it, which is what makes the START of a swipe smooth instead of twitchy.
-    // Frame-rate independent: the per-60fps fraction is raised to the number of
-    // frames this one represents.
-    const accel = Number.isFinite(t.scrollAccel) ? Math.min(0.95, Math.max(0, t.scrollAccel)) : 0;
-    const goal = this.scrollGoal ?? this.scroll;
-
-    if (accel > 0) {
-      const goalDiff = goal - (this.scrollTarget ?? this.scroll);
-      if (Math.abs(goalDiff) < 0.5) {
-        this.scrollTarget = goal;
-      } else {
-        const accelFactor = 1 - Math.pow(1 - accel, dt);
-        this.scrollTarget = (this.scrollTarget ?? this.scroll) + goalDiff * accelFactor;
-      }
-    } else {
-      this.scrollTarget = goal;
-    }
-
-    // THE EASED CHASE. The visible position moves a fraction of the remaining
-    // distance each frame, which is what makes a swipe feel like sliding something
-    // with weight. `scrollSmoothing` 0 means "snap" (1:1 with the finger).
-    const target = this.scrollTarget ?? this.scroll;
-    const diff = target - this.scroll;
-
-    if (Math.abs(diff) < 0.5) {
-      if (this.scroll !== target) this.setScroll(target);
+    // HITTING AN END KILLS THE FLING. Without this the content would sit pinned at
+    // the edge while the invisible velocity kept decaying, and a child would have
+    // to wait for nothing before swiping back.
+    if (clamped !== next) {
+      this.setScroll(clamped, t);
+      this.stopFling();
       return;
     }
 
-    const smoothing = Number.isFinite(t.scrollSmoothing) ? Math.min(0.95, Math.max(0, t.scrollSmoothing)) : 0.22;
-    // Frame-rate independent: the fraction applied per 60fps frame, raised to the
-    // number of frames this one represents.
-    const factor = smoothing <= 0 ? 1 : 1 - Math.pow(1 - smoothing, dt);
+    this.setScroll(clamped, t);
+    this.velocity *= decay;
 
-    this.setScroll(this.scroll + diff * factor);
+    // Settle: below a walking pace the glide is over, so it snaps to rest instead
+    // of creeping for half a second.
+    const stop = Number.isFinite(t.scrollStopSpeed) ? t.scrollStopSpeed : 14;
+    if (Math.abs(this.velocity) < stop) this.stopFling();
   }
 
   removeListeners() {
@@ -872,15 +967,15 @@ export default class BuildingScene extends SceneBase {
       if (this.onDown) scene.input.off('pointerdown', this.onDown);
       if (this.onMove) scene.input.off('pointermove', this.onMove);
       if (this.onUp) scene.input.off('pointerup', this.onUp);
+      if (this.onUpOutside) scene.input.off('pointerupoutside', this.onUpOutside);
       if (this.onWheel) scene.input.off('wheel', this.onWheel);
-      if (this.onPointerMoveTrack) scene.input.off('pointermove', this.onPointerMoveTrack);
       if (this.onDevDown) scene.input.off('pointerdown', this.onDevDown);
     }
     this.onDown = null;
     this.onMove = null;
     this.onUp = null;
+    this.onUpOutside = null;
     this.onWheel = null;
-    this.onPointerMoveTrack = null;
     this.onDevDown = null;
     this.devDrag = null;
     this.drag = null;
@@ -1210,11 +1305,7 @@ export default class BuildingScene extends SceneBase {
       hit.on('pointerup', () => this.releaseOption(ctx, entry, t));
       // A finger that lands on a disc and slides off before lifting leaves the
       // press pulse on for good unless it is put back here.
-      hit.on('pointerout', () => {
-        if (this.phase !== 'playing') return;
-        entry.disc.setScale(1);
-        entry.sprite?.setScale(entry.restScale);
-      });
+      hit.on('pointerout', () => this.resetOption(entry));
 
       return entry;
     }).filter(Boolean);
@@ -1248,26 +1339,88 @@ export default class BuildingScene extends SceneBase {
     this.options = [];
   }
 
-  /** Press feedback: the disc grows slightly, so the tap is acknowledged. */
-  pressOption(ctx, entry, t) {
-    if (this.phase !== 'playing') return;
-    const scale = t.optionPressScale ?? 1.08;
-    entry.disc.setScale(scale);
-    entry.sprite?.setScale(entry.restScale * scale);
+  // A live handle on the Phaser.Scene, so timing (`this.time.now`) does not have
+  // to be threaded through every call. Set on mount, cleared on teardown.
+  get time() {
+    return this.ctx?.scene?.time;
+  }
+
+  /** Put a disc back to its resting size. Safe to call at any time. */
+  resetOption(entry) {
+    entry.disc?.setScale(1);
+    entry.sprite?.setScale(entry.restScale);
+  }
+
+  /** Put EVERY disc back — used when a gesture turns out to be a scroll. */
+  releaseAllOptions() {
+    this.options.forEach((entry) => this.resetOption(entry));
+    this.pressedOption = null;
+    this.pressAt = 0;
   }
 
   /**
-   * The answer, on RELEASE.
+   * Press feedback only.
    *
-   * Released rather than pressed, so a finger that lands on the wrong disc and
-   * slides off before lifting does not score — the same rule as scene 3.
+   * NOTHING IS SCORED HERE. Recording the press is the whole job; the answer is
+   * decided in `releaseOption`, once it is known the gesture was a TAP and not the
+   * start of a scroll. Scoring on press is what made a scroll that happened to
+   * begin over a disc answer the question.
+   */
+  pressOption(ctx, entry, t) {
+    if (this.phase !== 'playing') return;
+    const scale = t.optionPressScale ?? 1.08;
+    entry.disc?.setScale(scale);
+    entry.sprite?.setScale(entry.restScale * scale);
+    this.pressedOption = entry;
+    // Timestamped HERE, on press, so `releaseOption` can tell a tap from a rest.
+    this.pressAt = this.time?.now ?? 0;
+  }
+
+  /**
+   * The answer, on RELEASE — but ONLY for a genuine tap.
+   *
+   * THREE CONDITIONS have to hold, and each one covers a different mis-fire:
+   *
+   *   1. `pressedOption` is this entry — the finger went down ON this disc. Lifting
+   *      over a disc after pressing elsewhere must not answer.
+   *   2. The scroll gesture never became a drag (`this.drag.moved`). This is the
+   *      big one: the options sit over a scrollable building, so a flick that
+   *      starts on a disc would otherwise choose that animal too.
+   *   3. The touch was SHORT — under `tapMaxMs`. A long press is a child reading
+   *      the screen, or a finger resting while they think, and neither is an
+   *      answer.
+   *
+   * A failed condition silently resets the disc: no penalty, because nothing was
+   * answered.
    */
   releaseOption(ctx, entry, t) {
-    if (this.phase !== 'playing') return;
+    const wasPressed = this.pressedOption === entry;
+    // CAPTURE THE DRAG FLAGS BEFORE ANYTHING CLEARS THEM.
+    //
+    // `onUp` is registered on `scene.input`, while this handler is on the disc
+    // object — so the order the two run in is not something to rely on. Reading
+    // `this.drag` directly would then either see a drag that has already been
+    // discarded (answering when it should not) or miss one (refusing a real tap).
+    // Snapshotting the two facts here makes the guard independent of that order.
+    const gestureScrolled = !!this.drag?.moved;
+    const moving = Math.abs(this.velocity) > (t.scrollStopSpeed ?? 14);
 
-    // Back to rest first, whatever happens next.
-    entry.disc.setScale(1);
-    entry.sprite?.setScale(entry.restScale);
+    this.pressedOption = null;
+    this.resetOption(entry);
+
+    if (this.phase !== 'playing' || !wasPressed) return;
+
+    // (2) The gesture scrolled. `onMove` already cleared the press when it crossed
+    // the threshold; this is the belt to that braces.
+    if (gestureScrolled) return;
+
+    // (3) A long rest is not a tap.
+    const age = this.pressAt ? this.time.now - this.pressAt : 0;
+    if (age > (t.tapMaxMs ?? 700)) return;
+
+    // A moving wall means the child is still looking for the floor — answering now
+    // would score a tap they aimed at something else.
+    if (moving) return;
 
     if (entry.isAnswer) this.correctAnswer(ctx, entry, t);
     else this.wrongAnswer(ctx, entry, t);
@@ -1515,12 +1668,11 @@ export default class BuildingScene extends SceneBase {
     }
 
     this.measureScroll(t, H);
-    // Re-clamp ALL THREE: the building may now be shorter than any of them, and a
-    // stale goal would send the content accelerating toward an offset that no
-    // longer exists.
+    // A rebuild must not leave a fling running into a range that no longer
+    // exists — a stale velocity would carry the content past a building that just
+    // got shorter.
+    this.stopFling();
     this.setScroll(this.scroll);
-    this.scrollTarget = this.scroll;
-    this.scrollGoal = this.scroll;
 
     // THE QUESTION follows the picture. The shelf, the floor outline and the option
     // row are all positioned from the same tuning the building just adopted, so

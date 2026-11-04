@@ -1,5 +1,5 @@
 // GameScene.js
-// Game 16 — THE HUB. One Phaser scene that runs five mini-games in sequence.
+// Game 16 — THE HUB. One Phaser scene that runs four mini-games in sequence.
 //
 // WHAT THIS FILE OWNS
 // ---------------------------------------------------------------------------
@@ -24,6 +24,7 @@ import {
   BACKGROUND_COLOR,
   DEV_TUNING_ENABLED,
   TUNING,
+  getEndScreen,
   getEngine,
   getHud,
   getSceneTuning,
@@ -38,7 +39,7 @@ import {
   navLabel,
   startRun,
 } from '@/games/game-16/progress';
-import { makeConfettiTexture } from '@/phaser/common/sceneAssets';
+import { burstConfetti, destroyConfetti, runWipe } from '@/games/game-16/effects';
 
 // Re-exported so `import GameScene, { BACKGROUND_COLOR }` works in Game.jsx.
 export { BACKGROUND_COLOR };
@@ -102,11 +103,20 @@ export default class GameScene extends BaseScene {
     this.handingOver = false;
 
     // WRONG-ANSWER TALLY for the whole run (all five scenes). Incremented from
-    // every scene's `{ correct: false }` report, so it is complete whatever each
-    // mechanic turns out to be. Reported in the completion payload once all
-    // scenes are playable; nothing sends it before that.
+    // every scene's `{ correct: false }` report or its `mistakes` count, so it is
+    // complete whatever each mechanic turns out to be.
     this.mistakes = 0;
     this.mistakeLog = [];
+
+    // The end panel: an array of the objects it owns. It lives ON THE SCENE rather
+    // than in `layer`, because it has to sit above the confetti — and that means
+    // the layer teardown will not reach it, so it is cleared explicitly.
+    this.endScreen = null;
+
+    // True while the scene-change wipe is running, so `update()` can skip the
+    // mounted scene's per-frame work for the ~0.5s the screen is covered. The
+    // scene still exists during the wipe; it is just not visible.
+    this.wiping = false;
   }
 
   create() {
@@ -474,64 +484,250 @@ applyPromptPosition() {
     // A scene change resets the prompt; a round change within a scene does not
     // need a fade, because the layer is rebuilt anyway.
     const sceneChanged = next.scene !== this.position.scene;
+
+    // CELEBRATE FINISHING A MINI-GAME, not just the run. Reaching the end of a
+    // scene is the achievement a child can perceive; the run's own finish is then
+    // just the last of these. Fired BEFORE the change so the pieces are already
+    // falling as the wipe sweeps over them.
+    if (sceneChanged) burstConfetti(this, getEngine().sceneConfetti ?? 0);
+
+    const outgoing = sceneAt(this.position.scene);
+
     this.position = next;
-    this.mountCurrentScene({ fade: sceneChanged });
+
+    if (!sceneChanged) {
+      this.mountCurrentScene({ fade: false });
+      return;
+    }
+
+    // THE SCENE CHANGE, as a two-beat wipe: cover the screen in the OUTGOING
+    // scene's accent, swap while it is hidden, then sweep it away.
+    //
+    // The swap happens at the covered moment, so the outgoing scene's teardown and
+    // the incoming scene's build are never visible — which is what made the old
+    // bare fade read as a flash of empty backdrop between two pictures.
+    const engine = getEngine();
+    this.wiping = true;
+
+    runWipe(this, {
+      colour: engine.wipeColor ?? outgoing.color,
+      title: engine.wipeTitle ? sceneAt(next.scene).title : null,
+      onCovered: () => {
+        this.mountCurrentScene({ fade: false });
+        this.wiping = false;
+      },
+    });
   }
 
   finishRun() {
-    const engine = getEngine();
     this.position = { ...this.position, done: true };
     this.refreshHud();
     this.setPrompt('');
 
-    // A complete-run burst, then report to React. The event name and payload are
-    // the contract Game.jsx already has wired to logPlaySession.
-    if (this.textures.exists('g16-confetti') === false) {
-      makeConfettiTexture(this, 'g16-confetti');
-    }
-    const { width, height } = this.scale;
-    for (let i = 0; i < 24; i += 1) {
-      const piece = this.add
-        .image(width * (0.15 + Math.random() * 0.7), -40, 'g16-confetti')
-        .setDepth(50)
-        .setScale(0.6 + Math.random() * 0.5)
-        .setAngle(Math.random() * 360);
-      this.tweens.add({
-        targets: piece,
-        y: height + 60,
-        angle: piece.angle + 360,
-        duration: 1600 + Math.random() * 900,
-        delay: i * 40,
-        ease: 'Quad.easeIn',
-        onComplete: () => piece.destroy(),
-      });
-    }
-
+    // The finished run is REPORTED FIRST and the overlay second. The overlay is a
+    // full-canvas scrim, so if it went up first and the event threw, the run would
+    // look stuck behind a panel that never became dismissible.
     const payload = {
       stars: SCENES.length,
       // Derived, never hard-coded: scene 1 runs four rounds, so the run is 16.
       totalRounds: TOTAL_ROUNDS,
       peakStreak: 0,
-      // Never hard-coded 0: the real tally, accumulated across all five scenes.
-      // Nothing consumes it until the other scenes exist, but reporting a
-      // constant would make the value silently wrong the moment they do.
+      // Never hard-coded 0: the real tally, accumulated across every scene. A
+      // constant here would be silently wrong the moment a scene reported one.
       mistakes: this.mistakes || 0,
       elapsedSeconds: Math.round((this.time.now - (this.startTime || 0)) / 1000),
     };
     this.game.events.emit('game16-complete', payload);
-    this.setPrompt(`All ${SCENES.length} mini-games complete!`);
 
-    // Let the confetti play before anything else happens.
-    this.time.delayedCall(Math.max(400, engine.transitionMs), () => {
-      this.handingOver = false;
+    // A beat of confetti over the finished game, THEN the panel arrives on top.
+    // Drawing both at once makes the panel look like it interrupted the
+    // celebration instead of concluding it.
+    this.spawnFinishConfetti();
+
+    this.time.delayedCall(Math.max(320, (getEndScreen().popMs ?? 380) * 0.7), () => {
+      this.showEndScreen(payload);
     });
+  }
+
+  /**
+   * The FINAL confetti burst.
+   *
+   * Uses the shared emitter (see effects.js) rather than a loop of tweened images:
+   * one batched draw, a pooled particle set, no per-burst allocations. The count is
+   * a tuning value, and the emitter's own `maxAliveParticles` caps the total no
+   * matter how many bursts overlap.
+   */
+  spawnFinishConfetti() {
+    burstConfetti(this, getEngine().finishConfetti ?? getEndScreen().confettiCount ?? 0);
+  }
+
+  /**
+   * THE END SCREEN.
+   *
+   * A scrim, a panel with the run's result, one star per finished scene popping
+   * in sequence, and a REPLAY button. The replay button is the reason this exists:
+   * a child who has just finished wants to play again, and the alternative is
+   * leaving the game and finding it in the catalogue.
+   *
+   * Everything is on its own depth band above every scene (which caps out around
+   * 25) and above the confetti (50), and held in one array so `shutdown` can take
+   * it all down if the player leaves mid-panel.
+   */
+  showEndScreen(payload = {}) {
+    if (this.endScreen) return; // never stack two panels on a double report
+    const end = getEndScreen();
+    const { width: W, height: H } = this.scale;
+
+    this.endScreen = [];
+    const track = (obj) => {
+      this.endScreen.push(obj);
+      return obj;
+    };
+
+    // ---- the scrim: swallows input too, so nothing behind it can be tapped ----
+    const scrim = track(
+      this.add
+        .rectangle(W / 2, H / 2, W, H, end.scrimColor, end.scrimAlpha)
+        .setDepth(60)
+        .setInteractive()
+    );
+
+    // ---- the panel ----
+    const panelW = Math.min(W * end.panelWidthFrac, end.panelMaxWidth);
+    const panelH = H * end.panelHeightFrac;
+
+    const panel = track(this.add.container(W / 2, H / 2).setDepth(61));
+
+    const bg = this.add.graphics();
+    bg.fillStyle(end.panelColor, 1);
+    bg.fillRoundedRect(-panelW / 2, -panelH / 2, panelW, panelH, end.panelRadius);
+    bg.lineStyle(end.panelBorderWidth, end.panelBorderColor, 1);
+    bg.strokeRoundedRect(-panelW / 2, -panelH / 2, panelW, panelH, end.panelRadius);
+    panel.add(bg);
+
+    // THE ENTRANCE PUNCH: the panel arrives scaled down, so it reads as a new
+    // surface rather than a sudden change of the game behind it.
+    panel.setScale(0.7).setAlpha(0);
+    this.tweens.add({
+      targets: panel,
+      scale: 1,
+      alpha: 1,
+      duration: Math.max(1, end.popMs),
+      ease: 'Back.easeOut',
+    });
+
+    // ---- the headline ----
+    panel.add(
+      this.add
+        .text(0, panelH * end.titleYOffsetFrac, end.titleText, {
+          fontSize: `${end.titleFontSize}px`,
+          fontFamily: 'Fredoka, sans-serif',
+          fontStyle: 'bold',
+          color: end.titleColor,
+        })
+        .setOrigin(0.5)
+    );
+
+    // ---- ONE STAR PER FINISHED SCENE, popping in sequence ----
+    const totalStars = Math.max(1, payload.stars || SCENES.length);
+    const starY = panelH * end.starYOffsetFrac;
+    const rowW = totalStars * end.starSize + (totalStars - 1) * end.starGapPx;
+
+    for (let i = 0; i < totalStars; i += 1) {
+      const x = -rowW / 2 + end.starSize / 2 + i * (end.starSize + end.starGapPx);
+
+      const star = this.add
+        .text(x, starY, '★', {
+          fontSize: `${end.starSize}px`,
+          fontFamily: 'Fredoka, sans-serif',
+          color: end.starColor,
+        })
+        .setOrigin(0.5)
+        .setScale(0);
+
+      panel.add(star);
+
+      // Staggered, so the run feels COUNTED. Each star also overshoots slightly,
+      // which is what makes it land with weight.
+      this.tweens.add({
+        targets: star,
+        scale: 1,
+        duration: Math.max(1, end.starPopMs),
+        delay: 160 + i * end.starStaggerMs,
+        ease: 'Back.easeOut',
+      });
+    }
+
+    // ---- the summary ----
+    const mistakes = payload.mistakes || 0;
+    const summary =
+      mistakes === 0
+        ? 'Perfect run — no mistakes!'
+        : `${mistakes} ${mistakes === 1 ? 'mistake' : 'mistakes'} this run`;
+
+    panel.add(
+      this.add
+        .text(0, panelH * end.summaryYOffsetFrac, summary, {
+          fontSize: `${end.summaryFontSize}px`,
+          fontFamily: 'Fredoka, sans-serif',
+          fontStyle: 'bold',
+          color: end.summaryColor,
+        })
+        .setOrigin(0.5)
+    );
+
+    // ---- REPLAY ----
+    const buttonY = panelH * end.buttonYOffsetFrac;
+    const replay = this.createPillButton(0, buttonY, end.buttonLabel, {
+      fontSize: `${end.buttonFontSize}px`,
+      bgColor: end.buttonBgColor,
+      textColor: end.buttonTextColor,
+      paddingX: end.buttonPaddingX,
+      paddingY: end.buttonPaddingY,
+      depth: 62,
+    });
+    panel.add(replay);
+
+    // Deferred by one tick: this handler runs INSIDE the button's own pointerup,
+    // and destroying the panel (which owns the button) mid-event would tear down
+    // the object whose handler is still on the stack. A 0ms call lands after the
+    // event has finished unwinding.
+    replay.on('pointerup', () => {
+      this.time.delayedCall(0, () => this.restartRun());
+    });
+
+    // Keep the tracked list to the things that must be destroyed. The panel owns
+    // its children, so destroying it takes the text and the button with it.
+    this.endScreen = [scrim, panel];
+  }
+
+  /**
+   * Play again.
+   *
+   * `scene.restart()` re-runs create() on the SAME scene instance, which is why
+   * `resetRun()` is called at the top of create() — the run state, the mounted
+   * scene and the mistake tally all have to be re-initialised there or the second
+   * run would inherit the first one's position.
+   */
+  restartRun() {
+    this.clearEndScreen();
+    this.scene.restart();
+  }
+
+  clearEndScreen() {
+    if (!this.endScreen) return;
+    this.endScreen.forEach((obj) => obj?.destroy?.());
+    this.endScreen = null;
   }
 
   // ---------------------------------------------------------------------------
   // UPDATE
   // ---------------------------------------------------------------------------
   update(time, delta) {
-    if (!this.active || this.position.done) return;
+    // Nothing to drive while covered by the wipe, or once the run is over. That is
+    // the difference between "the transition costs nothing" and "the transition
+    // runs a hidden scene's integrator for half a second".
+    if (!this.active || this.position.done || this.wiping) return;
     this.active.update(this.ctxForActive(), time, delta);
   }
 
@@ -629,5 +825,14 @@ applyPromptPosition() {
       this.active.destroy();
       this.active = null;
     }
+    // The end panel is NOT in `layer`, so the scene teardown does not reach it.
+    this.clearEndScreen();
+
+    // The confetti emitter is cached against THIS scene instance, and a restart
+    // reuses that instance — so a stale, already-destroyed emitter would otherwise
+    // be handed back on the second run and every burst would throw.
+    destroyConfetti(this);
+
+    this.wiping = false;
   }
 }

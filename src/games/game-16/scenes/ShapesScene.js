@@ -1299,6 +1299,11 @@ export default class ShapesScene extends SceneBase {
   // option is off screen — and STOPS there, holding the position it reached.
   // One integrator, two readers.
   update(ctx, time, delta) {
+    // EVERY GUARD BEFORE THE TUNING READ. `getScene1()` deep-merges a fresh object
+    // per call in dev, and this loop runs every frame of a round — so resolving it
+    // first meant allocating constantly during the (common) frames where the belt
+    // is idle. The ride is the only thing this integrator drives, so if there is no
+    // ride there is nothing to read.
     if (!this.roundActive) return;
     // A wrong drop also rides the belt away, so the belt must keep moving. The
     // only difference is what happens when the shape leaves the screen.

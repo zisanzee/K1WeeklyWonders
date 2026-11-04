@@ -122,4 +122,3 @@ export function sceneAt(index) {
   return SCENES[index];
 }
 
-export const SCENE_COUNT = SCENES.length;
