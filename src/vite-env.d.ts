@@ -1,5 +1,14 @@
 /// <reference types="vite/client" />
 
+// Vite's `?raw` suffix returns the file's text. Declared explicitly because the
+// generated vite/client types only cover the suffixes Vite ships shims for, and
+// game 16's tuning file uses `?raw` to read its own source for the dev panel's
+// copy-paste readout.
+declare module '*?raw' {
+  const src: string;
+  export default src;
+}
+
 // vite-plugin-pwa injects this virtual module at build time (and provides a
 // no-op stub in dev). Declaring it here keeps editors/TS from flagging the
 // dynamic import in src/pwa.js as an unresolved module. There is no runtime

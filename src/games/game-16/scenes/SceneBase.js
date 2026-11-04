@@ -322,6 +322,41 @@ export default class SceneBase {
     strip.sprite.tilePositionX = strip.scroll;
   }
 
+  /**
+   * A full-canvas colour flush: green for a win, red for a miss.
+   *
+   * ONE implementation for every scene that needs it. Scene 1 grew its own
+   * copy first, tied to ITS tuning keys; this one takes the numbers as an
+   * argument so a second scene is not forced to inherit the first one's
+   * palette or timing. The effect destroys itself, so nothing has to track it
+   * and a round change cannot leave a coloured rectangle behind.
+   *
+   * Depth defaults to the top of the scene layer but below the HUD, so the
+   * prompt stays legible through the flash.
+   */
+  flashScreen(ctx, { colour, alpha, fadeMs = 120, holdMs = 200, depth = 45 } = {}) {
+    if (!ctx?.scene || alpha <= 0) return null;
+
+    const { width, height } = ctx.scene.scale;
+    const flash = ctx.scene.add
+      .rectangle(width / 2, height / 2, width, height, colour, alpha)
+      .setDepth(depth)
+      .setAlpha(0);
+    ctx.layer.add(flash);
+
+    ctx.scene.tweens.add({
+      targets: flash,
+      alpha: 1,
+      duration: Math.max(1, fadeMs),
+      ease: 'Quad.easeOut',
+      yoyo: true,
+      hold: Math.max(0, holdMs),
+      onComplete: () => flash.destroy(),
+    });
+
+    return flash;
+  }
+
   // ---------------------------------------------------------------------------
   // DEV PLACEHOLDER CHROME
   // ---------------------------------------------------------------------------

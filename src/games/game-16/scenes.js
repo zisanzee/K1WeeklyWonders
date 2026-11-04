@@ -17,9 +17,11 @@
 // scene has shipped. `title`/`short`/`hint` are for humans and are free to
 // change. `rounds` is fixed at 3 for this game by design.
 
-// Default round count for a scene. A scene may override it with its own `rounds`
-// — scene 1 runs FOUR, because its last round is a two-shape round that needs its
-// own clue ("4 corners"), and folding that into three would drop a clue.
+// Default round count for a scene. A scene overrides it with its own `rounds`
+// when its shape differs: scene 1 runs FOUR (its last round is a two-shape round
+// needing its own clue), scene 3 runs FOUR (one portrait per relation pair), and
+// scene 4 runs FIVE (one question about one floor per round).
+// Scene 2 uses this default.
 export const ROUNDS_PER_SCENE = 3;
 
 export const SCENES = [
@@ -47,44 +49,58 @@ export const SCENES = [
     number: 2,
     title: 'Mirror',
     short: 'Mirror',
-    hint: 'Match the mirrored half.',
-    plan: 'Rebuild a symmetrical picture by dragging pieces to the mirrored spot.',
+    hint: 'Drag each piece to its spot.',
+    // Implemented. The three rounds share one mechanic and differ only in the
+    // AXIS: vertical, horizontal, then diagonal. Which parts belong to which
+    // round, and where they sit, lives in mirrorRounds.js — not here.
+    plan: 'Build a portrait on one side of a mirror line; each part reflects onto the other side as it is placed.',
     rounds: ROUNDS_PER_SCENE,
     color: 0xa78bfa,
-    implemented: false,
+    implemented: true,
   },
   {
+    // FORMERLY TWO SCENES. "Positions" (top/middle/bottom) and "Left - Right"
+    // were separate mini-games, but they are one mechanic: a prompt names a
+    // RELATIVE POSITION and the child drags an object to the spot that answers
+    // it. Merged into this one scene with FOUR portraits, each asking two
+    // opposite relations (above/below, front/behind, inside/outside,
+    // left/right) — which is also how the curriculum wants the pairs taught.
+    //
+    // `id` stays 'positions': it is identity and keys the tuning block, the dev
+    // panel group and the run's progress, so it must not change now.
     id: 'positions',
     number: 3,
     title: 'Positions',
     short: 'Positions',
-    hint: 'Where is the bird?',
-    plan: 'Name a position word (top, middle, bottom) for a character in a scene.',
-    rounds: ROUNDS_PER_SCENE,
+    hint: 'Where does it go?',
+    plan: 'A prompt names a relative position (on top of, in front of, inside, to the left of); drag the object to the matching spot in the picture.',
+    // FOUR portraits (each word appears twice, so each has two prompts).
+    rounds: 4,
+    // Pastel green: distinct from scene 2's violet and scene 1's sky blue.
     color: 0x34d399,
     implemented: false,
   },
   {
-    id: 'left-right',
+    // THE ORDINAL SCENE, with its real picture. It replaces the `ordinal`
+    // placeholder one-for-one: same idea (ten floors, one animal per floor), same
+    // position in the run, but now built from the wall + room artwork and
+    // scrollable so all ten floors can be reached.
+    //
+    // The wall is tiled from three pieces — a top cap, a repeating middle and a
+    // bottom cap — so it grows to whatever height the ten rooms need instead of
+    // being stretched.
+    id: 'building',
     number: 4,
-    title: 'Left - Right',
-    short: 'Left/Right',
-    hint: 'Which one is on the left?',
-    plan: 'Pick the character on the left or right of a landmark.',
-    rounds: ROUNDS_PER_SCENE,
-    color: 0xfbbf24,
-    implemented: false,
-  },
-  {
-    id: 'ordinal',
-    number: 5,
-    title: 'Ordinal (first - tenth)',
-    short: 'Ordinal',
+    title: 'The Building',
+    short: 'Building',
     hint: 'Which animal is on the third floor?',
-    plan: 'Find the character on the given ordinal floor / position.',
-    rounds: ROUNDS_PER_SCENE,
+    plan: 'Ten rooms stacked in a tiled building; swipe to scroll the wall and find the animal on a given floor.',
+    // FIVE questions, not the default three: each round asks about ONE floor,
+    // and three floors out of ten is too thin a sample of the building. The
+    // floors are distinct per run (see buildingRounds.js).
+    rounds: 5,
     color: 0xfb7185,
-    implemented: false,
+    implemented: true,
   },
 ];
 

@@ -36,6 +36,165 @@ export const IMAGES = {
   s1Conveyor: cld(
     'https://res.cloudinary.com/hijmipga/image/upload/v1793451486/image-Photoroom_idacbc.png'
   ),
+  // ---- SCENE 2 — mirror (three portraits, three axes) ---------------------
+  //
+  // KEYS ARE FLAT, like everything else in this table. The URLs arrived grouped
+  // per round (s2round1: { crab1, crab2, crab3 }) and that shape BREAKS the
+  // loader: ASSET_MANIFEST below maps every value straight to a URL, so a nested
+  // object is handed to Phaser as one and the preload rejects it. Which round a
+  // part belongs to is decided in mirrorRounds.js instead, where it also carries
+  // the part id the tuning block is keyed by.
+  //
+  // Each round needs the PARTS OF ONE PORTRAIT, not three separate pictures:
+  // scene 2 assembles them on one side of a mirror axis and reflects the whole
+  // group onto the other.
+  // round 1 — crab, mirrored across a VERTICAL axis
+  s2Crab1: cld('https://res.cloudinary.com/hijmipga/image/upload/v1793615282/crab1_nh0mbg.png'),
+  s2Crab2: cld('https://res.cloudinary.com/hijmipga/image/upload/v1793615283/crab2_ukccws.png'),
+  s2Crab3: cld('https://res.cloudinary.com/hijmipga/image/upload/v1793615283/crab3_wd0ouv.png'),
+  // round 2 — guitar, mirrored across a HORIZONTAL axis
+  s2Guitar1: cld('https://res.cloudinary.com/hijmipga/image/upload/v1793615284/guitar_1_gkkjkg.png'),
+  s2Guitar2: cld('https://res.cloudinary.com/hijmipga/image/upload/v1793615284/guitar_2_cz0zy0.png'),
+  s2Guitar3: cld('https://res.cloudinary.com/hijmipga/image/upload/v1793615284/guitar_3_ul2iyu.png'),
+  // round 3 — bird, mirrored across a 45° DIAGONAL axis
+  s2Bird1: cld('https://res.cloudinary.com/hijmipga/image/upload/v1793615283/bird_1_yahriq.png'),
+  s2Bird2: cld('https://res.cloudinary.com/hijmipga/image/upload/v1793615282/bird2_c9naxv.png'),
+  s2Bird3: cld('https://res.cloudinary.com/hijmipga/image/upload/v1793615283/bird3_pg2rqz.png'),
+
+
+  // ---- SCENE 3 — positions (four portraits, eight prompts) ----------------
+  //
+  // FLAT AGAIN, for the same reason as scene 2: the URLs arrived as nested
+  // `round1: { bg, cat, … }` objects, and ASSET_MANIFEST below maps every value
+  // straight to a URL — a nested object is handed to Phaser as one and the
+  // preload rejects it. Round membership lives in tuning.js (`POSITION_PARTS`),
+  // where it also carries the id the panel is keyed by.
+  //
+  // Keys are `s3r<portrait><Name>`: portrait 1-4, then the object.
+  //
+  // NOTE ON TWO SOURCE FILES, left exactly as supplied:
+  //   • s3r4Plate came from a key named `knife` but the URL is a blue-rimmed
+  //     PLATE. There is no knife artwork yet, so round 4's pair is fork + plate.
+  //     When knife art lands, add s3r4Knife and a part row; nothing else changes.
+  //   • s3r3Teddy's URL is "Toy_Box_with_Teddy_and_Red_Car", i.e. the box AND
+  //     the teddy in one image. Round 3's prompts are "inside the box" /
+  //     "outside the box", so that composite may need splitting into a box and a
+  //     teddy before it can read as two placements.
+  // portrait 1 — the wall
+  s3r1Bg: cld(
+    'https://res.cloudinary.com/hijmipga/image/upload/v1793715524/Colorful_Cartoon_Garden_Wall_2_alefoq.png'
+  ),
+  s3r1Cat: cld(
+    'https://res.cloudinary.com/hijmipga/image/upload/v1793712744/round1cat_r7xx7f.png'
+  ),
+  s3r1Flower: cld(
+    'https://res.cloudinary.com/hijmipga/image/upload/v1793712744/round1flower_acnfq5.png'
+  ),
+  // portrait 2 — the roadside (top-down)
+  s3r2Bg: cld(
+    'https://res.cloudinary.com/hijmipga/image/upload/v1793716121/Top-Down_Blue_Car_on_a_Green_Road_1_tycek6.png'
+  ),
+  s3r2Bike: cld(
+    'https://res.cloudinary.com/hijmipga/image/upload/v1793712745/round2bike-Photoroom_fbwfci.png'
+  ),
+  s3r2Truck: cld(
+    'https://res.cloudinary.com/hijmipga/image/upload/v1793712749/Top-Down_Cartoon_Roadway_Traffic-Photoroom_xhbo1r.png'
+  ),
+  // portrait 3 — the box
+  s3r3Bg: cld(
+    'https://res.cloudinary.com/hijmipga/image/upload/v1793712743/Empty_Cardboard_Box_on_Wood_Table_xjhtlv.png'
+  ),
+  s3r3ToyCar: cld(
+    'https://res.cloudinary.com/hijmipga/image/upload/v1793712747/round3Car-Photoroom_wsrfx5.png'
+  ),
+  s3r3Teddy: cld(
+    'https://res.cloudinary.com/hijmipga/image/upload/v1793712750/Toy_Box_with_Teddy_and_Red_Car-Photoroom_wqf8dd.png'
+  ),
+  // portrait 4 — the table
+  s3r4Bg: cld(
+    'https://res.cloudinary.com/hijmipga/image/upload/v1793712743/Empty_Blue-Rimmed_Plate_on_Wooden_Table_slmbyi.png'
+  ),
+  s3r4Fork: cld(
+    'https://res.cloudinary.com/hijmipga/image/upload/v1793712748/round4fork-Photoroom_pfk4qm.png'
+  ),
+  s3r4Plate: cld(
+    'https://res.cloudinary.com/hijmipga/image/upload/v1793712742/Blue-Rimmed_Plate_Place_Setting-Photoroom_lsz1zv.png'
+  ),
+
+
+  // ---- SCENE 4 — stack the rooms on top of each other and create the building in the background by looping the wall assets. -----------------------------------
+  wallTop: cld(
+    'https://res.cloudinary.com/hijmipga/image/upload/v1793797013/top_wall_adufj3.png'
+  ),
+  wallMiddleLoop: cld(
+    'https://res.cloudinary.com/hijmipga/image/upload/v1793797013/loopwall_rjew8a.png'
+  ),
+  wallBottom: cld(
+    'https://res.cloudinary.com/hijmipga/image/upload/v1793797015/end_wall_t2sdvt.png'
+  ),
+  roomFrog: cld(
+    'https://res.cloudinary.com/hijmipga/image/upload/v1793797015/frogroom_wvfrwl.png'
+  ),
+  roomSheep: cld(
+    'https://res.cloudinary.com/hijmipga/image/upload/v1793797015/sheeproom_n1dwg6.png'
+  ),
+  roomGirrafe: cld(
+    'https://res.cloudinary.com/hijmipga/image/upload/v1793797015/girraferoom_x1o4q8.png'
+  ),
+  roomPenguin: cld(
+    'https://res.cloudinary.com/hijmipga/image/upload/v1793797014/Penguinroom_oh7lnz.png'
+  ),
+  roomDog: cld(
+    'https://res.cloudinary.com/hijmipga/image/upload/v1793797014/dogroom_ymsazy.png'
+  ),
+  roomFish: cld(
+    'https://res.cloudinary.com/hijmipga/image/upload/v1793797014/fishroom_b0hmlm.png'
+  ),
+  roomLion: cld(
+    'https://res.cloudinary.com/hijmipga/image/upload/v1793797013/lionroom_feo9pp.png'
+  ),
+  roomCow: cld(
+    'https://res.cloudinary.com/hijmipga/image/upload/v1793797013/cowroom_p0tmpd.png'
+  ),
+  roomElephant: cld(
+    'https://res.cloudinary.com/hijmipga/image/upload/v1793797013/elephantroom_hmmo2a.png'
+  ),
+  roomCat: cld(
+    'https://res.cloudinary.com/hijmipga/image/upload/v1793797013/catroom_cizq4p.png'
+  ),
+
+  // option images for scene 4 
+  optionFrog: cld(
+    'https://res.cloudinary.com/hijmipga/image/upload/v1793805358/optionFrog_ttv9jh.png'
+  ),
+  optionSheep: cld(
+    'https://res.cloudinary.com/hijmipga/image/upload/v1793805479/optionsheep_y0jfq2.png'
+  ),
+  optionGirrafe: cld(
+    'https://res.cloudinary.com/hijmipga/image/upload/v1793805358/optionGiraffe_zvccp0.png'
+  ),
+  optionPenguin: cld(
+    'https://res.cloudinary.com/hijmipga/image/upload/v1793805360/optionPenguin_kpt3r6.png'
+  ),
+  optionDog: cld(
+    'https://res.cloudinary.com/hijmipga/image/upload/v1793805357/optionDog_uxettm.png'
+  ),
+  optionFish: cld(
+    'https://res.cloudinary.com/hijmipga/image/upload/v1793805358/optionFish_hxalo3.png'
+  ),
+  optionLion: cld(
+    'https://res.cloudinary.com/hijmipga/image/upload/v1793805359/optionLion_zkcycs.png'
+  ),
+  optionCow: cld(
+    'https://res.cloudinary.com/hijmipga/image/upload/v1793805357/optionCow_iiwluf.png'
+  ),
+  optionElephant: cld(
+    'https://res.cloudinary.com/hijmipga/image/upload/v1793805357/optionElephant_szet9l.png'
+  ),
+  optionCat: cld(
+    'https://res.cloudinary.com/hijmipga/image/upload/v1793805357/optionCat_kwrmz4.png'
+  )
+
 };
 
 // ---------------------------------------------------------------------------

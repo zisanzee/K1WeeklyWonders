@@ -4,7 +4,7 @@
 // WHAT THIS FILE OWNS
 // ---------------------------------------------------------------------------
 //   • the run position (scene 0..4 × round 0..2 = 15 rounds) via progress.js
-//   • the SHARED HUD: scene title, progress dots, prompt line, mute button
+//   • the SHARED HUD: scene title, prompt line, mute button
 //   • mounting/unmounting one scene MODULE at a time (../scenes/*), with a fade
 //     handover, so a run keeps one create(), one music instance and one mute
 //   • the dev plumbing: the tuning panel's scene/round nav, live relayout, and
@@ -43,20 +43,21 @@ import { makeConfettiTexture } from '@/phaser/common/sceneAssets';
 // Re-exported so `import GameScene, { BACKGROUND_COLOR }` works in Game.jsx.
 export { BACKGROUND_COLOR };
 
-// The five scene modules, in registry order. Keys must match scenes.js ids —
+// The four scene modules, in registry order. Keys must match scenes.js ids —
 // asserted at module scope below so a rename can't silently break the mount.
 import ShapesScene from '@/games/game-16/scenes/ShapesScene';
 import MirrorScene from '@/games/game-16/scenes/MirrorScene';
 import PositionsScene from '@/games/game-16/scenes/PositionsScene';
-import LeftRightScene from '@/games/game-16/scenes/LeftRightScene';
-import OrdinalScene from '@/games/game-16/scenes/OrdinalScene';
+import BuildingScene from '@/games/game-16/scenes/BuildingScene';
 
+// FOUR scenes. "Positions" and "Left - Right" were the same mechanic, so they are
+// one scene with four portraits (see scenes.js), and the ordinal placeholder is
+// replaced by the real building.
 const MODULES = {
   shapes: ShapesScene,
   mirror: MirrorScene,
   positions: PositionsScene,
-  'left-right': LeftRightScene,
-  ordinal: OrdinalScene,
+  building: BuildingScene,
 };
 
 // Fail loudly at import time rather than half-running: a scene in the registry
@@ -83,7 +84,6 @@ export default class GameScene extends BaseScene {
     this.layer = null; // container the active scene draws into
     this.promptText = null;
     this.titleText = null;
-    this.dots = [];
     this.hudBg = null;
     // RUN-LEVEL scene state that must survive a round remount: the belt's travel
     // position, a scene's generated round plan, anything a scene needs to carry
@@ -186,42 +186,145 @@ export default class GameScene extends BaseScene {
       .setOrigin(0.5)
       .setDepth(20);
 
-    // One dot per SCENE (not per round): five dots answer "which mini-game am I
-    // in, and how many are left", which is what a child needs to know.
-    const startX = width / 2 - ((SCENES.length - 1) * hud.dotGap) / 2;
-    const y = this.scale.height * hud.dotsYFrac;
-    this.dots = SCENES.map((_, i) =>
-      this.add
-        .circle(startX + i * hud.dotGap, y, hud.dotRadius, hud.dotActiveColor)
-        .setDepth(20)
-    );
-
     this.refreshHud();
   }
 
   // Pushes the current position onto the HUD. Cheap; called on every mount.
+  //
+  // The scene title carries the progress on its own ("2 / 4 · Mirror Bays"), so
+  // there is no separate row of dots: the title says the same thing in words a
+  // child can read out, and the dots were competing with the prompt for the top
+  // of the screen in the scenes that paint a full-width header band.
   refreshHud() {
-    const hud = getHud();
     const scene = sceneAt(this.position.scene);
-
     this.titleText.setText(`${scene.number} / ${SCENES.length} · ${scene.title}`);
-
-    this.dots.forEach((dot, i) => {
-      if (i < this.position.scene) {
-        // Completed scenes read green.
-        dot.setFillStyle(hud.dotDoneColor, 1);
-      } else if (i === this.position.scene) {
-        dot.setFillStyle(hud.dotActiveColor, 1);
-      } else {
-        dot.setFillStyle(hud.dotActiveColor, hud.dotIdleAlpha);
-      }
-    });
   }
 
   // The scene modules call this through ctx to change the prompt.
-  setPrompt(text) {
-    if (this.promptText) this.promptText.setText(text || '');
+setPrompt(text) {
+  if (this.promptText) this.promptText.setText(text || '');
+}
+
+/**
+ * The full-width band behind the prompt, for scenes that do not have clear space
+ * at the top.
+ *
+ * Drawn at depth 19 — BELOW the prompt text (20) but ABOVE every scene's layer
+ * (10) — so it is a header bar over the art rather than something the art can
+ * cover.
+ *
+ * It is DESTROYED rather than hidden when a scene has no band, because a stray
+ * full-width rectangle left on screen by the previous scene would read as a bug.
+ */
+applyPromptBand(block = {}, W) {
+  const height = Number.isFinite(block.promptBandHeight) ? block.promptBandHeight : 0;
+
+  // No band for this scene: remove any the last one left behind.
+  if (height <= 0) {
+    this.promptBand?.destroy();
+    this.promptBand = null;
+    return;
   }
+
+  if (!this.promptBand?.active) {
+    this.promptBand = this.add.graphics().setDepth(19);
+  }
+
+  const g = this.promptBand;
+  g.clear();
+
+  // Pinned to the very top: a header bar, so `height` is the only position it
+  // needs and it cannot be dragged off screen by a y slider meant for the text.
+  g.fillStyle(block.promptBandColor ?? 0xd2b48c, block.promptBandAlpha ?? 0.92);
+  g.fillRect(0, 0, W, height);
+
+  // A hairline along the bottom edge, so it reads as a bar with a defined end.
+  if (block.promptBandEdgeWidth > 0) {
+    g.fillStyle(block.promptBandEdgeColor ?? 0xfbbf24, 1);
+    g.fillRect(0, height - block.promptBandEdgeWidth, W, block.promptBandEdgeWidth);
+  }
+}
+
+/**
+ * Move the prompt to the CURRENT scene's preferred y.
+ *
+ * The prompt is shared HUD — drawn once, outside any scene's layer — so its
+ * position cannot live in a scene module. Instead each scene's tuning block
+ * carries a `promptYFrac`, and this applies it on every mount: scene 3 wants its
+ * sentence at the bottom under the portrait, the others keep the top.
+ *
+ * A NEGATIVE value means "no opinion" and falls back to the shared HUD y, so a
+ * scene that does not care needs no override and cannot accidentally pin the
+ * prompt to the top of the canvas.
+ */
+applyPromptPosition() {
+  if (!this.promptText) return;
+
+  const hud = getHud();
+  const scene = sceneAt(this.position.scene);
+  const block = getSceneTuning(scene.id) || {};
+  const W = this.scale.width;
+  const H = this.scale.height;
+
+  // -1 on any of these means "use the shared HUD value", so a scene that does
+  // not care needs no override at all.
+  const pick = (perScene, fallback) =>
+    Number.isFinite(perScene) && perScene >= 0 ? perScene : fallback;
+
+  const yFrac = pick(block.promptYFrac, hud.promptYFrac);
+  const wrapFrac = pick(block.promptWrapFrac, hud.promptWrapFrac);
+  const xFrac = block.promptXFrac;
+  const align = typeof block.promptAlign === 'string' ? block.promptAlign : null;
+
+  this.promptText.setY(H * yFrac);
+
+  // THE PROMPT BAND, drawn BEFORE the text is placed so it never covers it.
+  this.applyPromptBand(block, W);
+
+  // PROMPT AND TITLE COLOURS, re-applied on EVERY mount from the shared HUD and
+  // then overridden by the scene.
+  //
+  // It has to be unconditional: a scene that banded its prompt to dark-on-tan
+  // would otherwise leave that styling on the NEXT scene, whose prompt sits
+  // directly on art and needs white-with-an-outline.
+  const strokeThickness =
+    Number.isFinite(block.promptStrokeThickness) && block.promptStrokeThickness >= 0
+      ? block.promptStrokeThickness
+      : hud.promptStrokeThickness;
+
+  this.promptText.setColor(block.promptColor || hud.promptColor);
+  this.promptText.setStroke(
+    block.promptStrokeColor || hud.promptStrokeColor,
+    strokeThickness
+  );
+
+  if (this.titleText) {
+    this.titleText.setColor(block.promptTitleColor || hud.titleColor);
+  }
+
+  // ANCHOR AND ALIGNMENT HAVE TO AGREE, or the block drifts.
+  //
+  //  · no promptXFrac → centred on the canvas midline (origin 0.5).
+  //  · promptXFrac + align 'left' → origin 0 at that x, so the text grows
+  //    rightward from the column's left edge.
+  //  · promptXFrac + align 'center' → origin 0.5 at the column's MIDPOINT, so
+  //    centred lines sit centred in the column. Anchoring at 0 here would centre
+  //    each line on the column's left edge and push the text under the disc.
+  const anchored = Number.isFinite(xFrac) && xFrac >= 0;
+
+  if (!anchored) {
+    this.promptText.setOrigin(0.5).setX(W / 2);
+  } else if (align === 'center') {
+    this.promptText.setOrigin(0.5).setX(W * xFrac + (W * wrapFrac) / 2);
+  } else {
+    this.promptText.setOrigin(0, 0.5).setX(W * xFrac);
+  }
+
+  if (align) this.promptText.setAlign(align);
+  // `setWordWrapWidth` re-flows the existing text immediately, which is what
+  // makes dragging the wrap slider visible without a remount.
+  this.promptText.setWordWrapWidth(W * wrapFrac);
+}
 
   // ---------------------------------------------------------------------------
   // MOUNTING
@@ -254,6 +357,7 @@ export default class GameScene extends BaseScene {
     this.active.mount(ctx, this.position.round);
 
     this.refreshHud();
+    this.applyPromptPosition();
     // The scene's `hint` is only a PLACEHOLDER for mechanics that have no prompt
     // of their own yet. A finished scene sets its own — or deliberately sets an
     // empty one while it is not ready to ask anything — and this must not
@@ -332,8 +436,24 @@ export default class GameScene extends BaseScene {
       });
     }
 
-    // RETRY: the same round is mounted again. Nothing advances, so the progress
-    // dots and the round counter stay put — a wrong answer must not skip a round.
+    // A scene can also report mistakes it absorbed ITSELF, for a wrong answer
+    // that did not end the round (scene 2 keeps the parts already placed, so it
+    // cannot ask for a retry). Without this branch those misses are silently
+    // lost and the run's total under-reports. Counted separately from the
+    // `correct: false` case so a scene doing both cannot be double-counted.
+    if (Number.isFinite(payload.mistakes) && payload.mistakes > 0) {
+      this.mistakes = (this.mistakes || 0) + payload.mistakes;
+      this.mistakeLog = this.mistakeLog || [];
+      for (let i = 0; i < payload.mistakes; i += 1) {
+        this.mistakeLog.push({
+          scene: this.position.scene,
+          round: this.position.round,
+        });
+      }
+    }
+
+    // RETRY: the same round is mounted again. Nothing advances, so the scene
+    // title and the round counter stay put — a wrong answer must not skip a round.
     // The `handingOver` guard is released on the next tick, after the remount, so
     // a second report cannot slip in.
     if (payload.retry) {
@@ -435,12 +555,20 @@ export default class GameScene extends BaseScene {
     TUNING.setRelayout(() => {
       if (this.active) this.active.applyTuning(this.ctxForActive());
       this.refreshHud();
+      // The prompt's y is per-scene, so dragging that slider has to move it.
+      this.applyPromptPosition();
     });
 
     // Panel nav: « » step scenes, ◀ ▶ step rounds. Both are DEV paths from
     // progress.js, so neither can end the run.
     TUNING.setNav({
       label: () => navLabel(this.position),
+      // The 1-BASED round, as a reader. The panel's array groups (scene 2's
+      // parts table) use it in their `scope` to show only the mounted round's
+      // rows; without it they would always fall back to round 1. A function
+      // rather than a value, because the panel renders on every change and the
+      // position moves underneath it.
+      round: () => this.position.round + 1,
       prevScene: () => this.devJump(jumpScene(this.position, -1)),
       nextScene: () => this.devJump(jumpScene(this.position, 1)),
       prev: () => this.devJump(jumpRound(this.position, -1)),
