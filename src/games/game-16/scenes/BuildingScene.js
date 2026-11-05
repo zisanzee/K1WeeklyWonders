@@ -114,6 +114,9 @@ export default class BuildingScene extends SceneBase {
     this.queued = null;
     this.options = [];
     this.floorHighlight = null;
+    // Which floor's question has already been SPOKEN this round, so a tuning
+    // re-render does not restart the line. Cleared with the round.
+    this.voiceFloor = null;
 
     this.cancelPending();
     this.clearPrompt();
@@ -1055,6 +1058,11 @@ export default class BuildingScene extends SceneBase {
     const { text, emphasis } = promptFor(this.queued.floor);
     if (!text) return;
 
+    // THIS ROUND ASKS ABOUT ONE FLOOR, and the floors are picked at random per
+    // run — so `prompts.js` is keyed by FLOOR, not by round. The scene declares it
+    // here, before the prompt is drawn, so the voice lookup has its identity.
+    ctx.setVoiceContext({ floor: this.queued.floor });
+
     const hud = getHud();
     const block = ctx.sceneTuning || {};
     const { width: W, height: H } = ctx.scene.scale;
@@ -1152,8 +1160,38 @@ export default class BuildingScene extends SceneBase {
       });
     });
 
+    // ---- NEW QUESTION vs RE-RENDER ----
+    //
+    // `renderPrompt` is called from two places: `askQuestion` when the round
+    // starts, and `applyTuning` on EVERY tuning change. `SceneBase.mount()` runs
+    // `createRound` and then `applyTuning`, so within a single mount this method
+    // runs twice.
+    //
+    // Both the prompt-clearing and the voice below therefore have to be ONE-SHOT
+    // per question. The voice was already guarded, but `ctx.setPrompt('')` was not
+    // — and the hub's `setPrompt` STOPS the playing line. So the sequence was:
+    //
+    //   1. createRound  → voice starts
+    //   2. applyTuning  → ctx.setPrompt('') → voice STOPPED → guard blocks restart
+    //
+    // …which is exactly why scene 4's prompt audio never played at the start of a
+    // round. Gating both together fixes it.
+    const isNewQuestion = this.voiceFloor !== this.queued.floor;
+    this.voiceFloor = this.queued.floor;
+
+    if (!isNewQuestion) return;
+
     // Clear the hub's own line, so the sentence does not appear twice.
     ctx.setPrompt('');
+
+    // This scene draws its own prompt text, so it asks for its own voice line —
+    // the hub's `setPrompt('')` above deliberately does not, because that is the
+    // "nothing to ask" path.
+    //
+    // THROUGH THE HUB (`ctx.playVoice`), not the voice module directly: the hub
+    // defers the line until the scene-change wipe has fully cleared, so the question
+    // is not half-spoken while the child is still looking at a title card.
+    ctx.playVoice?.({ floor: this.queued.floor });
   }
 
   clearPrompt() {
@@ -1421,6 +1459,12 @@ export default class BuildingScene extends SceneBase {
     // A moving wall means the child is still looking for the floor — answering now
     // would score a tap they aimed at something else.
     if (moving) return;
+
+    // THE QUESTION IS ANSWERED — silence it. The hub also stops it on
+    // `roundComplete`, but this scene holds the answer on screen for
+    // `nextPromptMs` first, so without this the question would still be reading
+    // out over the success pop.
+    ctx.stopVoice?.();
 
     if (entry.isAnswer) this.correctAnswer(ctx, entry, t);
     else this.wrongAnswer(ctx, entry, t);

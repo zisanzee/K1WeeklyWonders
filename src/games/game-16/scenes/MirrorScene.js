@@ -155,16 +155,24 @@ export default class MirrorScene extends SceneBase {
     if (t.showMirrorHints) this.drawMirrorHints(ctx, parts);
     this.repaintBoxes(t);
 
-    ctx.setPrompt(this.promptFor(roundNumber));
+    ctx.setPrompt(this.promptFor());
     this.installPlay(ctx);
   }
 
-  // A short, factual prompt: what to do, not which piece. The portrait is already
-  // on one side, so naming a part would turn assembly into a word-matching task.
-  promptFor(roundNumber) {
-    if (roundNumber === 1) return 'Move the pieces to the other side.';
-    if (roundNumber === 2) return 'Fill in the matching half.';
-    return 'Complete the picture across the line.';
+  /**
+   * THE PROMPT — the same sentence for all three rounds.
+   *
+   * It used to be per-round ("Move the pieces…", "Fill in the matching half…",
+   * "Complete the picture across the line."), but the three rounds ask exactly the
+   * same thing of the child: the only thing that changes is the ANGLE of the mirror
+   * line, and that is visible on screen. Three phrasings for one instruction made
+   * the round transition look like a different task when it was not — and a
+   * 4-6 year old has to re-read a new sentence to find that out.
+   *
+   * One sentence, learned once, applies to all three.
+   */
+  promptFor() {
+    return 'Complete the character by matching the other side.';
   }
 
   // THE TWO HALVES — the divider drawn as colour, not as a line.
@@ -798,7 +806,11 @@ export default class MirrorScene extends SceneBase {
     if (!this.entries.every((e) => e.placed)) return;
 
     this.phase = 'winning';
+    // Clearing the prompt stops the line as a side effect, and `stopVoice` is
+    // called explicitly too because this scene holds for `winHoldMs` before it
+    // reports — the question must not still be reading out over the win.
     ctx.setPrompt('');
+    ctx.stopVoice?.();
 
     const flashMs = t.correctFlashMs * 2 + t.correctFlashHoldMs;
     const holdMs = Math.max(t.winHoldMs, flashMs + 200);

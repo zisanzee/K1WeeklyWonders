@@ -7,6 +7,14 @@
 // than an object of frame names — the ORDER is the identity, and the loader
 // derives `${key}-${i}` from it.
 
+// PROMPT VOICES — the audio side of prompts.js.
+//
+// The URLs themselves live in `prompts.js` (one editable row per prompt), not in
+// AUDIO below, so that adding a recording means pasting one URL next to the
+// sentence it reads. This import pulls whatever is filled in there into the
+// preload manifest.
+import { voiceManifest } from '@/games/game-16/prompts';
+
 // Cloudinary assets are served through `f_auto,q_auto` so the browser gets the
 // smallest format it supports. Wrap a URL with this when you fill IMAGES in.
 export const cld = (url) => url.replace('/image/upload/', '/image/upload/f_auto,q_auto/');
@@ -350,6 +358,18 @@ export const AUDIO = {
   // from the URL and treats that path as video — so the type is forced in
   // AUDIO_TYPE_OVERRIDES below. Without it the clip is silently never queued.
   slotSpin: 'https://res.cloudinary.com/hijmipga/video/upload/v1793532328/slot_machine_a2bq2x.mp3',
+  // THE SCENE-CHANGE WHOOSH, in two directions.
+  //
+  // `whoosh` sweeps in under the transition panel; `whooshReverse` is the SAME
+  // recording played backwards as the panel sweeps off.
+  //
+  // WHY A SECOND FILE INSTEAD OF A NEGATIVE PLAYBACK RATE:
+  // Web Audio's `playbackRate` must be > 0 — a negative value is not "reverse",
+  // it is silence (and `setRate(-1)` would have failed silently, exactly like a
+  // missing key). The reversed clip is therefore rendered once with ffmpeg
+  // (`-af areverse`) and shipped as its own file. It is the same 0.67 s, 11 KB.
+  whoosh: 'https://res.cloudinary.com/hijmipga/video/upload/v1793891036/sound_effect_whoosh_ss6wey.mp3',
+  whooshReverse: '/PhaserAssets/whoosh-reverse.mp3',
 };
 
 // Phaser picks a codec from the URL. A Cloudinary `/video/upload/` URL ends in
@@ -358,12 +378,21 @@ export const AUDIO = {
 export const AUDIO_TYPE_OVERRIDES = {
   bgMusic: 'mp3',
   slotSpin: 'mp3',
+  whoosh: 'mp3',
 };
 
 // Flattened manifest for BasePreloadScene({ assets: ASSET_MANIFEST, ... }).
 // Every table is filtered, so an empty IMAGES / a half-filled AUDIO still
 // produces a valid (possibly empty) manifest rather than a loader error.
+//
+// PROMPT VOICES COME FROM prompts.js, not from AUDIO above. That file is the one
+// place a human pastes a recording's URL, and `voiceManifest()` turns whatever is
+// filled in there into audio entries. A row with no URL yet produces no entry, so
+// the table can be half-filled while the recordings are being made — and the
+// preload screen covers every line that DOES exist, which is why voices are never
+// loaded mid-round.
 export const ASSET_MANIFEST = [
+  ...voiceManifest(),
   ...Object.entries(IMAGES)
     .filter(([, url]) => url) // skip placeholders not filled in yet
     .map(([key, url]) => ({ type: 'image', key, url })),

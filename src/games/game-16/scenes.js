@@ -49,7 +49,9 @@ export const SCENES = [
     number: 2,
     title: 'Mirror',
     short: 'Mirror',
-    hint: 'Drag each piece to its spot.',
+    // Matches the scene's own `promptFor()`, so the placeholder a fresh mount
+    // shows before the scene sets its prompt cannot disagree with the real one.
+    hint: 'Complete the character by matching the other side.',
     // Implemented. The three rounds share one mechanic and differ only in the
     // AXIS: vertical, horizontal, then diagonal. Which parts belong to which
     // round, and where they sit, lives in mirrorRounds.js — not here.

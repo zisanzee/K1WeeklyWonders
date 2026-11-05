@@ -20,6 +20,14 @@
 // progress.js (pure, unit tested). This file is assembly only.
 import BaseScene from '@/phaser/BaseScene';
 import { ensureBgMusic, addMuteButton } from '@/phaser/common/audioState';
+import { textFor } from '@/games/game-16/prompts';
+import {
+  createVoiceButton,
+  destroyVoiceButton,
+  playPromptVoice,
+  setVoiceButtonHandler,
+  stopPromptVoice,
+} from '@/games/game-16/voice';
 import {
   BACKGROUND_COLOR,
   DEV_TUNING_ENABLED,
@@ -28,6 +36,7 @@ import {
   getEngine,
   getHud,
   getSceneTuning,
+  getVoice,
 } from '@/games/game-16/tuning';
 import { SCENES, sceneAt } from '@/games/game-16/scenes';
 import {
@@ -117,6 +126,19 @@ export default class GameScene extends BaseScene {
     // mounted scene's per-frame work for the ~0.5s the screen is covered. The
     // scene still exists during the wipe; it is just not visible.
     this.wiping = false;
+
+    // The ctx handed to `update()`, built once per mount. See `ctxForActive`.
+    this.ctxCache = null;
+
+    // A voice line requested while the wipe was covering the screen. Played by
+    // `flushPendingVoice` once the transition has fully cleared.
+    this.pendingVoice = null;
+
+    // What the CURRENT round's prompt depends on beyond the round number —
+    // scene 3's slot ('A'/'B'), scene 4's floor. `prompts.js` is keyed by identity,
+    // so the voice lookup needs this; it is cleared on every mount and set by a
+    // scene that needs it through `ctx.setVoiceContext`.
+    this.voiceExtra = null;
   }
 
   create() {
@@ -134,6 +156,17 @@ export default class GameScene extends BaseScene {
 
     this.bgMusic = ensureBgMusic(this);
     addMuteButton(this, MUTE.x, MUTE.y, { anchor: MUTE.anchor, depth: MUTE.depth });
+
+    // THE "SAY IT AGAIN" BUTTON, top right.
+    //
+    // Created BEFORE the first scene mounts, so a child who cannot read can replay
+    // the question from the very first round. The handler is pointed at whatever
+    // round is current, so the button never goes stale.
+    const voice = getVoice();
+    createVoiceButton(this, this.scale.width - voice.buttonInsetX, voice.buttonInsetY);
+    // The BUTTON replays with fallback: on a round with no recording of its own
+    // (scene 2 rounds 2-3) it still speaks the instruction the child is following.
+    setVoiceButtonHandler(() => this.replayPromptVoice());
 
     this.mountCurrentScene({ fade: false });
 
@@ -210,10 +243,98 @@ export default class GameScene extends BaseScene {
     this.titleText.setText(`${scene.number} / ${SCENES.length} · ${scene.title}`);
   }
 
-  // The scene modules call this through ctx to change the prompt.
-setPrompt(text) {
-  if (this.promptText) this.promptText.setText(text || '');
-}
+  /**
+   * Play the voice line for whatever this round is currently asking.
+   *
+   * Called from two places only: when a prompt is SET (rule 1), and when the
+   * replay button is pressed (rule 3). The `extra` argument carries what the
+   * scene's prompt depends on beyond the round number — scene 3's slot, scene 4's
+   * floor — because `prompts.js` is keyed by identity, not by sentence.
+   */
+  playPromptVoice(extra = this.voiceExtra ?? {}, opts = {}) {
+    // ---- WAIT FOR THE TRANSITION ----
+    //
+    // A scene sets its prompt while it mounts, which during a scene change is
+    // UNDER the wipe. Speaking then means the child hears the question while
+    // staring at a title card, and the first words have already gone by the time
+    // the scene appears.
+    //
+    // So while a wipe is running the line is DEFERRED, not dropped: the request is
+    // parked and played when the wipe reports it has fully cleared. A later request
+    // replaces an earlier one, so a scene that sets its prompt twice still speaks
+    // once.
+    if (this.wiping) {
+      this.pendingVoice = { extra, opts };
+      return false;
+    }
+
+    const scene = sceneAt(this.position.scene);
+    // The tables are 1-based, as a human reads them; the hub counts from 0. This
+    // is the ONLY place that conversion happens.
+    return playPromptVoice(this, scene.id, this.position.round + 1, extra, opts);
+  }
+
+  /**
+   * Play a line that was deferred while the wipe covered the screen.
+   *
+   * Called when the wipe resolves. Safe when nothing was queued, so the caller does
+   * not have to know whether a scene actually asked for a voice.
+   */
+  flushPendingVoice() {
+    const pending = this.pendingVoice;
+    this.pendingVoice = null;
+    if (!pending) return;
+
+    const scene = sceneAt(this.position.scene);
+    playPromptVoice(this, scene.id, this.position.round + 1, pending.extra, pending.opts);
+  }
+
+  /** The "say it again" tap: replay the current round's line, falling back. */
+  replayPromptVoice() {
+    return this.playPromptVoice(this.voiceExtra ?? {}, { allowFallback: true });
+  }
+
+  /** Stop the current line — called the instant a round completes. */
+  stopPromptVoice() {
+    stopPromptVoice();
+  }
+
+  /**
+   * The scene modules call this through ctx to change the prompt.
+   *
+   * Setting a prompt also STARTS its voice line (rule 1). Clearing it (an empty
+   * string, which scenes use deliberately between beats) stops any line rather
+   * than leaving one talking over a moment with no question on screen.
+   */
+  setPrompt(text) {
+    if (this.promptText) this.promptText.setText(text || '');
+
+    if (!text) {
+      this.stopPromptVoice();
+      return;
+    }
+
+    // SCENE 1 IS TRIGGERED BY ITS CLUE, NOT BY ITS TEXT.
+    //
+    // Its on-screen sentence is the same generic instruction every round, and only
+    // the AUDIO varies (each clue's clip says the whole sentence). So there is no
+    // text to match on — the scene having declared a clue IS the trigger.
+    const scene = sceneAt(this.position.scene);
+    const extra = this.voiceExtra ?? {};
+
+    if (scene.id === 'shapes') {
+      if (extra.clue) this.playPromptVoice(extra);
+      return;
+    }
+
+    // Every other scene: play when the text matches what this round's row says. A
+    // scene that sets an incidental string ("Swipe to visit the floors") should not
+    // trigger a prompt recording — and a scene with no voice row plays nothing.
+    const expected = textFor(scene.id, this.position.round + 1, extra);
+    if (!expected || text !== expected) return;
+
+    this.playPromptVoice();
+  }
 
 /**
  * The full-width band behind the prompt, for scenes that do not have clear space
@@ -363,7 +484,20 @@ applyPromptPosition() {
 
     // Reset BEFORE mount so we can tell whether the scene set its own prompt.
     this.promptSetByScene = false;
-    const ctx = this.buildCtx(scene);
+
+    // THE VOICE CONTEXT IS PER-ROUND, so a new mount starts without one; a scene
+    // that needs it (scene 3's slot, scene 4's floor) sets it again through
+    // `ctx.setVoiceContext` before it sets its prompt.
+    //
+    // The outgoing round's line is silenced FIRST — otherwise the previous
+    // question would still be talking over the new one.
+    this.voiceExtra = null;
+    this.stopPromptVoice();
+
+    // THE ONE ctx THIS MOUNT USES: the same object the scene is built with and the
+    // same one `update()` is handed, so the two can never disagree about tuning.
+    this.ctxCache = this.buildCtx(scene);
+    const ctx = this.ctxCache;
     this.active.mount(ctx, this.position.round);
 
     this.refreshHud();
@@ -416,6 +550,39 @@ applyPromptPosition() {
         this.setPrompt(text);
       },
 
+      // Silence the prompt line NOW.
+      //
+      // `handleRoundComplete` already stops it, but scenes 3 and 4 HOLD on the
+      // finished picture for a beat before they report — so without this the
+      // question would still be being read out a second after the child answered
+      // it, talking over the success chime. A scene calls this the moment the
+      // answer lands.
+      stopVoice: () => this.stopPromptVoice(),
+
+      // What this round's prompt depends on BEYOND the round number — scene 3's
+      // slot ('A'/'B'), scene 4's floor. A scene calls this BEFORE it sets its
+      // prompt, so the voice lookup has the identity it needs. Scenes whose prompt
+      // is purely per-round never call it.
+      setVoiceContext: (extra) => {
+        this.voiceExtra = extra ?? null;
+      },
+
+      // SCENE 1: declare the CLUE the reel landed on, so the voice can speak it
+      // before the instruction. The prompt starts the line only once this is set,
+      // which is what keeps the two halves in the right order.
+      setClueContext: (clue) => {
+        this.voiceExtra = { ...(this.voiceExtra ?? {}), clue };
+      },
+
+      // Speak this round's line.
+      //
+      // Scenes 3 and 4 draw their own prompt text, so the hub's `setPrompt` never
+      // fires for them and they must ask for their voice explicitly. They go
+      // THROUGH the hub rather than calling the voice module directly, so the
+      // "wait until the transition has cleared" deferral applies to every scene
+      // rather than only the two that share the hub's prompt.
+      playVoice: (extra = {}) => this.playPromptVoice(extra),
+
       // A scene reports one round finished. The guard makes a double-report a
       // no-op instead of skipping a round.
       roundComplete: (payload = {}) => this.handleRoundComplete(payload),
@@ -437,6 +604,11 @@ applyPromptPosition() {
     // way (`{ correct: false }`), so the count works whatever the mechanics turn
     // out to be — and it is what the completion payload will send once all five
     // scenes exist.
+    // RULE 2: the voice STOPS the instant a round completes. Mid-word is correct —
+    // the child has answered, and a line still talking over the next transition is
+    // noise. Done before the mistake accounting so it happens on every path.
+    this.stopPromptVoice();
+
     if (!payload.correct) {
       this.mistakes = (this.mistakes || 0) + 1;
       this.mistakeLog = this.mistakeLog || [];
@@ -514,15 +686,30 @@ applyPromptPosition() {
       title: engine.wipeTitle ? sceneAt(next.scene).title : null,
       onCovered: () => {
         this.mountCurrentScene({ fade: false });
-        this.wiping = false;
+        // The new scene mounted UNDER the panel, so it can set its prompt now —
+        // but `playPromptVoice` still defers while `wiping` is true, which it is
+        // until the sweep has fully cleared.
       },
-    });
+    })
+      // THE TRANSITION IS FULLY OVER: now the question may be spoken.
+      //
+      // `wiping` is released here rather than at `onCovered`, because the child is
+      // still looking at a title card until the out-sweep finishes. Speaking at the
+      // covered moment means the first words are already gone by the time the scene
+      // appears.
+      .then(() => {
+        this.wiping = false;
+        this.flushPendingVoice();
+      });
   }
 
   finishRun() {
     this.position = { ...this.position, done: true };
     this.refreshHud();
+    // Clearing the prompt stops the line as a side effect; called explicitly too,
+    // so the run end cannot leave a question being read aloud behind the panel.
     this.setPrompt('');
+    this.stopPromptVoice();
 
     // The finished run is REPORTED FIRST and the overlay second. The overlay is a
     // full-canvas scrim, so if it went up first and the event threw, the run would
@@ -575,6 +762,21 @@ applyPromptPosition() {
    */
   showEndScreen(payload = {}) {
     if (this.endScreen) return; // never stack two panels on a double report
+
+    // THE PANEL IS BUILT DEFENSIVELY, because the failure mode here is uniquely
+    // bad: the scrim and the panel are created first, and if anything after them
+    // throws, the player is left staring at a dimmed screen they cannot tap out of.
+    // With no replay button, that reads as "the game hung". Catching means a
+    // problem in the decoration degrades to a plain panel rather than a dead end.
+    try {
+      this.buildEndScreen(payload);
+    } catch {
+      // Whatever was built is still tracked, so it can at least be dismissed.
+      this.ensureEndScreenDismissible();
+    }
+  }
+
+  buildEndScreen(payload = {}) {
     const end = getEndScreen();
     const { width: W, height: H } = this.scale;
 
@@ -677,6 +879,15 @@ applyPromptPosition() {
     );
 
     // ---- REPLAY ----
+    //
+    // `createPillButton` returns a WRAPPER object (`{ container, setText, on, … }`),
+    // not a display object — so the container has to be added to the panel, and the
+    // handler is bound on the wrapper, which forwards to that container.
+    //
+    // Passing the wrapper to `panel.add()` threw inside Phaser, which is what left
+    // the finished run hanging on a blank screen: the exception aborted
+    // `showEndScreen` AFTER the scrim was created, so the game sat behind a
+    // dimmed, untappable overlay with no button on it.
     const buttonY = panelH * end.buttonYOffsetFrac;
     const replay = this.createPillButton(0, buttonY, end.buttonLabel, {
       fontSize: `${end.buttonFontSize}px`,
@@ -686,7 +897,7 @@ applyPromptPosition() {
       paddingY: end.buttonPaddingY,
       depth: 62,
     });
-    panel.add(replay);
+    panel.add(replay.container);
 
     // Deferred by one tick: this handler runs INSIDE the button's own pointerup,
     // and destroying the panel (which owns the button) mid-event would tear down
@@ -714,8 +925,30 @@ applyPromptPosition() {
     this.scene.restart();
   }
 
+  /**
+   * Last-resort escape hatch for the end panel.
+   *
+   * If `buildEndScreen` threw part-way, the scrim may be up with nothing usable on
+   * it. Rather than leaving the run unrecoverable, a tap anywhere restarts — which
+   * is what the missing button would have done. Kept separate so the happy path
+   * never depends on it.
+   */
+  ensureEndScreenDismissible() {
+    const scrim = this.endScreen?.[0];
+    if (!scrim?.active) {
+      // Nothing made it to the screen at all: still give the player a way out.
+      this.restartRun();
+      return;
+    }
+    scrim.removeAllListeners?.();
+    scrim.on?.('pointerup', () => this.restartRun());
+  }
+
   clearEndScreen() {
     if (!this.endScreen) return;
+    // `endScreen` holds [scrim, panel]; the panel OWNS its children, so destroying
+    // the panel takes the text, the stars and the button with it. The scrim is a
+    // sibling, so it is destroyed separately.
     this.endScreen.forEach((obj) => obj?.destroy?.());
     this.endScreen = null;
   }
@@ -731,11 +964,27 @@ applyPromptPosition() {
     this.active.update(this.ctxForActive(), time, delta);
   }
 
-  // Rebuilds the ctx for update(). Cheap (an object literal), and it means a
-  // scene always sees the CURRENT tuning values during update, even mid-drag.
-  ctxForActive() {
+  /**
+   * The ctx handed to a scene's `update()`.
+   *
+   * CACHED PER MOUNT, not rebuilt per frame.
+   *
+   * This used to call `buildCtx()` every frame, and `buildCtx` resolves
+   * `getSceneTuning(id)` — which in dev deep-merges the ENTIRE `SCENES` table
+   * (`{shapes:{…}, mirror:{…}, positions:{…}, building:{…}}`) to read four prompt
+   * fields. That is a full object graph rebuilt 60 times a second, for the whole
+   * run, whether or not anything moved. It was the single largest per-frame cost
+   * in the game and it grew worse as scenes gained tuning.
+   *
+   * The ctx is rebuilt on mount and on `applyTuning` (see `ctxForActive(true)`), so
+   * a slider still takes effect immediately — but a resting frame now costs one
+   * property read.
+   */
+  ctxForActive(refresh = false) {
+    if (!refresh && this.ctxCache) return this.ctxCache;
     const scene = sceneAt(this.position.scene);
-    return this.buildCtx(scene);
+    this.ctxCache = this.buildCtx(scene);
+    return this.ctxCache;
   }
 
   // ---------------------------------------------------------------------------
@@ -749,7 +998,8 @@ applyPromptPosition() {
     // Live relayout: dragging a slider re-applies values to the mounted scene
     // instead of rebuilding it, so tuning never resets the round in progress.
     TUNING.setRelayout(() => {
-      if (this.active) this.active.applyTuning(this.ctxForActive());
+      // `true` forces a fresh ctx, so the slider's new value reaches the scene.
+      if (this.active) this.active.applyTuning(this.ctxForActive(true));
       this.refreshHud();
       // The prompt's y is per-scene, so dragging that slider has to move it.
       this.applyPromptPosition();
@@ -832,6 +1082,11 @@ applyPromptPosition() {
     // reuses that instance — so a stale, already-destroyed emitter would otherwise
     // be handed back on the second run and every burst would throw.
     destroyConfetti(this);
+
+    // The voice module holds module-level state (the audible line, the button, its
+    // glow tween). That must not outlive the game, or a restart reuses a destroyed
+    // button and a dead sound handle.
+    destroyVoiceButton();
 
     this.wiping = false;
   }

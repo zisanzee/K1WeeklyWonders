@@ -94,6 +94,13 @@ export default class ShapesScene extends SceneBase {
     this.phase = PHASE.ROLLING;
     this.roundActive = true;
     this.slot = null;
+
+    // THE TWO-SHAPE ROUND'S SLOTS. Two fixed places on the belt, each of which may
+    // hold one shape. A shape goes to the first FREE slot, so the pair sits apart
+    // and both stay visible until the round resolves. Empty until the round asks
+    // for two shapes.
+    this.slots = [];
+    this.placed = [];
     // The round opens only when BOTH intros have finished: the robot's roll and
     // the slot machine's spin. Tracking them separately means re-tuning either
     // duration cannot leave the round stuck waiting for one that already ended.
@@ -303,51 +310,87 @@ export default class ShapesScene extends SceneBase {
     this.revealOptions(ctx, t);
   }
 
-  // FAINT DROP-ZONE HIGHLIGHTS on the belt.
+  // FAINT DROP-ZONE HIGHLIGHTS on the belt — THESE ARE THE SLOTS.
   //
-  // One circle where a single shape should go, or TWO when the round wants a pair.
-  // They show the child WHERE to aim without competing with the art: very low
-  // alpha, no border, sized from the shape, sitting just under the reel so the
-  // shapes pass over them.
+  // One zone where a single shape should go, two when the round wants a pair. They
+  // are not decoration: a dropped shape ALWAYS comes to rest in one of them, so
+  // what the child sees highlighted is exactly where their shape will end up.
   //
-  // Drawn from tuning, so the ring's size/alpha/colour are all adjustable, and
-  // removed with the layer on the next mount.
+  // ONE SOURCE OF TRUTH: the positions come from `beltSlots()`, the same function
+  // `parkOnBelt` seats into. Duplicating the maths here is how the hint and the
+  // snap drift apart, and then the highlight lies about where the shape goes.
+  //
+  // The zones are REBUILT (not just created) whenever a shape is seated, so an
+  // occupied slot can be drawn differently and two zones can never look available
+  // when only one is.
   buildDropZones(ctx, t) {
     const scene = ctx.scene;
     const W = SceneBase.widthOf(scene);
-    const H = SceneBase.heightOf(scene);
 
     const count = this.roundData?.count || 1;
-    const y = H * t.beltYFrac + H * t.dropYOffsetFrac;
-    const radius = W * t.dropZoneRadiusFrac;
-    const gap = W * t.parkSpreadFrac;
 
-    // Symmetric about the belt's middle, matching where `parkOnBelt` and
-    // `sendAway` will actually put the shapes, so the hint cannot lie.
-    const xs = count > 1
-      ? [W * t.dropXFrac - gap / 2, W * t.dropXFrac + gap / 2]
-      : [W * t.dropXFrac];
+    // THE ZONE MUST BE BIG ENOUGH TO HOLD THE SHAPE, or the highlight lies: a shape
+    // whose corners spill past its slot does not look "in place".
+    //
+    // Derived from the option SIZE (the shape's own drawn width) rather than from an
+    // independent radius, so the two cannot drift apart when `option size` is
+    // retuned. The `dropZoneRadiusFrac` value is kept as a FLOOR, so a deliberately
+    // tight zone is still possible.
+    const shapeSize = W * t.optionSizeFrac;
+    const fitsShape = (shapeSize / 2) * (t.dropZoneFitMul ?? 1.16);
+    const radius = Math.max(W * t.dropZoneRadiusFrac, fitsShape);
 
-    const g = scene.add.graphics().setDepth(t.slotDepth - 1);
-    xs.forEach((x) => {
-      g.fillStyle(t.dropZoneColor, t.dropZoneAlpha);
-      g.fillCircle(x, y, radius);
-    });
-    ctx.layer.add(g);
-    this.dropZones = g;
+    // Seed the slot geometry before the first drop, so the highlights and the later
+    // snaps are computed from the same numbers.
+    if (count > 1 && this.slots.length === 0) this.slots = this.beltSlots(t);
 
-    // A gentle breathe, so the zones read as "somewhere to put it" rather than as
-    // part of the painted set. Two shallow pulses, looping.
-    if (t.dropZonePulseAlpha > 0) {
-      scene.tweens.add({
-        targets: g,
-        alpha: { from: 1 - t.dropZonePulseAlpha, to: 1 },
-        duration: Math.max(1, t.dropZonePulseMs),
-        ease: 'Sine.easeInOut',
-        yoyo: true,
-        repeat: -1,
-      });
+    // A single-shape round has one implicit slot at the belt's middle.
+    const slots =
+      count > 1
+        ? this.slots
+        : [{ x: W * t.dropXFrac, y: SceneBase.heightOf(scene) * t.beltYFrac + SceneBase.heightOf(scene) * t.dropYOffsetFrac }];
+
+    // Reuse the graphics object across rebuilds — a slider drag or a second drop
+    // must not leak a Graphics per call.
+    if (!this.dropZones?.active) {
+      this.dropZones = scene.add.graphics().setDepth(t.slotDepth - 1);
+      ctx.layer.add(this.dropZones);
+
+      // A gentle breathe, so the zones read as "somewhere to put it" rather than as
+      // part of the painted set. On the OBJECT, so a rebuild keeps it running.
+      if (t.dropZonePulseAlpha > 0) {
+        this.dropZoneTween = scene.tweens.add({
+          targets: this.dropZones,
+          alpha: { from: 1 - t.dropZonePulseAlpha, to: 1 },
+          duration: Math.max(1, t.dropZonePulseMs),
+          ease: 'Sine.easeInOut',
+          yoyo: true,
+          repeat: -1,
+        });
+      }
     }
+
+    const g = this.dropZones;
+    const occupied = new Set((this.onBelt ?? []).map((o) => o.slotIndex));
+
+    g.clear();
+    slots.forEach((s, i) => {
+      // AN OCCUPIED SLOT FADES BACK, so the child can see at a glance which space
+      // they still have. It is not removed — the shape is sitting in it, and an
+      // outline that vanished would leave the shape looking like it was nowhere.
+      const stillOpen = !occupied.has(i);
+      const alpha = stillOpen ? t.dropZoneAlpha : t.dropZoneAlpha * (t.dropZoneOccupiedAlpha ?? 0.4);
+
+      g.fillStyle(t.dropZoneColor, alpha);
+      g.fillCircle(s.x, s.y, radius);
+
+      // A ring around an OPEN slot, so it reads as a target to aim at rather than a
+      // wash on the belt. Only on open slots: a filled one already has a shape in it.
+      if (stillOpen && t.dropZoneRingWidth > 0) {
+        g.lineStyle(t.dropZoneRingWidth, t.dropZoneColor, Math.min(1, alpha * 3));
+        g.strokeCircle(s.x, s.y, radius);
+      }
+    });
   }
 
   // Fade the options in, show the prompt, and start the round for real.
@@ -355,6 +398,21 @@ export default class ShapesScene extends SceneBase {
     this.phase = PHASE.PLAYING;
     this.buildDropZones(ctx, t);
     this.buildOptions(ctx, t);
+    // THE VOICE NEEDS TWO THINGS, and they must be declared BEFORE the prompt is
+    // set — the hub only starts the line once this round's clue is known, which is
+    // what keeps "3 corners" ahead of "Put the shape on the belt."
+    //
+    //   clue  which card the reel landed on (the question)
+    //   count how many shapes to place (selects the instruction half)
+    //
+    // The CLUE is the identity, not the round number: the first three rounds are
+    // shuffled per run, so a round-keyed clue would be the wrong recording half the
+    // time.
+    ctx.setVoiceContext({
+      clue: this.roundData?.clue,
+      count: this.roundData?.count || 1,
+    });
+
     // Prompt LAST, in the same frame the options appear, so the question is never
     // on screen before there is anything to answer it with. It says only how many
     // shapes to place — the CLUE on the reel carries the actual question.
@@ -1044,21 +1102,36 @@ export default class ShapesScene extends SceneBase {
       // DUPLICATE in a two-shape round, so dropping a second square cannot pass.
       const right = isCorrect(this.roundData, option.data.type, this.placed);
 
-      if (!right) {
-        this.wrongDrop(ctx, option, t2);
+      // EVERY DROP IS RECORDED, right or wrong.
+      //
+      // This is what makes the two-shape round behave: the child is asked for TWO
+      // shapes, so they must be allowed to place both before hearing whether they
+      // were right. Judging the first one on its own and sending it off is what made
+      // a wrong shape ship immediately instead of waiting to be joined.
+      this.placed.push({ type: option.data.type, right });
+
+      const total = this.roundData.count || 1;
+      const filled = this.placed.length;
+
+      // ---- SLOT IT AND DECIDE WHAT HAPPENS NEXT ----
+      //
+      // `parkOnBelt` only seats the shape in the next free slot; it deliberately
+      // does not care whether the shape is right, because until the belt is full the
+      // round has no verdict to give.
+      this.parkOnBelt(ctx, option, t2, { right });
+
+      if (filled < total) {
+        // STILL WAITING for the rest. Nothing is sent off, nothing is judged.
         return;
       }
 
-      // Correct. In a two-shape round this may be only the FIRST of them.
-      this.placed.push(option.data.type);
-      const wantMore = this.placed.length < (this.roundData.count || 1);
-
-      if (wantMore) {
-        this.parkOnBelt(ctx, option, t2);
-        return;
-      }
-
-      this.sendAway(ctx, option, t2);
+      // ---- THE BELT IS FULL: now the round is decided ----
+      //
+      // The verdict is over the WHOLE set, not per shape: two correct shapes pass,
+      // and ANY wrong one fails the round. That is the rule the child is being
+      // taught — the pair has to be right together.
+      const allRight = this.placed.every((p) => p.right);
+      this.resolveBelt(ctx, t2, allRight);
     };
 
     scene.input.on('pointerdown', this.onPointerDown);
@@ -1088,31 +1161,164 @@ export default class ShapesScene extends SceneBase {
   // The placed shape is removed from the tray so it cannot be dragged twice — and
   // because `isCorrect` rejects a duplicate type, the only way to satisfy "4
   // corners" is with one square and one rectangle, which is the point.
-  parkOnBelt(ctx, option, t) {
+  /**
+   * THE SLOT GEOMETRY for a two-shape round.
+   *
+   * Two fixed places either side of the belt's middle. They are computed once per
+   * round rather than per drop, so the FIRST shape to arrive and the second always
+   * land in the same two spots — which is what makes the pair read as "in place"
+   * instead of as two shapes left wherever they were released.
+   *
+   * @returns {{x: number, y: number}[]} one entry per shape the round wants
+   */
+  beltSlots(t) {
+    const W = SceneBase.widthOf(this.ctx.scene);
+    const H = SceneBase.heightOf(this.ctx.scene);
+    const stickY = H * t.beltYFrac + H * t.dropYOffsetFrac;
+
+    // The half-gap used to be `parkSpreadFrac / 2` off the belt's middle, which put
+    // the FIRST shape permanently in the LEFT slot — so a child who happened to
+    // drop on the right saw their shape jump across the belt.
+    //
+    // Now each shape takes the first FREE slot in whatever order they arrive. The
+    // two positions are symmetric about the drop point, so whichever order they are
+    // filled in, the finished pair looks identical.
+    const half = (W * t.parkSpreadFrac) / 2;
+    return [
+      { x: W * t.dropXFrac - half, y: stickY },
+      { x: W * t.dropXFrac + half, y: stickY },
+    ];
+  }
+
+  /**
+   * Put a CORRECT shape into the first free belt slot and hold it there.
+   *
+   * The round is not won yet — a two-shape round needs both — so the shape must not
+   * ride away. The belt stays still until the second one arrives, so the pair is
+   * carried off together and the relationship between them is visible.
+   *
+   * The shape SNAPS TO A DEFINED SLOT rather than staying where it was released:
+   * at 4-6 years old the drop is imprecise, and two shapes left at the release
+   * points can overlap or sit half off the belt. Snapping also means the second
+   * shape cannot land on top of the first.
+   */
+  parkOnBelt(ctx, option, t, { right = true } = {}) {
     this.phase = PHASE.WAITING;
 
     const scene = ctx.scene;
-    const H = SceneBase.heightOf(scene);
-    const W = SceneBase.widthOf(scene);
+    const slots = this.slots.length ? this.slots : this.beltSlots(t);
+    this.slots = slots;
 
-    // Half a slot left of centre, so two shapes fit either side of it.
-    const parkX = W * (t.dropXFrac - t.parkSpreadFrac / 2);
-    const stickY = H * t.beltYFrac + H * t.dropYOffsetFrac;
+    // WHICH SLOT — the one NEAREST to where the child actually dropped it.
+    //
+    // Picking the "first free" slot was wrong: the highlights show two targets, so
+    // dropping on the RIGHT one seated the shape in the LEFT one, which reads as the
+    // shape ignoring where it was put. Choosing the nearest FREE slot means the
+    // shape always comes to rest in the highlight the child aimed at.
+    //
+    // An OCCUPIED slot is excluded from the candidates, so two shapes can never
+    // share a slot and therefore never overlap. If both are taken (should not
+    // happen, but be safe) the last slot is used and the shapes simply stack — no
+    // crash, and the round still resolves.
+    const taken = new Set((this.onBelt ?? []).map((o) => o.slotIndex));
+    const free = slots.map((s, i) => ({ s, i })).filter(({ i }) => !taken.has(i));
+    const candidates = free.length ? free : slots.map((s, i) => ({ s, i }));
+
+    const dropX = option.container.x;
+    const slotIndex = candidates.reduce(
+      (best, c) =>
+        Math.abs(c.s.x - dropX) < Math.abs(best.s.x - dropX) ? c : best,
+      candidates[0]
+    ).i;
+
+    const target = slots[slotIndex];
 
     option.container.setDepth(30);
+    option.slotIndex = slotIndex;
+
     // Drop it from the tray so it is not a drag candidate any more.
     this.options = this.options.filter((o) => o !== option);
+    this.onBelt = [...(this.onBelt ?? []), option];
+
+    // A WRONG SHAPE IS SEATED EXACTLY LIKE A CORRECT ONE, and only faintly dimmed.
+    //
+    // The round has NOT been judged yet — both shapes have to be in place before
+    // there is a verdict — so the shape must look placed. The dimming is a gentle
+    // cue that this one is probably not right, without telling the child the answer
+    // before they have finished; the real feedback (red flash, buzzer) is still held
+    // back until the belt is full.
+    option.container.setAlpha(right ? 1 : (t.wrongParkAlpha ?? 0.65));
 
     scene.tweens.add({
       targets: option.container,
-      x: parkX,
-      y: stickY,
+      x: target.x,
+      y: target.y,
       scale: 1,
       duration: t.dropSnapMs,
       ease: 'Back.easeOut',
     });
 
-    this.onBelt = [option];
+    // REDRAW THE HIGHLIGHTS, so the slot that was just filled fades back and the
+    // remaining open one still reads as the place to aim at. Without this both
+    // zones kept looking equally available after the first shape landed.
+    this.buildDropZones(ctx, t);
+
+    // NO `ctx.setPrompt` HERE.
+    //
+    // It used to re-set the round's prompt after each shape parked, purely to keep
+    // the sentence on screen. But the hub's `setPrompt` also STARTS the voice line,
+    // so parking the FIRST shape re-spoke the question, and the two-shape round
+    // played it twice — once per shape.
+    //
+    // The text is already on screen and nothing has cleared it: `parkOnBelt` runs
+    // before `resolveBelt`, and only the resolve path clears the prompt. So there is
+    // nothing to restore, and the line plays once, at the start of the round.
+  }
+
+  /**
+   * THE BELT IS FULL — send the pair off, and judge the round from the WHOLE set.
+   *
+   * This is the single place a multi-shape round is decided. Both shapes always
+   * leave together, so the child sees their answer completed before hearing about
+   * it; what differs is where the ride ENDS UP, which is driven by `phase`:
+   * PHASE.SENDING advances the round, PHASE.WRONG re-mounts it.
+   *
+   * A one-shape round reaches here too, with a one-element `placed`, so there is one
+   * path rather than two that can drift apart.
+   */
+  resolveBelt(ctx, t, allRight) {
+    const group = [...(this.onBelt ?? [])].sort((a, b) => a.slotIndex - b.slotIndex);
+    const option = group[group.length - 1];
+    if (!option) return;
+
+    if (allRight) {
+      this.sendAway(ctx, option, t);
+      return;
+    }
+
+    // WRONG: the pair still rides off exactly like a correct one — the child's
+    // action plays out — but the round is marked failed so the ride's end plays the
+    // buzzer and re-mounts instead of advancing.
+    this.phase = PHASE.WRONG;
+    ctx.setPrompt('');
+
+    const W = SceneBase.widthOf(ctx.scene);
+    const positions = group.map((o) => o.container.x);
+    const rightmost = Math.max(...positions) + option.size;
+
+    this.ride = {
+      option,
+      group,
+      offsets: positions.map((x) => x - positions[0]),
+      startX: positions[0],
+      endX: W + rightmost,
+      beltBasePx: this.beltTotalPx ?? 0,
+    };
+    this.sendOffset = 0;
+
+    // Full opacity on the way out: the dim was a "not sure yet" hint, and now the
+    // verdict is in and the feedback is coming from the flash and the buzzer.
+    group.forEach((o) => o.container.setDepth(30).setAlpha(1));
   }
 
   // The option rides the belt to the RIGHT and off screen, then the hub advances.
@@ -1147,19 +1353,28 @@ export default class ShapesScene extends SceneBase {
     // the behaviour survives a `belt y` or `stick y` change.
     const stickY = H * t.beltYFrac + H * t.dropYOffsetFrac;
 
-    // TWO SHAPES RIDE TOGETHER, so they are spread either side of the belt's
-    // middle with a visible gap. One shape sits dead centre.
+    // TWO SHAPES RIDE TOGETHER, from the SLOTS they already occupy.
     //
-    // The second shape is the one just dropped; the first is already parked. Both
-    // are re-seated here so the gap is symmetric rather than wherever the child
-    // happened to release them.
-    const group = [...this.onBelt.filter((o) => o !== option), option];
-    const gap = W * t.parkSpreadFrac;
-    const positions = group.map((_, i) => {
-      if (group.length === 1) return W * t.dropXFrac;
-      // Offset from the middle: -gap/2 for the first, +gap/2 for the second.
-      return W * t.dropXFrac + (i === 0 ? -gap / 2 : gap / 2);
-    });
+    // They are NOT re-seated here. Each shape was snapped to its own belt slot when
+    // it was placed, and re-computing positions at send time would shift the pair
+    // sideways at the moment the round resolves — the shapes would visibly jump
+    // just as they start moving. Reading the slot positions back means the pair
+    // leaves from exactly where the child saw them land.
+    //
+    // `this.onBelt` already holds the previously parked shapes; `sendAway` is
+    // called with the one that completed the pair.
+    const group = [...(this.onBelt ?? []), option];
+
+    // Slot order, so the leftmost shape is `group[0]` regardless of which shape
+    // arrived first — the ride's `offsets` are measured from the leftmost.
+    group.sort((a, b) => a.slotIndex - b.slotIndex);
+
+    const positions = group.map((o) =>
+      group.length === 1 ? W * t.dropXFrac : o.container.x
+    );
+
+    // A one-shape round has no slots, so it still snaps to the belt's middle.
+    if (group.length === 1) positions[0] = W * t.dropXFrac;
 
     // Snap the group, then start the ride once the LAST of them has landed. The
     // ride origin is the pair's leftmost shape, so `endX` clears the right edge
@@ -1168,6 +1383,9 @@ export default class ShapesScene extends SceneBase {
     const onSettled = () => {
       pending -= 1;
       if (pending > 0) return;
+
+      // How far right the ride must travel before every shape is off screen.
+      const rightmost = Math.max(...positions) + group[group.length - 1].size;
 
       this.ride = {
         // The shape used for the end test; any of the group works because they
@@ -1178,7 +1396,7 @@ export default class ShapesScene extends SceneBase {
         // for the whole ride.
         offsets: positions.map((x) => x - positions[0]),
         startX: positions[0],
-        endX: W + group[group.length - 1].size + gap,
+        endX: W + rightmost,
         beltBasePx: this.beltTotalPx ?? 0,
       };
       this.sendOffset = 0;
@@ -1200,36 +1418,18 @@ export default class ShapesScene extends SceneBase {
     this.onBelt = group;
   }
 
-  // A WRONG SHAPE ON THE BELT — the shape goes FIRST, the feedback comes after.
+  // NOTE: there used to be a `wrongDrop()` here that shipped a single wrong shape
+  // off the belt the instant it was released. It is gone on purpose.
   //
-  // The child's action is allowed to finish playing out: the shape rides the belt
-  // and leaves the screen exactly as it would for a correct answer. Only THEN does
-  // the screen flush red and the buzzer sound, followed by the same round starting
-  // again. Flashing while the shape was still travelling read as though the
-  // machine had rejected it mid-ride.
+  // A multi-shape round has to wait for ALL its shapes before it can be judged —
+  // the whole point is that the pair has to be right together — so a wrong shape is
+  // now seated in a slot like any other and the verdict waits for `resolveBelt()`.
+  // For a one-shape round that resolves on the same release, so the behaviour is
+  // unchanged there.
   //
-  // Nothing is counted as a pass. The hub is told `{ correct: false, retry: true }`
-  // and re-mounts the current round.
-  wrongDrop(ctx, option, t) {
-    this.phase = PHASE.WRONG;
-    ctx.setPrompt('');
-
-    const W = SceneBase.widthOf(ctx.scene);
-    const H = SceneBase.heightOf(ctx.scene);
-
-    // The shape rides away, so the action has a consequence and looks identical to
-    // the correct case until it has left the screen.
-    this.ride = {
-      option,
-      startX: W * t.dropXFrac,
-      endX: W + option.size,
-      beltBasePx: this.beltTotalPx ?? 0,
-    };
-    this.sendOffset = 0;
-    option.container.setDepth(30);
-    option.container.setY(H * t.beltYFrac + H * t.dropYOffsetFrac);
-    option.container.setX(W * t.dropXFrac);
-  }
+  // The feedback itself was never in `wrongDrop`: it lives in `finishWrongDrop()`,
+  // which the ride's end calls, so the buzzer and the red flash still happen only
+  // after the shapes have actually left the screen.
 
   // A full-canvas colour flush, used by BOTH outcomes — green for a win, red for a
   // miss. One helper so the two cannot drift apart in timing or depth, which is
@@ -1265,6 +1465,10 @@ export default class ShapesScene extends SceneBase {
   // Called from update() the moment the ride reaches its end, so the feedback is
   // synchronised with the shape actually being gone rather than with a timer.
   finishWrongDrop(ctx, t) {
+    // The round is over either way; a question still being read out would talk
+    // over the buzzer. The retry re-asks it in a moment anyway.
+    ctx.stopVoice?.();
+
     this.flashScreen(ctx, t.wrongFlashColor, t.wrongFlashAlpha, t.wrongFlashMs, t.wrongFlashHoldMs);
 
     // Buzzer — the shared `wrong` clip, loaded by this game's asset manifest.
@@ -1363,6 +1567,11 @@ export default class ShapesScene extends SceneBase {
   // it has already stopped at the offset it reached, which is the position the
   // next round resumes from.
   finishSendOff(ctx, option, t) {
+    // THE ROUND IS WON — silence the question. The hub also stops it on
+    // `roundComplete`, but this scene holds for `winHoldMs` first, so without this
+    // the question would still be reading out over the success chime.
+    ctx.stopVoice?.();
+
     // THE SUCCESS MOMENT: chime plus green flush, at the instant the shape has
     // finished sending off and the round is won.
     //

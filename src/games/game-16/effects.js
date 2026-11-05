@@ -22,12 +22,18 @@
 // of slices, and both the wipe and the confetti need to agree about depth.
 import { getEngine } from '@/games/game-16/tuning';
 import { makeConfettiTexture } from '@/phaser/common/sceneAssets';
+import { isMuted } from '@/phaser/common/audioState';
 
 // Depth bands for the effects. The end panel uses 60/61 and the dev hint 60, so
 // confetti sits UNDER them (it must not cover a panel or a button) and ABOVE
 // every scene layer (10) and the HUD band (19).
 const CONFETTI_DEPTH = 55;
 const WIPE_DEPTH = 58;
+
+// The key the outgoing frame is snapshotted under during a wipe. One key, reused,
+// and removed again afterwards — a per-transition key would leak a full-canvas
+// texture for every scene change.
+const SNAPSHOT_KEY = '__g16_wipe_frame';
 
 // The emitter, keyed by the Phaser scene that owns it. A WeakMap so a destroyed
 // scene's entry goes with it instead of pinning the scene forever.
@@ -89,26 +95,34 @@ export function confettiEmitter(scene) {
 }
 
 /**
- * Fire a confetti burst at a screen position.
+ * Fire a confetti burst from a TIDY, FIXED point.
  *
- * `explode(count, x, y)` is the same call game 13 uses: it seeds exactly `count`
- * particles at that point in ONE step, rather than relying on an emit zone, and
- * Phaser recycles them from the pool.
+ * WHY NOT RANDOM. The first version picked a random x per burst, which looked
+ * wrong for a reason worth writing down: confetti is a punctuation mark, and a
+ * punctuation mark that appears in a different place each time reads as noise
+ * rather than as celebration. It also sometimes burst from behind the prompt band
+ * or off the edge of a narrow canvas, so the effect was half-hidden at random.
  *
- * `y` defaults to just above the top edge so the pieces fall INTO the screen.
+ * So the burst ALWAYS comes from the same place — the horizontal centre, just
+ * above the top edge — and the LATERAL spread comes from the particles' own angle
+ * cone instead. That gives the arc of a real confetti drop, centred and symmetric
+ * on every screen, with no per-burst randomness at all.
+ *
+ * @param {object} scene  the Phaser scene that owns the emitter
+ * @param {number} count  how many pieces
  */
-export function burstConfetti(scene, count, x = null, y = null) {
+export function burstConfetti(scene, count) {
   if (!scene || !(count > 0)) return;
   const emitter = confettiEmitter(scene);
   if (!emitter) return;
 
-  const { width } = scene.scale;
-  // Spread across the top edge unless a specific point was asked for.
-  const px = Number.isFinite(x) ? x : width * (0.15 + Math.random() * 0.7);
-  const py = Number.isFinite(y) ? y : -24;
+  const { width: W } = scene.scale;
 
   try {
-    emitter.explode(Math.round(count), px, py);
+    // ONE explode at the centre. The emitter's own `angle` cone (see
+    // `confettiSpreadDeg`) fans the pieces out from there, so the shape of the
+    // burst is defined by the tuning rather than by where it happened to land.
+    emitter.explode(Math.round(count), W / 2, -28);
   } catch {
     // A particle API mismatch must not cost a completed round.
   }
@@ -127,6 +141,27 @@ export function destroyConfetti(scene) {
   const emitter = emitters.get(scene);
   if (emitter?.destroy) emitter.destroy();
   emitters.delete(scene);
+}
+
+/**
+ * Play one of the two transition whooshes.
+ *
+ * Forward for the in-sweep, the pre-reversed file for the out-sweep — see
+ * assets.js for why a negative playback rate is not an option.
+ *
+ * Deliberately silent-safe: a missing key, a locked audio context or a muted
+ * player all resolve to doing nothing. A transition sound must never be able to
+ * break the transition.
+ */
+function playWhoosh(scene, key, rate, volume) {
+  if (!scene?.sound || !scene.cache?.audio?.exists?.(key)) return;
+  if (isMuted() || volume <= 0) return;
+  try {
+    // `play` adds, plays, and destroys on complete — no reference to leak.
+    scene.sound.play(key, { rate, volume });
+  } catch {
+    /* audio unavailable: the wipe still runs */
+  }
 }
 
 /**
@@ -158,8 +193,10 @@ export function runWipe(scene, { colour, title, onCovered } = {}) {
   // Wide enough to cover the canvas on the way through.
   const panelW = W + overscan * 2;
 
+  // Every fallback here comes from tuning, never an inline literal: an inline
+  // dark default is how the panel stayed black after the palette was changed.
   const panel = scene.add
-    .rectangle(-panelW / 2 - overscan, H / 2, panelW, H, colour ?? 0x1e293b, 1)
+    .rectangle(-panelW / 2 - overscan, H / 2, panelW, H, colour ?? engine.wipeFallbackColor ?? 0xc8f0e4, 1)
     .setDepth(WIPE_DEPTH);
 
   // The title rides ON the panel, so it is centred on the panel's own x and moves
@@ -171,7 +208,7 @@ export function runWipe(scene, { colour, title, onCovered } = {}) {
         fontSize: `${engine.wipeTitleFontSize ?? 52}px`,
         fontFamily: 'Fredoka, sans-serif',
         fontStyle: 'bold',
-        color: engine.wipeTitleColor ?? '#ffffff',
+        color: engine.wipeTitleColor ?? engine.wipeTitleFallbackColor ?? '#14503f',
       })
       .setOrigin(0.5)
       .setDepth(WIPE_DEPTH + 1)
@@ -196,6 +233,95 @@ export function runWipe(scene, { colour, title, onCovered } = {}) {
     // `Cubic.easeInOut` on both: the sweep starts gently, is fastest as it crosses,
     // and settles at the far edge — which is what makes it read as a deliberate
     // wipe rather than a rectangle being dragged.
+    // ---- THE PERFORMANCE HALF OF THE TRANSITION ----
+    //
+    // Take a snapshot NOW, before the panel has moved, so it is the un-wiped frame.
+    // When it arrives it is slipped UNDER the panel (depth-2) and everything below
+    // is frozen: the outgoing scene's images are stopped and hidden while the panel
+    // covers them, so Phaser stops transforming and sorting a scene nobody can see.
+    //
+    // Optional by construction — `frozen` stays null if the readback is unavailable
+    // and the wipe just costs what it did before.
+    let frozen = null;
+    let froze = false;
+    // EXACTLY the objects this wipe hid, so `thaw` can put back only those.
+    //
+    // Blanket `setVisible(true)` would be wrong: some objects are legitimately
+    // invisible (a reel's losing labels, a parked shape), and thawing them would
+    // make hidden art appear mid-run.
+    const hidden = [];
+
+    const freezeBelow = () => {
+      if (froze || !scene.textures?.exists(SNAPSHOT_KEY)) return;
+      froze = true;
+      frozen = scene.add.image(W / 2, H / 2, SNAPSHOT_KEY).setDepth(WIPE_DEPTH - 2);
+
+      // HIDE EVERYTHING UNDER THE SNAPSHOT — and nothing else.
+      //
+      // This is the whole saving. An earlier attempt also called
+      // `scene.sys.pause()` here, which froze the very tween driving the wipe: the
+      // panel stopped mid-sweep and the game looked hung. Visibility alone is
+      // enough, because Phaser culls a hidden object out of the render loop.
+      //
+      // The test is DEPTH, so this needs no knowledge of which scene is mounted or
+      // how many objects it built.
+      scene.children.list.forEach((o) => {
+        if (o === frozen || o === panel || o === label) return;
+        if (o.depth < WIPE_DEPTH - 2 && o.visible) {
+          o.setVisible(false);
+          hidden.push(o);
+        }
+      });
+    };
+
+    /**
+     * PUT THE NEW SCENE BACK ON TOP, under the panel.
+     *
+     * THIS IS THE FIX FOR "the transition happens, THEN the scene changes".
+     *
+     * The snapshot is the OUTGOING scene's frame, parked at depth WIPE_DEPTH-2 —
+     * i.e. ABOVE the freshly mounted scene (layer 10). So without this, the
+     * out-sweep revealed the OLD frozen picture, and the new scene only appeared
+     * when the snapshot was destroyed at the very end: a visible pop.
+     *
+     * Called AFTER the swap, so the objects re-shown are the new scene's (plus the
+     * shared HUD, which the outgoing scene's teardown never touches and which would
+     * otherwise stay hidden for the rest of the run).
+     */
+    const thaw = () => {
+      frozen?.destroy?.();
+      frozen = null;
+      if (scene.textures?.exists(SNAPSHOT_KEY)) scene.textures.remove(SNAPSHOT_KEY);
+
+      // Anything still alive that this wipe hid. The hub has already destroyed the
+      // outgoing scene's objects, so these are the HUD and the new layer's own.
+      hidden.forEach((o) => o?.active && o.setVisible?.(true));
+      hidden.length = 0;
+
+      // The new layer was created at full alpha by its mount, which respected the
+      // crossfade — but the wipe is doing the revealing, so make sure it is solid.
+      scene.children.list.forEach((o) => {
+        if (o.depth === 10) o.setAlpha?.(1);
+      });
+    };
+
+    scene.renderer?.snapshotArea?.(0, 0, W, H, (image) => {
+      try {
+        if (!image || !scene.textures) return;
+        if (scene.textures.exists(SNAPSHOT_KEY)) scene.textures.remove(SNAPSHOT_KEY);
+        scene.textures.addImage(SNAPSHOT_KEY, image);
+        freezeBelow();
+      } catch {
+        /* no snapshot: the wipe still runs, just unoptimised */
+      }
+    });
+
+    // THE IN-SWEEP'S SOUND, played as the sweep starts so it is heard under the
+    // whole movement rather than after it.
+    if (engine.wipeWhoosh ?? true) {
+      playWhoosh(scene, 'whoosh', engine.wipeWhooshRateIn ?? 1, engine.wipeWhooshVolume ?? 0);
+    }
+
     scene.tweens.add({
       targets: [panel, label].filter(Boolean),
       // Ends with the panel exactly covering the canvas, so the swap happens with
@@ -212,17 +338,77 @@ export function runWipe(scene, { colour, title, onCovered } = {}) {
         // The screen is fully covered: this is the only safe moment to swap.
         swap();
 
-        scene.tweens.add({
-          targets: [panel, label].filter(Boolean),
-          x: W + panelW / 2 + overscan,
-          duration: ms,
-          ease: 'Cubic.easeInOut',
-          onComplete: () => {
-            panel.destroy();
-            label?.destroy();
-            resolve();
-          },
-        });
+        // THE NEW SCENE GOES UNDER THE PANEL HERE — not at the end.
+        //
+        // This is what makes the change invisible: the swap happens with the screen
+        // covered, and the fresh scene is then revealed BY the out-sweep rather than
+        // popping into place after it. Without this call the out-sweep uncovered the
+        // OLD snapshot frame and the new scene appeared only when that snapshot was
+        // destroyed, at the very end of the transition.
+        thaw();
+
+        // ---- THE HOLD ----
+        //
+        // This is the beat the transition was missing. Without it the panel
+        // swept in and straight back out, so the scene title was on screen for
+        // only a few frames as it crossed the middle — long enough to notice,
+        // too short to read.
+        //
+        // The hold is DELIBERATE dead time: nothing moves, the panel is fully
+        // covering, the title sits still in the middle. Reading a short phrase
+        // takes a kindergartner noticeably longer than an adult, hence the
+        // generous default.
+        const holdMs = Math.max(0, engine.wipeHoldMs ?? 0);
+
+        const sweepOut = () => {
+          // THE OUT-SWEEP'S SOUND: the SAME recording, reversed, so the two
+          // halves read as one movement passing through rather than two separate
+          // effects. Fired here (not at the hold) so it tracks the panel's exit.
+          if (engine.wipeWhoosh ?? true) {
+            playWhoosh(
+              scene,
+              'whooshReverse',
+              engine.wipeWhooshRateOut ?? 1,
+              engine.wipeWhooshVolume ?? 0,
+            );
+          }
+
+          scene.tweens.add({
+            targets: [panel, label].filter(Boolean),
+            x: W + panelW / 2 + overscan,
+            duration: ms,
+            ease: 'Cubic.easeInOut',
+            onComplete: () => {
+              panel.destroy();
+              label?.destroy();
+              // Belt and braces: if the swap never happened (no onCovered), nothing
+              // was thawed, and a frozen scene would be left behind.
+              frozen?.destroy?.();
+              if (scene.textures?.exists(SNAPSHOT_KEY)) scene.textures.remove(SNAPSHOT_KEY);
+              hidden.forEach((o) => o?.active && o.setVisible?.(true));
+              hidden.length = 0;
+              resolve();
+            },
+          });
+        };
+
+        if (holdMs <= 0) {
+          sweepOut();
+          return;
+        }
+
+        // The title gets its own small settle while the screen holds, so the hold
+        // does not read as a freeze: it lands, then breathes once.
+        if (label?.active && (engine.wipeTitleHoldScale ?? 1) !== 1) {
+          scene.tweens.add({
+            targets: label,
+            scale: engine.wipeTitleHoldScale,
+            duration: holdMs * 0.45,
+            ease: 'Sine.easeOut',
+          });
+        }
+
+        scene.time.delayedCall(holdMs, sweepOut);
       },
     });
   });

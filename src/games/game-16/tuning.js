@@ -50,6 +50,23 @@ import ownSource from '@/games/game-16/tuning.js?raw';
 // Phaser canvas clear colour (see Game.jsx). Also the backdrop fallback.
 export const BACKGROUND_COLOR = '#0b1220';
 
+// ---------------------------------------------------------------------------
+// VOICE — the prompt read-aloud and its "say it again" button
+// ---------------------------------------------------------------------------
+// The WORDS and the audio URLs live in prompts.js, because that is the file a
+// human edits. Everything adjustable about how they are PRESENTED lives here.
+export const VOICE = {
+  promptVolume: 0.9,
+  buttonIcon: '🔊',
+  buttonFontSize: 22,
+  buttonMinSize: 46,
+  buttonDepth: 26,
+  buttonInsetX: 18,
+  buttonInsetY: 18,
+  glowScale: 1.12,
+  glowMs: 460,
+};
+
 // Per-game local-dev switch for the tuning editor. Production folds it away
 // regardless, via import.meta.env.DEV in @/devTuning/panel.js.
 export const DEV_TUNING_ENABLED = true;
@@ -58,60 +75,68 @@ export const DEV_TUNING_ENABLED = true;
 // ENGINE — run-wide numbers
 // ---------------------------------------------------------------------------
 export const ENGINE = {
-  // How long the scene-to-scene handover takes. A short dip keeps the run
-  // feeling continuous; 0 makes it a hard cut.
   transitionMs: 320,
-  // Fade the incoming scene in over this fraction of transitionMs.
   crossfade: 0.5,
-  // Dev-only: draw the placeholder frame, ids and per-scene accent.
   devChrome: true,
-
-  // ---- THE SCENE CHANGE ---------------------------------------------------
-  // A scene change is the one moment the run can feel like a slideshow of
-  // unrelated mini-games, so it gets a deliberate two-beat transition instead of
-  // a bare fade:
+  wipeMs: 520,
+  wipeHoldMs: 900,
+  // THE WIPE'S COLOUR.
   //
-  //   1. WIPE IN   a full-width panel sweeps across in the OUTGOING scene's own
-  //                accent colour. Using the scene's colour is what makes the
-  //                change read as "that chapter ended" rather than as a flash.
-  //   2. WIPE OUT  the new scene is already mounted underneath, and the panel
-  //                sweeps away to reveal it.
+  // It has been two wrong things already: 0x000000 (pure black, a dead screen
+  // between two brightly coloured mini-games) and then a deep backdrop blue,
+  // which was merely less wrong — still a dark flash against the pastel scenes.
   //
-  // The panel is ONE rectangle whose x is tweened — not a stack of slices — so
-  // the whole transition costs a single quad of overdraw on a school tablet.
+  // BRIGHT PASTEL AQUA-MINT now. It matches the world the scenes actually are
+  // (soft pastel art, saturated accents), and it is a LIFT rather than a cut, so
+  // the handover reads as a page turning. Deliberately cooler than scene 4's
+  // warm cream prompt band and lighter than every scene's saturated accent, so
+  // the panel never looks like a piece of either.
   //
-  // 0 on `wipeMs` disables it and falls back to the plain crossfade.
-  wipeMs: 260,
-  wipeColor: null, // null = the outgoing scene's `color` from the registry
-  // How far past the canvas the panel starts and ends, so no sliver shows at
-  // either edge during the sweep.
+  // `null` would fall back to the outgoing scene's registry accent, which is also
+  // reasonable (each handover takes the colour of the scene it is leaving). A
+  // colour here wins over that.
+  wipeColor: 0xc8f0e4,
+  // FALLBACKS, for a direct `runWipe` call that passes neither a colour nor a
+  // title colour. Kept in step with the two values above so that path can never
+  // produce a dark panel with an invisible title on it.
+  wipeFallbackColor: 0xc8f0e4,
+  wipeTitleFallbackColor: '#14503f',
   wipeOverscanPx: 40,
-  // The title card that rides ON the wipe: the incoming scene's name, so the
-  // change is announced rather than merely animated.
   wipeTitle: true,
   wipeTitleFontSize: 52,
-  wipeTitleColor: '#ffffff',
-
-  // ---- CELEBRATION --------------------------------------------------------
-  // Confetti after EVERY completed scene (not just the run), because reaching the
-  // end of a mini-game is the achievement, and the run's own finish is then just
-  // the last of them.
+  // DARK TEAL, not near-white.
   //
-  // ONE ParticleEmitter per burst, not N tweened images. A pooled emitter is a
-  // single batched draw call that Phaser can recycle; forty individual Images each
-  // carrying a tween is forty display objects, forty tweens, and forty destructions
-  // — which is what makes confetti the thing that stutters on a low-end tablet.
-  sceneConfetti: 26,
-  finishConfetti: 44,
-  confettiMs: 1500,
-  // The gravity the pieces feel, so they arc rather than fall like curtains.
-  confettiGravityY: 620,
-  confettiSpeedMin: 220,
-  confettiSpeedMax: 520,
-  confettiSpreadDeg: 55,
-  // Cap on simultaneously live confetti particles across the WHOLE game. A burst
-  // arriving while the previous one is still falling trims to this, so a fast
-  // child chaining scenes cannot stack thousands of quads.
+  // The title colour is not a free choice: it is fixed by the panel it sits on.
+  // On the pastel it needs to be DARK — this pair measures ~7.6:1 contrast,
+  // comfortably past the 4.5:1 body-text threshold, so the scene name stays
+  // readable at a glance from across a classroom.
+  wipeTitleColor: '#14503f',
+  wipeTitleHoldScale: 1.06,
+  // THE WHOOSH UNDER THE WIPE.
+  //
+  // Two clips, because a whoosh that runs the same way twice reads as two
+  // separate sounds rather than one movement: the in-sweep gets the recording
+  // forward, the out-sweep gets a pre-reversed copy. See assets.js for why this
+  // cannot be done with a negative playback rate.
+  //
+  // `wipeWhooshVolume: 0` mutes the transition without touching the game's sfx,
+  // and `wipeWhoosh` false skips the clips entirely (useful when tuning the
+  // visual timing in silence).
+  wipeWhoosh: true,
+  wipeWhooshVolume: 0.55,
+  // Playback rates. The clip is 0.67 s and the sweeps are `wipeMs` (520 ms) each,
+  // so 1.0 is already close to a match. Slightly slower on the way in (0.92) so
+  // the sound does not finish before the panel has crossed, and slightly faster
+  // on the way out (1.05) so the reverse does not lag behind the reveal.
+  wipeWhooshRateIn: 0.92,
+  wipeWhooshRateOut: 1.05,
+  sceneConfetti: 30,
+  finishConfetti: 52,
+  confettiMs: 1900,
+  confettiGravityY: 330,
+  confettiSpeedMin: 240,
+  confettiSpeedMax: 620,
+  confettiSpreadDeg: 78,
   confettiMaxLive: 90,
 };
 
@@ -211,11 +236,15 @@ export const SCENE1 = {
   dropToleranceFrac: 0.18,
   dropXFrac: 0.5,
   parkSpreadFrac: 0.42,
+  wrongParkAlpha: 0.65,
   dropZoneColor: 0xffffff,
   dropZoneAlpha: 0.18,
   dropZoneRadiusFrac: 0.1,
   dropZonePulseAlpha: 0.25,
   dropZonePulseMs: 900,
+  dropZoneOccupiedAlpha: 0.4,
+  dropZoneRingWidth: 3,
+  dropZoneFitMul: 1.5,
   // Green = won, red = try again, through one helper so they read as the same
   // piece of feedback with opposite meanings.
   correctFlashColor: 0x22c55e,
@@ -640,18 +669,7 @@ export const POSITIONS = {
   successPopVolume: 0.8,
   successPopRate: 1,
   nextPromptMs: 420,
-
-  // ---- THE EMPHASISED WORD IN THE PROMPT ---------------------------------
-  // Each prompt marks ONE word as the relationship it asks about — "top",
-  // "behind", "inside". That word is drawn BIGGER and in its own colour, because
-  // it is the part of the sentence the child has to act on.
-  //
-  // Phaser Text has no inline styling, so the prompt is laid out as individual
-  // word objects (see `renderPrompt` in PositionsScene). These four knobs style
-  // the emphasised one.
   emphasisSizeMul: 1.45,
-  // Warm amber: reads as "this is the important bit" against white body text, and
-  // stays legible over every portrait's artwork thanks to its own outline.
   emphasisColor: '#fbbf24',
   emphasisStrokeColor: '#000000',
   emphasisStrokeThickness: 4,
@@ -897,253 +915,88 @@ export const POSITION_PARTS = [
 // texture is a large, slow download on a school tablet. Tiling a small middle
 // segment costs three images of normal size and scales to any height.
 export const BUILDING = {
-  // The wall spans the FULL canvas width.
-  //
-  // It used to be 575px pinned to the right edge, with the rooms centred inside
-  // it. Now the wall is the whole screen and the rooms KEEP THEIR POSITION — so
-  // `roomCentreXFrac` is what places them, not the wall's midpoint. Widening the
-  // wall must not drag the rooms sideways with it.
   wallWidth: 720,
   wallRightInset: 0,
-
-  // Where each room's centre sits, as a fraction of the canvas width. An ABSOLUTE
-  // position, deliberately independent of the wall's width.
-  //
-  // The rooms are anchored from the RIGHT edge, because that is the design intent:
-  // `roomRightInsetFrac` of clear wall on the right, then the rooms.
-  //
-  //   right edge = 720 - 16 = 704; centre = 704 - 500/2 = 454; 454 / 720 = 0.6306
-  //
-  // A 500px room whose right edge sits exactly 16px from the screen edge.
-  roomCentreXFrac: 0.6306,
-  // Clear wall between the rooms' right edge and the canvas edge.
-  roomRightInsetFrac: 16 / 720,
-
-  // Each room is this wide, with `roomGap` between rooms.
+  roomCentreXFrac: 0.631,
+  roomRightInsetFrac: 0.022,
   roomWidth: 500,
-  // GAP BETWEEN ROOMS, in px. This is the "gaps beautifully done" number: too
-  // small and the floors merge, too large and the building stops reading as one
-  // structure.
   roomGap: 10,
-
-  // THE STACK IS ANCHORED AT THE BOTTOM, not the top.
-  //
-  // `groundRoomBottomGapPx` is the ground floor's distance above the bottom of the
-  // wall — a real design number, and the one that should be honoured. Where the
-  // TENTH floor lands is then a consequence of the room heights and gaps, not
-  // something to author.
-  //
-  // 80px "from the bottom of the wall". This single number IS the wall below the
-  // ground floor — there is no separate bottom pad, because two numbers for one
-  // measurement can contradict each other (a pad of 200 alongside a gap of 80 once
-  // pushed the wall's base below the canvas).
   groundRoomBottomGapPx: 80,
-
-  // WHERE THE BUILDING OPENS, as an offset from the TOP of the scroll range
-  // (`bounds.min`). 0 = the top floor (floor 10) is on screen and the ground floor
-  // is far below, which is how a building is normally read.
-  //
-  // The stack is anchored at the BOTTOM, so the ground floor is what sits at a
-  // sensible place at scroll 0 — the offset needed to open there is the whole range,
-  // which is not a number worth writing down. Leave this at 0 and swipe down.
   startScrollPx: 0,
-
-  // The area the building occupies vertically, so the tiled wall knows how tall to
-  // be and the rooms know where to stop.
-  //
-  // ONLY THE TOP CAP IS A SEPARATE NUMBER. The wall BELOW the ground floor is
-  // `groundRoomBottomGapPx` — the same measurement, so it must not have a second
-  // tunable that can contradict it. (It used to: `wallBottomPadPx: 200` alongside a
-  // gap of 80 put the wall's base 120px below the canvas, so it could never sit
-  // flush with the screen.)
   wallTopPadPx: 120,
-
-  // ---- SCROLLING ----------------------------------------------------------
-  // `swipe` = drag anywhere to scroll (a kind on a tablet). The wheel is enabled
-  // too, so it works while tuning with a mouse.
   scrollSwipe: true,
   scrollWheel: true,
-  // Moves are divided by this, so a swipe scrolls a comfortable distance rather
-  // than 1:1 with the finger.
   scrollSensitivity: 1,
-  // Momentum: a released swipe keeps travelling, decaying by `friction` per
-  // second. 0 disables it.
   momentum: 0.92,
   momentumMinPx: 12,
-  // The wall must not scroll past its ends; a hard stop reads better than a
-  // bounce for a child working out which floor they are on.
   clampScroll: true,
-
-  // HOW MUCH SPACE THE SCROLL KEEPS CLEAR AT EACH END, as canvas fractions.
-  //
-  // The BOTTOM inset is 0 ON PURPOSE: scrolled all the way down, the wall's bottom
-  // cap must sit FLUSH against the bottom of the screen. Any inset there leaves a
-  // strip of backdrop under the building, which reads as the wall having come
-  // loose — and it is the thing "stuck to the end" means.
-  //
-  // The TOP inset keeps the wall clear of the HUD title chip and prompt band, so
-  // the top cap is not tucked under them when scrolled fully up.
   scrollTopInsetFrac: 0.1,
   scrollBottomInsetFrac: 0,
-
-  // ---- LOOK ---------------------------------------------------------------
+  scrollFriction: 2.6,
+  scrollMaxVelocity: 4200,
+  scrollStopSpeed: 14,
+  scrollGain: 1.6,
+  scrollDragThresholdPx: 10,
+  scrollVelocitySamples: 5,
+  scrollReleaseIdleMs: 60,
   wallAlpha: 1,
   roomAlpha: 1,
-  // A soft shadow behind the whole building, so it lifts off the backdrop.
   buildingShadowAlpha: 0.22,
   buildingShadowOffsetPx: 10,
-  // Faint floor separators between the rooms, so counting floors is easy.
   showFloorLines: false,
   floorLineColor: 0xffffff,
   floorLineAlpha: 0.25,
   floorLineWidth: 3,
-
-  // ---- THE GAP BETWEEN FLOORS ---------------------------------------------
-  // The `roomGap` between rooms is FILLED with a brown band rather than left empty,
-  // so the floors read as separated by a floor SLAB instead of floating apart with
-  // the wall showing through.
-  //
-  // `gapFillWidthFrac` is the band's width as a fraction of the ROOM width: 1 makes
-  // it line up with the rooms' edges exactly. `gapFillPadPx` grows it slightly
-  // vertically so it tucks UNDER the room art and no hairline of wall shows at the
-  // seam.
   gapFill: true,
   gapFillColor: 0x6b4423,
   gapFillAlpha: 1,
   gapFillWidthFrac: 1,
   gapFillPadPx: 2,
-  // A darker edge, so the band reads as a slab with thickness rather than as a flat
-  // stripe. 0 turns the edge off.
   gapFillEdgeColor: 0x4a2f18,
   gapFillEdgeWidth: 2,
-
-  // ---- FLOOR NUMBERS ------------------------------------------------------
-  // One number per floor, in the strip of wall LEFT of the rooms — horizontally
-  // centred between the screen edge and the room's left edge, and vertically
-  // centred on the room. Numbers count 1 at the BOTTOM up to 10 at the top, which
-  // is how a child reads a building.
   showFloorNumbers: true,
   floorNumberFontSize: 76,
   floorNumberColor: '#fde68a',
   floorNumberStrokeColor: '#7c2d12',
   floorNumberStrokeThickness: 8,
-  // The numbers live INSIDE the scroll container, so they travel with their floor
-  // — a number that stayed put while the rooms moved would point at nothing.
   floorNumberAlpha: 1,
-
-  // WHICH ROOM IS ON WHICH FLOOR IS RANDOMISED each run, so the building cannot be
-  // memorised ("the frog is always on 3"). Off by default in the sense that the
-  // order stays as authored while the picture is being tuned — flip it on to check
-  // a shuffle.
   shuffleRooms: false,
-
-  // THE NUMBER'S BOX. A filled plate behind each digit, so it reads as a floor
-  // badge rather than as loose text on brickwork — easier to read, and more like a
-  // real building's floor plate.
-  //
-  // Sized from the TEXT (`boxPadPx` grows it) rather than from a fixed number, so
-  // changing `floorNumberFontSize` keeps the plate hugging the number.
   floorNumberBox: true,
-  // WHITE, so the plate reads as a painted floor number on the wall rather than as a
-  // brown tag. The digit keeps its amber fill and dark outline, which is what makes it
-  // legible ON white — dark-on-light is the opposite of the old dark box.
   floorNumberBoxColor: 0xffffff,
   floorNumberBoxAlpha: 0.92,
   floorNumberBoxPadPx: 14,
   floorNumberBoxRadius: 14,
   floorNumberBoxBorderColor: 0x8b5e34,
   floorNumberBoxBorderWidth: 3,
-  // EVERY PLATE THE SAME WIDTH, so the column reads as a stack of identical badges.
-  // 0 = size each plate to its own digits (which makes "10" visibly wider than "1").
   floorNumberBoxWidthPx: 0,
-
-  // ---- THE QUESTION -------------------------------------------------------
-  // FIVE rounds, each naming one floor. The floors are DISTINCT per run (see
-  // buildingRounds.js), so no animal is asked about twice and the previous answer
-  // is never still on screen when the next question appears.
-  //
-  // The ordinal is SPELLED ("third", not "3") because reading the word is the
-  // point of the exercise at this age; the numeral is already on the wall beside
-  // every room, so the child matches a word to a digit.
   roundsPerRun: 5,
-  // How many animal options stand in the row. One right answer plus two
-  // distractors — the smallest set that is still a real choice.
   optionCount: 3,
-
-  // ---- THE OPTION ROW ------------------------------------------------------
-  // Three discs across the bottom of the screen, BELOW the building so they never
-  // cover a room the child is trying to read, and clear of the prompt band at the
-  // top. `optionYFrac` is the row's centre.
   optionYFrac: 0.885,
-  // Laid out symmetrically about the canvas midline: the three centres are
-  // `0.5 ± step`. At 0.285 they sit at 0.215 / 0.50 / 0.785 — 205px apart on a
-  // 720 canvas, which is 33px of clear space between two 86px-radius discs.
-  //
-  // The spacing has to EXCEED the diameter or the discs touch: 0.24 gave exactly
-  // 172.8px for a 172px diameter, so the row read as one merged blob.
   optionStepFrac: 0.285,
   optionRadius: 86,
-  // THE DISC, styled like scene 3's option circle but OPAQUE ENOUGH TO READ.
-  //
-  // A translucent fill alone over brickwork, rooms and floor numbers at once was
-  // too weak: the animals competed with whatever happened to be behind them.
-  // 0.72 gives the row its own surface without turning the discs into flat white
-  // cut-outs — you can still tell there is a building behind them.
   optionDiscColor: 0xffffff,
-  optionDiscAlpha: 0.72,
-  // A VISIBLE RIM. With a strong fill the edge needs definition, or the discs look
-  // like blurry white blobs rather than circles. Warm amber picks up the floor
-  // numbers and the band's edge, so the row reads as part of the same design.
+  optionDiscAlpha: 0.9,
   optionDiscStrokeWidth: 6,
   optionDiscStrokeColor: 0xfbbf24,
   optionDiscStrokeAlpha: 1,
-  // The animal inside the disc, as a fraction of the disc's DIAMETER. Sized from
-  // the art's longer side, so a tall animal and a wide one both sit comfortably
-  // inside the circle instead of one of them spilling out.
   optionSpriteFrac: 0.78,
-  // A soft shadow under each disc, so the row reads as lifted off the art. Light,
-  // like scene 3's — the discs are translucent, and a heavy shadow under a
-  // see-through circle looks like a mistake.
   optionShadowDy: 6,
-  optionShadowAlpha: 0.14,
-  // The disc grows slightly on press and returns on release — the "I have it"
-  // acknowledgement that makes a tap feel registered.
+  optionShadowAlpha: 0.54,
   optionPressScale: 1.08,
   optionPressMs: 90,
-  // A slow bob, so the row reads as tappable rather than as part of the picture.
-  // 0 turns it off.
   optionBobPx: 5,
   optionBobMs: 1400,
-  // A child aiming at a circle taps slightly off it; the HIT area is the disc's
-  // radius times this, so a near miss still counts.
   optionHitPad: 1.25,
-  // THE LONGEST PRESS THAT STILL COUNTS AS A TAP. The options sit over the
-  // scrollable building, so a press has to be distinguished from a scroll
-  // gesture — and from a finger resting on the screen while a child thinks. A
-  // press held longer than this is discarded silently: no answer, no penalty.
-  tapMaxMs: 700,
-
-  // ---- FEEDBACK ------------------------------------------------------------
-  // THE SHELF behind the row — OFF by default.
-  //
-  // It was a full-width band to make the discs' overlap with the wall look
-  // deliberate. With translucent discs that band is no longer needed: the circles
-  // lift themselves off the art, and a solid strip hides the bottom of the
-  // building for no gain. Raise `optionShelfHeight` to bring it back.
   optionShelfHeight: 0,
   optionShelfColor: 0x6b4423,
   optionShelfAlpha: 0.94,
   optionShelfEdgeColor: 0xd2b48c,
   optionShelfEdgeWidth: 5,
-
-  // The floor we were asking about is OUTLINED while the child looks for it, so
-  // the answer is findable by counting rather than by luck.
+  tapMaxMs: 700,
   highlightFloor: true,
   floorHighlightColor: 0xfbbf24,
   floorHighlightAlpha: 0.4,
   floorHighlightWidth: 6,
-  // Correct: the disc pops, `pop2` plays, the floor flashes green, then the next
-  // question. Held long enough for the child to see WHAT was right.
   correctFlashColor: 0x22c55e,
   correctFlashAlpha: 0.22,
   correctFlashMs: 160,
@@ -1152,11 +1005,7 @@ export const BUILDING = {
   correctPopMs: 180,
   successSound: 'pop2',
   successVolume: 0.85,
-  // The beat before the next question, so one question does not slide straight
-  // into the next.
   nextPromptMs: 620,
-  // Wrong: the disc wobbles, the screen flushes red, a buzzer plays, and the SAME
-  // question stays up. Counted in the run's wrong total.
   wrongFlashColor: 0xef4444,
   wrongFlashAlpha: 0.34,
   wrongFlashMs: 150,
@@ -1166,71 +1015,12 @@ export const BUILDING = {
   wrongWobbleRepeats: 2,
   wrongSound: 'wrong',
   wrongVolume: 0.6,
-  // A wrong tap locks input for this long, so a double-tap cannot score twice.
   wrongLockMs: 420,
-  // After the last question: hold on the finished building, then hand over.
   winHoldMs: 1000,
-
-  // The emphasised ordinal in the prompt: bigger and its own colour, drawn
-  // word-by-word because Phaser Text has no inline styling.
   emphasisSizeMul: 1.45,
   emphasisColor: '#b45309',
   emphasisStrokeColor: '#fff7ed',
   emphasisStrokeThickness: 0,
-
-  // ---- SCROLL: NATIVE-STYLE FLING ------------------------------------------
-  // THE MODEL. This is a momentum scroller, not an eased chase. It has exactly two
-  // states, which is what makes it predictable:
-  //
-  //   DRAGGING  the content is pinned 1:1 to the finger (times `scrollGain`). No
-  //             easing at all — the thing follows your thumb, which is what makes
-  //             a scroll feel direct rather than laggy.
-  //
-  //   FLINGING  the finger has lifted. The content travels on its own at
-  //             `velocity`, losing `scrollFriction` of it per second, so a HARD
-  //             flick goes a long way and a gentle one barely moves. It stops when
-  //             the speed falls below `scrollStopSpeed`.
-  //
-  // WHY THE OLD MODEL WAS WRONG. It ran three chained easing stages (accel towards
-  // a goal, smoothing towards a target, ease-out on release). Each stage chased the
-  // previous one, so the content always trailed the finger, and the release speed
-  // was read from a single frame — which meant a fast flick and a slow drag ended
-  // up travelling almost the same distance. That is the "not intuitive" part: the
-  // gesture had no weight behind it.
-  //
-  // DISTANCES here are in px/second, which is what makes the feel survive a change
-  // of frame rate or device.
-  //
-  // Deceleration as a fraction of speed lost per second. 3.2 means a flick at
-  // 3000px/s has ~0.9s of travel left; 5 would stop in about half that.
-  // 2.6 puts a maximum flick at 4200/2.6 ≈ 1600px — about a screen and a half —
-  // and settles in roughly two seconds. That is close to a phone's own scrolling;
-  // 3.2 (the first guess) topped out at 1300px and felt short of a throw.
-  scrollFriction: 2.6,
-  // The fastest the content may travel, whether dragged or flung. Caps a violent
-  // flick so the building cannot teleport past the floor the child was reading.
-  scrollMaxVelocity: 4200,
-  // Below this speed (px/s) the glide is over and the content snaps to rest, so it
-  // cannot creep for a second after a tap.
-  scrollStopSpeed: 14,
-  // MULTIPLIES the distance a swipe travels, so the building covers more ground for
-  // the same finger movement. 1 = exactly follow the finger; 1.6 = noticeably
-  // faster without losing the connection to the gesture.
-  scrollGain: 1.6,
-
-  // A DRAG ONLY BECOMES A SCROLL after this much movement. Below it the gesture
-  // stays a TAP, which is what stops the options firing while a child is trying to
-  // scroll the building — the commonest mis-fire in a game where the play targets
-  // sit over a scrollable surface.
-  scrollDragThresholdPx: 10,
-  // Sampling window for the release velocity, in pointermove events. The speed is
-  // averaged over these, so one jittery frame cannot launch or kill a fling.
-  scrollVelocitySamples: 5,
-  // A finger that STOPS before lifting produces no more move events, so the only
-  // evidence of the stop is the gap before the release. Longer than this and the
-  // gesture counts as a hold: the content stays put instead of shooting away from
-  // a speed the finger no longer has.
-  scrollReleaseIdleMs: 60,
 };
 
 // ---------------------------------------------------------------------------
@@ -1240,10 +1030,8 @@ export const BUILDING = {
 // run genuinely needs: a child who has just completed a game wants to play it
 // again, and the alternative is backing out and finding it in the catalogue.
 export const END_SCREEN = {
-  // The scrim over the finished game, so the panel reads as a separate surface.
   scrimColor: 0x0b1220,
   scrimAlpha: 0.62,
-  // The panel. Fractions of the canvas, so it scales.
   panelWidthFrac: 0.82,
   panelMaxWidth: 560,
   panelHeightFrac: 0.46,
@@ -1251,15 +1039,11 @@ export const END_SCREEN = {
   panelBorderColor: 0xf59e0b,
   panelBorderWidth: 6,
   panelRadius: 32,
-  // The entrance punch, so the panel arrives rather than appearing.
   popMs: 380,
-  // The headline.
   titleText: 'Mission Complete!',
   titleColor: '#3b2f1e',
   titleFontSize: 44,
   titleYOffsetFrac: -0.26,
-  // One star per finished scene, drawn BIG and sequentially, so the run feels
-  // counted rather than summarised.
   starSize: 54,
   starGapPx: 18,
   starColor: 0xfbbf24,
@@ -1267,11 +1051,9 @@ export const END_SCREEN = {
   starYOffsetFrac: -0.04,
   starPopMs: 240,
   starStaggerMs: 110,
-  // The summary line under the stars.
   summaryFontSize: 26,
   summaryColor: '#6b4423',
   summaryYOffsetFrac: 0.13,
-  // The replay button.
   buttonLabel: 'Play Again',
   buttonFontSize: 28,
   buttonYOffsetFrac: 0.31,
@@ -1279,7 +1061,6 @@ export const END_SCREEN = {
   buttonTextColor: '#ffffff',
   buttonPaddingX: 36,
   buttonPaddingY: 16,
-  // The completion burst behind the panel. 0 turns it off.
   confettiCount: 40,
 };
 
@@ -1303,16 +1084,66 @@ export const END_SCREEN = {
 // POOL of ten rooms, in the order they are drawn into the reference picture; the
 // floor numbers are a property of the SLOT, not of the room.
 export const BUILDING_ROOMS = [
-  { id: 'cat', textureKey: 'roomCat', optionKey: 'optionCat', name: 'cat' },
-  { id: 'elephant', textureKey: 'roomElephant', optionKey: 'optionElephant', name: 'elephant' },
-  { id: 'cow', textureKey: 'roomCow', optionKey: 'optionCow', name: 'cow' },
-  { id: 'lion', textureKey: 'roomLion', optionKey: 'optionLion', name: 'lion' },
-  { id: 'fish', textureKey: 'roomFish', optionKey: 'optionFish', name: 'fish' },
-  { id: 'dog', textureKey: 'roomDog', optionKey: 'optionDog', name: 'dog' },
-  { id: 'penguin', textureKey: 'roomPenguin', optionKey: 'optionPenguin', name: 'penguin' },
-  { id: 'giraffe', textureKey: 'roomGirrafe', optionKey: 'optionGirrafe', name: 'giraffe' },
-  { id: 'sheep', textureKey: 'roomSheep', optionKey: 'optionSheep', name: 'sheep' },
-  { id: 'frog', textureKey: 'roomFrog', optionKey: 'optionFrog', name: 'frog' },
+  {
+    id: 'cat',
+    textureKey: 'roomCat',
+    optionKey: 'optionCat',
+    name: '0',
+  },
+  {
+    id: 'elephant',
+    textureKey: 'roomElephant',
+    optionKey: 'optionElephant',
+    name: 'elephant',
+  },
+  {
+    id: 'cow',
+    textureKey: 'roomCow',
+    optionKey: 'optionCow',
+    name: 'cow',
+  },
+  {
+    id: 'lion',
+    textureKey: 'roomLion',
+    optionKey: 'optionLion',
+    name: 'lion',
+  },
+  {
+    id: 'fish',
+    textureKey: 'roomFish',
+    optionKey: 'optionFish',
+    name: 'fish',
+  },
+  {
+    id: 'dog',
+    textureKey: 'roomDog',
+    optionKey: 'optionDog',
+    name: 'dog',
+  },
+  {
+    id: 'penguin',
+    textureKey: 'roomPenguin',
+    optionKey: 'optionPenguin',
+    name: 'penguin',
+  },
+  {
+    id: 'giraffe',
+    textureKey: 'roomGirrafe',
+    optionKey: 'optionGirrafe',
+    name: 'giraffe',
+  },
+  {
+    id: 'sheep',
+    textureKey: 'roomSheep',
+    optionKey: 'optionSheep',
+    name: 'sheep',
+  },
+  {
+    id: 'frog',
+    textureKey: 'roomFrog',
+    optionKey: 'optionFrog',
+    name: 'frog',
+  },
 ];
 
 // ---------------------------------------------------------------------------
@@ -1364,8 +1195,10 @@ const sceneDefaults = (index) => ({
   promptBandHeight: 0,
   // TAN, like the brick it sits above, so the band reads as part of the building
   // rather than as a UI panel pasted over it.
-  promptBandColor: 0xd2b48c,
-  promptBandAlpha: 0.96,
+  // PALE SAND. The band sits against brickwork of a similar tone, so the darker
+  // tan blended into the wall and the panel did not read as its own surface.
+  promptBandColor: 0xe8d5b7,
+  promptBandAlpha: 0.97,
   // A hairline under the band, so it reads as a header bar rather than as a
   // translucent wash. 0 width turns it off.
   promptBandEdgeColor: 0x8b5e34,
@@ -1391,56 +1224,34 @@ const sceneDefaults = (index) => ({
 // Scenes whose prompt is NOT in the default top-centre position. Kept as a small
 // override table so `sceneDefaults` stays one obvious function.
 const SCENE_PROMPT = {
-  // Scene 3 — lower part of the screen, SIDE BY SIDE with its option circle: disc
-  // on the left, sentence to its right, both sharing one baseline.
-  //
-  //   prompt y 0.90 ≈ 972 — high enough to clear the very bottom edge (0.955 sat
-  //                         almost on it, which read as falling off the screen)
-  //   prompt x 0.38 — the LEFT EDGE of the text column, just right of the disc
-  //                   (disc 0.22 + radius 88 ≈ 0.35, plus a gap)
-  //   wrap 0.58 — the rest of the width, so a long prompt breaks onto a SECOND
-  //               line instead of running off the canvas
-  //   align 'center' — CENTRED within that column, which is what reads as tidy
-  //                    beside the disc; the column itself stays where promptXFrac
-  //                    puts it, so the text never creeps under the circle
+  // positions
   positions: {
     promptYFrac: 0.87,
     promptXFrac: 0.38,
     promptWrapFrac: 0.58,
     promptAlign: 'center',
+    promptBandHeight: 0,
+    promptBandColor: 0xe8d5b7,
+    promptBandAlpha: 0.97,
+    promptBandEdgeColor: 0x8b5e34,
+    promptBandEdgeWidth: 0,
+    promptStrokeThickness: -1,
   },
-
-  // Scene 4 reaches the top of the screen with its wall, so its prompt needs a
-  // surface: a full-width band pinned to the very top.
+  // building
   building: {
-    // ONE ROW OF CONTENT: the progress dots are gone (the scene title "4 / 4 ·
-    // The Building" already says where you are), so the band only has to hold the
-    // prompt and can be much shorter than the two-row 190px it used to be.
-    //
-    // At 0.089 on a 1080-tall canvas the prompt's centre is y≈96. One line of
-    // 34px type spans y 74…118; a wrapped SECOND line spans y 52…140. Both clear
-    // the title chip (which ends at y≈42) above and the band's edge (146) below,
-    // which is why the y cannot go any higher now the dots are gone.
     promptYFrac: 0.089,
-    // -1 = no column: the prompt is anchored on the canvas MIDLINE, so it is
-    // genuinely centred rather than centred inside a column that starts at 0.
     promptXFrac: -1,
     promptWrapFrac: 0.94,
     promptAlign: 'center',
     promptBandHeight: 150,
-    promptBandColor: 0xd2b48c,
-    promptBandAlpha: 0.96,
-    // A darker brown hairline, so the tan band has a defined lower edge against
-    // the brickwork behind it.
+    // LIGHTER than the shared default, on purpose: at 0xd2b48c the band sat only a
+    // shade off the brickwork behind it, so it read as part of the wall rather than
+    // as a panel. A pale sand separates cleanly while keeping the dark brown type
+    // legible on it.
+    promptBandColor: 0xe8d5b7,
+    promptBandAlpha: 0.97,
     promptBandEdgeColor: 0x8b5e34,
     promptBandEdgeWidth: 4,
-    // Dark on tan: the shared white-with-black-outline prompt is built for art,
-    // and on a solid tan band it reads as a smudge.
-    //
-    // The body is a near-black brown and keeps a THIN pale outline. Dark-on-tan
-    // alone was legible up close but thin at a glance across a full-width band;
-    // the pale hairline gives the letterforms an edge without becoming the heavy
-    // drop shadow the shared art style uses.
     promptTitleColor: '#4a2f18',
     promptColor: '#241705',
     promptStrokeColor: '#fdf3e3',
@@ -1486,6 +1297,7 @@ const inCurrentRound = (rows) => rows.filter((row) => row.round === devRound);
 const TABLES = {
   ENGINE,
   HUD,
+  VOICE,
   END_SCREEN,
   SCENE1,
   SCENE2,
@@ -1507,6 +1319,7 @@ export const TUNING = createTuning({ id: 'G16', tables: TABLES });
 // ---------------------------------------------------------------------------
 export const getEngine = () => TUNING.get('ENGINE');
 export const getHud = () => TUNING.get('HUD');
+export const getVoice = () => TUNING.get('VOICE');
 export const getEndScreen = () => TUNING.get('END_SCREEN');
 export const getScene1 = () => TUNING.get('SCENE1');
 export const getScene2 = () => TUNING.get('SCENE2');
@@ -1584,11 +1397,30 @@ function field(key, value, indent = '  ') {
 // at which point a paste silently dropped twelve tunables back to whatever the
 // source file happened to say. A key list cannot do that: a key that is not
 // listed is a visible omission here rather than an invisible default at runtime.
+const VOICE_FIELDS = [
+  ['promptVolume', 'n'],
+  ['buttonIcon', 's'], ['buttonFontSize', 'n'], ['buttonMinSize', 'n'],
+  ['buttonDepth', 'n'], ['buttonInsetX', 'n'], ['buttonInsetY', 'n'],
+  ['glowScale', 'n'], ['glowMs', 'n'],
+];
+
+function renderVoice(v) {
+  const lines = ['export const VOICE = {'];
+  VOICE_FIELDS.forEach(([key, kind]) => lines.push(field(key, scalar(kind, v[key]))));
+  lines.push('};');
+  return lines.join('\n');
+}
+
 const ENGINE_FIELDS = [
   ['transitionMs', 'n'], ['crossfade', 'n'], ['devChrome', 'b'],
   // The scene-change wipe.
-  ['wipeMs', 'n'], ['wipeColor', 'h'], ['wipeOverscanPx', 'n'],
+  ['wipeMs', 'n'], ['wipeHoldMs', 'n'], ['wipeColor', 'h'],
+  ['wipeFallbackColor', 'h'], ['wipeOverscanPx', 'n'],
   ['wipeTitle', 'b'], ['wipeTitleFontSize', 'n'], ['wipeTitleColor', 's'],
+  ['wipeTitleFallbackColor', 's'], ['wipeTitleHoldScale', 'n'],
+  // The whoosh under it.
+  ['wipeWhoosh', 'b'], ['wipeWhooshVolume', 'n'],
+  ['wipeWhooshRateIn', 'n'], ['wipeWhooshRateOut', 'n'],
   // Celebration.
   ['sceneConfetti', 'n'], ['finishConfetti', 'n'], ['confettiMs', 'n'],
   ['confettiGravityY', 'n'], ['confettiSpeedMin', 'n'], ['confettiSpeedMax', 'n'],
@@ -1675,9 +1507,11 @@ const SCENE1_FIELDS = [
   ['shapeStrokeWidth', 'n'], ['shapeStrokeColor', 'h'], ['shapeIdleAlpha', 'n'],
   ['shapeDragScale', 'n'], ['rectangleAspect', 'n'],
   ['dropYOffsetFrac', 'n'], ['dropSnapMs', 'n'], ['dropToleranceFrac', 'n'],
-  ['dropXFrac', 'n'], ['parkSpreadFrac', 'n'],
+  ['dropXFrac', 'n'], ['parkSpreadFrac', 'n'], ['wrongParkAlpha', 'n'],
   ['dropZoneColor', 'h'], ['dropZoneAlpha', 'n'], ['dropZoneRadiusFrac', 'n'],
   ['dropZonePulseAlpha', 'n'], ['dropZonePulseMs', 'n'],
+  ['dropZoneOccupiedAlpha', 'n'], ['dropZoneRingWidth', 'n'],
+  ['dropZoneFitMul', 'n'],
   ['correctFlashColor', 'h'], ['correctFlashAlpha', 'n'], ['correctFlashMs', 'n'],
   ['correctFlashHoldMs', 'n'], ['winHoldMs', 'n'], ['winHoldPadMs', 'n'],
   ['wrongFlashColor', 'h'], ['wrongFlashAlpha', 'n'], ['wrongFlashMs', 'n'],
@@ -2117,6 +1951,7 @@ export function formatTuningCode() {
 
   out = replaceBlock(out, 'export const ENGINE = {', renderEngine(engine));
   out = replaceBlock(out, 'export const HUD = {', renderHud(hud));
+  out = replaceBlock(out, 'export const VOICE = {', renderVoice(getVoice()));
   out = replaceBlock(out, 'export const END_SCREEN = {', renderEndScreen(getEndScreen()));
   out = replaceBlock(out, 'export const SCENE1 = {', renderScene1(s1));
   out = replaceBlock(out, 'export const SCENE2 = {', renderScene2(s2));
@@ -2172,9 +2007,19 @@ export const TUNING_SCHEMA = {
       label: 'Engine · transition & celebration',
       fields: [
         // THE SCENE CHANGE. 0 on `wipe` turns it off and falls back to a cut.
-        { path: 'wipeMs', label: 'scene wipe', min: 0, max: 900, step: 10, suffix: 'ms' },
+        { path: 'wipeMs', label: 'wipe sweep', min: 0, max: 900, step: 10, suffix: 'ms' },
+        // The beat where the screen STOPS — this is the one that makes the scene
+        // name readable. 0 sweeps straight back out.
+        { path: 'wipeHoldMs', label: 'wipe hold', min: 0, max: 3000, step: 25, suffix: 'ms' },
         { path: 'wipeTitle', label: 'wipe title', type: 'toggle' },
         { path: 'wipeTitleFontSize', label: 'wipe title size', min: 16, max: 96, step: 1, suffix: 'px' },
+        { path: 'wipeTitleHoldScale', label: 'title settle ×', min: 1, max: 1.4, step: 0.01 },
+        // THE WHOOSH. `rate in` / `rate out` retime the clip against the sweeps:
+        // lower is slower and deeper, higher is quicker and tighter.
+        { path: 'wipeWhoosh', label: 'wipe whoosh', type: 'toggle' },
+        { path: 'wipeWhooshVolume', label: 'whoosh volume', min: 0, max: 1, step: 0.01 },
+        { path: 'wipeWhooshRateIn', label: 'whoosh in ×', min: 0.5, max: 2, step: 0.01 },
+        { path: 'wipeWhooshRateOut', label: 'whoosh out ×', min: 0.5, max: 2, step: 0.01 },
         // CONFETTI. `max live` is the hard population cap, so a burst cannot grow
         // the particle count past it however fast the scenes go by.
         { path: 'sceneConfetti', label: 'scene confetti', min: 0, max: 120, step: 1 },
@@ -2502,6 +2347,22 @@ export const TUNING_SCHEMA = {
         { path: 'optionRowYFrac', label: 'options y', min: 0, max: 1, step: 0.005 },
         { path: 'optionSizeFrac', label: 'option size', min: 0.04, max: 0.24, step: 0.002 },
         { path: 'sendOffSpeed', label: 'send-off', min: 60, max: 1400, step: 10, suffix: 'px/s' },
+      ],
+    },
+    // THE PROMPT VOICE. The WORDS and the audio URLs live in prompts.js — this
+    // group only shapes how they are PRESENTED.
+    {
+      key: 'VOICE',
+      label: 'Prompt voice & replay button',
+      fields: [
+        { path: 'promptVolume', label: 'voice volume', min: 0, max: 1, step: 0.02 },
+        { path: 'buttonFontSize', label: 'button icon size', min: 10, max: 48, step: 1, suffix: 'px' },
+        { path: 'buttonMinSize', label: 'button size', min: 24, max: 96, step: 1, suffix: 'px' },
+        { path: 'buttonInsetX', label: 'button x', min: 0, max: 200, step: 1, suffix: 'px' },
+        { path: 'buttonInsetY', label: 'button y', min: 0, max: 200, step: 1, suffix: 'px' },
+        // The glow while a line is playing: a scale pulse on the button alone.
+        { path: 'glowScale', label: 'glow scale', min: 1, max: 1.5, step: 0.01 },
+        { path: 'glowMs', label: 'glow speed', min: 100, max: 2000, step: 20, suffix: 'ms' },
       ],
     },
     // THE END SCREEN. Only the things worth adjusting by eye — the panel's shape

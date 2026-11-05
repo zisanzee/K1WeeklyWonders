@@ -307,11 +307,38 @@ export default class PositionsScene extends SceneBase {
       });
     }
 
+    // WHAT THE VOICE LOOKUP NEEDS: this portrait's index and which of its two
+    // prompts is being asked. `prompts.js` is keyed by IDENTITY (portrait + slot),
+    // not by the sentence, so re-wording a prompt does not orphan its recording.
+    ctx.setVoiceContext({ slot: this.promptIndex === 0 ? 'A' : 'B' });
+
     // The hub's own prompt line is CLEARED and this scene draws the sentence
     // itself, because one word in it has to be bigger and a different colour and
     // Phaser Text cannot style inline. See renderPrompt().
     ctx.setPrompt('');
     this.renderPrompt(part);
+
+    // The scene draws its own prompt text, so it also starts its own voice line —
+    // the hub's `setPrompt('')` above deliberately does not, because that is the
+    // "nothing to ask" path.
+    this.playPromptVoiceFor(part);
+  }
+
+  /**
+   * Play this prompt's voice line.
+   *
+   * The scene owns this call because it is the only thing that knows WHICH prompt
+   * is on screen — the hub's shared `setPrompt` cannot tell, since this scene
+   * clears the hub's line and draws the sentence itself.
+   */
+  playPromptVoiceFor(part) {
+    if (!this.ctx?.scene || !part) return;
+    // THROUGH THE HUB (`ctx.playVoice`): the hub knows whether a scene-change wipe
+    // is still covering the screen and defers the line until it clears, so the
+    // question is not half-spoken behind a title card.
+    //
+    // The SLOT is what `prompts.js` needs from here; the hub supplies the round.
+    this.ctx.playVoice?.({ slot: this.promptIndex === 0 ? 'A' : 'B' });
   }
 
   // ---------------------------------------------------------------------------
@@ -779,6 +806,11 @@ export default class PositionsScene extends SceneBase {
     this.phase = 'winning';
     ctx.setPrompt('');
     this.clearPrompt();
+
+    // SILENCE THE QUESTION the moment the answer is in. The hub also stops it on
+    // `roundComplete`, but this scene holds the finished picture for `winHoldMs`
+    // first — without this the question would still be reading out over the win.
+    ctx.stopVoice?.();
 
     // `pop2` — the success cue scenes 1 and 2 use, so a completed portrait sounds
     // like a completed anything.
