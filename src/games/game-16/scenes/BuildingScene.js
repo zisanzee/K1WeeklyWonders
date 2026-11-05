@@ -39,6 +39,7 @@ import { getBuilding, getBuildingRooms, getHud } from '@/games/game-16/tuning';
 import {
   buildFloorPlan,
   optionsFor,
+  ordinalNumeral,
   promptFor,
   splitPromptWords,
 } from '@/games/game-16/buildingRounds';
@@ -472,17 +473,15 @@ export default class BuildingScene extends SceneBase {
       extra.box?.destroy();
     }
 
-    // The WIDEST digit string, measured ONCE so every plate can share that width.
-    // Done after the texts above have their labels, so the measurement is of the real
-    // rendered strings rather than an estimate.
-    this.floorNumberBoxWidthFitting = this.floorNumbers.reduce(
-      (widest, n) => Math.max(widest, n.text.width || 0),
-      0
-    );
-
     this.floorNumbers.forEach((entry, i) => {
       // 1 at the BOTTOM: the array is top-down, so the label counts down the list.
-      const label = String(floorNumber(i, count));
+      //
+      // ORDINAL, not a bare numeral — "3rd" rather than "3". The prompt asks for the
+      // "third floor", so the label the child hunts for contains the same ordinal
+      // form they just read; a plain digit makes them translate between two
+      // representations while also counting up a wall. `floorNumber` still does the
+      // direction conversion (top-down array -> from-the-ground numbering).
+      const label = ordinalNumeral(floorNumber(i, count));
 
       entry.index = i;
       entry.text
@@ -497,6 +496,21 @@ export default class BuildingScene extends SceneBase {
           strokeThickness: t.floorNumberStrokeThickness,
         })
         .setAlpha(t.floorNumberAlpha);
+    });
+
+    // The WIDEST label, measured ONCE so every plate can share that width.
+    //
+    // THIS MUST RUN AFTER THE LABELS ARE SET. It used to sit above the loop, which
+    // was harmless while every label was a digit created at the same time — but the
+    // text objects are created with an empty string, so on the first sync the
+    // measurement was of ten blank strings. With numeral ordinals the plates would
+    // then be sized for "" and every "10th" would spill out of its plate.
+    this.floorNumberBoxWidthFitting = this.floorNumbers.reduce(
+      (widest, n) => Math.max(widest, n.text.width || 0),
+      0
+    );
+
+    this.floorNumbers.forEach((entry, i) => {
 
       // THE PLATE behind the digit.
       //
@@ -1074,7 +1088,15 @@ export default class BuildingScene extends SceneBase {
     const yFrac = pick(block.promptYFrac, hud.promptYFrac);
     const align = typeof block.promptAlign === 'string' ? block.promptAlign : 'center';
 
-    const bodySize = hud.promptFontSize;
+    // THE PER-SCENE TYPE SIZE, which is -1 = "use the shared HUD size" — the same
+    // convention `promptYFrac` / `promptWrapFrac` already use, so a scene that
+    // does not care needs no override.
+    //
+    // This scene DOES override it: its wording is the longest in the game and the
+    // ordinal is enlarged on top of the body size, so the shared 34 px overflowed
+    // the band it sits in. Measuring from the block (rather than the HUD) is what
+    // lets that be a tuning change instead of a code change.
+    const bodySize = pick(block.promptFontSize, hud.promptFontSize);
     const emSize = Math.round(bodySize * (t.emphasisSizeMul ?? 1.45));
     const gap = Math.max(4, bodySize * 0.26);
     const lineGap = Math.max(6, bodySize * 0.3);

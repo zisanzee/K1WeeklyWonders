@@ -3,6 +3,7 @@ import {
   ORDINALS,
   OPTION_COUNT,
   ordinalFor,
+  ordinalNumeral,
   promptFor,
   splitPromptWords,
   shuffle,
@@ -39,6 +40,47 @@ describe('ordinalFor', () => {
     expect(ordinalFor(-1)).toBe('');
     expect(ordinalFor(1.5)).toBe('');
     expect(ordinalFor(undefined)).toBe('');
+  });
+});
+
+// THE WALL LABELS. The prompt says the WORD ("third"); the wall shows the NUMERAL
+// form ("3rd"), so the label a child hunts for contains the digit they are
+// counting towards. These are the strings printed on the building.
+describe('ordinalNumeral', () => {
+  it('prints the ten floors as 1st..10th', () => {
+    const floors = Array.from({ length: 10 }, (_, i) => ordinalNumeral(i + 1));
+    expect(floors).toEqual([
+      '1st', '2nd', '3rd', '4th', '5th',
+      '6th', '7th', '8th', '9th', '10th',
+    ]);
+  });
+
+  it('uses the irregular teens rather than the last digit', () => {
+    // The trap: 11st / 12nd / 13rd are wrong, even though 1/2/3 take st/nd/rd.
+    expect(ordinalNumeral(11)).toBe('11th');
+    expect(ordinalNumeral(12)).toBe('12th');
+    expect(ordinalNumeral(13)).toBe('13th');
+  });
+
+  it('keeps the suffix rule for numbers above the teens', () => {
+    expect(ordinalNumeral(21)).toBe('21st');
+    expect(ordinalNumeral(22)).toBe('22nd');
+    expect(ordinalNumeral(23)).toBe('23rd');
+    expect(ordinalNumeral(111)).toBe('111th');
+  });
+
+  it('returns empty for a floor that does not exist', () => {
+    expect(ordinalNumeral(0)).toBe('');
+    expect(ordinalNumeral(-1)).toBe('');
+    expect(ordinalNumeral(1.5)).toBe('');
+    expect(ordinalNumeral(undefined)).toBe('');
+  });
+
+  it('agrees with ordinalFor on the fallback beyond the table', () => {
+    // Both forms fall back to the same numeral ordinal, so a building that grows
+    // past ten rooms cannot print the prompt and the wall differently.
+    expect(ordinalFor(11)).toBe(ordinalNumeral(11));
+    expect(ordinalFor(23)).toBe(ordinalNumeral(23));
   });
 });
 

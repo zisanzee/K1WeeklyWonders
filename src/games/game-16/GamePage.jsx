@@ -1,10 +1,8 @@
 // GamePage.jsx
-// Game 16 (in works) — page chrome.
+// Challenge time! — page chrome.
 //
 // The `gameLabel` values here must match the catalogue entry's label/title in
-// registry.js, or the lock screen and the card disagree. Both are currently the
-// placeholder '(in works)', so an unfinished game is unmistakable everywhere it
-// appears — rename all of them together, once it actually works.
+// registry.js, or the lock screen and the card disagree.
 import { Link } from 'react-router-dom';
 import Game from '@/games/game-16/Game';
 import NameGate from '@/auth/NameGate';
@@ -13,8 +11,8 @@ import { usePlayerStore } from '@/auth/playerStore';
 
 export default function GamePage() {
   return (
-    <NameGate gameLabel="(in works)">
-      <GameAccessGate gameNumber={16} gameLabel="(in works)">
+    <NameGate gameLabel="Challenge time!">
+      <GameAccessGate gameNumber={16} gameLabel="Challenge time!">
         <GamePageInner />
       </GameAccessGate>
     </NameGate>

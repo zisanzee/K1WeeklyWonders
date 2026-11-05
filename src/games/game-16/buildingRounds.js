@@ -41,12 +41,48 @@ export const PROMPT_TEMPLATE = 'Which animal is on the {ordinal} floor?';
 /**
  * The ordinal word for a 1-based floor number.
  *
- * Falls back to the numeral ("11th") beyond the table, so an eleventh room reads
- * as a number rather than as an empty gap in the prompt.
+ * Falls back to the numeral ordinal ("11th") beyond the table, so an eleventh room
+ * reads as a floor rather than as an empty gap in the prompt.
  */
 export function ordinalFor(floor) {
   if (!Number.isInteger(floor) || floor < 1) return '';
-  return ORDINALS[floor - 1] || `${floor}th`;
+  return ORDINALS[floor - 1] || ordinalSuffix(floor);
+}
+
+/**
+ * The NUMERAL ordinal for a 1-based floor number: 1st, 2nd, 3rd, 4th … 10th.
+ *
+ * This is what the FLOOR LABELS on the wall show. The prompt says the word
+ * ("third") because a child has to hear and read it; the wall shows the numeral
+ * form, so the label they are hunting for still contains the digit they are
+ * counting towards. Two forms, one source of truth for the number.
+ *
+ * The rules are the real English ones, not "always th":
+ *   1 -> 1st, 2 -> 2nd, 3 -> 3rd, but 11 -> 11th, 12 -> 12th, 13 -> 13th.
+ * Getting that wrong produces "11st", which is the kind of detail a teacher
+ * notices immediately even if a five-year-old does not.
+ */
+export function ordinalNumeral(floor) {
+  if (!Number.isInteger(floor) || floor < 1) return '';
+  return ordinalSuffix(floor);
+}
+
+/** The numeral plus its suffix. Split out so both ordinal helpers share it. */
+function ordinalSuffix(n) {
+  // The teens are irregular: 11/12/13 take "th" regardless of their last digit.
+  const teens = n % 100;
+  if (teens >= 11 && teens <= 13) return `${n}th`;
+
+  switch (n % 10) {
+    case 1:
+      return `${n}st`;
+    case 2:
+      return `${n}nd`;
+    case 3:
+      return `${n}rd`;
+    default:
+      return `${n}th`;
+  }
 }
 
 /**

@@ -59,10 +59,20 @@ export const VOICE = {
   promptVolume: 0.9,
   buttonIcon: '🔊',
   buttonFontSize: 22,
-  buttonMinSize: 46,
+  buttonMinSize: 84,
   buttonDepth: 26,
-  buttonInsetX: 18,
-  buttonInsetY: 18,
+  buttonInsetX: 14,
+  buttonInsetY: 14,
+  buttonBgColor: 0xffffff,
+  buttonBgAlpha: 0.55,
+  buttonBorderColor: 0x1f2937,
+  iconSize: 44,
+  iconPulse: 1.14,
+  glowRingColor: 0xff9f1c,
+  glowRingPad: 5,
+  glowRingWidth: 4,
+  glowRingAlpha: 0.85,
+  glowRingScale: 1.5,
   glowScale: 1.12,
   glowMs: 460,
 };
@@ -80,54 +90,22 @@ export const ENGINE = {
   devChrome: true,
   wipeMs: 520,
   wipeHoldMs: 900,
-  // THE WIPE'S COLOUR.
-  //
-  // It has been two wrong things already: 0x000000 (pure black, a dead screen
-  // between two brightly coloured mini-games) and then a deep backdrop blue,
-  // which was merely less wrong — still a dark flash against the pastel scenes.
-  //
-  // BRIGHT PASTEL AQUA-MINT now. It matches the world the scenes actually are
-  // (soft pastel art, saturated accents), and it is a LIFT rather than a cut, so
-  // the handover reads as a page turning. Deliberately cooler than scene 4's
-  // warm cream prompt band and lighter than every scene's saturated accent, so
-  // the panel never looks like a piece of either.
-  //
-  // `null` would fall back to the outgoing scene's registry accent, which is also
-  // reasonable (each handover takes the colour of the scene it is leaving). A
-  // colour here wins over that.
-  wipeColor: 0xc8f0e4,
-  // FALLBACKS, for a direct `runWipe` call that passes neither a colour nor a
-  // title colour. Kept in step with the two values above so that path can never
-  // produce a dark panel with an invisible title on it.
-  wipeFallbackColor: 0xc8f0e4,
-  wipeTitleFallbackColor: '#14503f',
+  wipeColor: 0xffffff,
+  wipeAlpha: 0.88,
+  wipeFallbackColor: 0xffffff,
   wipeOverscanPx: 40,
-  wipeTitle: true,
+  wipeTitle: false,
+  wipeImage: true,
+  wipeImageHeightFrac: 0.34,
+  wipeImageShadowAlpha: 0.5,
+  wipeImageFadeMs: 240,
+  wipeImageHoldScale: 1.04,
   wipeTitleFontSize: 52,
-  // DARK TEAL, not near-white.
-  //
-  // The title colour is not a free choice: it is fixed by the panel it sits on.
-  // On the pastel it needs to be DARK — this pair measures ~7.6:1 contrast,
-  // comfortably past the 4.5:1 body-text threshold, so the scene name stays
-  // readable at a glance from across a classroom.
   wipeTitleColor: '#14503f',
+  wipeTitleFallbackColor: '#14503f',
   wipeTitleHoldScale: 1.06,
-  // THE WHOOSH UNDER THE WIPE.
-  //
-  // Two clips, because a whoosh that runs the same way twice reads as two
-  // separate sounds rather than one movement: the in-sweep gets the recording
-  // forward, the out-sweep gets a pre-reversed copy. See assets.js for why this
-  // cannot be done with a negative playback rate.
-  //
-  // `wipeWhooshVolume: 0` mutes the transition without touching the game's sfx,
-  // and `wipeWhoosh` false skips the clips entirely (useful when tuning the
-  // visual timing in silence).
   wipeWhoosh: true,
   wipeWhooshVolume: 0.55,
-  // Playback rates. The clip is 0.67 s and the sweeps are `wipeMs` (520 ms) each,
-  // so 1.0 is already close to a match. Slightly slower on the way in (0.92) so
-  // the sound does not finish before the panel has crossed, and slightly faster
-  // on the way out (1.05) so the reverse does not lag behind the reveal.
   wipeWhooshRateIn: 0.92,
   wipeWhooshRateOut: 1.05,
   sceneConfetti: 30,
@@ -154,7 +132,8 @@ export const HUD = {
   promptStrokeColor: '#000000',
   promptStrokeThickness: 3,
   promptWrapFrac: 0.86,
-  // Scene title chip, top-left.
+  // Scene title chip, top-left. The hub no longer draws it — it collided with
+  // the mute button — but the values are kept so it can be restored.
   titleX: 24,
   titleY: 24,
   titleFontSize: 18,
@@ -955,16 +934,16 @@ export const BUILDING = {
   gapFillEdgeColor: 0x4a2f18,
   gapFillEdgeWidth: 2,
   showFloorNumbers: true,
-  floorNumberFontSize: 76,
+  floorNumberFontSize: 52,
   floorNumberColor: '#fde68a',
   floorNumberStrokeColor: '#7c2d12',
-  floorNumberStrokeThickness: 8,
+  floorNumberStrokeThickness: 6,
   floorNumberAlpha: 1,
   shuffleRooms: false,
   floorNumberBox: true,
   floorNumberBoxColor: 0xffffff,
   floorNumberBoxAlpha: 0.92,
-  floorNumberBoxPadPx: 14,
+  floorNumberBoxPadPx: 12,
   floorNumberBoxRadius: 14,
   floorNumberBoxBorderColor: 0x8b5e34,
   floorNumberBoxBorderWidth: 3,
@@ -1062,6 +1041,33 @@ export const END_SCREEN = {
   buttonPaddingX: 36,
   buttonPaddingY: 16,
   confettiCount: 40,
+};
+
+// ---------------------------------------------------------------------------
+// START SCREEN — the title card before the first mini-game
+// ---------------------------------------------------------------------------
+// One full-bleed piece of art with a single button on it. Deliberately almost
+// nothing to tune: it is a poster, and the only decisions are where the button
+// sits and how big it is.
+export const START_SCREEN = {
+  // LOW ON THE POSTER, clear of the artwork's busy middle.
+  //
+  // 0.90 puts the button's centre at ~972 px on the 1080 base canvas; with a
+  // ~64 px pill that spans roughly 940-1004, leaving ~76 px of margin above the
+  // bottom edge. It was 0.855, which read as floating in the picture rather than
+  // sitting at the bottom of it.
+  buttonYFrac: 0.9,
+  buttonLabel: 'Start',
+  buttonFontSize: 40,
+  buttonPaddingX: 54,
+  buttonPaddingY: 8,
+  buttonBgColor: 0xffb703,
+  buttonTextColor: '#3d2600',
+  buttonShadowFrac: 0.006,
+  buttonDepth: 30,
+  fadeMs: 260,
+  buttonPulse: 1.05,
+  buttonPulseMs: 900,
 };
 
 // The ten rooms, in BUILDING order: index 0 is the TOP floor.
@@ -1169,6 +1175,15 @@ const sceneDefaults = (index) => ({
   // actually differ.
   promptYFrac: -1,
 
+  // THIS SCENE'S PROMPT TYPE SIZE, in px. -1 = use HUD.promptFontSize.
+  //
+  // A scene that puts its prompt in a BAND needs its own size: the sentence is
+  // drawn word by word with the ordinal enlarged, so the band has to fit
+  // `promptFontSize × emphasisSizeMul` plus a body line. Scene 4's wording is the
+  // longest in the game ("Which animal is on the first floor?"), which is what
+  // makes the shared 34 px overflow a 150 px band.
+  promptFontSize: -1,
+
   // HORIZONTAL placement and wrapping — only used by a scene that puts the prompt
   // BESIDE something rather than centred.
   //
@@ -1230,6 +1245,7 @@ const SCENE_PROMPT = {
     promptXFrac: 0.38,
     promptWrapFrac: 0.58,
     promptAlign: 'center',
+    promptFontSize: -1,
     promptBandHeight: 0,
     promptBandColor: 0xe8d5b7,
     promptBandAlpha: 0.97,
@@ -1241,13 +1257,10 @@ const SCENE_PROMPT = {
   building: {
     promptYFrac: 0.089,
     promptXFrac: -1,
-    promptWrapFrac: 0.94,
+    promptWrapFrac: 0.7,
     promptAlign: 'center',
-    promptBandHeight: 150,
-    // LIGHTER than the shared default, on purpose: at 0xd2b48c the band sat only a
-    // shade off the brickwork behind it, so it read as part of the wall rather than
-    // as a panel. A pale sand separates cleanly while keeping the dark brown type
-    // legible on it.
+    promptFontSize: 30,
+    promptBandHeight: 206,
     promptBandColor: 0xe8d5b7,
     promptBandAlpha: 0.97,
     promptBandEdgeColor: 0x8b5e34,
@@ -1299,6 +1312,7 @@ const TABLES = {
   HUD,
   VOICE,
   END_SCREEN,
+  START_SCREEN,
   SCENE1,
   SCENE2,
   MIRROR_ROUNDS,
@@ -1321,6 +1335,7 @@ export const getEngine = () => TUNING.get('ENGINE');
 export const getHud = () => TUNING.get('HUD');
 export const getVoice = () => TUNING.get('VOICE');
 export const getEndScreen = () => TUNING.get('END_SCREEN');
+export const getStartScreen = () => TUNING.get('START_SCREEN');
 export const getScene1 = () => TUNING.get('SCENE1');
 export const getScene2 = () => TUNING.get('SCENE2');
 export const getMirrorRounds = () => TUNING.get('MIRROR_ROUNDS') || [];
@@ -1401,6 +1416,13 @@ const VOICE_FIELDS = [
   ['promptVolume', 'n'],
   ['buttonIcon', 's'], ['buttonFontSize', 'n'], ['buttonMinSize', 'n'],
   ['buttonDepth', 'n'], ['buttonInsetX', 'n'], ['buttonInsetY', 'n'],
+  // The translucent disc: fill colour, fill alpha and the faint outline that
+  // keeps it visible on pale scene art.
+  ['buttonBgColor', 'h'], ['buttonBgAlpha', 'n'], ['buttonBorderColor', 'h'],
+  // The speaker icon and its speaking state.
+  ['iconSize', 'n'], ['iconPulse', 'n'],
+  ['glowRingColor', 'h'], ['glowRingPad', 'n'], ['glowRingWidth', 'n'],
+  ['glowRingAlpha', 'n'], ['glowRingScale', 'n'],
   ['glowScale', 'n'], ['glowMs', 'n'],
 ];
 
@@ -1414,9 +1436,12 @@ function renderVoice(v) {
 const ENGINE_FIELDS = [
   ['transitionMs', 'n'], ['crossfade', 'n'], ['devChrome', 'b'],
   // The scene-change wipe.
-  ['wipeMs', 'n'], ['wipeHoldMs', 'n'], ['wipeColor', 'h'],
+  ['wipeMs', 'n'], ['wipeHoldMs', 'n'], ['wipeColor', 'h'], ['wipeAlpha', 'n'],
   ['wipeFallbackColor', 'h'], ['wipeOverscanPx', 'n'],
-  ['wipeTitle', 'b'], ['wipeTitleFontSize', 'n'], ['wipeTitleColor', 's'],
+  ['wipeTitle', 'b'], ['wipeImage', 'b'], ['wipeImageHeightFrac', 'n'],
+  ['wipeImageShadowAlpha', 'n'], ['wipeImageFadeMs', 'n'],
+  ['wipeImageHoldScale', 'n'],
+  ['wipeTitleFontSize', 'n'], ['wipeTitleColor', 's'],
   ['wipeTitleFallbackColor', 's'], ['wipeTitleHoldScale', 'n'],
   // The whoosh under it.
   ['wipeWhoosh', 'b'], ['wipeWhooshVolume', 'n'],
@@ -1472,13 +1497,30 @@ function renderHud(v) {
     field('promptStrokeColor', `'${v.promptStrokeColor}'`),
     field('promptStrokeThickness', fmt(v.promptStrokeThickness)),
     field('promptWrapFrac', fmt(v.promptWrapFrac)),
-    '  // Scene title chip, top-left.',
+    '  // Scene title chip, top-left. The hub no longer draws it — it collided with',
+    '  // the mute button — but the values are kept so it can be restored.',
     field('titleX', fmt(v.titleX)),
     field('titleY', fmt(v.titleY)),
     field('titleFontSize', fmt(v.titleFontSize)),
     field('titleColor', `'${v.titleColor}'`),
     '};',
   ].join('\n');
+}
+
+// The start poster: short and flat, so one ordered key list like HUD above.
+const START_SCREEN_FIELDS = [
+  ['buttonYFrac', 'n'], ['buttonLabel', 's'], ['buttonFontSize', 'n'],
+  ['buttonPaddingX', 'n'], ['buttonPaddingY', 'n'],
+  ['buttonBgColor', 'h'], ['buttonTextColor', 's'], ['buttonShadowFrac', 'n'],
+  ['buttonDepth', 'n'], ['fadeMs', 'n'],
+  ['buttonPulse', 'n'], ['buttonPulseMs', 'n'],
+];
+
+function renderStartScreen(v) {
+  const lines = ['export const START_SCREEN = {'];
+  START_SCREEN_FIELDS.forEach(([key, kind]) => lines.push(field(key, scalar(kind, v[key]))));
+  lines.push('};');
+  return lines.join('\n');
 }
 
 // SCENE1 is long but flat, so it is emitted from one ordered key list rather
@@ -1853,6 +1895,9 @@ const SCENE_PROMPT_KEYS = [
   'promptXFrac',
   'promptWrapFrac',
   'promptAlign',
+  // The scene's own type size. Must be listed here or a scene that shrinks its
+  // prompt to fit a band would print with the shared HUD size instead.
+  'promptFontSize',
   'promptBandHeight',
   'promptBandColor',
   'promptBandAlpha',
@@ -1953,6 +1998,11 @@ export function formatTuningCode() {
   out = replaceBlock(out, 'export const HUD = {', renderHud(hud));
   out = replaceBlock(out, 'export const VOICE = {', renderVoice(getVoice()));
   out = replaceBlock(out, 'export const END_SCREEN = {', renderEndScreen(getEndScreen()));
+  out = replaceBlock(
+    out,
+    'export const START_SCREEN = {',
+    renderStartScreen(getStartScreen())
+  );
   out = replaceBlock(out, 'export const SCENE1 = {', renderScene1(s1));
   out = replaceBlock(out, 'export const SCENE2 = {', renderScene2(s2));
   out = replaceBlock(out, 'export const MIRROR_ROUNDS = [', renderMirrorRounds(rounds));
@@ -2013,6 +2063,12 @@ export const TUNING_SCHEMA = {
         { path: 'wipeHoldMs', label: 'wipe hold', min: 0, max: 3000, step: 25, suffix: 'ms' },
         { path: 'wipeTitle', label: 'wipe title', type: 'toggle' },
         { path: 'wipeTitleFontSize', label: 'wipe title size', min: 16, max: 96, step: 1, suffix: 'px' },
+        // The frosted panel. 1 = opaque slab; lower lets the outgoing frame show.
+        { path: 'wipeAlpha', label: 'wipe opacity', min: 0, max: 1, step: 0.02 },
+        // The transition CARD (one image per scene) and its height.
+        { path: 'wipeImage', label: 'card image', type: 'toggle' },
+        { path: 'wipeImageHeightFrac', label: 'card height', min: 0.1, max: 0.7, step: 0.01 },
+        { path: 'wipeImageHoldScale', label: 'card settle ×', min: 1, max: 1.4, step: 0.01 },
         { path: 'wipeTitleHoldScale', label: 'title settle ×', min: 1, max: 1.4, step: 0.01 },
         // THE WHOOSH. `rate in` / `rate out` retime the clip against the sweeps:
         // lower is slower and deeper, higher is quicker and tighter.
@@ -2357,10 +2413,20 @@ export const TUNING_SCHEMA = {
       fields: [
         { path: 'promptVolume', label: 'voice volume', min: 0, max: 1, step: 0.02 },
         { path: 'buttonFontSize', label: 'button icon size', min: 10, max: 48, step: 1, suffix: 'px' },
-        { path: 'buttonMinSize', label: 'button size', min: 24, max: 96, step: 1, suffix: 'px' },
+        { path: 'buttonMinSize', label: 'button size', min: 24, max: 160, step: 1, suffix: 'px' },
         { path: 'buttonInsetX', label: 'button x', min: 0, max: 200, step: 1, suffix: 'px' },
         { path: 'buttonInsetY', label: 'button y', min: 0, max: 200, step: 1, suffix: 'px' },
-        // The glow while a line is playing: a scale pulse on the button alone.
+        // The translucent disc. `bg alpha` is the "see-through" amount.
+        { path: 'buttonBgAlpha', label: 'bg opacity', min: 0, max: 1, step: 0.01 },
+        // The icon inside the button, and its pulse while speaking.
+        { path: 'iconSize', label: 'icon size', min: 12, max: 44, step: 1, suffix: 'px' },
+        { path: 'iconPulse', label: 'icon pulse ×', min: 1, max: 1.5, step: 0.01 },
+        // The halo that expands off the button while a line plays.
+        { path: 'glowRingPad', label: 'halo pad', min: 0, max: 20, step: 1, suffix: 'px' },
+        { path: 'glowRingWidth', label: 'halo width', min: 1, max: 10, step: 1, suffix: 'px' },
+        { path: 'glowRingAlpha', label: 'halo alpha', min: 0.1, max: 1, step: 0.05 },
+        { path: 'glowRingScale', label: 'halo travel ×', min: 1, max: 2.5, step: 0.05 },
+        // The whole-button breath.
         { path: 'glowScale', label: 'glow scale', min: 1, max: 1.5, step: 0.01 },
         { path: 'glowMs', label: 'glow speed', min: 100, max: 2000, step: 20, suffix: 'ms' },
       ],
@@ -2384,6 +2450,20 @@ export const TUNING_SCHEMA = {
         { path: 'confettiCount', label: 'confetti', min: 0, max: 120, step: 1 },
       ],
     },
+    // THE START POSTER.
+    {
+      key: 'START_SCREEN',
+      label: 'Start screen',
+      fields: [
+        { path: 'buttonYFrac', label: 'button y', min: 0.3, max: 1, step: 0.005 },
+        { path: 'buttonFontSize', label: 'button size', min: 12, max: 72, step: 1, suffix: 'px' },
+        { path: 'buttonPaddingX', label: 'button pad x', min: 10, max: 120, step: 1, suffix: 'px' },
+        { path: 'buttonPaddingY', label: 'button pad y', min: 4, max: 80, step: 1, suffix: 'px' },
+        { path: 'buttonPulse', label: 'button pulse ×', min: 1, max: 1.3, step: 0.01 },
+        { path: 'buttonPulseMs', label: 'pulse speed', min: 200, max: 3000, step: 20, suffix: 'ms' },
+        { path: 'fadeMs', label: 'fade in', min: 0, max: 1200, step: 10, suffix: 'ms' },
+      ],
+    },
     // ONE GROUP PER SCENE. Generated from the registry, so five scenes means
     // five groups with no hand-written schema per scene.
     ...SCENES.map((scene) => ({
@@ -2402,6 +2482,9 @@ export const TUNING_SCHEMA = {
         // of a text column, which is what scene 3 does to sit beside its disc.
         { path: `${scene.id}.promptXFrac`, label: 'prompt x', min: -1, max: 1, step: 0.005 },
         { path: `${scene.id}.promptWrapFrac`, label: 'prompt wrap', min: -1, max: 1, step: 0.005 },
+        // THIS scene's prompt type size. -1 = the shared HUD size, which is what
+        // every scene except 4 uses.
+        { path: `${scene.id}.promptFontSize`, label: 'prompt size', min: -1, max: 60, step: 1, suffix: 'px' },
         // The full-width band behind the prompt. 0 height = none.
         { path: `${scene.id}.promptBandHeight`, label: 'prompt band', min: 0, max: 400, step: 1, suffix: 'px' },
         { path: `${scene.id}.promptBandAlpha`, label: 'band alpha', min: 0, max: 1, step: 0.02 },

@@ -28,6 +28,7 @@ import {
   setVoiceButtonHandler,
   stopPromptVoice,
 } from '@/games/game-16/voice';
+import { getStartScreen } from '@/games/game-16/tuning';
 import {
   BACKGROUND_COLOR,
   DEV_TUNING_ENABLED,
@@ -52,6 +53,18 @@ import { burstConfetti, destroyConfetti, runWipe } from '@/games/game-16/effects
 
 // Re-exported so `import GameScene, { BACKGROUND_COLOR }` works in Game.jsx.
 export { BACKGROUND_COLOR };
+
+// Depth of the start poster.
+//
+// It has to sit ABOVE the things it replaces: the scene layer (10), the HUD band
+// (19), the shared prompt (20) and the "say it again" button (26) — none of which
+// belong on a title screen.
+//
+// It must sit BELOW the mute button (40), though. Covering that would leave a
+// child unable to silence the game until they had already started it, which
+// defeats the point of a mute control. Everything else above 35 is the end panel
+// and the dev hint (60), both of which are later than this screen anyway.
+const START_DEPTH = 35;
 
 // The four scene modules, in registry order. Keys must match scenes.js ids —
 // asserted at module scope below so a rename can't silently break the mount.
@@ -127,6 +140,17 @@ export default class GameScene extends BaseScene {
     // scene still exists during the wipe; it is just not visible.
     this.wiping = false;
 
+    // THE START SCREEN. `started` is the guard that makes `beginRun` idempotent —
+    // a tap fires pointerdown (the scene-wide listener) and pointerup (the
+    // button), and without it the run would start twice.
+    //
+    // `startPulse` is held separately because that tween targets a CHILD of the
+    // poster container; `killTweensOf(container)` does not reach it, and a
+    // repeating tween on a destroyed object ticks forever.
+    this.startScreen = null;
+    this.startPulse = null;
+    this.started = false;
+
     // The ctx handed to `update()`, built once per mount. See `ctxForActive`.
     this.ctxCache = null;
 
@@ -168,9 +192,175 @@ export default class GameScene extends BaseScene {
     // (scene 2 rounds 2-3) it still speaks the instruction the child is following.
     setVoiceButtonHandler(() => this.replayPromptVoice());
 
-    this.mountCurrentScene({ fade: false });
+    // THE START SCREEN, then the first scene.
+    //
+    // The game does NOT begin here: `showStartScreen` paints the title poster and
+    // calls `beginRun` from its Start button. Mounting straight away would start
+    // scene 1's reel rolling while the poster was still on screen.
+    this.showStartScreen();
 
     this.setupDevTools();
+  }
+
+  // ---------------------------------------------------------------------------
+  // START SCREEN
+  // ---------------------------------------------------------------------------
+  /**
+   * The title poster: one full-bleed image and a Start button under it.
+   *
+   * Everything is parented to ONE container at START_DEPTH, so `beginRun` can
+   * tear the whole screen down with a single destroy and nothing can be left
+   * behind over the first scene.
+   */
+  showStartScreen() {
+    const s = getStartScreen();
+    const { width: W, height: H } = this.scale;
+
+    const container = this.add.container(0, 0).setDepth(START_DEPTH);
+    this.startScreen = container;
+
+    // THE POSTER, drawn COVER-style: scaled to FILL the canvas and centred, so it
+    // never distorts on a different aspect ratio. The source is 2:3 like the base
+    // resolution, so on the reference device it fits exactly.
+    if (this.textures.exists('startBackground')) {
+      const bg = this.add.image(W / 2, H / 2, 'startBackground').setOrigin(0.5);
+      const scale = Math.max(W / (bg.width || 1), H / (bg.height || 1));
+      bg.setScale(scale);
+      container.add(bg);
+    } else {
+      // A missing poster must not leave a blank blue screen: a flat wash in the
+      // scene's own backdrop colour still gives the button something to sit on.
+      container.add(this.add.rectangle(W / 2, H / 2, W, H, BACKGROUND_COLOR, 1));
+    }
+
+    // START, low on the poster where the art has an empty band.
+    const btn = this.createPillButton(W / 2, H * s.buttonYFrac, s.buttonLabel, {
+      fontSize: `${s.buttonFontSize}px`,
+      paddingX: s.buttonPaddingX,
+      paddingY: s.buttonPaddingY,
+      bgColor: s.buttonBgColor,
+      textColor: s.buttonTextColor,
+      depth: s.buttonDepth,
+      circle: false,
+    });
+    container.add(btn.container);
+
+    // A slow breathing scale, so the screen is not dead before the first tap.
+    // ONE tween on ONE object — cheap enough to keep on a low-end tablet.
+    //
+    // ⚠ THE TWEEN IS KEPT ON THE SCENE, AND THAT IS NOT OPTIONAL.
+    //
+    // It targets `btn.container`, which is a CHILD of the poster container — and
+    // Phaser only tears tweens down when the SCENE is destroyed, not when a Game
+    // Object is. A repeating tween whose target has been destroyed therefore keeps
+    // ticking forever, writing to a dead object on every frame, and `scene.restart()`
+    // reuses the same TweenManager so they ACCUMULATE across replays. That is a
+    // per-frame cost that grows every time the child replays the game.
+    //
+    // Both teardown paths (`beginRun`, `shutdown`) release it explicitly for that
+    // reason — killing tweens of the poster container alone does not reach it.
+    if ((s.buttonPulse ?? 1) !== 1) {
+      this.startPulse = this.tweens.add({
+        targets: btn.container,
+        scale: s.buttonPulse,
+        duration: Math.max(120, s.buttonPulseMs ?? 900),
+        yoyo: true,
+        repeat: -1,
+        ease: 'Sine.easeInOut',
+      });
+    }
+
+    // THE BUTTON IS THE ONLY THING THAT STARTS THE GAME.
+    //
+    // It used to also listen for a scene-wide tap, so a child could start by
+    // pressing anywhere on the poster. That was a mistake: it made the Start
+    // button feel like it did nothing, because the game had already begun on the
+    // way down and the button only ever saw the gesture end. One deliberate
+    // control is clearer than an invisible one.
+    //
+    // Nothing else on this screen is interactive, so a stray tap simply does
+    // nothing — which is the correct, forgiving behaviour for a title screen.
+    btn.on('pointerup', () => this.beginRun(container));
+
+    // A SHORT fade, starting from ALPHA 1 — not from 0.
+    //
+    // Starting at 0 meant the dark backdrop showed through for the whole fade, so
+    // the first thing a child saw on every load was a navy flash before the
+    // poster appeared. That reads as "broken", not as a transition. The preload
+    // screen has already covered the download, so there is nothing to hide: the
+    // poster comes up at full opacity and only breathes very slightly.
+    container.setAlpha(1);
+    const fadeMs = Math.max(0, s.fadeMs ?? 260);
+    if (fadeMs > 0) {
+      // From a barely-there dip rather than from nothing: the eye reads this as
+      // the poster settling, and no dark frame is ever exposed.
+      container.setAlpha(0.92);
+      this.tweens.add({
+        targets: container,
+        alpha: 1,
+        duration: fadeMs,
+        ease: 'Sine.easeOut',
+      });
+    }
+  }
+
+  /**
+   * Leave the start screen and play scene 1.
+   *
+   * Guarded, because the button's `pointerup` and the scene's `pointerdown` can
+   * BOTH fire for one tap — pointerdown precedes pointerup, so without the guard
+   * the run would start twice and scene 1 would mount on top of itself.
+   */
+  beginRun(startScreen) {
+    if (this.started) return;
+    this.started = true;
+
+    // NOTE: the scene-wide listener registered by `showStartScreen` is a `once`,
+    // so it disposes of itself. An earlier version tried to remove it here with
+    // `this.input.off('pointerdown', () => {}, this)` — which removes nothing,
+    // because a fresh arrow function is a different reference. The `started`
+    // guard above is what actually makes this re-entry-proof.
+
+    // Tear the poster down BEFORE the first mount, so its art cannot sit over
+    // scene 1's layer.
+    //
+    // BOTH tweens are released: the fade targets the container, and the pulse
+    // targets the BUTTON INSIDE it — `killTweensOf(container)` does not reach a
+    // child, so leaving the pulse running would tick against a destroyed object
+    // for the rest of the run.
+    // The run clock starts NOW, not at create() — the time a child spends reading
+    // the poster is not time spent playing.
+    this.startTime = this.time.now;
+
+    // THE SAME TRANSITION AS EVERY OTHER HANDOVER.
+    //
+    // The poster stays ON SCREEN underneath the wipe and is destroyed at the
+    // covered moment, so scene 1's card sweeps in over the title art instead of
+    // the title art vanishing first and leaving a bare backdrop for a frame.
+    // That ordering is why the teardown moved into `onCovered` rather than
+    // happening here.
+    const engine = getEngine();
+    this.wiping = true;
+
+    runWipe(this, {
+      colour: engine.wipeColor,
+      alpha: engine.wipeAlpha ?? 1,
+      sceneId: sceneAt(this.position.scene).id,
+      title: engine.wipeTitle ? sceneAt(this.position.scene).title : null,
+      onCovered: () => {
+        // Covered: now the poster can go, and scene 1 can be built under the panel.
+        this.startPulse?.remove?.();
+        this.startPulse = null;
+        this.tweens.killTweensOf(startScreen);
+        startScreen?.destroy?.(true);
+        this.startScreen = null;
+
+        this.mountCurrentScene({ fade: false });
+      },
+    }).then(() => {
+      this.wiping = false;
+      this.flushPendingVoice();
+    });
   }
 
   // ---------------------------------------------------------------------------
@@ -201,14 +391,16 @@ export default class GameScene extends BaseScene {
     const hud = getHud();
     const { width } = this.scale;
 
-    this.titleText = this.add
-      .text(hud.titleX, hud.titleY, '', {
-        fontSize: `${hud.titleFontSize}px`,
-        fontFamily: 'Fredoka, sans-serif',
-        color: hud.titleColor,
-        fontStyle: 'bold',
-      })
-      .setDepth(20);
+    // THE SCENE TITLE IS GONE FROM THE TOP-LEFT.
+    //
+    // It used to read "2 / 4 · Mirror", sitting exactly where the mute button is
+    // in the top-left corner — so the two overlapped and neither was readable.
+    // Nothing is lost by removing it: the transition card already announces each
+    // mini-game by name and picture on the way in, and the run's progress is
+    // shown on the end screen.
+    //
+    // `titleText` stays declared (as null) because `applyPromptPosition` and the
+    // dev chrome still reference it defensively.
 
     this.promptText = this.add
       .text(this.scale.width / 2, this.scale.height * hud.promptYFrac, '', {
@@ -234,11 +426,12 @@ export default class GameScene extends BaseScene {
 
   // Pushes the current position onto the HUD. Cheap; called on every mount.
   //
-  // The scene title carries the progress on its own ("2 / 4 · Mirror Bays"), so
-  // there is no separate row of dots: the title says the same thing in words a
-  // child can read out, and the dots were competing with the prompt for the top
-  // of the screen in the scenes that paint a full-width header band.
+  // Now a no-op for the title: the "2 / 4 · Mirror" chip was removed because it
+  // occupied the same top-left corner as the mute button. The method is kept
+  // because callers rely on it as the "the position changed" hook, and because a
+  // future HUD element would go here.
   refreshHud() {
+    if (!this.titleText) return;
     const scene = sceneAt(this.position.scene);
     this.titleText.setText(`${scene.number} / ${SCENES.length} · ${scene.title}`);
   }
@@ -663,8 +856,6 @@ applyPromptPosition() {
     // falling as the wipe sweeps over them.
     if (sceneChanged) burstConfetti(this, getEngine().sceneConfetti ?? 0);
 
-    const outgoing = sceneAt(this.position.scene);
-
     this.position = next;
 
     if (!sceneChanged) {
@@ -672,18 +863,42 @@ applyPromptPosition() {
       return;
     }
 
-    // THE SCENE CHANGE, as a two-beat wipe: cover the screen in the OUTGOING
-    // scene's accent, swap while it is hidden, then sweep it away.
+    // THE SCENE CHANGE, as a two-beat wipe: cover the screen, swap while it is
+    // hidden, then sweep it away.
     //
     // The swap happens at the covered moment, so the outgoing scene's teardown and
     // the incoming scene's build are never visible — which is what made the old
     // bare fade read as a flash of empty backdrop between two pictures.
+    //
+    // All of that (including the `wiping` flag) lives in `runSceneWipe`, which the
+    // start screen calls too, so there is one transition and not two that drift.
+    this.runSceneWipe(sceneAt(next.scene));
+  }
+
+  /**
+   * The one scene-change transition, shared by every handover.
+   *
+   * Extracted so the START into scene 1 transition is literally the same code as
+   * every later one. It used to be inline in `handleRoundComplete`, which meant
+   * the first scene arrived with a bare cut while scenes 2-4 got the card. That
+   * inconsistency made the game look unfinished at the exact moment a child
+   * first sees it.
+   *
+   * @param {object} incoming  the scene registry entry being entered
+   */
+  runSceneWipe(incoming) {
     const engine = getEngine();
     this.wiping = true;
 
     runWipe(this, {
-      colour: engine.wipeColor ?? outgoing.color,
-      title: engine.wipeTitle ? sceneAt(next.scene).title : null,
+      colour: engine.wipeColor,
+      // SEMI-TRANSPARENT, so the outgoing frame stays faintly visible under the
+      // panel and the handover reads as frosted glass rather than a slab.
+      alpha: engine.wipeAlpha ?? 1,
+      // Which scene's transition card to show. The scene ID (not its title) is
+      // what `runWipe` maps to a texture, so renaming a scene cannot break it.
+      sceneId: incoming.id,
+      title: engine.wipeTitle ? incoming.title : null,
       onCovered: () => {
         this.mountCurrentScene({ fade: false });
         // The new scene mounted UNDER the panel, so it can set its prompt now —
@@ -1077,6 +1292,19 @@ applyPromptPosition() {
     }
     // The end panel is NOT in `layer`, so the scene teardown does not reach it.
     this.clearEndScreen();
+
+    // Neither is the start poster: leaving the game from the title screen would
+    // otherwise keep a full-canvas image and its pulsing button alive across a
+    // restart, and the second run would paint scene 1 underneath a dead poster.
+    //
+    // The pulse is released BY HAND because it targets the button inside the
+    // poster container, which `killTweensOf(container)` cannot reach.
+    this.startPulse?.remove?.();
+    this.startPulse = null;
+    this.tweens.killTweensOf(this.startScreen);
+    this.startScreen?.destroy?.(true);
+    this.startScreen = null;
+    this.started = false;
 
     // The confetti emitter is cached against THIS scene instance, and a restart
     // reuses that instance — so a stale, already-destroyed emitter would otherwise

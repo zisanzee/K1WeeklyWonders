@@ -280,11 +280,21 @@ export function voiceKeyAndUrlFor(sceneId, round, extra = {}) {
 
   // Scene 4 is keyed by FLOOR, so its "row" is not a run position and cannot be
   // walked; one clip per floor, always.
+  //
+  // THE KEY MUST BE BUILT FROM `extra.floor`, NOT FROM `round`.
+  //
+  // This is what made scene 4 always speak first, second, third: the run has five
+  // rounds and ten floors chosen at random, so `round` is 1..5. Building the key
+  // from it produced `voice-building-1` on round 1, `voice-building-2` on round 2,
+  // and so on — i.e. whatever clip happened to be keyed by the ROUND NUMBER, while
+  // the URL was (correctly) the asked floor's. `playKey` plays by KEY, so the cache
+  // handed back floors 1, 2, 3, 4, 5 in order regardless of the question.
   if (sceneId === 'building') {
-    const key = voiceKeyFor(sceneId, round, extra);
+    const floor = extra.floor ?? round;
+    const key = voiceKeyFor(sceneId, floor, extra);
     const row = promptRow(sceneId, round, extra);
     const url = typeof row?.voice === 'string' && row.voice.length > 0 ? row.voice : null;
-    return { key, url, fromRound: url ? round : null };
+    return { key, url, fromRound: url ? floor : null };
   }
 
   // Mirror: walk backwards from this round to the nearest recorded one.

@@ -376,32 +376,34 @@ export const GAME_REGISTRY = [
     load: () => import('@/games/game-15/GamePage'),
   },
   {
-    // Game 16 — BOILERPLATE. Ships deliberately unfinished: `label` and `title`
-    // are the placeholder '(in works)', matching GamePage.jsx's gate labels and
-    // the on-screen heading, so a half-built game is unmistakable in the
-    // catalogue. Rename all of them together once it actually works.
+    // CHALLENGE TIME! — four mini-games in one run.
+    //
+    // `label` / `title` here must match GamePage.jsx's `gameLabel` values and the
+    // run's own framing, or the lock screen and the card disagree.
     //
     // `key`, `slug`, `route` and `progressKey` are IDENTITY and never change:
     // they are what saved play sessions, unlock state and the catalogue
-    // reference. The emoji and colours are deliberately generic (a balloon and
-    // a neutral sky) so the card implies no mechanic.
+    // reference. The NAME below is the renamable part.
     //
-    // PUBLISHING IT: this `preview: true` line is the only switch. Delete it (or
-    // set it to false) once the game works, and it moves out of the Catalogue's
-    // Preview group into the Term 4 folder, where it can be added to a class.
-    // `term` stays set meanwhile so publishing needs no second edit.
+    // PUBLISHED: the old `preview: true` flag is gone now that the four scenes
+    // work, so the card sits in the Term 4 folder where a teacher can add it to a
+    // class from the Catalogue rather than in the Preview group.
     key: '16',
     slug: 'game-16',
     route: '/48137',
     term: 4,
     progressKey: 'game16',
-    preview: true,
     meta: {
-      emoji: '\uD83C\uDF88',
-      label: '(in works)',
-      title: '(in works)',
-      subtitle: 'Coming soon',
-      description: 'This game is still being built — it will appear here once it is ready to play.',
+      // A trophy: the game is a "challenge", and the balloon it used as a
+      // placeholder implied no mechanic at all.
+      emoji: '\uD83C\uDFC6',
+      label: 'Challenge time!',
+      title: 'Challenge time!',
+      // The four mini-games, in the order a run plays them.
+      subtitle: 'Shapes, Symmetry, Positions, Ordinal numbers',
+      description: 'Shapes, Symmetry, Positions, Ordinal numbers.',
+      // Kept as the sky blue the placeholder used: it is already distinct from
+      // game 15's orange and does not clash with any of the four scenes' pastels.
       hue: '#0EA5E9',
       tint: '#E0F2FE',
       gradient: 'linear-gradient(135deg, #7DD3FC 0%, #0EA5E9 55%, #0369A1 100%)',

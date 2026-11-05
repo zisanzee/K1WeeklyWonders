@@ -19,6 +19,24 @@ import { voiceManifest } from '@/games/game-16/prompts';
 // smallest format it supports. Wrap a URL with this when you fill IMAGES in.
 export const cld = (url) => url.replace('/image/upload/', '/image/upload/f_auto,q_auto/');
 
+// THE SAME, BUT CAPPED TO A WIDTH — and this matters far more than it looks.
+//
+// A Phaser texture costs GPU memory as width x height x 4 BYTES, regardless of
+// how small it is drawn. The transition cards arrive at 1433-1774 px wide but are
+// drawn ~380-660 px wide, so at full size they held ~23 MB of VRAM between them
+// and every one of them had to be decoded on first load. That is what made the
+// first load feel broken on a school tablet.
+//
+// `w_` makes CLOUDINARY do the resize before the bytes ever leave the CDN, so
+// the download AND the texture are both smaller. `c_limit` means it never
+// upscales something already smaller than the cap.
+//
+// 2x the largest on-screen size is the rule of thumb for sharpness; these are
+// capped at 900 px wide because the card is at most ~660 px on the 720-wide base
+// resolution, so there is headroom for a wide tablet.
+export const cldSized = (url, width) =>
+  url.replace('/image/upload/', `/image/upload/f_auto,q_auto,c_limit,w_${width}/`);
+
 // ---------------------------------------------------------------------------
 // IMAGES
 //
@@ -201,8 +219,64 @@ export const IMAGES = {
   ),
   optionCat: cld(
     'https://res.cloudinary.com/hijmipga/image/upload/v1793805357/optionCat_kwrmz4.png'
-  )
+  ),
 
+  // ---- UI — the "say it again" speaker icon ------------------------------
+  // Replaces the 🔊 emoji on the prompt-replay button (see voice.js). An IMAGE
+  // rather than a glyph because the emoji renders differently on every platform,
+  // was too small to read at button size, and cannot be animated or tinted as one
+  // coherent shape. The key is `voiceIcon`, fixed in voice.js.
+  voiceIcon: cld(
+    'https://res.cloudinary.com/hijmipga/image/upload/v1793892938/1433088-200_pciwez.png'
+  ),
+
+  // ---- START SCREEN ------------------------------------------------------
+  // Drawn COVER-style over the whole canvas. The source is 1024x1536, i.e. the
+  // same 2:3 aspect as the 720x1080 base resolution, so it fills the play area
+  // exactly with no cropping on the reference device.
+  // 1024x1536 at source. Capped to 720 wide (the base canvas width) because it
+  // is drawn cover-style on a 720x1080 canvas, so anything larger is GPU memory
+  // spent on pixels that are never shown.
+  startBackground: cldSized(
+    'https://res.cloudinary.com/hijmipga/image/upload/v1793907357/Colorful_Cartoon_Challenge_Game_Menu_azpcwu.png',
+    720
+  ),
+
+  // ---- TRANSITION ART ----------------------------------------------------
+  // ONE image per scene, shown during the fade that introduces that scene. It
+  // replaces the scene's NAME, which used to be a text label on the wipe.
+  //
+  // Their aspects differ (1.56, 1.66, 1.56, 2.00), so the wipe sizes them by
+  // HEIGHT and lets the width follow — see `wipeImageHeightFrac` in tuning.js.
+  // That is what keeps the four cards looking like the same size; scaling by
+  // width instead would make the 2.00 one squat and the 1.56 ones tall.
+  // CAPPED TO 720 px WIDE.
+  //
+  // They arrive at 700x450, 1433x864, 1511x971 and 1774x887 — 265-370 KB each and
+  // up to 6 MB of VRAM each, for a card that is drawn about 380 px tall (so at
+  // most ~660 px wide on the 720-wide base canvas). Downscaling at the CDN cuts
+  // the download to roughly a third and the VRAM with it, which is the single
+  // biggest win on first load.
+  //
+  // They are also loaded ONCE here rather than per transition, because the whole
+  // manifest is preloaded before the game starts — so none of this is fetched
+  // mid-run.
+  transitionShapes: cldSized(
+    'https://res.cloudinary.com/hijmipga/image/upload/v1793907342/challenge_1_fozapi.png',
+    720
+  ),
+  transitionMirror: cldSized(
+    'https://res.cloudinary.com/hijmipga/image/upload/v1793907358/Symmetry_iuzlwa.png',
+    720
+  ),
+  transitionPositions: cldSized(
+    'https://res.cloudinary.com/hijmipga/image/upload/v1793907343/Challenge_3__Ga_vwfkms.png',
+    720
+  ),
+  transitionBuilding: cldSized(
+    'https://res.cloudinary.com/hijmipga/image/upload/v1793907543/Barnyard_Challenge__Ordinal_Numbers_1_kxop8l.png',
+    720
+  ),
 };
 
 // ---------------------------------------------------------------------------

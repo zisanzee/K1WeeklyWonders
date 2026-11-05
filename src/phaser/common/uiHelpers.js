@@ -21,6 +21,12 @@ export function createPillButton(scene, x, y, initialLabel, opts = {}) {
   const {
     fontSize = '20px',
     bgColor = 0xffffff,
+    // Opacity of the pill's FILL only. 1 (opaque) is the default, so every
+    // existing caller is unaffected. Added for buttons that sit over scene art
+    // and read better as a translucent panel than as a solid white disc — the
+    // fill and the shadow stay separate so a see-through pill still has a
+    // footprint rather than floating.
+    bgAlpha = 1,
     textColor = '#173b59',
     paddingX = 18,
     paddingY = 10,
@@ -83,10 +89,10 @@ let currentBorderColor = borderColor;
   shadow.fillStyle(0x000000, 0.18);
 
   if (circle) {
-    shadow.fillCircle(ox, oy + 4, w / 2);
+  shadow.fillCircle(ox, oy + 4, w / 2);
 
-    bgGfx.fillStyle(currentBg, 1);
-    bgGfx.fillCircle(ox, oy, w / 2);
+  bgGfx.fillStyle(currentBg, bgAlpha);
+  bgGfx.fillCircle(ox, oy, w / 2);
 
     if (currentBorderColor !== null) {
       bgGfx.lineStyle(3, currentBorderColor, 1);

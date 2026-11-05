@@ -165,12 +165,29 @@ function playWhoosh(scene, key, rate, volume) {
 }
 
 /**
+ * Which transition artwork belongs to a scene.
+ *
+ * Keyed by SCENE ID rather than by round or position: the art is a property of
+ * the mini-game, and `scenes.js` ids are identity.
+ */
+const WIPE_IMAGE_KEYS = {
+  shapes: 'transitionShapes',
+  mirror: 'transitionMirror',
+  positions: 'transitionPositions',
+  building: 'transitionBuilding',
+};
+
+/**
  * The scene-change wipe.
  *
- * Runs a full-width panel across the canvas in the OUTGOING scene's accent, calls
- * `onCovered` at the moment the screen is completely hidden (which is when the hub
- * swaps the scene, so the swap itself is never seen), then sweeps the panel off to
- * reveal the new one.
+ * Runs a full-width panel across the canvas, calls `onCovered` at the moment the
+ * screen is completely hidden (which is when the hub swaps the scene, so the swap
+ * itself is never seen), then sweeps the panel off to reveal the new one.
+ *
+ * THE PANEL IS SEMI-TRANSPARENT WHITE, so the outgoing frame stays faintly
+ * visible under it — a frosted glass rather than a slab. That needs the snapshot
+ * below to be on top of the panel instead of behind it, which is why the depth
+ * order here is: snapshot, panel, card.
  *
  * ONE rectangle, tweened on x. `onCovered` is invoked exactly once, guarded — a
  * tween that is killed mid-flight must not fire it late, and a swap that never
@@ -178,7 +195,7 @@ function playWhoosh(scene, key, rate, volume) {
  *
  * @returns {Promise<void>} resolves when the wipe has fully cleared
  */
-export function runWipe(scene, { colour, title, onCovered } = {}) {
+export function runWipe(scene, { colour, alpha, title, sceneId, onCovered } = {}) {
   const engine = getEngine();
   const ms = Math.max(0, engine.wipeMs ?? 0);
 
@@ -192,17 +209,55 @@ export function runWipe(scene, { colour, title, onCovered } = {}) {
   const overscan = engine.wipeOverscanPx ?? 40;
   // Wide enough to cover the canvas on the way through.
   const panelW = W + overscan * 2;
+  const panelAlpha = alpha ?? engine.wipeAlpha ?? 1;
 
   // Every fallback here comes from tuning, never an inline literal: an inline
   // dark default is how the panel stayed black after the palette was changed.
   const panel = scene.add
-    .rectangle(-panelW / 2 - overscan, H / 2, panelW, H, colour ?? engine.wipeFallbackColor ?? 0xc8f0e4, 1)
+    .rectangle(
+      -panelW / 2 - overscan,
+      H / 2,
+      panelW,
+      H,
+      colour ?? engine.wipeFallbackColor ?? 0xffffff,
+      panelAlpha,
+    )
     .setDepth(WIPE_DEPTH);
 
-  // The title rides ON the panel, so it is centred on the panel's own x and moves
-  // with it — no second tween to keep in step.
+  // THE CARD that rides on the panel: an IMAGE per scene now, not the scene
+  // name. It is parented to nothing, so it is positioned from the panel's x each
+  // time the panel moves — see `onUpdate` below.
   let label = null;
-  if (engine.wipeTitle && title) {
+  let cardShadow = null;
+
+  const imageKey = sceneId ? WIPE_IMAGE_KEYS[sceneId] : null;
+  const hasImage = Boolean(
+    engine.wipeImage && imageKey && scene.textures?.exists?.(imageKey),
+  );
+
+  if (hasImage) {
+    // HEIGHT IS THE CONSTANT, width follows the aspect. The four cards run from
+    // 1.56 to 2.00, so matching width would make them look like four different
+    // sizes; matching height makes them read as one family.
+    const targetH = H * (engine.wipeImageHeightFrac ?? 0.34);
+
+    cardShadow = scene.add
+      .rectangle(panel.x, H / 2, W * 0.7, targetH * 1.06, 0xffffff, 0)
+      .setDepth(WIPE_DEPTH + 0.5)
+      .setAlpha(0);
+
+    label = scene.add
+      .image(panel.x, H / 2, imageKey)
+      .setOrigin(0.5)
+      .setDepth(WIPE_DEPTH + 1)
+      .setAlpha(0);
+    // `setDisplaySize` would let the width stretch independently; scaling by the
+    // height alone keeps the aspect ratio intact.
+    label.setScale(targetH / (label.height || 1));
+  } else if (engine.wipeTitle && title) {
+    // TEXT FALLBACK, used only when this scene has no card (or its texture did
+    // not load). A transition must still say something rather than show a blank
+    // white panel.
     label = scene.add
       .text(panel.x, H / 2, title, {
         fontSize: `${engine.wipeTitleFontSize ?? 52}px`,
@@ -212,8 +267,6 @@ export function runWipe(scene, { colour, title, onCovered } = {}) {
       })
       .setOrigin(0.5)
       .setDepth(WIPE_DEPTH + 1)
-      // Fades in as the panel covers, so it arrives with the sweep rather than
-      // sitting on a blank rectangle the whole way across.
       .setAlpha(0);
   }
 
@@ -240,8 +293,19 @@ export function runWipe(scene, { colour, title, onCovered } = {}) {
     // is frozen: the outgoing scene's images are stopped and hidden while the panel
     // covers them, so Phaser stops transforming and sorting a scene nobody can see.
     //
+    // ⚠ THIS IS ONLY VALID FOR AN OPAQUE PANEL.
+    //
+    // A full-canvas snapshot is a STILL of the whole screen. Under a translucent
+    // panel the un-swept half of the canvas would show that frozen still instead of
+    // the live game, so the sweep would look like it was dragging a photograph
+    // across a photograph. So when the panel is see-through (the frosted look this
+    // game now uses) the snapshot is skipped entirely and the real scene shows
+    // through the white — which is both correct and prettier.
+    //
+    // The two are mutually exclusive by nature, hence the `panelAlpha >= 1` test.
     // Optional by construction — `frozen` stays null if the readback is unavailable
     // and the wipe just costs what it did before.
+    const wantSnapshot = panelAlpha >= 1;
     let frozen = null;
     let froze = false;
     // EXACTLY the objects this wipe hid, so `thaw` can put back only those.
@@ -305,16 +369,18 @@ export function runWipe(scene, { colour, title, onCovered } = {}) {
       });
     };
 
-    scene.renderer?.snapshotArea?.(0, 0, W, H, (image) => {
-      try {
-        if (!image || !scene.textures) return;
-        if (scene.textures.exists(SNAPSHOT_KEY)) scene.textures.remove(SNAPSHOT_KEY);
-        scene.textures.addImage(SNAPSHOT_KEY, image);
-        freezeBelow();
-      } catch {
-        /* no snapshot: the wipe still runs, just unoptimised */
-      }
-    });
+    if (wantSnapshot) {
+      scene.renderer?.snapshotArea?.(0, 0, W, H, (image) => {
+        try {
+          if (!image || !scene.textures) return;
+          if (scene.textures.exists(SNAPSHOT_KEY)) scene.textures.remove(SNAPSHOT_KEY);
+          scene.textures.addImage(SNAPSHOT_KEY, image);
+          freezeBelow();
+        } catch {
+          /* no snapshot: the wipe still runs, just unoptimised */
+        }
+      });
+    }
 
     // THE IN-SWEEP'S SOUND, played as the sweep starts so it is heard under the
     // whole movement rather than after it.
@@ -323,16 +389,30 @@ export function runWipe(scene, { colour, title, onCovered } = {}) {
     }
 
     scene.tweens.add({
-      targets: [panel, label].filter(Boolean),
+      // PANEL ONLY. The card must not be tweened on x: it is pinned to the
+      // panel's centre in `onUpdate` below, so including it here would tween the
+      // same object from two places.
+      targets: [panel],
       // Ends with the panel exactly covering the canvas, so the swap happens with
       // nothing visible at the edges.
       x: W / 2,
       duration: ms,
       ease: 'Cubic.easeInOut',
+      // The card is NOT in the tween's targets — it must not move on x with the
+      // panel. It is repositioned here on every frame instead, which keeps it
+      // pinned to the panel's centre without a second tween to keep in step.
       onUpdate: () => {
-        // The label rides the panel, so it needs no tween of its own — only its
-        // fade. Clamped, because the panel's x passes 1 quickly at the start.
-        if (label?.active) label.setAlpha(Math.min(1, Math.max(0, (panel.x + panelW / 2) / W)));
+        // Fade in as the panel covers, so the card arrives WITH the sweep rather
+        // than sitting on a blank rectangle the whole way across.
+        const covered = Math.min(1, Math.max(0, (panel.x + panelW / 2) / W));
+        if (label?.active) {
+          label.setX(panel.x);
+          label.setAlpha(covered);
+        }
+        if (cardShadow?.active) {
+          cardShadow.setX(panel.x);
+          cardShadow.setAlpha(covered * (engine.wipeImageShadowAlpha ?? 0));
+        }
       },
       onComplete: () => {
         // The screen is fully covered: this is the only safe moment to swap.
@@ -374,13 +454,20 @@ export function runWipe(scene, { colour, title, onCovered } = {}) {
           }
 
           scene.tweens.add({
-            targets: [panel, label].filter(Boolean),
+            targets: [panel],
             x: W + panelW / 2 + overscan,
             duration: ms,
             ease: 'Cubic.easeInOut',
+            onUpdate: () => {
+              // The card leaves WITH the panel, at the same speed, so it looks
+              // like one object being pulled off rather than two.
+              if (label?.active) label.setX(panel.x);
+              if (cardShadow?.active) cardShadow.setX(panel.x);
+            },
             onComplete: () => {
               panel.destroy();
               label?.destroy();
+              cardShadow?.destroy();
               // Belt and braces: if the swap never happened (no onCovered), nothing
               // was thawed, and a frozen scene would be left behind.
               frozen?.destroy?.();
@@ -397,12 +484,30 @@ export function runWipe(scene, { colour, title, onCovered } = {}) {
           return;
         }
 
-        // The title gets its own small settle while the screen holds, so the hold
+        // The card gets its own small settle while the screen holds, so the hold
         // does not read as a freeze: it lands, then breathes once.
-        if (label?.active && (engine.wipeTitleHoldScale ?? 1) !== 1) {
+        //
+        // RELATIVE to the card's current scale, not absolute. The image was scaled
+        // to a target HEIGHT to keep its aspect, so its resting `scale` is some
+        // arbitrary number like 0.41 — tweening to an absolute 1.04 would blow it
+        // up to the texture's full size. (The text label is unaffected: a Text
+        // object's resting scale really is 1.)
+        const settle = hasImage
+          ? (engine.wipeImageHoldScale ?? 1)
+          : (engine.wipeTitleHoldScale ?? 1);
+        if (label?.active && settle !== 1) {
           scene.tweens.add({
             targets: label,
-            scale: engine.wipeTitleHoldScale,
+            scale: label.scaleX * settle,
+            duration: holdMs * 0.45,
+            ease: 'Sine.easeOut',
+          });
+        }
+        if (cardShadow?.active && settle !== 1) {
+          scene.tweens.add({
+            targets: cardShadow,
+            scaleX: settle,
+            scaleY: settle,
             duration: holdMs * 0.45,
             ease: 'Sine.easeOut',
           });
