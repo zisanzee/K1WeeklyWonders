@@ -901,6 +901,16 @@ export const BUILDING = {
   roomWidth: 500,
   roomGap: 10,
   groundRoomBottomGapPx: 80,
+  // WHERE THE WALL IS WHEN THE SCENE FIRST APPEARS.
+  //
+  // `startAtBottom` starts the view at the GROUND floor rather than the top of
+  // the stack. The child counts UP from where they are standing, so beginning at
+  // the bottom matches how the floors are actually numbered — "first floor" is
+  // the one in front of them, not the one four screens up.
+  //
+  // `startScrollPx` is only used when `startAtBottom` is false: it is an offset
+  // added to the TOP of the range.
+  startAtBottom: true,
   startScrollPx: 0,
   wallTopPadPx: 120,
   scrollSwipe: true,
@@ -1809,7 +1819,7 @@ const BUILDING_FIELDS = [
   ['wallWidth', 'n'], ['wallRightInset', 'n'],
   ['roomCentreXFrac', 'n'], ['roomRightInsetFrac', 'n'],
   ['roomWidth', 'n'], ['roomGap', 'n'], ['groundRoomBottomGapPx', 'n'],
-  ['startScrollPx', 'n'], ['wallTopPadPx', 'n'],
+  ['startAtBottom', 'b'], ['startScrollPx', 'n'], ['wallTopPadPx', 'n'],
   ['scrollSwipe', 'b'], ['scrollWheel', 'b'], ['scrollSensitivity', 'n'],
   ['momentum', 'n'], ['momentumMinPx', 'n'], ['clampScroll', 'b'],
   ['scrollTopInsetFrac', 'n'], ['scrollBottomInsetFrac', 'n'],
@@ -2288,6 +2298,9 @@ export const TUNING_SCHEMA = {
         // The caps above the top room and below the ground floor.
         { path: 'wallTopPadPx', label: 'top pad', min: 0, max: 600, step: 5, suffix: 'px' },
         // Scrolling.
+        // Where the wall is when the scene opens. `start scroll` only applies when
+        // `start at bottom` is off, and is an offset from the TOP of the range.
+        { path: 'startAtBottom', label: 'start at bottom', type: 'toggle' },
         { path: 'startScrollPx', label: 'start scroll', min: 0, max: 4000, step: 5, suffix: 'px' },
         { path: 'scrollSwipe', label: 'swipe', type: 'toggle' },
         { path: 'scrollWheel', label: 'wheel', type: 'toggle' },

@@ -377,9 +377,37 @@ export default class BuildingScene extends SceneBase {
     // may travel. The velocity is already 0 (a fresh round is at rest), so there is
     // nothing that could move until the child touches the screen.
     this.measureScroll(t, H);
-    // `startScrollPx` is an OFFSET, but it has to land inside the valid range — at
-    // 0 the building's top is far above the viewport, so 0 may not even be reachable.
-    this.setScroll((this.scrollBounds?.min ?? 0) + t.startScrollPx);
+
+    // WHERE THE WALL STARTS, AND WHY IT IS REMEMBERED.
+    //
+    // THE SCROLL SURVIVES THE ROUND. `createRound` runs again for every question,
+    // so without parking the value the wall snapped back to its start position at
+    // each prompt — which felt like the building itself was being taken away.
+    // It is parked in `sceneState`, the same run-level scratch space the floor
+    // plan uses, because a new SCENE INSTANCE is created per round and anything
+    // stored on `this` is silently reset.
+    const state = this.ctx?.sceneState;
+    const parked = state?.buildingScroll;
+
+    if (Number.isFinite(parked)) {
+      // Still this building? A parked offset from a different room count would
+      // point somewhere the current wall does not reach, so `setScroll` clamps it.
+      this.setScroll(parked);
+    } else {
+      // FIRST TIME IN THE SCENE: the GROUND floor.
+      //
+      // `max` is where the content's bottom is flush with the screen edge, i.e. the
+      // bottom of the building — so the child starts at the first floor and counts
+      // UP, matching how the floors are numbered. (`min` would be the top.)
+      //
+      // `startScrollPx` remains an offset from the top for anyone who wants the old
+      // behaviour; it only applies when `startAtBottom` is off.
+      const first = t.startAtBottom
+        ? (this.scrollBounds?.max ?? 0)
+        : (this.scrollBounds?.min ?? 0) + t.startScrollPx;
+      this.setScroll(first);
+    }
+
     this.stopFling();
   }
 
@@ -748,6 +776,15 @@ export default class BuildingScene extends SceneBase {
 
     this.scroll = next;
     if (this.layerContent?.active) this.layerContent.y = -next;
+
+    // Remember it for the NEXT round, which builds a fresh instance of this scene.
+    //
+    // Written here rather than at drag-end/round-complete because this is the one
+    // funnel every path goes through (drag, momentum, wheel, initial placement), so
+    // the parked value cannot fall behind whatever is actually on screen.
+    const state = this.ctx?.sceneState;
+    if (state) state.buildingScroll = next;
+
     return next;
   }
 
