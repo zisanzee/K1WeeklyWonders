@@ -7,13 +7,17 @@ import {
   useGameAccessStore,
   GAME_CATALOG,
   GAME_KEYS,
+  GAME_LIST_MAIN,
+  GAME_LIST_SECONDARY,
   GAME_TERMS,
   PREVIEW_GROUP_ID,
   PUBLISHED_GAMES,
   buildPreviewGroup,
   groupGamesByTerm,
   isPreviewGame,
+  normalizeGameList,
   splitCatalogByPreview,
+  splitGamesByList,
 } from '@/games/gameAccess';
 
 // The homepage reads game access through a 7-day localStorage cache that is
@@ -135,6 +139,59 @@ describe('mergeRows', () => {
   it('survives a non-array response', () => {
     expect(mergeRows(null)).toEqual([]);
     expect(mergeRows(undefined)).toEqual([]);
+  });
+});
+
+// The two-shelf split is the whole point of the previous-games feature, so the
+// normalisation rule (a legacy row with no `list` is a MAIN game) is asserted
+// rather than left to the server's read path alone.
+describe('game lists', () => {
+  it('treats a missing or unknown list as the main list', () => {
+    expect(normalizeGameList(undefined)).toBe(GAME_LIST_MAIN);
+    expect(normalizeGameList(null)).toBe(GAME_LIST_MAIN);
+    expect(normalizeGameList('')).toBe(GAME_LIST_MAIN);
+    expect(normalizeGameList('MAIN')).toBe(GAME_LIST_MAIN);
+    expect(normalizeGameList('nonsense')).toBe(GAME_LIST_MAIN);
+    expect(normalizeGameList(GAME_LIST_SECONDARY)).toBe(GAME_LIST_SECONDARY);
+  });
+
+  it('carries the list onto a merged game and defaults a legacy row to main', () => {
+    const merged = mergeRows([
+      { gameKey: '1', unlocked: true },
+      { gameKey: '2', unlocked: true, list: 'secondary' },
+    ]);
+
+    expect(merged.find((g) => g.key === '1').list).toBe(GAME_LIST_MAIN);
+    expect(merged.find((g) => g.key === '2').list).toBe(GAME_LIST_SECONDARY);
+  });
+
+  it('narrows mergeRows to a single list when one is passed', () => {
+    const rows = [
+      { gameKey: '1', unlocked: true },
+      { gameKey: '2', unlocked: true, list: 'secondary' },
+    ];
+
+    expect(mergeRows(rows, GAME_LIST_MAIN).map((g) => g.key)).toEqual(['1']);
+    expect(mergeRows(rows, GAME_LIST_SECONDARY).map((g) => g.key)).toEqual(['2']);
+    expect(mergeRows(rows).map((g) => g.key)).toEqual(['1', '2']);
+  });
+
+  it('splits an already-merged array into the two shelves', () => {
+    const games = mergeRows([
+      { gameKey: '1', unlocked: true },
+      { gameKey: '2', unlocked: true, list: 'secondary' },
+      { gameKey: '3', unlocked: true },
+    ]);
+
+    const { mainGames, previousGames } = splitGamesByList(games);
+
+    expect(mainGames.map((g) => g.key)).toEqual(['1', '3']);
+    expect(previousGames.map((g) => g.key)).toEqual(['2']);
+  });
+
+  it('survives non-array input when splitting', () => {
+    expect(splitGamesByList(null)).toEqual({ mainGames: [], previousGames: [] });
+    expect(splitGamesByList(undefined)).toEqual({ mainGames: [], previousGames: [] });
   });
 });
 

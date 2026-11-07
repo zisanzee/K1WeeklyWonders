@@ -7,8 +7,11 @@ import NameGate from "@/auth/NameGate";
 import NextGameTimer from "@/pages/NextGameTimer";
 import { usePlayerStore } from "@/auth/playerStore";
 import {
+  GAME_LIST_MAIN,
+  GAME_LIST_SECONDARY,
   PUBLISHED_GAMES,
   useGameAccessStore,
+  useGameLists,
   useNextScheduledGame,
   isGameUnlockedNow,
 } from "@/games/gameAccess";
@@ -1469,6 +1472,84 @@ function FloatingDecor() {
 // BetaHomeContent — main page
 // ===========================================================================
 
+// ===========================================================================
+// GameListToggle — the segmented switch between the main list and the
+// separate "previous games" list. Only rendered when the class HAS previous
+// games, so a class that never uses the feature looks exactly as it did before.
+//
+// Deliberately a two-pill segmented control rather than a filter chip or a
+// dropdown: for a child the choice is binary ("these games" or "the older
+// ones"), and two big tap targets make that obvious without reading.
+// ===========================================================================
+function GameListToggle({ activeList, onChange, mainCount, previousCount }) {
+  const options = [
+    { id: GAME_LIST_MAIN, label: "All Games", count: mainCount, icon: "gamepad" },
+    {
+      id: GAME_LIST_SECONDARY,
+      label: "Previous Games",
+      count: previousCount,
+      icon: "trophy",
+    },
+  ];
+
+  return (
+    <div
+      className="mx-auto mb-4 flex w-full max-w-md gap-1.5 rounded-full border-2 border-white/25 p-1.5 shadow-lg sm:mb-6 sm:gap-2 sm:p-2"
+      style={{
+        fontFamily: FONT,
+        background: PANEL_BACKGROUND,
+        backdropFilter: "blur(14px)",
+        WebkitBackdropFilter: "blur(14px)",
+      }}
+      role="tablist"
+      aria-label="Which games to show"
+    >
+      {options.map((option) => {
+        const isActive = option.id === activeList;
+        return (
+          <button
+            key={option.id}
+            type="button"
+            role="tab"
+            aria-selected={isActive}
+            onClick={() => onChange(option.id)}
+            className={cn(
+              "relative flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-full px-2 text-[11px] font-black transition sm:gap-2 sm:px-4 sm:text-sm",
+              isActive ? "text-white" : "text-white/70 hover:text-white"
+            )}
+          >
+            {/* The active pill is a shared-layout element so it slides between
+                the two options instead of blinking on and off. */}
+            {isActive && (
+              <motion.span
+                layoutId="game-list-pill"
+                transition={{ type: "spring", stiffness: 480, damping: 38 }}
+                className="absolute inset-0 rounded-full shadow-md ring-2 ring-white/50"
+                style={{
+                  background:
+                    "linear-gradient(135deg, #9b51e0 0%, #6d28d9 50%, #2563eb 100%)",
+                }}
+              />
+            )}
+            <span className="relative flex items-center gap-1 sm:gap-1.5">
+              <Icon name={option.icon} size="1em" />
+              {option.label}
+              <span
+                className={cn(
+                  "rounded-full px-1.5 py-0.5 text-[10px] font-black",
+                  isActive ? "bg-white/25 text-white" : "bg-white/10 text-white/60"
+                )}
+              >
+                {option.count}
+              </span>
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function BetaHomeContent() {
   const navigate = useNavigate();
   const playerName = usePlayerStore((s) => s.playerName);
@@ -1498,7 +1579,21 @@ function BetaHomeContent() {
   const gameAccessReady = gameAccessLoaded && gameAccessLoadedClassId === classId;
 
   const unlocked = useGameAccessStore((s) => s.unlocked);
-  const orderedGames = useGameAccessStore((s) => s.games);
+
+  // The class's games already split into the two shelves. Admin has no class,
+  // so its synthetic catalogue below is treated as an all-main list.
+  const { mainGames, previousGames: storePreviousGames } = useGameLists();
+
+  // Which shelf the games section is showing. Defaults to the main list; the
+  // segmented control only appears when the class actually HAS previous games,
+  // so the page looks exactly as before for every class that never uses them.
+  const [activeList, setActiveList] = useState(GAME_LIST_MAIN);
+  // Collapse back to the main list if the previous list empties out (a teacher
+  // removed its last game in another tab), otherwise the toggle disappears
+  // while still selected and the grid would show nothing.
+  useEffect(() => {
+    if (storePreviousGames.length === 0) setActiveList(GAME_LIST_MAIN);
+  }, [storePreviousGames.length]);
 
   // Admins aren't bound to a class, so they see the whole PUBLISHED catalog
   // (every game playable) and the app must not block on per-class game-access
@@ -1518,8 +1613,26 @@ function BetaHomeContent() {
       })),
     []
   );
-  const sourceGames = isAdmin ? adminCatalogGames : orderedGames;
+  const sourceGames = isAdmin
+    ? adminCatalogGames
+    : activeList === GAME_LIST_SECONDARY
+      ? storePreviousGames
+      : mainGames;
   const accessReady = isAdmin || gameAccessReady;
+
+  // Every game the viewer can open across BOTH shelves. The surprise card picks
+  // from this, so "Surprise me!" can land on a previous game too — the whole
+  // point of keeping the old ones around.
+  const surprisePoolSource = useMemo(
+    () => (isAdmin ? adminCatalogGames : [...mainGames, ...storePreviousGames]),
+    [isAdmin, adminCatalogGames, mainGames, storePreviousGames]
+  );
+
+  // How many games live on each shelf, for the toggle's count pills. Counted
+  // from the FULL merged arrays rather than the featured/regular split further
+  // down, so a shelf whose only games are featured still reports a real number.
+  const mainCount = isAdmin ? adminCatalogGames.length : mainGames.length;
+  const previousCount = isAdmin ? 0 : storePreviousGames.length;
 
   // Always revalidate on mount, rather than only when nothing is loaded.
   //
@@ -1601,14 +1714,22 @@ function BetaHomeContent() {
     return { featuredGames: featured, regularGames: regular };
   }, [sourceGames, isTeacher]);
 
-  // Every game the current viewer could actually open — used by the surprise
-  // card so it only ever offers unlocked games (or all games for a teacher).
+  // The featured spotlight is a MAIN-list idea. Rendering it while the previous
+  // shelf is selected would show main games directly above a grid labelled
+  // "Previous Games", which reads as a bug to a child (and to their teacher).
+  // On the previous shelf every game (featured included) joins the one grid.
+  const showSpotlight = activeList === GAME_LIST_MAIN;
+  const visibleFeatured = showSpotlight ? featuredGames : [];
+  const visibleRegular = showSpotlight
+    ? regularGames
+    : [...featuredGames, ...regularGames];
+
+  // Every game the current viewer could actually open, across BOTH shelves —
+  // used by the surprise card so it only ever offers unlocked games (or all
+  // games for a teacher), and so a previous game can be the surprise pick.
   const openGames = useMemo(
-    () =>
-      [...featuredGames, ...regularGames].filter(
-        (g) => isTeacher || g.unlocked
-      ),
-    [featuredGames, regularGames, isTeacher]
+    () => surprisePoolSource.filter((g) => isTeacher || g.unlocked),
+    [surprisePoolSource, isTeacher]
   );
 
   const roleLabel = isTeacher ? (isAdmin ? "Admin" : "Teacher") : null;
@@ -1876,7 +1997,7 @@ function BetaHomeContent() {
       {/* ================================================================
           FEATURED GAMES
           ================================================================ */}
-      {accessReady && featuredGames.length > 0 && (
+      {accessReady && showSpotlight && featuredGames.length > 0 && (
         <motion.section
           initial={reduceMotion ? false : { opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -1913,7 +2034,11 @@ function BetaHomeContent() {
       {/* ================================================================
           ALL GAMES — database order
           ================================================================ */}
-      {accessReady && regularGames.length > 0 && (
+      {/* The section exists whenever EITHER shelf has something on it, so the
+          toggle is always reachable even if the main list is momentarily empty.
+          The featured spotlight above stays main-list-only (see `activeList`
+          above it), which is why `previousCount` alone can keep this open. */}
+      {accessReady && (visibleRegular.length > 0 || previousCount > 0) && (
         <motion.section
           initial={reduceMotion ? false : { opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -1922,14 +2047,37 @@ function BetaHomeContent() {
           className="relative z-10 px-3 pt-2 sm:px-6 sm:pt-2 pb-14 sm:pb-20 md:pb-28"
         >
           <SectionHeader
-            icon="gamepad"
-            eyebrow="Pick a game"
-            title="All Games"
-            accent="linear-gradient(135deg, #f9a8d4 0%, #c4b5fd 100%)"
+            icon={activeList === GAME_LIST_SECONDARY ? "trophy" : "gamepad"}
+            eyebrow={
+              activeList === GAME_LIST_SECONDARY ? "Play again" : "Pick a game"
+            }
+            title={
+              activeList === GAME_LIST_SECONDARY ? "Previous Games" : "All Games"
+            }
+            accent={
+              activeList === GAME_LIST_SECONDARY
+                ? "linear-gradient(135deg, #fde68a 0%, #f9a8d4 100%)"
+                : "linear-gradient(135deg, #f9a8d4 0%, #c4b5fd 100%)"
+            }
             icon2="dice"
             reduceMotion={reduceMotion}
           />
 
+          {/* Shown only when there is something to switch TO. A class with an
+              empty previous list keeps the single-section layout it always had. */}
+          {previousCount > 0 && (
+            <GameListToggle
+              activeList={activeList}
+              onChange={setActiveList}
+              mainCount={mainCount}
+              previousCount={previousCount}
+            />
+          )}
+
+          {/* Re-mounting the grid on a shelf change would replay every card's
+              entrance animation, which reads as "loading" — so the key is
+              stable and only the children swap. AnimatePresence gives the swap
+              a short cross-fade instead. */}
           <div className="mx-auto grid w-full max-w-6xl grid-cols-1 gap-4 sm:gap-6 md:gap-7 sm:grid-cols-2 lg:grid-cols-3 xl:gap-8">
             {openGames.length > 0 && (
               <SurpriseCard
@@ -1938,7 +2086,7 @@ function BetaHomeContent() {
                 reduceMotion={reduceMotion}
               />
             )}
-            {regularGames.map((game, i) => (
+            {visibleRegular.map((game, i) => (
               <GameCard
                 key={game.key}
                 game={game}
@@ -1950,11 +2098,24 @@ function BetaHomeContent() {
               />
             ))}
           </div>
+
+          {/* A shelf can hold only featured games, in which case the regular
+              grid above is empty and the section would look broken. */}
+          {visibleRegular.length === 0 && visibleFeatured.length === 0 && (
+            <p
+              className="mx-auto max-w-md text-center text-sm font-bold"
+              style={{ fontFamily: FONT, color: TEXT_SOFT }}
+            >
+              Nothing on this list yet.
+            </p>
+          )}
         </motion.section>
       )}
 
-      {/* Fully empty state */}
-      {accessReady && sourceGames.length === 0 && (
+      {/* Fully empty state. Gated on BOTH shelves: a class whose main list is
+          empty but which still has previous games must not be told there are no
+          games at all, since the toggle above gives access to them. */}
+      {accessReady && mainCount === 0 && previousCount === 0 && (
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}

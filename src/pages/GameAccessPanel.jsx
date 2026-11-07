@@ -56,11 +56,15 @@ import {
   addGameForClass,
   fetchGameAccessForClass,
   GAME_CATALOG,
+  GAME_LIST_MAIN,
+  GAME_LIST_SECONDARY,
   GAME_TERMS,
   PREVIEW_GROUP_ID,
   isPreviewGame,
   mergeRows,
+  normalizeGameList,
   removeGameForClass,
+  setGameListForClass,
   setGameOrderForClass,
   setGameShinyForClass,
   setGameUnlockedForClass,
@@ -583,6 +587,11 @@ function SortableGameSlot({
             <p className="mt-1 whitespace-pre-line text-[10px] font-semibold leading-snug aura-soft sm:text-xs">
               {game.subtitle}
             </p>
+            {game.list === GAME_LIST_SECONDARY && (
+              <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-sky-500/25 px-1.5 py-0.5 text-[8px] font-black text-sky-100 sm:text-[9px]">
+                Previous games
+              </span>
+            )}
             {game.shiny && (
               <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-amber-500/25 px-1.5 py-0.5 text-[8px] font-black text-amber-100 sm:text-[9px]">
                 <FeaturedIcon className="h-2.5 w-2.5 shrink-0" aria-hidden="true" />
@@ -712,6 +721,11 @@ function GameAccessEditor({
   const [loading, setLoading] = useState(false);
   const [draftGames, setDraftGames] = useState([]);
   const [originalGames, setOriginalGames] = useState([]);
+  // Which shelf this editor is currently showing/editing. Reordering is always
+  // scoped to ONE list: the server validates `gameKeys` against exactly the
+  // games added to a single list, so a mixed array would be rejected — and a
+  // drag across the two lists is not a meaningful action anyway.
+  const [listTab, setListTab] = useState(GAME_LIST_MAIN);
   const [activeKey, setActiveKey] = useState(null);
   const [overKey, setOverKey] = useState(null);
   const [lastMove, setLastMove] = useState(null);
@@ -758,7 +772,11 @@ function GameAccessEditor({
     if (moveTimerRef.current) clearTimeout(moveTimerRef.current);
   }, []);
 
-  const visibleGames = initializedRef.current ? draftGames : games;
+  // Only the active shelf's games are shown, numbered and draggable.
+  const visibleGames = useMemo(() => {
+    const source = initializedRef.current ? draftGames : games;
+    return source.filter((game) => normalizeGameList(game.list) === listTab);
+  }, [draftGames, games, listTab]);
   const slottedGames = useMemo(() => addSlotLabels(visibleGames), [visibleGames]);
 
   const activeGame = useMemo(
@@ -770,17 +788,31 @@ function GameAccessEditor({
   const allUnlocked = visibleGames.length > 0 && unlockedCount === visibleGames.length;
   const isReady = loaded && initializedRef.current;
 
-  const hasChanges = useMemo(() => {
-    if (!isReady || originalGames.length !== draftGames.length) return false;
-    return draftGames.some((game, index) => {
-      const original = originalGames[index];
-      return (
-        original.key !== game.key ||
-        original.unlocked !== game.unlocked ||
-        original.shiny !== game.shiny
-      );
+  // Which of the two shelves has a different key order than when it loaded.
+  // Compared per-list, not over the flat array: the draft holds both shelves,
+  // and the main list's order is completely independent of the previous list's.
+  const orderChangedLists = useMemo(() => {
+    if (!isReady) return [];
+    return [GAME_LIST_MAIN, GAME_LIST_SECONDARY].filter((list) => {
+      const before = originalGames
+        .filter((game) => normalizeGameList(game.list) === list)
+        .map((game) => game.key);
+      const after = draftGames
+        .filter((game) => normalizeGameList(game.list) === list)
+        .map((game) => game.key);
+      return before.length !== after.length || before.some((key, i) => key !== after[i]);
     });
   }, [draftGames, isReady, originalGames]);
+
+  const hasChanges = useMemo(() => {
+    if (!isReady || originalGames.length !== draftGames.length) return false;
+    const originalByKey = new Map(originalGames.map((game) => [game.key, game]));
+    const settingChanged = draftGames.some((game) => {
+      const original = originalByKey.get(game.key);
+      return original && (original.unlocked !== game.unlocked || original.shiny !== game.shiny);
+    });
+    return settingChanged || orderChangedLists.length > 0;
+  }, [draftGames, isReady, originalGames, orderChangedLists]);
 
   const changeCount = useMemo(() => {
     if (!isReady) return 0;
@@ -789,11 +821,8 @@ function GameAccessEditor({
       const original = originalByKey.get(game.key);
       return original && (original.unlocked !== game.unlocked || original.shiny !== game.shiny);
     }).length;
-    const orderChanged = draftGames.some(
-      (game, index) => originalGames[index]?.key !== game.key
-    );
-    return settingChanges + (orderChanged ? 1 : 0);
-  }, [draftGames, isReady, originalGames]);
+    return settingChanges + orderChangedLists.length;
+  }, [draftGames, isReady, originalGames, orderChangedLists]);
 
   const handleToggleAccess = (gameKey, unlocked) => {
     setDraftGames((current) =>
@@ -907,12 +936,25 @@ function GameAccessEditor({
     setOverKey(null);
     if (!over || active.id === over.id || !isReady) return;
 
-    const oldIndex = draftGames.findIndex((game) => game.key === active.id);
-    const newIndex = draftGames.findIndex((game) => game.key === over.id);
-    const nextGames = arrayMove(draftGames, oldIndex, newIndex);
-    const movedGame = addSlotLabels(nextGames).find((game) => game.key === active.id);
+    // Reorder WITHIN the visible shelf only. arrayMove is applied to the
+    // active list's slice and then spliced back into the flat draft, so the
+    // other shelf's games keep their relative order and the payload sent to
+    // the server stays a clean per-list array.
+    const activeIndex = visibleGames.findIndex((game) => game.key === active.id);
+    const overIndex = visibleGames.findIndex((game) => game.key === over.id);
+    if (activeIndex < 0 || overIndex < 0) return;
 
-    setDraftGames(nextGames);
+    const reordered = arrayMove(visibleGames, activeIndex, overIndex);
+    const movedGame = addSlotLabels(reordered).find((game) => game.key === active.id);
+
+    setDraftGames((current) => {
+      // Everything not on this shelf, in its existing order; the reordered
+      // shelf then replaces its own members in that same block.
+      const others = current.filter(
+        (game) => normalizeGameList(game.list) !== listTab
+      );
+      return [...others, ...reordered];
+    });
     setLastMove({ gameKey: active.id, slotLabel: movedGame?.slotLabel || '' });
 
     if (moveTimerRef.current) clearTimeout(moveTimerRef.current);
@@ -928,15 +970,17 @@ function GameAccessEditor({
 
     try {
       const originalByKey = new Map(originalGames.map((game) => [game.key, game]));
-      const orderChanged = draftGames.some(
-        (game, index) => originalGames[index]?.key !== game.key
-      );
 
-      if (orderChanged) {
+      // One order call per changed shelf. The server validates against exactly
+      // that list's added games, so the payload must never mix the two.
+      for (const list of orderChangedLists) {
         await setGameOrderForClass(
-          draftGames.map((game) => game.key),
+          draftGames
+            .filter((game) => normalizeGameList(game.list) === list)
+            .map((game) => game.key),
           classId,
-          teacherCode
+          teacherCode,
+          list
         );
       }
 
@@ -1016,6 +1060,44 @@ function GameAccessEditor({
         </div>
       )}
 
+      {/* Shelf switch. Both shelves are edited by the same controls, so rather
+          than duplicating the whole list (and its drag state) the editor shows
+          one at a time. Counts are shown so a teacher can tell the previous
+          list has games in it without switching to look. */}
+      <div className="mb-3 flex gap-2">
+        {[
+          { id: GAME_LIST_MAIN, label: 'Main games' },
+          { id: GAME_LIST_SECONDARY, label: 'Previous games' },
+        ].map((shelf) => {
+          const count = (initializedRef.current ? draftGames : games).filter(
+            (game) => normalizeGameList(game.list) === shelf.id
+          ).length;
+          const active = listTab === shelf.id;
+          return (
+            <button
+              key={shelf.id}
+              type="button"
+              onClick={() => setListTab(shelf.id)}
+              aria-pressed={active}
+              className={`flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-xl px-3 text-xs font-black transition ${
+                active
+                  ? 'bg-white/25 text-white shadow-sm ring-1 ring-white/40'
+                  : 'bg-white/8 aura-soft hover:bg-white/15'
+              }`}
+            >
+              {shelf.label}
+              <span
+                className={`rounded-full px-1.5 py-0.5 text-[10px] ${
+                  active ? 'bg-white/25 text-white' : 'bg-white/10 text-white/60'
+                }`}
+              >
+                {count}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
       <p className="mb-3 px-1 text-sm font-bold aura-soft">
         Drag a slot to reorder, or hover over one to preview the new placement.
       </p>
@@ -1061,8 +1143,14 @@ function GameAccessEditor({
           {isReady && slottedGames.length === 0 && (
             <div className="rounded-2xl border border-dashed border-white/25 bg-white/10 px-5 py-8 text-center">
               <ClassGamesIcon className="mx-auto h-10 w-10 text-indigo-200" aria-hidden="true" />
-              <p className="mt-3 text-base font-black aura-text">No games yet</p>
-              <p className="mt-1 text-sm font-semibold aura-soft">Add games from the Catalogue tab.</p>
+              <p className="mt-3 text-base font-black aura-text">
+                {listTab === GAME_LIST_SECONDARY ? 'No previous games yet' : 'No games yet'}
+              </p>
+              <p className="mt-1 text-sm font-semibold aura-soft">
+                {listTab === GAME_LIST_SECONDARY
+                  ? 'Add games to the secondary list from the Catalogue tab.'
+                  : 'Add games from the Catalogue tab.'}
+              </p>
             </div>
           )}
         </SortableContext>
@@ -1260,7 +1348,11 @@ function ScheduleUnlockDialog({ game, saving, onCancel, onConfirm, onCancelSched
 function GameCatalogue({ classId, teacherCode, isAdmin = false }) {
   const [classes, setClasses] = useState(null);
   const [pickedClassId, setPickedClassId] = useState('');
-  const [addedKeys, setAddedKeys] = useState(null);
+  // gameKey -> which list it is added to ('main' | 'secondary'). A Map rather
+  // than a Set because a catalogue card has to know not just WHETHER the game
+  // is in the class but WHICH shelf, since the two Add buttons and the move
+  // control all depend on it.
+  const [addedGames, setAddedGames] = useState(null);
   const [status, setStatus] = useState('loading');
   const [error, setError] = useState(null);
   const [query, setQuery] = useState('');
@@ -1312,10 +1404,12 @@ function GameCatalogue({ classId, teacherCode, isAdmin = false }) {
     setError(null);
     // Drop the previous class's added-set, or its ticks would briefly show
     // against a different class's catalogue.
-    setAddedKeys(null);
+    setAddedGames(null);
     try {
       const rows = await fetchGameAccessForClass(effectiveClassId, teacherCode);
-      setAddedKeys(new Set(mergeRows(rows).map((game) => game.key)));
+      // No list filter: the catalogue needs every added game, whichever shelf
+      // it is on, so each card can render the right pair of controls.
+      setAddedGames(new Map(mergeRows(rows).map((game) => [game.key, game.list])));
       setStatus('ready');
     } catch (err) {
       setError(err.message || 'Could not load the game catalogue.');
@@ -1327,7 +1421,7 @@ function GameCatalogue({ classId, teacherCode, isAdmin = false }) {
     load();
   }, [load]);
 
-  const addedCount = addedKeys ? addedKeys.size : 0;
+  const addedCount = addedGames ? addedGames.size : 0;
 
   // Match against the title and the description so a teacher can search either
   // by game name or by what the game teaches (e.g. "number bonds", "counting").
@@ -1369,27 +1463,53 @@ function GameCatalogue({ classId, teacherCode, isAdmin = false }) {
     });
   };
 
-  const toggle = async (game) => {
-    if (!addedKeys || savingKey || !effectiveClassId) return;
+  // Re-reads the class's rows after any write. Trusting the server round-trip
+  // over optimistic state is what keeps two open tabs from drifting the
+  // "added" map, and it is also how a MOVE settles on its new shelf.
+  const reloadAdded = async () => {
+    const rows = await fetchGameAccessForClass(effectiveClassId, teacherCode);
+    setAddedGames(new Map(mergeRows(rows).map((item) => [item.key, item.list])));
+  };
+
+  // Adds a game to the given list, or removes it if it is already added.
+  // `list` is ignored for a removal — taking a game out is list-independent.
+  const toggle = async (game, list = GAME_LIST_MAIN) => {
+    if (!addedGames || savingKey || !effectiveClassId) return;
     // An unpublished game must never be added to a class. The UI hides the
     // button, but guard the handler too: this is the only path to the server,
     // and a future surface could call it without going through that render.
     if (isPreviewGame(game)) return;
-    const isAdded = addedKeys.has(game.key);
+    const isAdded = addedGames.has(game.key);
     setSavingKey(game.key);
     setError(null);
     try {
       if (isAdded) {
         await removeGameForClass(game.key, effectiveClassId, teacherCode);
       } else {
-        await addGameForClass(game.key, effectiveClassId, teacherCode);
+        await addGameForClass(game.key, effectiveClassId, teacherCode, list);
       }
-      // Trust the server round-trip over optimistic state so two tabs can't
-      // drift the "added" set.
-      const rows = await fetchGameAccessForClass(effectiveClassId, teacherCode);
-      setAddedKeys(new Set(mergeRows(rows).map((item) => item.key)));
+      await reloadAdded();
     } catch (err) {
       setError(err.message || 'Could not update the catalogue. Please try again.');
+    } finally {
+      setSavingKey(null);
+    }
+  };
+
+  // Moves an ALREADY-ADDED game to the other shelf. Deliberately not routed
+  // through `toggle`: a move keeps the game's lock/featured state, whereas
+  // remove+add would reset it, and the teacher only meant to change where it
+  // appears.
+  const moveToList = async (game, list) => {
+    if (!addedGames || savingKey || !effectiveClassId) return;
+    if (addedGames.get(game.key) === list) return;
+    setSavingKey(game.key);
+    setError(null);
+    try {
+      await setGameListForClass(game.key, list, effectiveClassId, teacherCode);
+      await reloadAdded();
+    } catch (err) {
+      setError(err.message || 'Could not move this game. Please try again.');
     } finally {
       setSavingKey(null);
     }
@@ -1552,7 +1672,10 @@ function GameCatalogue({ classId, teacherCode, isAdmin = false }) {
                   )}
                   <ul className="grid grid-cols-1 gap-2.5 p-3 pt-0 sm:grid-cols-2">
                 {group.games.map((game) => {
-                  const isAdded = addedKeys.has(game.key);
+                  const addedList = addedGames.get(game.key) || null;
+                  const isAdded = Boolean(addedList);
+                  const isOnMain = addedList === GAME_LIST_MAIN;
+                  const isOnSecondary = addedList === GAME_LIST_SECONDARY;
                   const isSavingThis = savingKey === game.key;
                   const isBusy = Boolean(savingKey);
                   // Unpublished games are try-it-only: the Add/Remove control is
@@ -1580,12 +1703,20 @@ function GameCatalogue({ classId, teacherCode, isAdmin = false }) {
                               className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-black ${
                                 isPreviewOnly
                                   ? 'bg-amber-400/30 text-amber-50'
-                                  : isAdded
-                                    ? 'bg-emerald-500/25 text-emerald-100'
-                                    : 'bg-white/10 text-white/60'
+                                  : isOnSecondary
+                                    ? 'bg-sky-500/25 text-sky-100'
+                                    : isAdded
+                                      ? 'bg-emerald-500/25 text-emerald-100'
+                                      : 'bg-white/10 text-white/60'
                               }`}
                             >
-                              {isPreviewOnly ? 'Not published' : isAdded ? 'Added' : 'Not added'}
+                              {isPreviewOnly
+                                ? 'Not published'
+                                : isOnSecondary
+                                  ? 'In previous'
+                                  : isOnMain
+                                    ? 'In main'
+                                    : 'Not added'}
                             </span>
                           </div>
                           <p className="mt-0.5 whitespace-pre-line text-[11px] font-semibold leading-snug aura-muted">
@@ -1632,19 +1763,65 @@ function GameCatalogue({ classId, teacherCode, isAdmin = false }) {
                           <span className="flex min-h-10 flex-1 items-center justify-center rounded-xl border border-dashed border-amber-300/40 px-3 text-center text-[11px] font-bold leading-tight text-amber-100/85">
                             Preview only
                           </span>
+                        ) : isAdded ? (
+                          /* An added game has ONE primary action — Remove — plus
+                             a move control for the shelf it is NOT on. The shelf
+                             the game already sits on is rendered as a static
+                             chip, so the row states where it lives instead of
+                             offering a no-op button. */
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => moveToList(game, isOnMain ? GAME_LIST_SECONDARY : GAME_LIST_MAIN)}
+                              disabled={isBusy}
+                              title={
+                                isOnMain
+                                  ? `Move ${game.label} to Previous games`
+                                  : `Move ${game.label} back to the main games`
+                              }
+                              aria-label={
+                                isOnMain
+                                  ? `Move ${game.label} to Previous games`
+                                  : `Move ${game.label} back to the main games`
+                              }
+                              className="flex min-h-10 flex-1 items-center justify-center gap-1 rounded-xl bg-sky-500/25 px-2 text-[11px] font-black leading-tight text-sky-50 ring-1 ring-sky-300/35 transition hover:bg-sky-500/40 disabled:cursor-not-allowed disabled:opacity-55"
+                            >
+                              {isSavingThis ? 'Saving…' : isOnMain ? '→ Previous' : '→ Main'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => toggle(game)}
+                              disabled={isBusy}
+                              aria-label={`Remove ${game.label} from the class`}
+                              className="min-h-10 shrink-0 rounded-xl bg-rose-500/25 px-3 text-xs font-black text-rose-100 transition hover:bg-rose-500/40 disabled:cursor-not-allowed disabled:opacity-55"
+                            >
+                              {isSavingThis ? '…' : 'Remove'}
+                            </button>
+                          </>
                         ) : (
-                          <button
-                            type="button"
-                            onClick={() => toggle(game)}
-                            disabled={isBusy}
-                            className={`min-h-10 flex-1 rounded-xl px-3 text-xs font-black transition disabled:cursor-not-allowed disabled:opacity-55 ${
-                              isAdded
-                                ? 'bg-rose-500/25 text-rose-100 hover:bg-rose-500/40'
-                                : 'bg-indigo-600 text-white hover:bg-indigo-500'
-                            }`}
-                          >
-                            {isSavingThis ? 'Saving…' : isAdded ? 'Remove' : '+ Add'}
-                          </button>
+                          /* Two explicit adds, so the destination is chosen
+                             BEFORE the round trip rather than needing a second
+                             step. Both are real buttons: the game is not in the
+                             class yet, so neither is a no-op. */
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => toggle(game, GAME_LIST_MAIN)}
+                              disabled={isBusy}
+                              className="min-h-10 flex-1 rounded-xl bg-indigo-600 px-3 text-xs font-black text-white transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-55"
+                            >
+                              {isSavingThis ? 'Saving…' : '+ Add to main'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => toggle(game, GAME_LIST_SECONDARY)}
+                              disabled={isBusy}
+                              title="Add to the previous games list instead"
+                              className="min-h-10 flex-1 rounded-xl bg-sky-600/85 px-3 text-xs font-black text-white transition hover:bg-sky-500 disabled:cursor-not-allowed disabled:opacity-55"
+                            >
+                              {isSavingThis ? 'Saving…' : '+ Add to secondary'}
+                            </button>
+                          </>
                         )}
                       </div>
                     </li>

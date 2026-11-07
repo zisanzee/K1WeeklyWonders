@@ -98,9 +98,31 @@ function normalizeKey(gameKey) {
   return String(gameKey);
 }
 
-// Merges raw server rows (with gameKey, unlocked, shiny, order) with
+// ---------------------------------------------------------------------------
+// Two shelves per class
+// ---------------------------------------------------------------------------
+// A class's added games live on exactly ONE of two lists: the main game list the
+// homepage shows first, or the separate "previous games" list behind a toggle.
+// The value is stored on the GameAccess row (see server models/GameAccess.js)
+// and is part of the row identity from the UI's point of view, so every read
+// that groups games must agree on the same two names.
+export const GAME_LIST_MAIN = 'main';
+export const GAME_LIST_SECONDARY = 'secondary';
+
+// Normalises a row's list. Legacy rows written before the split carry no `list`
+// at all and are treated as 'main', which is exactly where they used to show —
+// so the feature is additive and no class has to be migrated.
+export function normalizeGameList(value) {
+  return value === GAME_LIST_SECONDARY ? GAME_LIST_SECONDARY : GAME_LIST_MAIN;
+}
+
+// Merges raw server rows (with gameKey, unlocked, shiny, order, list) with
 // GAME_CATALOG entries to produce full game objects with emoji, label,
 // hue, etc. Only includes games that have a server row (i.e. "added").
+//
+// `list` (optional) narrows the result to one shelf. Omit it when you genuinely
+// need every added game (e.g. "which games are added at all" in the Catalogue);
+// pass it for any surface that renders a single list.
 //
 // Unpublished games are filtered out here too. This is the belt-and-braces half
 // of the preview rule: the Catalogue refuses to add one, but a class may have
@@ -108,13 +130,16 @@ function normalizeKey(gameKey) {
 // while a 7-day access cache still holds the old row). Filtering at the ONE
 // choke point every class-facing read goes through means unpublishing a game
 // removes it from every home grid immediately, with no DB cleanup needed.
-export function mergeRows(rows) {
+export function mergeRows(rows, list = null) {
   const rowsByKey = new Map(
     (Array.isArray(rows) ? rows : []).map((row) => [row.gameKey, row])
   );
 
   return GAME_CATALOG
     .filter((game) => rowsByKey.has(game.key) && !isPreviewGame(game))
+    .filter((game) =>
+      list === null ? true : normalizeGameList(rowsByKey.get(game.key)?.list) === list
+    )
     .map((game, defaultOrder) => {
       const row = rowsByKey.get(game.key);
 
@@ -122,6 +147,7 @@ export function mergeRows(rows) {
         ...game,
         unlocked: Boolean(row?.unlocked),
         shiny: Boolean(row?.shiny),
+        list: normalizeGameList(row?.list),
         order: Number.isInteger(row?.order) ? row.order : defaultOrder,
         // ISO string while a teacher-scheduled unlock is still pending, else
         // null. The server only ever reports a future time here, so the
@@ -135,6 +161,20 @@ export function mergeRows(rows) {
         GAME_CATALOG.findIndex((game) => game.key === a.key) -
           GAME_CATALOG.findIndex((game) => game.key === b.key)
     );
+}
+
+// Splits an already-merged game array into the two shelves. Kept pure and
+// separate from mergeRows because the homepage derives its main/previous
+// sections from ONE store read, and re-filtering the raw rows twice would mean
+// two passes over GAME_CATALOG on every render.
+export function splitGamesByList(games) {
+  const list = Array.isArray(games) ? games : [];
+  return {
+    mainGames: list.filter((game) => normalizeGameList(game.list) === GAME_LIST_MAIN),
+    previousGames: list.filter(
+      (game) => normalizeGameList(game.list) === GAME_LIST_SECONDARY
+    ),
+  };
 }
 
 // Last-known arrangement per classId, so a returning visitor sees their games
@@ -381,14 +421,21 @@ export const useGameAccessStore = create((set, get) => ({
     }));
   },
 
-  setOrderLocal: (gameKeys) => {
+  setOrderLocal: (gameKeys, list = GAME_LIST_MAIN) => {
     set((state) => ({
       games: gameKeys
         .map((key, order) => {
           const game = state.games.find((item) => item.key === key);
           return game ? { ...game, order } : null;
         })
-        .filter(Boolean),
+        .filter(Boolean)
+        // Only the reordered shelf is replaced; the other list's games keep
+        // their place in the array so both sections still render.
+        .concat(
+          state.games.filter(
+            (game) => normalizeGameList(game.list) !== list
+          )
+        ),
     }));
   },
 
@@ -456,8 +503,8 @@ export async function setGameShiny(gameKey, shiny, teacherCode, classId) {
   return data;
 }
 
-export async function setGameOrder(gameKeys, teacherCode, classId) {
-  const body = { gameKeys, teacherCode };
+export async function setGameOrder(gameKeys, teacherCode, classId, list = GAME_LIST_MAIN) {
+  const body = { gameKeys, teacherCode, list };
   if (classId) body.classId = classId;
 
   const response = await fetch(`${API_BASE}/api/game-access/order`, {
@@ -478,9 +525,14 @@ export async function setGameOrder(gameKeys, teacherCode, classId) {
   return data.rows;
 }
 
-export async function addGameToClass(gameKey, teacherCode, classId) {
+export async function addGameToClass(
+  gameKey,
+  teacherCode,
+  classId,
+  list = GAME_LIST_MAIN
+) {
   const key = normalizeKey(gameKey);
-  const body = { teacherCode };
+  const body = { teacherCode, list };
   if (classId) body.classId = classId;
 
   const response = await fetch(
@@ -637,11 +689,16 @@ export async function setGameShinyForClass(gameKey, shiny, classId, teacherCode)
   return response.json();
 }
 
-export async function setGameOrderForClass(gameKeys, classId, teacherCode) {
+export async function setGameOrderForClass(
+  gameKeys,
+  classId,
+  teacherCode,
+  list = GAME_LIST_MAIN
+) {
   const response = await fetch(`${API_BASE}/api/game-access/order`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ gameKeys, classId, teacherCode }),
+    body: JSON.stringify({ gameKeys, classId, teacherCode, list }),
   });
 
   if (!response.ok) {
@@ -653,14 +710,19 @@ export async function setGameOrderForClass(gameKeys, classId, teacherCode) {
   return response.json();
 }
 
-export async function addGameForClass(gameKey, classId, teacherCode) {
+export async function addGameForClass(
+  gameKey,
+  classId,
+  teacherCode,
+  list = GAME_LIST_MAIN
+) {
   const key = normalizeKey(gameKey);
   const response = await fetch(
     `${API_BASE}/api/game-access/${encodeURIComponent(key)}`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ classId, teacherCode }),
+      body: JSON.stringify({ classId, teacherCode, list }),
     }
   );
 
@@ -731,6 +793,44 @@ export function nextScheduledGame(games) {
 export function useNextScheduledGame() {
   const games = useGameAccessStore((state) => state.games);
   return useMemo(() => nextScheduledGame(games), [games]);
+}
+
+// The class's games split into the two shelves. One store read, two stable
+// arrays — the homepage renders both sections from this, so switching the
+// toggle never triggers a refetch, and a scheduled game stays in whatever
+// section it belongs to.
+export function useGameLists() {
+  const games = useGameAccessStore((state) => state.games);
+  return useMemo(() => splitGamesByList(games), [games]);
+}
+
+// Moves an already-added game between the main list and the previous-games
+// list, keeping its lock/featured state. Class-scoped like every other panel
+// write, so a teacher can only move games in their own class.
+export async function setGameListForClass(gameKey, list, classId, teacherCode) {
+  const key = normalizeKey(gameKey);
+  const response = await fetch(
+    `${API_BASE}/api/game-access/${encodeURIComponent(key)}/list`,
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        list: normalizeGameList(list),
+        classId,
+        teacherCode,
+      }),
+    }
+  );
+
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    throw new Error(body.error || 'Could not move this game to another list');
+  }
+
+  // Which list a game is on decides which homepage section it appears in, so
+  // the cached rows would otherwise keep showing it on the old shelf.
+  invalidateClassAccessCache(classId);
+  return response.json();
 }
 
 export async function removeGameForClass(gameKey, classId, teacherCode) {
