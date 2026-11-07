@@ -7,8 +7,6 @@ import NameGate from "@/auth/NameGate";
 import NextGameTimer from "@/pages/NextGameTimer";
 import { usePlayerStore } from "@/auth/playerStore";
 import {
-  GAME_LIST_MAIN,
-  GAME_LIST_SECONDARY,
   PUBLISHED_GAMES,
   useGameAccessStore,
   useGameLists,
@@ -1469,84 +1467,102 @@ function FloatingDecor() {
 }
 
 // ===========================================================================
-// BetaHomeContent — main page
-// ===========================================================================
-
-// ===========================================================================
-// GameListToggle — the segmented switch between the main list and the
-// separate "previous games" list. Only rendered when the class HAS previous
-// games, so a class that never uses the feature looks exactly as it did before.
+// PreviousGamesSection — the OPTIONAL second list.
 //
-// Deliberately a two-pill segmented control rather than a filter chip or a
-// dropdown: for a child the choice is binary ("these games" or "the older
-// ones"), and two big tap targets make that obvious without reading.
+// Deliberately NOT a toggle that swaps the main grid out. The main list is the
+// page: a child must always land on the current games, and an extra shelf must
+// never hide or rearrange them. So this renders BELOW the main games as a
+// collapsed drawer that expands into its own grid.
+//
+// Collapsed by default and mounted lazily (the grid only exists while open), so
+// a class that uses the feature costs one button of scroll and a class that
+// doesn't costs nothing at all — no section, no fetch, no extra cards.
 // ===========================================================================
-function GameListToggle({ activeList, onChange, mainCount, previousCount }) {
-  const options = [
-    { id: GAME_LIST_MAIN, label: "All Games", count: mainCount, icon: "gamepad" },
-    {
-      id: GAME_LIST_SECONDARY,
-      label: "Previous Games",
-      count: previousCount,
-      icon: "trophy",
-    },
-  ];
+function PreviousGamesSection({ games, progressByGame, isTeacher, onOpen, reduceMotion }) {
+  const [open, setOpen] = useState(false);
+  const panelId = "previous-games-panel";
 
   return (
-    <div
-      className="mx-auto mb-4 flex w-full max-w-md gap-1.5 rounded-full border-2 border-white/25 p-1.5 shadow-lg sm:mb-6 sm:gap-2 sm:p-2"
-      style={{
-        fontFamily: FONT,
-        background: PANEL_BACKGROUND,
-        backdropFilter: "blur(14px)",
-        WebkitBackdropFilter: "blur(14px)",
-      }}
-      role="tablist"
-      aria-label="Which games to show"
+    <motion.section
+      initial={reduceMotion ? false : { opacity: 0, y: 20 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, amount: 0.1 }}
+      transition={{ type: "spring", stiffness: 240, damping: 22 }}
+      className="relative z-10 px-3 pb-14 sm:px-6 sm:pb-20 md:pb-24"
+      style={{ fontFamily: FONT }}
     >
-      {options.map((option) => {
-        const isActive = option.id === activeList;
-        return (
-          <button
-            key={option.id}
-            type="button"
-            role="tab"
-            aria-selected={isActive}
-            onClick={() => onChange(option.id)}
-            className={cn(
-              "relative flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-full px-2 text-[11px] font-black transition sm:gap-2 sm:px-4 sm:text-sm",
-              isActive ? "text-white" : "text-white/70 hover:text-white"
-            )}
+      <div className="mx-auto w-full max-w-6xl">
+        <button
+          type="button"
+          onClick={() => setOpen((value) => !value)}
+          aria-expanded={open}
+          aria-controls={panelId}
+          className="group flex w-full items-center justify-center gap-2 rounded-full border-2 border-white/25 px-4 py-3 text-xs font-black text-white shadow-lg transition hover:border-white/40 sm:gap-3 sm:px-6 sm:py-4 sm:text-base"
+          style={{
+            background: PANEL_BACKGROUND,
+            backdropFilter: "blur(14px)",
+            WebkitBackdropFilter: "blur(14px)",
+          }}
+        >
+          <span className="text-base text-amber-300 sm:text-xl" aria-hidden="true">
+            <Icon name="trophy" size="1em" />
+          </span>
+          <span>Previous Games</span>
+          <span className="rounded-full bg-white/20 px-2 py-0.5 text-[10px] sm:text-xs">
+            {games.length}
+          </span>
+          {/* A chevron rather than the word "show/hide": the state is the
+              direction, which reads the same in any language. */}
+          <motion.span
+            animate={{ rotate: open ? 180 : 0 }}
+            transition={{ type: "spring", stiffness: 420, damping: 32 }}
+            className="text-sm text-white/80 sm:text-base"
+            aria-hidden="true"
           >
-            {/* The active pill is a shared-layout element so it slides between
-                the two options instead of blinking on and off. */}
-            {isActive && (
-              <motion.span
-                layoutId="game-list-pill"
-                transition={{ type: "spring", stiffness: 480, damping: 38 }}
-                className="absolute inset-0 rounded-full shadow-md ring-2 ring-white/50"
-                style={{
-                  background:
-                    "linear-gradient(135deg, #9b51e0 0%, #6d28d9 50%, #2563eb 100%)",
-                }}
-              />
-            )}
-            <span className="relative flex items-center gap-1 sm:gap-1.5">
-              <Icon name={option.icon} size="1em" />
-              {option.label}
-              <span
-                className={cn(
-                  "rounded-full px-1.5 py-0.5 text-[10px] font-black",
-                  isActive ? "bg-white/25 text-white" : "bg-white/10 text-white/60"
-                )}
-              >
-                {option.count}
-              </span>
-            </span>
-          </button>
-        );
-      })}
-    </div>
+            ▾
+          </motion.span>
+        </button>
+
+        <AnimatePresence initial={false}>
+          {open && (
+            <motion.div
+              id={panelId}
+              key="previous-games-panel"
+              // Fades and slides in rather than growing from height:0. A height
+              // animation requires `overflow-hidden`, which clipped each card's
+              // outer glow, drop shadow and hover lift at the panel's bottom and
+              // side edges. There is nothing to collapse here anyway — the panel
+              // is unmounted on close — so a transform/opacity transition gives
+              // the same "unfold" feel without ever cropping the cards.
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.22, ease: "easeOut" }}
+            >
+              <p className="mt-3 text-center text-[11px] font-semibold sm:text-sm" style={{ color: TEXT_SOFT }}>
+                Older games your teacher kept for you. Pick any one to play again!
+              </p>
+
+              {/* pb-3 leaves room for the last row's shadow/glow inside the
+                  section's own padding, so nothing is cut at the bottom. */}
+              <div className="mt-4 grid grid-cols-1 gap-4 pb-3 sm:gap-6 sm:pb-4 md:gap-7 sm:grid-cols-2 lg:grid-cols-3 xl:gap-8">
+                {games.map((game, i) => (
+                  <GameCard
+                    key={game.key}
+                    game={game}
+                    index={i}
+                    progress={progressByGame[game.progressKey]}
+                    isTeacher={isTeacher}
+                    onOpen={onOpen}
+                    reduceMotion={reduceMotion}
+                  />
+                ))}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+    </motion.section>
   );
 }
 
@@ -1584,17 +1600,6 @@ function BetaHomeContent() {
   // so its synthetic catalogue below is treated as an all-main list.
   const { mainGames, previousGames: storePreviousGames } = useGameLists();
 
-  // Which shelf the games section is showing. Defaults to the main list; the
-  // segmented control only appears when the class actually HAS previous games,
-  // so the page looks exactly as before for every class that never uses them.
-  const [activeList, setActiveList] = useState(GAME_LIST_MAIN);
-  // Collapse back to the main list if the previous list empties out (a teacher
-  // removed its last game in another tab), otherwise the toggle disappears
-  // while still selected and the grid would show nothing.
-  useEffect(() => {
-    if (storePreviousGames.length === 0) setActiveList(GAME_LIST_MAIN);
-  }, [storePreviousGames.length]);
-
   // Admins aren't bound to a class, so they see the whole PUBLISHED catalog
   // (every game playable) and the app must not block on per-class game-access
   // loading.
@@ -1613,11 +1618,9 @@ function BetaHomeContent() {
       })),
     []
   );
-  const sourceGames = isAdmin
-    ? adminCatalogGames
-    : activeList === GAME_LIST_SECONDARY
-      ? storePreviousGames
-      : mainGames;
+  // The main grid is ALWAYS the main list — never swapped out for another
+  // shelf. Previous games get their own optional section further down.
+  const sourceGames = isAdmin ? adminCatalogGames : mainGames;
   const accessReady = isAdmin || gameAccessReady;
 
   // Every game the viewer can open across BOTH shelves. The surprise card picks
@@ -1628,9 +1631,9 @@ function BetaHomeContent() {
     [isAdmin, adminCatalogGames, mainGames, storePreviousGames]
   );
 
-  // How many games live on each shelf, for the toggle's count pills. Counted
-  // from the FULL merged arrays rather than the featured/regular split further
-  // down, so a shelf whose only games are featured still reports a real number.
+  // How many games live on each shelf. Counted from the FULL merged arrays
+  // rather than the featured/regular split further down, so a shelf whose only
+  // games are featured still reports a real number.
   const mainCount = isAdmin ? adminCatalogGames.length : mainGames.length;
   const previousCount = isAdmin ? 0 : storePreviousGames.length;
 
@@ -1713,16 +1716,6 @@ function BetaHomeContent() {
 
     return { featuredGames: featured, regularGames: regular };
   }, [sourceGames, isTeacher]);
-
-  // The featured spotlight is a MAIN-list idea. Rendering it while the previous
-  // shelf is selected would show main games directly above a grid labelled
-  // "Previous Games", which reads as a bug to a child (and to their teacher).
-  // On the previous shelf every game (featured included) joins the one grid.
-  const showSpotlight = activeList === GAME_LIST_MAIN;
-  const visibleFeatured = showSpotlight ? featuredGames : [];
-  const visibleRegular = showSpotlight
-    ? regularGames
-    : [...featuredGames, ...regularGames];
 
   // Every game the current viewer could actually open, across BOTH shelves —
   // used by the surprise card so it only ever offers unlocked games (or all
@@ -1997,7 +1990,7 @@ function BetaHomeContent() {
       {/* ================================================================
           FEATURED GAMES
           ================================================================ */}
-      {accessReady && showSpotlight && featuredGames.length > 0 && (
+      {accessReady && featuredGames.length > 0 && (
         <motion.section
           initial={reduceMotion ? false : { opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -2034,50 +2027,30 @@ function BetaHomeContent() {
       {/* ================================================================
           ALL GAMES — database order
           ================================================================ */}
-      {/* The section exists whenever EITHER shelf has something on it, so the
-          toggle is always reachable even if the main list is momentarily empty.
-          The featured spotlight above stays main-list-only (see `activeList`
-          above it), which is why `previousCount` alone can keep this open. */}
-      {accessReady && (visibleRegular.length > 0 || previousCount > 0) && (
+      {/* The main list renders exactly as it always has. If every main game is
+          featured, the spotlight above already shows them all and this grid
+          would be empty, so it is skipped rather than rendered blank. */}
+      {accessReady && regularGames.length > 0 && (
         <motion.section
           initial={reduceMotion ? false : { opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, amount: 0.1 }}
           transition={{ type: "spring", stiffness: 240, damping: 22 }}
-          className="relative z-10 px-3 pt-2 sm:px-6 sm:pt-2 pb-14 sm:pb-20 md:pb-28"
+          className={
+            previousCount > 0
+              ? "relative z-10 px-3 pt-2 sm:px-6 sm:pt-2 pb-4 sm:pb-6"
+              : "relative z-10 px-3 pt-2 sm:px-6 sm:pt-2 pb-14 sm:pb-20 md:pb-28"
+          }
         >
           <SectionHeader
-            icon={activeList === GAME_LIST_SECONDARY ? "trophy" : "gamepad"}
-            eyebrow={
-              activeList === GAME_LIST_SECONDARY ? "Play again" : "Pick a game"
-            }
-            title={
-              activeList === GAME_LIST_SECONDARY ? "Previous Games" : "All Games"
-            }
-            accent={
-              activeList === GAME_LIST_SECONDARY
-                ? "linear-gradient(135deg, #fde68a 0%, #f9a8d4 100%)"
-                : "linear-gradient(135deg, #f9a8d4 0%, #c4b5fd 100%)"
-            }
+            icon="gamepad"
+            eyebrow="Pick a game"
+            title="All Games"
+            accent="linear-gradient(135deg, #f9a8d4 0%, #c4b5fd 100%)"
             icon2="dice"
             reduceMotion={reduceMotion}
           />
 
-          {/* Shown only when there is something to switch TO. A class with an
-              empty previous list keeps the single-section layout it always had. */}
-          {previousCount > 0 && (
-            <GameListToggle
-              activeList={activeList}
-              onChange={setActiveList}
-              mainCount={mainCount}
-              previousCount={previousCount}
-            />
-          )}
-
-          {/* Re-mounting the grid on a shelf change would replay every card's
-              entrance animation, which reads as "loading" — so the key is
-              stable and only the children swap. AnimatePresence gives the swap
-              a short cross-fade instead. */}
           <div className="mx-auto grid w-full max-w-6xl grid-cols-1 gap-4 sm:gap-6 md:gap-7 sm:grid-cols-2 lg:grid-cols-3 xl:gap-8">
             {openGames.length > 0 && (
               <SurpriseCard
@@ -2086,7 +2059,7 @@ function BetaHomeContent() {
                 reduceMotion={reduceMotion}
               />
             )}
-            {visibleRegular.map((game, i) => (
+            {regularGames.map((game, i) => (
               <GameCard
                 key={game.key}
                 game={game}
@@ -2098,23 +2071,26 @@ function BetaHomeContent() {
               />
             ))}
           </div>
-
-          {/* A shelf can hold only featured games, in which case the regular
-              grid above is empty and the section would look broken. */}
-          {visibleRegular.length === 0 && visibleFeatured.length === 0 && (
-            <p
-              className="mx-auto max-w-md text-center text-sm font-bold"
-              style={{ fontFamily: FONT, color: TEXT_SOFT }}
-            >
-              Nothing on this list yet.
-            </p>
-          )}
         </motion.section>
+      )}
+
+      {/* ================================================================
+          PREVIOUS GAMES — an optional, collapsed section BELOW the main
+          games. Never replaces or reorders anything above it.
+          ================================================================ */}
+      {accessReady && previousCount > 0 && (
+        <PreviousGamesSection
+          games={storePreviousGames}
+          progressByGame={progressByGame}
+          isTeacher={isTeacher}
+          onOpen={openGame}
+          reduceMotion={reduceMotion}
+        />
       )}
 
       {/* Fully empty state. Gated on BOTH shelves: a class whose main list is
           empty but which still has previous games must not be told there are no
-          games at all, since the toggle above gives access to them. */}
+          games at all, since the section above gives access to them. */}
       {accessReady && mainCount === 0 && previousCount === 0 && (
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
