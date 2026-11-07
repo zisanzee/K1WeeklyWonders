@@ -1012,12 +1012,18 @@ const GameCard = motion.create(function GameCard({
           {game.title}
         </h3>
 
-        {/* Subtitle */}
+        {/* Subtitle. Rendered in full, not truncated at the first "\n".
+            The catalogue subtitle is authored as two lines (topic, then the
+            skill in brackets), and dropping the second one silently lost real
+            information — "Ordinal Numbers & Positional Language" without
+            "(Right & Left)". `whitespace-pre-line` renders the authored newline
+            and collapses the surrounding spaces, and `break-words` keeps a long
+            skill line from overflowing the card. */}
         <p
-          className="relative z-10 mt-1 sm:mt-1.5 text-center text-[11px] sm:text-sm leading-snug text-white/92 drop-shadow-sm font-medium sm:font-semibold"
+          className="relative z-10 mt-1 whitespace-pre-line break-words text-center text-[11px] sm:mt-1.5 sm:text-sm leading-snug text-white/92 drop-shadow-sm font-medium sm:font-semibold"
           style={{ fontFamily: FONT, fontWeight: 500 }}
         >
-          {game.subtitle.split("\n")[0]}
+          {game.subtitle}
         </p>
 
         {/* Progress badges */}
