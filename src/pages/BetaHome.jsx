@@ -664,8 +664,8 @@ function TimerLeaderboardCard({ classId, playerName }) {
       className="bh-panel relative mx-auto w-full max-w-2xl overflow-hidden rounded-[1.75rem] sm:rounded-[2rem] border-[3px] sm:border-4 border-sky-100/30 shadow-xl sm:shadow-2xl"
       style={{
         background: PANEL_BACKGROUND,
-        backdropFilter: "blur(14px)",
-        WebkitBackdropFilter: "blur(14px)",
+        backdropFilter: "blur(10px)",
+        WebkitbackdropFilter: "blur(10px)",
       }}
     >
       {/* Decorative winter scene: cover + bottom anchor keeps the trees and the
@@ -896,11 +896,7 @@ function TimerLeaderboardCard({ classId, playerName }) {
           </div>
         )}
 
-        <div className="mt-3 sm:mt-4 flex items-center justify-center gap-1.5">
-          <span className="text-[10px] sm:text-[0.65rem] font-black tracking-[0.14em] sm:tracking-[0.18em] uppercase" style={{ color: TEXT_MUTED }}>
-            Resets every Friday at noon
-          </span>
-        </div>
+
       </div>
     </div>
   );
@@ -930,11 +926,28 @@ const GameCard = memo(motion.create(function GameCard({
     ? game.cardGradient || CARD_GRADIENTS[index % CARD_GRADIENTS.length]
     : LOCKED_GRADIENT;
 
+  // The entrance is a four-property spring per card, and every card in the grid
+  // starts one on mount. On a weak phone that is a dozen-plus concurrent spring
+  // simulations plus the transforms they drive, landing exactly when the page
+  // is already busy — the classic "janky first scroll". Low-power devices get
+  // the cards in place immediately instead; nothing is lost but a flourish.
+  //
+  // Read from the store here rather than passed in: this component is rendered
+  // from three different sections, and a primitive selector costs one cheap
+  // subscription while prop-drilling it through each call site would be easy to
+  // forget. It re-renders only if lowPower actually flips, which it does once.
+  const lowPower = useLowPower();
+  const skipEntrance = reduceMotion || lowPower;
+
   return (
     <motion.div
-      initial={reduceMotion ? false : { opacity: 0, y: 40, scale: 0.92, rotate: -2 }}
+      initial={skipEntrance ? false : { opacity: 0, y: 40, scale: 0.92, rotate: -2 }}
       animate={{ opacity: 1, y: 0, scale: 1, rotate: 0 }}
-      transition={{ delay: 0.04 + index * 0.07, type: "spring", stiffness: 280, damping: 22 }}
+      transition={
+        skipEntrance
+          ? { duration: 0 }
+          : { delay: 0.04 + index * 0.07, type: "spring", stiffness: 280, damping: 22 }
+      }
       whileHover={isOpen ? {} : {}}
       className="relative cv-card"
       style={{ fontFamily: FONT }}
@@ -1678,8 +1691,8 @@ function PreviousGamesSection({ games, progressByGame, isTeacher, onOpen, reduce
           className="bh-panel group flex w-full items-center justify-center gap-2 rounded-full border-2 border-sky-100/30 px-4 py-3 text-xs font-black text-white shadow-lg transition hover:border-white/40 sm:gap-3 sm:px-6 sm:py-4 sm:text-base"
           style={{
             background: PANEL_BACKGROUND,
-            backdropFilter: "blur(14px)",
-            WebkitBackdropFilter: "blur(14px)",
+            backdropFilter: "blur(10px)",
+            WebkitbackdropFilter: "blur(10px)",
           }}
         >
           <span className="text-base text-sky-200 sm:text-xl" aria-hidden="true">
@@ -1975,15 +1988,20 @@ function BetaHomeContent() {
         }}
       />
 
-      {/* Ten animated SVG shapes. They are pure decoration and each keeps the
-          compositor awake, so they are simply not rendered on low-power
-          devices rather than left to animate off-screen. */}
-      {!lowPower && <FloatingDecor />}
-      {!lowPower && <AuroraRibbons />}
+      {/* Ten animated SVG shapes, each with its own keyframe animation. Pure
+          decoration that keeps the compositor awake, so they are not rendered
+          at all on low-power devices rather than left to animate off-screen.
 
-      {/* Falling snow: a distant layer behind the content and a few large,
-          soft flakes in front of it. Canvas-driven and self-throttling, so it
-          is also rendered on low-power devices (at half density, 30fps). */}
+          AuroraRibbons is NOT gated any more: it is three static radial
+          gradients whose animation only touches transform/opacity and is
+          frozen under low power by index.css, so it costs one paint and gives
+          the page most of its depth. Keeping it means a weak device still looks
+          like the winter theme rather than a flat blue rectangle. */}
+      {!lowPower && <FloatingDecor />}
+      <AuroraRibbons />
+
+      {/* Falling snow. Self-throttles: half density, 30fps, no near layer and
+          no bokeh on low-power devices (see WinterSnow.jsx). */}
       <WinterSnow reduceMotion={Boolean(reduceMotion)} lowPower={lowPower} />
 
       {/* Visually-hidden, crawlable page summary. The visible app sits behind a
@@ -2053,8 +2071,8 @@ function BetaHomeContent() {
           className="bh-panel relative overflow-hidden rounded-[1.75rem] sm:rounded-[2.25rem] border-[3px] sm:border-4 border-sky-100/30 shadow-xl sm:shadow-2xl px-4 py-4 sm:px-7 sm:py-6"
           style={{
             background: PANEL_BACKGROUND,
-            backdropFilter: "blur(14px)",
-            WebkitBackdropFilter: "blur(14px)",
+            backdropFilter: "blur(10px)",
+            WebkitbackdropFilter: "blur(10px)",
           }}
         >
           {/* Icy ghosted corner glyphs. Snowflake and pine rather than dice and
@@ -2165,8 +2183,8 @@ function BetaHomeContent() {
           style={{
             fontFamily: FONT,
             background: PANEL_BACKGROUND,
-            backdropFilter: "blur(14px)",
-            WebkitBackdropFilter: "blur(14px)",
+            backdropFilter: "blur(10px)",
+            WebkitbackdropFilter: "blur(10px)",
           }}
         >
           <Sparkle delay={0} className="absolute top-4 left-5 sm:top-5 sm:left-6 h-4 w-4 sm:h-5 sm:w-5" />
@@ -2344,8 +2362,8 @@ function BetaHomeContent() {
           className="bh-panel mx-auto max-w-5xl overflow-hidden rounded-[1.75rem] sm:rounded-[2.25rem] border-[3px] sm:border-4 border-sky-100/30 shadow-xl sm:shadow-2xl px-4 py-4 sm:px-7 sm:py-6 md:px-9 md:py-8 text-center relative"
           style={{
             background: PANEL_BACKGROUND,
-            backdropFilter: "blur(14px)",
-            WebkitBackdropFilter: "blur(14px)",
+            backdropFilter: "blur(10px)",
+            WebkitbackdropFilter: "blur(10px)",
           }}
         >
           <div className="pointer-events-none absolute -top-4 -right-4 text-5xl sm:text-7xl opacity-[0.09] text-sky-100">

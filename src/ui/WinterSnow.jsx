@@ -185,17 +185,23 @@ export default function WinterSnow({ reduceMotion = false, lowPower = false }) {
 
   useEffect(() => {
     const farC = farRef.current;
+    // The near canvas is conditionally rendered, so it can legitimately be
+    // absent. Bailing out on a null nearRef would kill the far snow too, so
+    // every near-canvas use below is guarded instead.
     const nearC = nearRef.current;
-    if (!farC || !nearC) return undefined;
+    if (!farC) return undefined;
     const farX = farC.getContext("2d");
-    const nearX = nearC.getContext("2d");
-    if (!farX || !nearX) return undefined;
+    if (!farX) return undefined;
+    const nearX = nearC ? nearC.getContext("2d") : null;
 
     const dot = makeSprite(32, paintDot);
     const bokeh = makeSprite(64, paintBokeh);
     const crystal = makeSprite(80, paintCrystal);
 
-    const dprNear = lowPower ? 1 : Math.min(window.devicePixelRatio || 1, 1.5);
+    // A 1.5x backing store on a 3x phone is a very large animated surface to
+    // clear and blit every frame. 1.25 still looks crisp for soft bokeh, which
+    // is all this layer contains.
+    const dprNear = lowPower ? 1 : Math.min(window.devicePixelRatio || 1, 1.25);
     const minInterval = lowPower ? 31 : 14;
 
     let W = 0;
@@ -207,13 +213,19 @@ export default function WinterSnow({ reduceMotion = false, lowPower = false }) {
     let lastScroll = window.scrollY;
     let resizeTimer = 0;
 
+    // Why low-power drops the NEAR layer entirely rather than just halving it:
+    // the near layer sits at z-30, ABOVE every frosted panel. It changes every
+    // frame, so while it exists the page above the fold is always dirty. The
+    // far layer is the one that actually matters for the look (it is the
+    // blizzard), so we keep it, just sparser and slower.
     const build = () => {
       const area = W * H;
-      const k = lowPower ? 0.5 : 1;
+      const k = lowPower ? 0.4 : 1;
       const farCount = Math.round(clamp(area / 9000, 36, 120) * k);
-      const nearCount = reduceMotion
-        ? 0
-        : Math.max(4, Math.round(clamp(area / 60000, 6, 22) * k));
+      const nearCount =
+        reduceMotion || lowPower
+          ? 0
+          : Math.max(4, Math.round(clamp(area / 60000, 6, 22) * k));
       far = buildFar(farCount, W, H, dot);
       near = buildNear(nearCount, W, H, bokeh, crystal);
     };
@@ -223,6 +235,7 @@ export default function WinterSnow({ reduceMotion = false, lowPower = false }) {
       farC.width = Math.round(W);
       farC.height = Math.round(H);
       farX.setTransform(1, 0, 0, 1, 0, 0);
+      if (!nearC || !nearX) return;
       nearC.width = Math.round(W * dprNear);
       nearC.height = Math.round(H * dprNear);
       nearX.setTransform(dprNear, 0, 0, dprNear, 0, 0);
@@ -230,7 +243,7 @@ export default function WinterSnow({ reduceMotion = false, lowPower = false }) {
 
     const paintStatic = () => {
       render(farX, far, W, H);
-      nearX.clearRect(0, 0, W, H);
+      if (nearX) nearX.clearRect(0, 0, W, H);
     };
 
     const resize = () => {
@@ -255,9 +268,14 @@ export default function WinterSnow({ reduceMotion = false, lowPower = false }) {
       const ds = clamp(sy - lastScroll, -160, 160);
       lastScroll = sy;
       step(far, dt, t, ds, W, H);
-      step(near, dt, t, ds, W, H);
       render(farX, far, W, H);
-      render(nearX, near, W, H);
+      // Near layer is absent on low-power devices (and empty under
+      // reduced-motion), so skip both its integration and its blit entirely
+      // rather than clearing a canvas that was never created.
+      if (nearX && near.length > 0) {
+        step(near, dt, t, ds, W, H);
+        render(nearX, near, W, H);
+      }
     };
 
     const start = () => {
@@ -299,12 +317,17 @@ export default function WinterSnow({ reduceMotion = false, lowPower = false }) {
         className="pointer-events-none fixed inset-0 z-[1] h-full w-full"
       />
       {/* Foreground snow — over the content but under the teacher bar (z-50)
-          and the loading overlays (z-[999]). Never captures taps. */}
-      <canvas
-        ref={nearRef}
-        aria-hidden="true"
-        className="pointer-events-none fixed inset-0 z-[30] h-full w-full"
-      />
+          and the loading overlays (z-[999]). Never captures taps.
+          Not rendered at all on low-power devices: it is the layer that keeps
+          the whole viewport dirty every frame, because it sits ABOVE the
+          frosted panels. The far layer alone carries the effect. */}
+      {!lowPower && (
+        <canvas
+          ref={nearRef}
+          aria-hidden="true"
+          className="pointer-events-none fixed inset-0 z-[30] h-full w-full"
+        />
+      )}
     </>
   );
 }

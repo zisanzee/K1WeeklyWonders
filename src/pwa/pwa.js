@@ -138,6 +138,28 @@ export function computeInstallSupported({
   return Boolean(ios || nativePromptSupported);
 }
 
+// GPU families that cannot run the frosted-glass effect at a usable frame rate.
+// Matched case-insensitively against the WebGL RENDERER/UNMASKED_RENDERER string.
+//
+// Why this signal exists: `backdrop-filter` is the single most expensive thing
+// on the home page, because the snowfall canvas animates BEHIND every frosted
+// panel, so each panel re-runs a full-width blur pass on every frame. Core
+// count and deviceMemory do not catch the phones that actually struggle — a
+// Galaxy A20 reports 8 cores, and Safari/Firefox report no deviceMemory at all,
+// so the previous heuristic classified them as capable and left the blur on.
+// The GPU string is the only signal that speaks to the thing that is slow.
+//
+// Deliberately narrow, because a false positive costs a capable phone its
+// frost for no reason:
+//   - Mali: only the old UT/MP4xx-T7xx parts match; `Mali-G…` (G31 upward) is
+//     excluded, which is most modern Android.
+//   - Adreno: only 2xx-5xx. 6xx/7xx (Snapdragon 600+) stay full-fat.
+//   - SwiftShader / "software" means no GPU at all.
+// The `[^\d]{0,10}` bridges the "(TM) " that Chromium puts between the vendor
+// name and the model number, e.g. "Adreno (TM) 308".
+const WEAK_GPU =
+  /(mali-(t)?[4-9]|adreno[^\d]{0,10}[2-5]\d\d|powervr\s*(sgx|g6)|videocore|swiftshader|software renderer)/i;
+
 // The pure decision behind low-power mode: given the raw device signals, should
 // the app drop its heavy decoration? Split out from the detection so it can be
 // unit-tested without a browser (see pwa.test.js).
@@ -146,7 +168,9 @@ export function computeInstallSupported({
 //   - Save-Data (the user asked to save bytes) or prefers-reduced-motion
 //     (the OS asked for less motion),
 //   - a low core count — the cheapest cross-browser proxy for "older phone",
-//   - a low reported device memory (Chrome only).
+//   - a low reported device memory (Chrome only),
+//   - a weak GPU family (see WEAK_GPU),
+//   - a genuinely slow network.
 // If the browser reports NEITHER core count nor memory it is itself old, so it
 // is treated as low-power too. This only downgrades decoration; it never
 // changes behaviour, layout, or access to any feature.
@@ -155,8 +179,16 @@ export function classifyLowPower({
   reducedMotion = false,
   cores = null,
   memory = null,
+  gpu = null,
+  effectiveType = null,
 } = {}) {
   if (saveData || reducedMotion) return true;
+
+  // A 2g/3g connection is a bigger constraint on this page than the CPU is:
+  // the backdrop blur still has to composite while assets trickle in.
+  if (effectiveType && /(^|-)2g$/.test(effectiveType)) return true;
+
+  if (typeof gpu === 'string' && WEAK_GPU.test(gpu)) return true;
 
   const hasCores = typeof cores === 'number' && cores > 0;
   const hasMemory = typeof memory === 'number' && memory > 0;
@@ -165,6 +197,33 @@ export function classifyLowPower({
   if (hasCores && cores <= 4) return true;
   if (hasMemory && memory <= 4) return true;
   return false;
+}
+
+// Reads the WebGL renderer string, which is the only reliable proxy we have for
+// GPU class on the web. Returns null when WebGL is unavailable (some locked-down
+// browsers), so classifyLowPower can fall back to the other signals.
+//
+// The context is created with `failIfMajorPerformanceCaveat: false` and then
+// explicitly disposed, because we do not want to hold a GL context open just to
+// ask its name — that would itself cost memory on the devices we are protecting.
+function detectGpu() {
+  if (typeof document === 'undefined') return null;
+  try {
+    const canvas = document.createElement('canvas');
+    const gl =
+      canvas.getContext('webgl') ||
+      canvas.getContext('experimental-webgl');
+    if (!gl) return null;
+    const info = gl.getExtension('WEBGL_debug_renderer_info');
+    const renderer = info
+      ? gl.getParameter(info.UNMASKED_RENDERER_WEBGL)
+      : gl.getParameter(gl.RENDERER);
+    const ext = gl.getExtension('WEBGL_lose_context');
+    if (ext) ext.loseContext();
+    return typeof renderer === 'string' ? renderer : null;
+  } catch {
+    return null;
+  }
 }
 
 // Gathers the raw signals and applies the decision above. Defaults to
@@ -179,6 +238,8 @@ function detectLowPower() {
       ),
       cores: navigator.hardwareConcurrency ?? null,
       memory: navigator.deviceMemory ?? null, // undefined on Safari/Firefox
+      gpu: detectGpu(),
+      effectiveType: navigator.connection?.effectiveType ?? null,
     });
   } catch {
     return true; // a throwing navigator is a good reason to keep it simple

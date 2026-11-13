@@ -312,6 +312,16 @@ html[data-lowpower="true"] .card-glow {
   display: none;
 }
 
+/* Bound the repaint area of every frosted panel. Without this a change inside
+   one panel can invalidate a much larger region (the shadow, the border, the
+   neighbour above it), which is how a small update turns into a full-width
+   repaint on a weak GPU. `paint` is safe here: nothing in these panels is
+   deliberately painted outside its own box except the shadows, which are
+   replicated above and sit inside the padding. */
+html[data-lowpower="true"] .bh-panel {
+  contain: layout paint;
+}
+
 /* Skip layout and paint for game cards that are off-screen. `contain-intrinsic-
    size` reserves a placeholder height so the scrollbar does not jump as cards
    scroll in. Applied ONLY under low power: on a capable device the skip can

@@ -211,6 +211,68 @@ describe('classifyLowPower', () => {
     expect(classifyLowPower({ cores: 4, memory: 5 })).toBe(true);
     expect(classifyLowPower({ cores: 5, memory: 4 })).toBe(true);
   });
+
+  it('drops decoration on a weak GPU even when cores and memory look fine', () => {
+    // This is the case the old heuristic missed: a phone that reports plenty
+    // of cores but cannot composite the frost, and reports no memory at all
+    // (Safari/Firefox report no deviceMemory).
+    expect(
+      classifyLowPower({ cores: 8, memory: null, gpu: 'Mali-400 MP' })
+    ).toBe(true);
+    expect(
+      classifyLowPower({ cores: 8, memory: null, gpu: 'Mali-T720' })
+    ).toBe(true);
+    expect(
+      classifyLowPower({ cores: 8, memory: null, gpu: 'Adreno (TM) 308' })
+    ).toBe(true);
+    expect(
+      classifyLowPower({ cores: 8, memory: null, gpu: 'Adreno 505' })
+    ).toBe(true);
+    expect(
+      classifyLowPower({ cores: 8, memory: null, gpu: 'PowerVR SGX 544MP' })
+    ).toBe(true);
+    expect(
+      classifyLowPower({ cores: 8, memory: null, gpu: 'SwiftShader' })
+    ).toBe(true);
+  });
+
+  it('keeps full decoration on a capable GPU', () => {
+    expect(
+      classifyLowPower({ cores: 8, memory: 8, gpu: 'Apple A15 GPU' })
+    ).toBe(false);
+    // 6xx/7xx Adreno and Mali-G are modern — they must NOT be downgraded.
+    expect(
+      classifyLowPower({ cores: 8, memory: 8, gpu: 'Adreno (TM) 730' })
+    ).toBe(false);
+    expect(
+      classifyLowPower({ cores: 8, memory: 8, gpu: 'Adreno 618' })
+    ).toBe(false);
+    expect(
+      classifyLowPower({ cores: 8, memory: 8, gpu: 'Mali-G78 MP14' })
+    ).toBe(false);
+    expect(
+      classifyLowPower({ cores: 8, memory: 8, gpu: 'NVIDIA GeForce RTX 3060' })
+    ).toBe(false);
+  });
+
+  it('treats a null or missing GPU string as no signal', () => {
+    // WebGL can be unavailable; that must not by itself force low power.
+    expect(classifyLowPower({ cores: 8, memory: 8, gpu: null })).toBe(false);
+    expect(classifyLowPower({ cores: 8, memory: 8 })).toBe(false);
+  });
+
+  it('drops decoration on a 2g connection', () => {
+    expect(
+      classifyLowPower({ cores: 8, memory: 8, effectiveType: '2g' })
+    ).toBe(true);
+    expect(
+      classifyLowPower({ cores: 8, memory: 8, effectiveType: 'slow-2g' })
+    ).toBe(true);
+    // 3g is slow but still worth full visuals; only 2g is a hard downgrade.
+    expect(
+      classifyLowPower({ cores: 8, memory: 8, effectiveType: '3g' })
+    ).toBe(false);
+  });
 });
 
 describe('isInstallRoute', () => {
