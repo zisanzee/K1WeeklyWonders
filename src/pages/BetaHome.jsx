@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useCallback, useRef } from "react";
+import { memo, useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion, useReducedMotion, AnimatePresence } from "motion/react";
 import { Helmet } from "react-helmet-async";
@@ -24,30 +24,34 @@ import PublicLanding from "@/pages/PublicLanding";
 import FeedbackButton from "@/ui/FeedbackButton";
 import { useInstallOffer, useLowPower } from "@/pwa/pwa";
 import ContactStrip from "@/ui/ContactStrip";
+import WinterSnow from "@/ui/WinterSnow";
 
 // ---------------------------------------------------------------------------
 // Design tokens
 // ---------------------------------------------------------------------------
 const FONT = "'Fredoka', system-ui, sans-serif";
 
-// "Aurora dusk" — one indigo scene melting through violet into magenta,
-// brightened so the page never reads as dark mode while still holding a
-// night-sky depth that keeps the light text legible. Every corner glow
-// stays inside that indigo → violet → magenta family (with a single cool
-// cyan accent), so the page reads as one curated jewel-tone wash instead of
-// a rainbow of unrelated blobs. Layers are sized 100% 100% no-repeat so
-// they stretch the full page height once — no tiling seams however long the
-// page grows.
+// "Winter night" — a deep midnight-blue sky thawing into glacier blue, with
+// soft northern-lights glows (teal, aurora green, violet) in the corners. Still
+// bright enough that the page never reads as dark mode, but deep enough that
+// the light text keeps its contrast; the lower stops are deliberately held at
+// a mid-tone blue rather than pale ice for exactly that reason. Layers are
+// sized 100% 100% no-repeat so they stretch the full page height once — no
+// tiling seams however long the page grows.
 const PAGE_BACKGROUND_LAYERS = [
-  "radial-gradient(48% 40% at 12% 6%, rgba(167,139,250,0.6) 0%, transparent 66%)",
-  "radial-gradient(44% 36% at 90% 12%, rgba(244,114,182,0.5) 0%, transparent 66%)",
-  "radial-gradient(46% 38% at 14% 50%, rgba(129,140,248,0.55) 0%, transparent 68%)",
-  "radial-gradient(42% 34% at 90% 58%, rgba(216,180,254,0.48) 0%, transparent 68%)",
-  "radial-gradient(46% 38% at 12% 88%, rgba(34,211,238,0.28) 0%, transparent 68%)",
-  "radial-gradient(42% 34% at 88% 96%, rgba(232,121,249,0.4) 0%, transparent 68%)",
+  // A deep, cool vignette at each corner: this is what stops the base gradient
+  // reading as a flat wash and gives the whole page the recessed feel of a
+  // night sky behind snow. Painted first so the glows below sit inside it.
+  "radial-gradient(120% 90% at 50% 0%, rgba(4,12,38,0.55) 0%, rgba(4,12,38,0) 62%)",
+  "radial-gradient(48% 40% at 12% 6%, rgba(94,234,212,0.34) 0%, transparent 66%)",
+  "radial-gradient(44% 36% at 90% 12%, rgba(167,139,250,0.45) 0%, transparent 66%)",
+  "radial-gradient(46% 38% at 14% 50%, rgba(56,189,248,0.42) 0%, transparent 68%)",
+  "radial-gradient(42% 34% at 90% 58%, rgba(52,211,153,0.26) 0%, transparent 68%)",
+  "radial-gradient(46% 38% at 12% 88%, rgba(186,230,253,0.3) 0%, transparent 68%)",
+  "radial-gradient(42% 34% at 88% 96%, rgba(196,181,253,0.34) 0%, transparent 68%)",
 ];
 const PAGE_BASE_GRADIENT =
-  "linear-gradient(160deg, #1e1b5a 0%, #4338ca 22%, #7c3aed 46%, #9333ea 66%, #a21caf 84%, #be185d 100%)";
+  "linear-gradient(160deg, #0b1a45 0%, #123a8a 24%, #1a5fb4 46%, #2b6fb8 66%, #3479b9 84%, #3b82b8 100%)";
 
 const PAGE_BACKGROUND_IMAGE = [...PAGE_BACKGROUND_LAYERS, PAGE_BASE_GRADIENT].join(", ");
 const PAGE_BACKGROUND_REPEAT =
@@ -72,6 +76,10 @@ const DECOR_KEYFRAMES = `
 @keyframes bh-shine { 0% { transform: translateX(-20%); opacity: 0; } 15% { opacity: .9; } 55% { transform: translateX(220%); opacity: 0; } 100% { transform: translateX(220%); opacity: 0; } }
 @keyframes bh-sparkle { 0% { transform: scale(0) rotate(0deg); opacity: 0; } 18% { transform: scale(1) rotate(90deg); opacity: 1; } 38% { transform: scale(.4) rotate(180deg); opacity: .6; } 58% { transform: scale(1) rotate(270deg); opacity: 1; } 100% { transform: scale(0) rotate(360deg); opacity: 0; } }
 @keyframes bh-card-bob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+@keyframes bh-title-tilt { 0%,100% { transform: rotate(-6deg) scale(1); } 50% { transform: rotate(8deg) scale(1.1); } }
+@keyframes bh-crown-sway { 0%,100% { transform: translateY(0) rotate(-4deg); } 50% { transform: translateY(-3px) rotate(4deg); } }
+@keyframes bh-aurora-a { 0%,100% { transform: translate3d(-6%,0,0) scale(1,1); opacity: .5; } 50% { transform: translate3d(8%,3%,0) scale(1.18,1.25); opacity: .95; } }
+@keyframes bh-aurora-b { 0%,100% { transform: translate3d(7%,2%,0) scale(1.1,1.2); opacity: .85; } 50% { transform: translate3d(-8%,-2%,0) scale(1,1); opacity: .45; } }
 `;
 
 // Glossy 3D card colors lifted straight from the logo's lettering and
@@ -92,15 +100,38 @@ const CARD_GRADIENTS = [
 
 const LOCKED_GRADIENT = "linear-gradient(145deg, #97a8d4 0%, #6f7fc4 45%, #333e7a 100%)";
 
+// Winter palette. TEXT_SOFT/MUTED were indigo in the old "aurora dusk" theme;
+// they are icy blue here so they belong to the same family as the background
+// glows. Both stay light enough to hold contrast on the mid-blue lower half of
+// the page, where the base gradient is lightest.
 const TEXT_DARK = "#f8fafc";
-const TEXT_SOFT = "#c7d2fe";
-const TEXT_MUTED = "#8795cf";
+const TEXT_SOFT = "#d6e8f8";
+const TEXT_MUTED = "#a8c6e0";
 
 // Frosted glass shared by the non-card chrome (hero, timer card, loading
-// state, footer). A faint white veil over the aurora so every panel feels
-// cut from the same dark scene, with just enough luminance for light text.
+// state, footer). A faint white veil with a whisper of glacier blue, so every
+// panel reads as iced glass over the winter scene rather than plain smoke.
+//
+// The second layer is a rim-light: a soft highlight pooling at the top centre
+// and falling off downward, which is what makes a flat frosted panel look like
+// a lit sheet of ice. Because it is baked into the shared token, every panel
+// picks it up at once and they stay consistent.
 const PANEL_BACKGROUND =
-  "linear-gradient(165deg, rgba(255,255,255,0.12) 0%, rgba(255,255,255,0.05) 100%)";
+  "radial-gradient(140% 90% at 50% 0%, rgba(255,255,255,0.22) 0%, rgba(255,255,255,0.04) 42%, rgba(255,255,255,0) 68%), linear-gradient(165deg, rgba(226,244,255,0.16) 0%, rgba(186,230,253,0.07) 100%)";
+
+// Winter artwork behind the Weekly Champions card only. Its sky is transparent
+// (alpha 0), so the page's dark winter background shows through untouched and
+// the light champion text keeps its contrast — the trees, snow banks and
+// cottage are the only opaque parts.
+//
+// f_auto,q_auto,w_900 is a Cloudinary derivative. The card is max-w-2xl
+// (672px) and only the bottom band of this image is ever clearly visible —
+// the sky above it is transparent and the middle is covered by the podium and
+// text — so 900px wide still covers a 2x display at that size while cutting
+// the payload from ~146KB to ~65KB on a school connection. A CSS background
+// cannot be lazy-loaded, so this is the only lever on its cost.
+const CHAMPIONS_ARTWORK =
+  "https://res.cloudinary.com/hijmipga/image/upload/f_auto,q_auto,w_900/v1794590030/wintertheme_o67nyj.png";
 
 const MotionLink = motion.create(Link);
 
@@ -387,6 +418,29 @@ function Icon({ name, size = "1em", className, style, strokeWidth = 2 }) {
           <ellipse cx="12" cy="13" rx="7" ry="9" />
         </svg>
       );
+    case "snowflake":
+      return (
+        <svg {...stroked}>
+          <path d="M12 2v20M9.5 4.5L12 7l2.5-2.5M9.5 19.5L12 17l2.5 2.5" />
+          <path d="M12 2v20M9.5 4.5L12 7l2.5-2.5M9.5 19.5L12 17l2.5 2.5" transform="rotate(60 12 12)" />
+          <path d="M12 2v20M9.5 4.5L12 7l2.5-2.5M9.5 19.5L12 17l2.5 2.5" transform="rotate(120 12 12)" />
+        </svg>
+      );
+    case "tree":
+      return (
+        <svg {...filled}>
+          <path d="M12 2l5 7h-3l4 6h-4l3 5H7l3-5H6l4-6H7l5-7zM11 20h2v3h-2z" />
+        </svg>
+      );
+    case "snowman":
+      return (
+        <svg {...filled}>
+          <circle cx="12" cy="6.5" r="4" />
+          <circle cx="12" cy="16.5" r="5.5" />
+          <circle cx="10.7" cy="5.8" r="0.7" fill="#1e1b5a" />
+          <circle cx="13.3" cy="5.8" r="0.7" fill="#1e1b5a" />
+        </svg>
+      );
     case "nine":
       return (
         <svg {...base}>
@@ -500,13 +554,12 @@ function LockOverlay() {
       <Sparkle delay={0.6} className="absolute top-7 sm:top-10 right-6 sm:right-10 h-3.5 w-3.5 sm:h-4 sm:w-4" />
       <Sparkle delay={1.1} className="absolute bottom-8 sm:bottom-10 left-7 sm:left-12 h-3.5 w-3.5 sm:h-4 sm:w-4" />
 
-      <motion.span
-        animate={{ y: [0, -6, 0] }}
-        transition={{ duration: 2.4, repeat: Infinity, ease: "easeInOut" }}
-        className="flex h-12 w-12 sm:h-16 sm:w-16 items-center justify-center rounded-2xl sm:rounded-3xl bg-gradient-to-br from-white to-slate-100 text-2xl sm:text-3xl text-slate-700 shadow-lg sm:shadow-2xl ring-2 sm:ring-4 ring-white/60"
-      >
+      {/* Locked-card badge: CSS keyframe, and only on the lock overlay that is
+          actually rendered. While it was a Framer loop it ran for every locked
+          card for as long as the page stayed open. */}
+      <span className="flex h-12 w-12 sm:h-16 sm:w-16 items-center justify-center rounded-2xl sm:rounded-3xl bg-gradient-to-br from-white to-slate-100 text-2xl sm:text-3xl text-slate-700 shadow-lg sm:shadow-2xl ring-2 sm:ring-4 ring-white/60 animate-[bh-bob_2.4s_ease-in-out_infinite]">
         <Icon name="lock" size="1em" />
-      </motion.span>
+      </span>
 
       <motion.span
         initial={{ opacity: 0, y: 6 }}
@@ -608,13 +661,27 @@ function TimerLeaderboardCard({ classId, playerName }) {
 
   return (
     <div
-      className="mx-auto w-full max-w-2xl overflow-hidden rounded-[1.75rem] sm:rounded-[2rem] border-[3px] sm:border-4 border-white/25 shadow-xl sm:shadow-2xl"
+      className="bh-panel relative mx-auto w-full max-w-2xl overflow-hidden rounded-[1.75rem] sm:rounded-[2rem] border-[3px] sm:border-4 border-sky-100/30 shadow-xl sm:shadow-2xl"
       style={{
         background: PANEL_BACKGROUND,
         backdropFilter: "blur(14px)",
         WebkitBackdropFilter: "blur(14px)",
       }}
     >
+      {/* Decorative winter scene: cover + bottom anchor keeps the trees and the
+          cottage in frame at every card height. Its transparent sky lets the
+          page background through, so there is no scrim darkening it. */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0"
+        style={{
+          backgroundImage: `url("${CHAMPIONS_ARTWORK}")`,
+          backgroundSize: "cover",
+          backgroundPosition: "center bottom",
+          backgroundRepeat: "no-repeat",
+        }}
+      />
+
       {/* Timer strip — the banner hides itself when nothing is scheduled, and
           its divider goes with it so the Weekly Champions card keeps its
           normal spacing rather than showing a stray line. */}
@@ -623,26 +690,25 @@ function TimerLeaderboardCard({ classId, playerName }) {
           <div className="relative px-3 pt-4 sm:px-6 sm:pt-5">
             <NextGameTimer withTopOffset={false} />
           </div>
-          <div className="mx-4 sm:mx-6 mt-3 sm:mt-4 h-1 rounded-full bg-gradient-to-r from-pink-400 via-violet-400 to-cyan-400" />
+          <div className="relative mx-4 sm:mx-6 mt-3 sm:mt-4 h-1 rounded-full bg-gradient-to-r from-sky-300 via-indigo-300 to-teal-200" />
         </>
       )}
 
       {/* Leaderboard */}
-      <div className="px-3 py-4 sm:px-6 sm:py-6" style={{ fontFamily: FONT }}>
+      <div className="relative px-3 py-4 sm:px-6 sm:py-6" style={{ fontFamily: FONT }}>
         <div className="mb-3 sm:mb-4 flex items-center justify-center gap-2 sm:gap-3">
-          <motion.span
-            animate={{ rotate: [-6, 8, -6], scale: [1, 1.1, 1] }}
-            transition={{ duration: 3.5, repeat: Infinity, ease: "easeInOut" }}
-            className="text-3xl sm:text-4xl md:text-5xl text-fuchsia-300"
-          >
+          {/* CSS keyframe rather than a Framer loop. This ornament sits in the
+              first screenful and would otherwise tick the main thread forever,
+              including long after the child has scrolled past it. */}
+          <span className="text-3xl sm:text-4xl md:text-5xl text-sky-200 animate-[bh-title-tilt_3.5s_ease-in-out_infinite]">
             <Icon name="trophy" size="1em" />
-          </motion.span>
+          </span>
           <h2
             className="text-lg sm:text-xl md:text-2xl font-black"
             style={{
               fontFamily: FONT,
               color: TEXT_DARK,
-              background: "linear-gradient(135deg, #c4b5fd 0%, #f9a8d4 100%)",
+              background: "linear-gradient(135deg, #bae6fd 0%, #c4b5fd 100%)",
               WebkitBackgroundClip: "text",
               WebkitTextFillColor: "transparent",
               backgroundClip: "text",
@@ -654,20 +720,16 @@ function TimerLeaderboardCard({ classId, playerName }) {
 
         {loading ? (
           <div className="flex flex-col items-center justify-center gap-2 sm:gap-3 py-4 sm:py-6">
-            <span className="h-7 w-7 sm:h-8 sm:w-8 animate-spin rounded-full border-[3px] sm:border-4 border-blue-400 border-t-transparent border-l-pink-400 border-b-cyan-400" />
+            <span className="h-7 w-7 sm:h-8 sm:w-8 animate-spin rounded-full border-[3px] sm:border-4 border-sky-300 border-t-transparent border-l-indigo-300 border-b-cyan-200" />
             <p className="text-xs sm:text-sm font-bold" style={{ color: TEXT_SOFT }}>
               Loading champions…
             </p>
           </div>
         ) : top3.length === 0 ? (
           <div className="py-4 sm:py-6 text-center">
-            <motion.div
-              animate={{ rotate: [0, 6, -6, 0], y: [0, -3, 0] }}
-              transition={{ duration: 2.4, repeat: Infinity }}
-              className="text-4xl sm:text-5xl text-violet-500"
-            >
+            <div className="text-4xl sm:text-5xl text-violet-500 animate-[bh-rock_2.4s_ease-in-out_infinite]">
               <Icon name="gamepad" size="1em" />
-            </motion.div>
+            </div>
             <p className="mt-2 sm:mt-3 text-sm sm:text-base font-bold" style={{ color: TEXT_SOFT }}>
               Play games to appear on the leaderboard!
             </p>
@@ -725,13 +787,9 @@ function TimerLeaderboardCard({ classId, playerName }) {
                   transition={{ delay: 0.05, type: "spring", stiffness: 300, damping: 20 }}
                   className="flex flex-1 max-w-[5.8rem] sm:max-w-[9rem] flex-col items-center -mt-3 sm:-mt-6"
                 >
-                  <motion.div
-                    animate={{ y: [0, -3, 0], rotate: [-4, 4, -4] }}
-                    transition={{ duration: 2.6, repeat: Infinity, ease: "easeInOut" }}
-                    className="mb-0.5 text-2xl sm:text-5xl text-fuchsia-300"
-                  >
+                  <div className="mb-0.5 text-2xl sm:text-5xl text-sky-200 animate-[bh-crown-sway_2.6s_ease-in-out_infinite]">
                     <Icon name="crown" size="1em" />
-                  </motion.div>
+                  </div>
                   <div className="mb-1 sm:mb-2 text-2xl sm:text-4xl" style={{ color: medalColors[0] }}>
                     <Icon name="medal" size="1em" />
                   </div>
@@ -852,7 +910,12 @@ function TimerLeaderboardCard({ classId, playerName }) {
 // GAME CARD
 // ===========================================================================
 
-const GameCard = motion.create(function GameCard({
+// Memoised. The parent re-renders on unrelated state — the loading overlay
+// target, the greeting tick, leaderboard polling, progress fetches — and
+// without this every one of those rebuilt the entire grid. Props here are all
+// stable (registry objects, a callback from useCallback, primitives), so the
+// comparison is cheap and the skip is real. `motion.create` does not memoise.
+const GameCard = memo(motion.create(function GameCard({
   game,
   index,
   progress,
@@ -1052,7 +1115,7 @@ const GameCard = motion.create(function GameCard({
       </MotionLink>
     </motion.div>
   );
-});
+}));
 
 // ===========================================================================
 // SurpriseCard — plays a random unlocked game each time it's tapped
@@ -1178,7 +1241,21 @@ function Divider() {
 // SectionHeader
 // ===========================================================================
 
-function SectionHeader({ icon, eyebrow, title, accent, icon2, reduceMotion }) {
+// The three game-section headings, in winter tones: frost-to-ice, aurora
+// violet, and a cool mint. Kept as a small palette object rather than three
+// inline strings so the set can be retuned in one place and so the eyebrow
+// chips (which need a solid accent, not a gradient) stay visibly related.
+const SECTION_ACCENTS = {
+  frost: "linear-gradient(135deg, #a5f3fc 0%, #e0f2fe 100%)",
+  aurora: "linear-gradient(135deg, #c4b5fd 0%, #a5f3fc 100%)",
+  pine: "linear-gradient(135deg, #a7f3d0 0%, #bae6fd 100%)",
+};
+
+// `reduceMotion` is deliberately not a prop any more: the icon bobs are CSS
+// keyframes, and index.css freezes `animate-[...]` under reduced-motion
+// centrally. Keeping a React prop for it would mean the caller still has to
+// thread it through for no effect.
+function SectionHeader({ icon, eyebrow, title, accent, icon2 }) {
   return (
     <div className="mb-5 sm:mb-8 md:mb-10 flex flex-col items-center gap-1.5 sm:gap-2 text-center">
       {eyebrow && (
@@ -1200,14 +1277,16 @@ function SectionHeader({ icon, eyebrow, title, accent, icon2, reduceMotion }) {
         transition={{ type: "spring", stiffness: 260, damping: 20 }}
         className="flex items-center gap-2 sm:gap-3 md:gap-4"
       >
-        <motion.span
-          animate={reduceMotion ? {} : { y: [0, -3, 0] }}
-          transition={{ duration: 4.5, repeat: Infinity, ease: "easeInOut" }}
-          className="text-2xl sm:text-3xl md:text-4xl drop-shadow-sm sm:drop-shadow-md"
+        {/* CSS keyframe, not a Framer loop: this is a permanent bob on a title
+            that is on screen for the whole page, and a CSS animation runs on
+            the compositor instead of ticking the main thread every frame.
+            Already frozen under `prefers-reduced-motion` by index.css. */}
+        <span
+          className="text-2xl sm:text-3xl md:text-4xl drop-shadow-sm sm:drop-shadow-md animate-[bh-bob_4.5s_ease-in-out_infinite]"
           style={{ color: "#ff4fa3" }}
         >
           <Icon name={icon} size="1em" />
-        </motion.span>
+        </span>
         <h2
           className="text-xl sm:text-2xl md:text-3xl lg:text-4xl leading-tight tracking-tight"
           style={{
@@ -1222,14 +1301,12 @@ function SectionHeader({ icon, eyebrow, title, accent, icon2, reduceMotion }) {
         >
           {title}
         </h2>
-        <motion.span
-          animate={reduceMotion ? {} : { y: [0, -3, 0] }}
-          transition={{ duration: 5, repeat: Infinity, ease: "easeInOut", delay: 0.3 }}
-          className="text-2xl sm:text-3xl md:text-4xl drop-shadow-sm sm:drop-shadow-md"
+        <span
+          className="text-2xl sm:text-3xl md:text-4xl drop-shadow-sm sm:drop-shadow-md animate-[bh-bob_5s_ease-in-out_infinite] [animation-delay:0.3s]"
           style={{ color: "#22d3ee" }}
         >
           <Icon name={icon} size="1em" />
-        </motion.span>
+        </span>
       </motion.div>
       <Divider />
     </div>
@@ -1433,41 +1510,136 @@ function FloatingDecor() {
   // Colour comes entirely from PAGE_BACKGROUND now (a single coordinated
   // system); this layer only adds small figurative icon accents on top,
   // so the two don't compete or fall out of sync with each other.
+  //
+  // Content is winter: snowflakes, pines, crystals and one small snowman.
+  // The old set (balloons, rainbows, planets, amber stars) was a summery
+  // confetti that read as a different theme entirely, so it went. Counts and
+  // positions are unchanged, and every glyph is still a vector `Icon` drawn in
+  // a single icy hue per slot — no per-frame work, no images.
   return (
     <div className="pointer-events-none absolute inset-0 overflow-hidden -z-0 select-none">
       <span className="absolute left-[7%] top-[9%] text-2xl sm:text-4xl md:text-5xl opacity-60 text-white animate-[bh-bob_10s_ease-in-out_infinite]">
-        <Icon name="cloud" size="1em" />
+        <Icon name="snowman" size="1em" />
       </span>
-      <span className="absolute right-[9%] top-[17%] text-2xl sm:text-3xl md:text-4xl opacity-90 text-amber-300 animate-[bh-spin-bob_9s_ease-in-out_infinite]">
-        <Icon name="star" size="1em" />
+      <span className="absolute right-[9%] top-[17%] text-2xl sm:text-3xl md:text-4xl opacity-90 text-cyan-100 animate-[bh-spin-bob_9s_ease-in-out_infinite]">
+        <Icon name="snowflake" size="1em" />
       </span>
-      <span className="absolute left-[11%] top-[27%] text-2xl sm:text-3xl md:text-4xl opacity-85 text-pink-300 animate-[bh-twinkle-bob_7s_ease-in-out_infinite]">
+      <span className="absolute left-[11%] top-[27%] text-2xl sm:text-3xl md:text-4xl opacity-85 text-sky-200 animate-[bh-twinkle-bob_7s_ease-in-out_infinite]">
         <Icon name="sparkle" size="1em" />
       </span>
-      <span className="absolute right-[7%] top-[37%] text-3xl sm:text-4xl md:text-5xl opacity-80 text-rose-300 animate-[bh-sway_10s_ease-in-out_infinite]">
-        <Icon name="balloon" size="1em" />
+      <span className="absolute right-[7%] top-[37%] text-3xl sm:text-4xl md:text-5xl opacity-80 text-emerald-200 animate-[bh-sway_10s_ease-in-out_infinite]">
+        <Icon name="tree" size="1em" />
       </span>
-      <span className="absolute left-[9%] top-[63%] text-2xl sm:text-3xl md:text-4xl opacity-80 text-cyan-300 animate-[bh-twinkle-bob_8s_ease-in-out_infinite] [animation-delay:-3s]">
+      <span className="absolute left-[9%] top-[63%] text-2xl sm:text-3xl md:text-4xl opacity-80 text-cyan-200 animate-[bh-twinkle-bob_8s_ease-in-out_infinite] [animation-delay:-3s]">
+        <Icon name="snowflake" size="1em" />
+      </span>
+      <span className="absolute right-[10%] top-[82%] text-2xl sm:text-3xl md:text-4xl opacity-80 text-sky-100 animate-[bh-sway_11s_ease-in-out_infinite] [animation-delay:-4s]">
         <Icon name="sparkle" size="1em" />
-      </span>
-      <span className="absolute right-[10%] top-[82%] text-2xl sm:text-3xl md:text-4xl opacity-80 text-rose-300 animate-[bh-sway_11s_ease-in-out_infinite] [animation-delay:-4s]">
-        <Icon name="balloon" size="1em" />
       </span>
 
       <div className="hidden sm:block">
         <span className="absolute right-[14%] top-[47%] text-3xl md:text-4xl opacity-55 text-white animate-[bh-bob_12s_ease-in-out_infinite] [animation-delay:-5s]">
-          <Icon name="cloud" size="1em" />
+          <Icon name="snowman" size="1em" />
         </span>
-        <span className="absolute left-[14%] top-[52%] text-2xl md:text-3xl opacity-85 text-violet-300 animate-[bh-spin-bob-rev_10s_ease-in-out_infinite] [animation-delay:-2s]">
-          <Icon name="star" size="1em" />
+        <span className="absolute left-[14%] top-[52%] text-2xl md:text-3xl opacity-85 text-indigo-100 animate-[bh-spin-bob-rev_10s_ease-in-out_infinite] [animation-delay:-2s]">
+          <Icon name="snowflake" size="1em" />
         </span>
-        <div className="absolute right-[22%] top-[71%] text-4xl md:text-5xl opacity-80 text-fuchsia-300 animate-[bh-rock_10s_ease-in-out_infinite]">
-          <Icon name="rainbow" size="1em" />
+        <div className="absolute right-[22%] top-[71%] text-4xl md:text-5xl opacity-80 text-teal-200 animate-[bh-rock_10s_ease-in-out_infinite]">
+          <Icon name="tree" size="1em" />
         </div>
-        <span className="absolute left-[22%] top-[87%] text-3xl md:text-4xl opacity-75 text-indigo-200 animate-[bh-spin-slow_60s_linear_infinite]">
-          <Icon name="planet" size="1em" />
+        <span className="absolute left-[22%] top-[87%] text-3xl md:text-4xl opacity-75 text-sky-200 animate-[bh-spin-slow_60s_linear_infinite]">
+          <Icon name="snowflake" size="1em" />
         </span>
       </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// AuroraRibbons — three slow light ribbons drifting behind the content.
+//
+// Same rationale as FloatingDecor: `absolute` on the page shell so they scroll
+// with the page, and pure CSS keyframes so the motion runs on the compositor
+// instead of the JS thread.
+//
+// Deliberately NO blur filter. A `blur-3xl` glow layer this large forces the
+// browser to keep a full-screen offscreen buffer per ribbon, which is the exact
+// cost this page avoids elsewhere; soft radial-gradient stops read the same and
+// cost nothing. The keyframes only touch transform/opacity, so the rasterised
+// gradient is never rebuilt. Skipped entirely on low-power devices by the caller.
+//
+// No `opacity-*` utility on these: the keyframes animate opacity themselves and
+// would win anyway. Restraint lives in the gradient alphas so the ribbons stay
+// a wash behind the cards rather than a bright blob over them.
+// ---------------------------------------------------------------------------
+const AURORA_RIBBONS = [
+  {
+    className:
+      "absolute -left-[18%] top-[2%] h-[46vh] w-[74vw] animate-[bh-aurora-a_18s_ease-in-out_infinite]",
+    background:
+      "radial-gradient(closest-side, rgba(94,234,212,0.34) 0%, rgba(56,189,248,0.18) 45%, rgba(56,189,248,0) 100%)",
+  },
+  {
+    className:
+      "absolute -right-[22%] top-[30%] h-[50vh] w-[76vw] animate-[bh-aurora-b_22s_ease-in-out_infinite]",
+    background:
+      "radial-gradient(closest-side, rgba(167,139,250,0.3) 0%, rgba(129,140,248,0.16) 45%, rgba(129,140,248,0) 100%)",
+  },
+  {
+    className:
+      "absolute left-[2%] top-[68%] h-[44vh] w-[70vw] animate-[bh-aurora-a_26s_ease-in-out_infinite]",
+    background:
+      "radial-gradient(closest-side, rgba(52,211,153,0.24) 0%, rgba(186,230,253,0.14) 45%, rgba(186,230,253,0) 100%)",
+  },
+];
+
+function AuroraRibbons() {
+  return (
+    <div
+      className="pointer-events-none absolute inset-0 z-0 overflow-hidden select-none"
+      aria-hidden="true"
+    >
+      {AURORA_RIBBONS.map((ribbon) => (
+        <div
+          key={ribbon.className}
+          className={ribbon.className}
+          style={{ background: ribbon.background }}
+        />
+      ))}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// SnowGround — a static snow drift along the very bottom of the page.
+//
+// Pure SVG, drawn once, no animation: the falling flakes are already canvas
+// work, so the ground stays a cheap painted shape that never repaints.
+// ---------------------------------------------------------------------------
+function SnowGround() {
+  return (
+    <div className="pointer-events-none relative z-10 w-full select-none" aria-hidden="true">
+      <svg
+        viewBox="0 0 1440 160"
+        preserveAspectRatio="none"
+        className="block h-16 w-full sm:h-24 md:h-28"
+        focusable="false"
+      >
+        {/* Two overlapping ridges of different tone so the drift reads as snow
+            banked at different depths rather than one flat cut-out. */}
+        <path
+          d="M0 96 C 150 64, 300 118, 460 104 C 620 90, 760 40, 920 58 C 1080 76, 1230 122, 1440 86 L1440 160 L0 160 Z"
+          fill="rgba(255,255,255,0.18)"
+        />
+        <path
+          d="M0 126 C 180 100, 330 142, 520 130 C 730 116, 880 82, 1050 102 C 1200 120, 1330 146, 1440 124 L1440 160 L0 160 Z"
+          fill="rgba(255,255,255,0.32)"
+        />
+        <path
+          d="M0 146 C 220 132, 420 158, 660 150 C 900 142, 1120 118, 1440 144 L1440 160 L0 160 Z"
+          fill="rgba(255,255,255,0.5)"
+        />
+      </svg>
     </div>
   );
 }
@@ -1503,14 +1675,14 @@ function PreviousGamesSection({ games, progressByGame, isTeacher, onOpen, reduce
           onClick={() => setOpen((value) => !value)}
           aria-expanded={open}
           aria-controls={panelId}
-          className="group flex w-full items-center justify-center gap-2 rounded-full border-2 border-white/25 px-4 py-3 text-xs font-black text-white shadow-lg transition hover:border-white/40 sm:gap-3 sm:px-6 sm:py-4 sm:text-base"
+          className="bh-panel group flex w-full items-center justify-center gap-2 rounded-full border-2 border-sky-100/30 px-4 py-3 text-xs font-black text-white shadow-lg transition hover:border-white/40 sm:gap-3 sm:px-6 sm:py-4 sm:text-base"
           style={{
             background: PANEL_BACKGROUND,
             backdropFilter: "blur(14px)",
             WebkitBackdropFilter: "blur(14px)",
           }}
         >
-          <span className="text-base text-amber-300 sm:text-xl" aria-hidden="true">
+          <span className="text-base text-sky-200 sm:text-xl" aria-hidden="true">
             <Icon name="trophy" size="1em" />
           </span>
           <span>Previous Games</span>
@@ -1677,16 +1849,34 @@ function BetaHomeContent() {
 
   useEffect(() => {
     if (!gameAccessReady) return undefined;
+
+    // Skipped entirely when the player is on metered/slow data or a weak
+    // device. A game chunk is a few hundred KB each; warming a dozen of them
+    // on a school tablet competes with the page the child is trying to look
+    // at, and on Save-Data it spends a budget the user asked us to protect.
+    // The cost of NOT prefetching is one cold chunk on first tap, which the
+    // in-page loader already covers.
+    if (lowPower) return undefined;
+    const conn = typeof navigator !== "undefined" ? navigator.connection : null;
+    if (conn && (conn.saveData || /(^|-)2g$/.test(conn.effectiveType || ""))) {
+      return undefined;
+    }
+
     // Warms every game this player can open. The game list lives in the
     // registry, so a new game is prefetched automatically — no edit here.
     const prefetch = () => prefetchUnlockedGames(isGameUnlockedNow, isTeacher);
-    if (typeof window !== "undefined" && "requestIdleCallback" in window) {
-      const id = window.requestIdleCallback(prefetch, { timeout: 2000 });
-      return () => window.cancelIdleCallback(id);
+
+    // Idle-only. The old fallback was an unconditional setTimeout(800), which
+    // fired mid-load on every browser without requestIdleCallback and put the
+    // prefetch in direct competition with the game icons. Where there is no
+    // idle callback the prefetch is simply dropped — it is an optimisation,
+    // never a requirement.
+    if (typeof window === "undefined" || !("requestIdleCallback" in window)) {
+      return undefined;
     }
-    const t = setTimeout(prefetch, 800);
-    return () => clearTimeout(t);
-  }, [gameAccessReady, isTeacher, unlocked]);
+    const id = window.requestIdleCallback(prefetch, { timeout: 4000 });
+    return () => window.cancelIdleCallback(id);
+  }, [gameAccessReady, isTeacher, unlocked, lowPower]);
 
   const openGame = useCallback(
     (to) => {
@@ -1779,7 +1969,7 @@ function BetaHomeContent() {
         className="pointer-events-none absolute inset-0 z-0 opacity-70"
         style={{
           backgroundImage:
-            "radial-gradient(rgba(255,255,255,0.35) 1.2px, transparent 1.4px), radial-gradient(rgba(255,255,255,0.28) 1.2px, transparent 1.4px), radial-gradient(rgba(255,202,40,0.3) 2px, transparent 2.2px)",
+            "radial-gradient(rgba(255,255,255,0.35) 1.2px, transparent 1.4px), radial-gradient(rgba(255,255,255,0.28) 1.2px, transparent 1.4px), radial-gradient(rgba(186,230,253,0.4) 2px, transparent 2.2px)",
           backgroundSize: "30px 30px, 30px 30px, 90px 90px",
           backgroundPosition: "0 0, 15px 15px, 45px 30px",
         }}
@@ -1789,6 +1979,12 @@ function BetaHomeContent() {
           compositor awake, so they are simply not rendered on low-power
           devices rather than left to animate off-screen. */}
       {!lowPower && <FloatingDecor />}
+      {!lowPower && <AuroraRibbons />}
+
+      {/* Falling snow: a distant layer behind the content and a few large,
+          soft flakes in front of it. Canvas-driven and self-throttling, so it
+          is also rendered on low-power devices (at half density, 30fps). */}
+      <WinterSnow reduceMotion={Boolean(reduceMotion)} lowPower={lowPower} />
 
       {/* Visually-hidden, crawlable page summary. The visible app sits behind a
           code gate, so this gives search engines (and AI crawlers) real page
@@ -1854,18 +2050,21 @@ function BetaHomeContent() {
           initial={reduceMotion ? false : { opacity: 0, y: 16, scale: 0.98 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           transition={{ type: "spring", stiffness: 260, damping: 24 }}
-          className="relative overflow-hidden rounded-[1.75rem] sm:rounded-[2.25rem] border-[3px] sm:border-4 border-white/25 shadow-xl sm:shadow-2xl px-4 py-4 sm:px-7 sm:py-6"
+          className="bh-panel relative overflow-hidden rounded-[1.75rem] sm:rounded-[2.25rem] border-[3px] sm:border-4 border-sky-100/30 shadow-xl sm:shadow-2xl px-4 py-4 sm:px-7 sm:py-6"
           style={{
             background: PANEL_BACKGROUND,
             backdropFilter: "blur(14px)",
             WebkitBackdropFilter: "blur(14px)",
           }}
         >
-          <div className="pointer-events-none absolute -top-4 -right-4 text-[4.5rem] sm:text-[7rem] opacity-[0.09] text-indigo-200">
-            <Icon name="dice" size="1em" />
+          {/* Icy ghosted corner glyphs. Snowflake and pine rather than dice and
+              puzzle so the hero belongs to the winter scene; still at very low
+              opacity so they never compete with the logo. */}
+          <div className="pointer-events-none absolute -top-4 -right-4 text-[4.5rem] sm:text-[7rem] opacity-[0.10] text-sky-100">
+            <Icon name="snowflake" size="1em" />
           </div>
-          <div className="pointer-events-none absolute -bottom-6 -left-2 text-[5rem] sm:text-[8rem] opacity-[0.08] text-indigo-200">
-            <Icon name="puzzle" size="1em" />
+          <div className="pointer-events-none absolute -bottom-6 -left-2 text-[5rem] sm:text-[8rem] opacity-[0.09] text-sky-100">
+            <Icon name="tree" size="1em" />
           </div>
 
           <div className="relative flex flex-row items-center gap-3 sm:gap-6 md:gap-8">
@@ -1876,19 +2075,28 @@ function BetaHomeContent() {
               transition={{ type: "spring", stiffness: 240, damping: 22 }}
               className="relative flex-shrink-0"
             >
+              {/* Logo halo: a slow aurora ring. Was a six-colour rainbow, which
+                  fought the blue scene; now it cycles glacier blue → lavender
+                  → aurora green, the same three families as the background.
+
+                  No `filter: blur()` here. That was a 12px blur on a rotating
+                  element, so the browser re-ran a full blur pass every frame,
+                  forever, for a purely decorative glow. The soft edge comes
+                  from the gradient's own stops instead, which costs nothing to
+                  rotate because only the transform changes. */}
               <motion.div
-                animate={{ rotate: 360 }}
+                animate={reduceMotion ? { rotate: 0 } : { rotate: 360 }}
                 transition={{ duration: 45, repeat: Infinity, ease: "linear" }}
-                className="hidden sm:block absolute -inset-4 md:-inset-5 rounded-full opacity-40"
+                className="hidden sm:block absolute -inset-4 md:-inset-5 rounded-full opacity-35"
                 style={{
-                  background: "conic-gradient(from 0deg, #ff4fa3, #9b51e0, #2563eb, #4ade80, #ffca28, #ff4fa3)",
-                  filter: "blur(12px)",
+                  background:
+                    "radial-gradient(closest-side, rgba(103,232,249,0.55) 0%, rgba(165,180,252,0.4) 45%, rgba(167,243,208,0.22) 68%, rgba(196,181,253,0) 100%)",
                 }}
               />
               <motion.img
                 src={LOGO_URL}
                 alt="EZ Wonders"
-                animate={{ y: reduceMotion ? 0 : [0, -3, 0] }}
+                animate={reduceMotion ? { y: 0 } : { y: [0, -3, 0] }}
                 transition={{ duration: 3.5, repeat: Infinity, ease: "easeInOut" }}
                 className="relative h-auto w-20 sm:w-40 md:w-48 lg:w-60 drop-shadow-xl sm:drop-shadow-2xl"
                 loading="eager"
@@ -1953,7 +2161,7 @@ function BetaHomeContent() {
           initial={{ opacity: 0, y: 20, scale: 0.98 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           transition={{ type: "spring", stiffness: 260, damping: 22 }}
-          className="relative z-10 mx-auto mb-10 mt-8 flex w-full max-w-lg flex-col items-center gap-3 sm:gap-4 rounded-[1.75rem] sm:rounded-[2.25rem] border-[3px] sm:border-4 border-white/25 px-5 py-10 sm:px-8 sm:py-14 text-center shadow-xl sm:shadow-2xl"
+          className="bh-panel relative z-10 mx-auto mb-10 mt-8 flex w-full max-w-lg flex-col items-center gap-3 sm:gap-4 rounded-[1.75rem] sm:rounded-[2.25rem] border-[3px] sm:border-4 border-sky-100/30 px-5 py-10 sm:px-8 sm:py-14 text-center shadow-xl sm:shadow-2xl"
           style={{
             fontFamily: FONT,
             background: PANEL_BACKGROUND,
@@ -1965,13 +2173,9 @@ function BetaHomeContent() {
           <Sparkle delay={0.5} className="absolute top-6 right-6 sm:top-7 sm:right-8 h-3.5 w-3.5 sm:h-4 sm:w-4" />
           {gameAccessError ? (
             <>
-              <motion.span
-                animate={{ y: [0, -6, 0] }}
-                transition={{ duration: 2.4, repeat: Infinity }}
-                className="text-5xl sm:text-6xl md:text-7xl text-slate-400"
-              >
+              <div className="text-5xl sm:text-6xl md:text-7xl text-slate-400 animate-[bh-bob_2.4s_ease-in-out_infinite]">
                 <Icon name="sad" size="1em" />
-              </motion.span>
+              </div>
               <p className="max-w-xs text-sm sm:text-base md:text-lg font-bold" style={{ color: TEXT_SOFT }}>
                 {gameAccessError}
               </p>
@@ -2005,12 +2209,11 @@ function BetaHomeContent() {
           className="relative z-10 px-3 pt-7 sm:px-6 sm:pt-10 md:pt-14 pb-6 sm:pb-10 md:pb-12"
         >
           <SectionHeader
-            icon="star"
+            icon="snowflake"
             eyebrow="Spotlight"
             title="This Week's Wonders"
-            accent="linear-gradient(135deg, #67e8f9 0%, #c4b5fd 100%)"
+            accent={SECTION_ACCENTS.frost}
             icon2="sparkle"
-            reduceMotion={reduceMotion}
           />
 
           <div className="mx-auto grid w-full max-w-6xl grid-cols-1 gap-4 sm:gap-6 md:gap-7 sm:grid-cols-2 lg:grid-cols-3 xl:gap-8">
@@ -2049,12 +2252,11 @@ function BetaHomeContent() {
           }
         >
           <SectionHeader
-            icon="gamepad"
+            icon="tree"
             eyebrow="Pick a game"
             title="All Games"
-            accent="linear-gradient(135deg, #f9a8d4 0%, #c4b5fd 100%)"
-            icon2="dice"
-            reduceMotion={reduceMotion}
+            accent={SECTION_ACCENTS.aurora}
+            icon2="sparkle"
           />
 
           <div className="mx-auto grid w-full max-w-6xl grid-cols-1 gap-4 sm:gap-6 md:gap-7 sm:grid-cols-2 lg:grid-cols-3 xl:gap-8">
@@ -2105,16 +2307,12 @@ function BetaHomeContent() {
           className="relative z-10 flex flex-col items-center gap-3 sm:gap-4 py-14 sm:py-20 text-center px-3 sm:px-4"
           style={{ fontFamily: FONT }}
         >
-          <motion.div
-            animate={{ y: [0, -4, 0] }}
-            transition={{ duration: 3.5, repeat: Infinity, ease: "easeInOut" }}
-            className="text-5xl sm:text-7xl md:text-8xl text-pink-300"
-          >
-            <Icon name="balloon" size="1em" />
-          </motion.div>
+          <div className="text-5xl sm:text-7xl md:text-8xl text-sky-200 animate-[bh-bob_3.5s_ease-in-out_infinite]">
+            <Icon name="snowman" size="1em" />
+          </div>
           <h3
             className="text-xl sm:text-2xl md:text-3xl font-black"
-            style={{ fontFamily: FONT, background: "linear-gradient(135deg, #f9a8d4 0%, #c4b5fd 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}
+            style={{ fontFamily: FONT, background: "linear-gradient(135deg, #bae6fd 0%, #c4b5fd 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}
           >
             No games yet!
           </h3>
@@ -2143,18 +2341,18 @@ function BetaHomeContent() {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ type: "spring", stiffness: 260, damping: 22 }}
-          className="mx-auto max-w-5xl overflow-hidden rounded-[1.75rem] sm:rounded-[2.25rem] border-[3px] sm:border-4 border-white/25 shadow-xl sm:shadow-2xl px-4 py-4 sm:px-7 sm:py-6 md:px-9 md:py-8 text-center relative"
+          className="bh-panel mx-auto max-w-5xl overflow-hidden rounded-[1.75rem] sm:rounded-[2.25rem] border-[3px] sm:border-4 border-sky-100/30 shadow-xl sm:shadow-2xl px-4 py-4 sm:px-7 sm:py-6 md:px-9 md:py-8 text-center relative"
           style={{
             background: PANEL_BACKGROUND,
             backdropFilter: "blur(14px)",
             WebkitBackdropFilter: "blur(14px)",
           }}
         >
-          <div className="pointer-events-none absolute -top-4 -right-4 text-5xl sm:text-7xl opacity-[0.09] text-indigo-200">
-            <Icon name="sparkle" size="1em" />
+          <div className="pointer-events-none absolute -top-4 -right-4 text-5xl sm:text-7xl opacity-[0.09] text-sky-100">
+            <Icon name="snowflake" size="1em" />
           </div>
-          <div className="pointer-events-none absolute -bottom-3 -left-2 text-5xl sm:text-7xl opacity-[0.08] text-indigo-200">
-            <Icon name="rainbow" size="1em" />
+          <div className="pointer-events-none absolute -bottom-3 -left-2 text-5xl sm:text-7xl opacity-[0.08] text-sky-100">
+            <Icon name="tree" size="1em" />
           </div>
           <Sparkle delay={0.2} className="absolute top-4 left-5 sm:top-5 sm:left-6 h-3.5 w-3.5 sm:h-4 sm:w-4" />
           <Sparkle delay={0.7} className="absolute top-5 right-5 sm:top-6 sm:right-8 h-3.5 w-3.5 sm:h-4 sm:w-4" />
@@ -2182,15 +2380,23 @@ function BetaHomeContent() {
           </p>
 
           <ContactStrip heading="Reach out to us" className="mt-4 sm:mt-5" />
+          {/* Footer flourish, in the winter family: pine, snowflake, crystal. */}
+          {/* Five CSS-keyframe bobs rather than five Framer loops: this row is
+              pure decoration and previously kept five main-thread animations
+              alive for the entire life of the page. The staggered
+              animation-delay attributes reproduce the original offsets. */}
           <div className="mt-3 sm:mt-4 flex items-center justify-center gap-2 sm:gap-3 text-xl sm:text-2xl md:text-3xl">
-            <motion.span animate={{ y: [0, -3, 0] }} transition={{ duration: 3.5, repeat: Infinity }} className="text-pink-300"><Icon name="palette" size="1em" /></motion.span>
-            <motion.span animate={{ y: [0, -3, 0] }} transition={{ duration: 3.5, repeat: Infinity, delay: 0.2 }} className="text-violet-300"><Icon name="abacus" size="1em" /></motion.span>
-            <motion.span animate={{ y: [0, -3, 0] }} transition={{ duration: 3.5, repeat: Infinity, delay: 0.4 }} className="text-cyan-300"><Icon name="book" size="1em" /></motion.span>
-            <motion.span animate={{ y: [0, -3, 0] }} transition={{ duration: 3.5, repeat: Infinity, delay: 0.6 }} className="text-emerald-300"><Icon name="target" size="1em" /></motion.span>
-            <motion.span animate={{ y: [0, -3, 0] }} transition={{ duration: 3.5, repeat: Infinity, delay: 0.8 }} className="text-amber-300"><Icon name="star" size="1em" /></motion.span>
+            <span className="text-emerald-200 animate-[bh-bob_3.5s_ease-in-out_infinite]"><Icon name="tree" size="1em" /></span>
+            <span className="text-cyan-200 animate-[bh-bob_3.5s_ease-in-out_infinite] [animation-delay:0.2s]"><Icon name="snowflake" size="1em" /></span>
+            <span className="text-sky-100 animate-[bh-bob_3.5s_ease-in-out_infinite] [animation-delay:0.4s]"><Icon name="snowman" size="1em" /></span>
+            <span className="text-violet-200 animate-[bh-bob_3.5s_ease-in-out_infinite] [animation-delay:0.6s]"><Icon name="snowflake" size="1em" /></span>
+            <span className="text-teal-200 animate-[bh-bob_3.5s_ease-in-out_infinite] [animation-delay:0.8s]"><Icon name="tree" size="1em" /></span>
           </div>
         </motion.div>
       </footer>
+
+      {/* Snow drift along the very bottom of the page. */}
+      <SnowGround />
 
       {/* ================================================================
           LOADING OVERLAY
@@ -2208,7 +2414,7 @@ function BetaHomeContent() {
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: 10 }}
               transition={{ type: "spring", stiffness: 320, damping: 24 }}
-              className="relative overflow-hidden rounded-3xl border-4 border-white/25 px-8 py-7 shadow-2xl"
+              className="relative overflow-hidden rounded-3xl border-4 border-sky-100/30 px-8 py-7 shadow-2xl"
               style={{
                 fontFamily: FONT,
                 background: PANEL_BACKGROUND,
@@ -2252,7 +2458,7 @@ function BetaHomeContent() {
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: 10 }}
               transition={{ type: "spring", stiffness: 320, damping: 24 }}
-              className="relative overflow-hidden rounded-3xl border-4 border-white/25 px-8 py-7 shadow-2xl"
+              className="relative overflow-hidden rounded-3xl border-4 border-sky-100/30 px-8 py-7 shadow-2xl"
               style={{
                 fontFamily: FONT,
                 background: PANEL_BACKGROUND,

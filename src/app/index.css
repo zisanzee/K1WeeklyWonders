@@ -262,16 +262,19 @@ html[data-lowpower="true"] .aura-card,
 html[data-lowpower="true"] .bh-panel {
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
-  /* Bump opacity to keep the LIGHT text readable without the blur wash. */
+  /* Bump opacity to keep the LIGHT text readable without the blur wash.
+     Midnight blue, not the old indigo: this fallback is what a weak device
+     actually sees INSTEAD of the frosted glass, so it has to be the same
+     winter family as the page or those devices render a different theme. */
   background: linear-gradient(
     165deg,
-    rgba(46, 36, 96, 0.82) 0%,
-    rgba(32, 24, 70, 0.86) 100%
+    rgba(18, 40, 92, 0.86) 0%,
+    rgba(10, 26, 69, 0.9) 100%
   );
 }
 
 html[data-lowpower="true"] .bh-panel {
-  background: rgba(46, 36, 96, 0.86);
+  background: rgba(16, 34, 80, 0.9);
 }
 
 /* Kill the ambient/decorative keyframe animations in one place. Games are not
@@ -284,20 +287,22 @@ html[data-lowpower="true"] .ezw-pwa-rise {
   animation: none !important;
 }
 
-/* Collapse the 7-layer aurora (6 radial glows + a linear base) down to the base
-   gradient alone. This is a full-viewport fixed layer, so on a weak GPU the six
-   extra radial rasterisations are the most expensive single paint on the home
-   page. `!important` is required because the layer sets its background inline. */
+/* Collapse the multi-layer aurora (corner glows + vignette + a linear base) down
+   to the base gradient alone. This is a full-viewport fixed layer, so on a weak
+   GPU the extra radial rasterisations are the most expensive single paint on the
+   home page. `!important` is required because the layer sets its background
+   inline. Stops MUST match PAGE_BASE_GRADIENT in BetaHome.jsx — a drift here is
+   a colour change on exactly the devices least able to afford a re-paint. */
 html[data-lowpower="true"] .bh-aurora,
 html[data-lowpower="true"] .aura-page::before {
   background-image: linear-gradient(
     160deg,
-    #1e1b5a 0%,
-    #4338ca 22%,
-    #7c3aed 46%,
-    #9333ea 66%,
-    #a21caf 84%,
-    #be185d 100%
+    #0b1a45 0%,
+    #123a8a 24%,
+    #1a5fb4 46%,
+    #2b6fb8 66%,
+    #3479b9 84%,
+    #3b82b8 100%
   ) !important;
 }
 
