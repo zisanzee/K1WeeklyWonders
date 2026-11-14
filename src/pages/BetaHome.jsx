@@ -133,6 +133,16 @@ const PANEL_BACKGROUND =
 const CHAMPIONS_ARTWORK =
   "https://res.cloudinary.com/hijmipga/image/upload/f_auto,q_auto,w_900/v1794590030/wintertheme_o67nyj.png";
 
+// Warm fairy-light garland drawn behind each game card's content. Sits on a
+// fully transparent canvas (alpha 0 everywhere except the bulbs and string), so
+// it layers over a card gradient without a background box, and a drop-shadow
+// glow can trace the lights themselves rather than a rectangle.
+//
+// w_600 is the source width; the card never renders wider than ~420px, so this
+// already covers 2x. f_auto/q_auto lets Cloudinary serve WebP/AVIF where it can.
+const GAME_CARD_LIGHTS =
+  "https://res.cloudinary.com/hijmipga/image/upload/f_auto,q_auto,w_600/v1794640978/Warm_Golden_Lights_on_Black_1_1_jgpmml.png";
+
 const MotionLink = motion.create(Link);
 
 // ---------------------------------------------------------------------------
@@ -903,6 +913,54 @@ function TimerLeaderboardCard({ classId, playerName }) {
 }
 
 // ===========================================================================
+// CARD LIGHTS — the fairy-light garland drawn behind a card's content
+// ===========================================================================
+//
+// Shared by GameCard and SurpriseCard so the two can never drift apart.
+//
+// Sizing: `w-full` + `h-auto` derives the box purely from the card's width, so
+// the source 2:1 aspect is preserved exactly at every breakpoint and through
+// the hover lift / tap scale — the artwork can never be squashed or letterboxed.
+// `inset-x-0` plus each card's own `overflow-hidden` keeps it inside the rounded
+// corners. Callers render this as their FIRST child, so it paints under the
+// shine, pattern, badges and icon with no z-index needed.
+//
+// Glow: `drop-shadow` rather than `box-shadow`, because this artwork is
+// transparent apart from the bulbs and string — drop-shadow follows the alpha
+// channel, so only the lights bloom instead of a dark rectangle appearing round
+// the image. The small blur softens the bulbs into the card.
+//
+// `flip` mirrors it on the X axis. The garland is asymmetric (two sagging
+// strands with the bulbs bunched left of centre), so alternating cards read as
+// varied rather than stamped. Mirroring is a transform, so it costs nothing.
+//
+// Not rendered on low-power devices: one filtered image per card is exactly the
+// per-card cost that mode exists to avoid. index.css also strips the blur there
+// as a belt-and-braces measure.
+function CardLights({ flip = false }) {
+  const lowPower = useLowPower();
+  if (lowPower) return null;
+
+  return (
+    <img
+      src={GAME_CARD_LIGHTS}
+      alt=""
+      aria-hidden="true"
+      draggable={false}
+      loading="lazy"
+      decoding="async"
+      className="game-card-lights pointer-events-none absolute inset-x-0 top-0 h-auto w-full select-none"
+      style={{
+        objectFit: "contain",
+        filter:
+          "blur(0.6px) drop-shadow(0 0 6px rgba(255,208,120,0.75)) drop-shadow(0 0 16px rgba(255,176,64,0.45))",
+        transform: flip ? "scaleX(-1)" : undefined,
+      }}
+    />
+  );
+}
+
+// ===========================================================================
 // GAME CARD
 // ===========================================================================
 
@@ -979,6 +1037,10 @@ const GameCard = memo(motion.create(function GameCard({
         )}
         style={{ background: gradient }}
       >
+        {/* Alternating mirror keeps a long grid from looking stamped — every
+            other card hangs its garland the other way. */}
+        <CardLights flip={index % 2 === 1} />
+
         {!isOpen && <LockOverlay />}
 
         {/* Pattern overlay */}
@@ -1171,6 +1233,10 @@ function SurpriseCard({ games, onOpen, reduceMotion }) {
         className="group relative flex h-full w-full flex-col overflow-hidden rounded-[1.5rem] sm:rounded-[2rem] p-4 sm:p-6 md:p-7 shadow-lg sm:shadow-2xl ring-[3px] sm:ring-4 ring-white/70 cursor-pointer"
         style={{ background: gradient }}
       >
+        {/* Same garland as the game cards, mirrored so the surprise tile does
+            not look like a copy of the card beside it. First child, so it stays
+            behind the shine, sparkles, dice and button. */}
+        <CardLights flip />
         {/* Shine + sparkles */}
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/35 via-white/10 to-black/10" />
         <div

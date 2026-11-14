@@ -312,6 +312,15 @@ html[data-lowpower="true"] .card-glow {
   display: none;
 }
 
+/* The fairy-light garland is already not rendered on low power (see
+   GameCard — one filtered image per card is exactly the kind of cost this
+   mode exists to avoid). This keeps the blur off it should it ever be
+   re-enabled there: the drop-shadow glow is the cheap half of the effect and
+   the 0.6px blur is the part that costs a filter pass. */
+html[data-lowpower="true"] .game-card-lights {
+  filter: drop-shadow(0 0 6px rgba(255, 208, 120, 0.6)) !important;
+}
+
 /* Bound the repaint area of every frosted panel. Without this a change inside
    one panel can invalidate a much larger region (the shadow, the border, the
    neighbour above it), which is how a small update turns into a full-width
