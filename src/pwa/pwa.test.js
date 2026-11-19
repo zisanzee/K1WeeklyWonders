@@ -6,6 +6,7 @@ import {
   shouldShowUpdatePrompt,
   manualInstallInstructions,
   isIosPlatform,
+  isSamsungInternet,
   computeInstallSupported,
   resolveInstallTarget,
   installGuideFor,
@@ -76,6 +77,28 @@ describe('isIosPlatform', () => {
   });
 });
 
+describe('isSamsungInternet', () => {
+  const samsungUa =
+    'Mozilla/5.0 (Linux; Android 14; SM-A326B) AppleWebKit/537.36 (KHTML, like Gecko) SamsungBrowser/24.0 Chrome/117.0.0.0 Mobile Safari/537.36';
+
+  it('detects Samsung Internet from its user-agent token', () => {
+    expect(isSamsungInternet({ userAgent: samsungUa })).toBe(true);
+  });
+
+  it('does not match Chrome or Firefox on the same phone', () => {
+    expect(
+      isSamsungInternet({
+        userAgent:
+          'Mozilla/5.0 (Linux; Android 14; SM-A326B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Mobile Safari/537.36',
+      })
+    ).toBe(false);
+    expect(isSamsungInternet({ userAgent: 'Mozilla/5.0 (Windows NT 10.0)' })).toBe(
+      false
+    );
+    expect(isSamsungInternet({})).toBe(false);
+  });
+});
+
 describe('computeInstallSupported', () => {
   it('is true for iOS even without a native prompt', () => {
     expect(
@@ -103,6 +126,16 @@ describe('resolveInstallTarget', () => {
 
   it('routes iOS to the Share-sheet guide', () => {
     expect(resolveInstallTarget({ platform: 'ios' })).toBe('ios');
+  });
+
+  // Regression guard: firing the native prompt straight into Android's Play
+  // Protect "app scan recommended" screen is what made teachers abandon the
+  // install. The explanation must come first, even with a prompt in hand.
+  it('routes Samsung Internet to the Play Protect explanation, even when a prompt is ready', () => {
+    expect(
+      resolveInstallTarget({ platform: 'samsung', nativePromptReady: true })
+    ).toBe('samsung');
+    expect(resolveInstallTarget({ platform: 'samsung' })).toBe('samsung');
   });
 
   it('routes Firefox to its own menu guide', () => {
@@ -133,6 +166,15 @@ describe('install guides', () => {
   it('gives Firefox its own menu steps', () => {
     const guide = installGuideFor('firefox');
     expect(guide.steps.join(' ')).toMatch(/Firefox/);
+  });
+
+  it('explains the Play Protect scan for Samsung Internet and offers Continue', () => {
+    const guide = installGuideFor('samsung');
+    expect(guide.steps.join(' ')).toMatch(/Play Protect/);
+    expect(guide.steps.join(' ')).toMatch(/hasn’t seen this app before/);
+    expect(guide.action).toBe('Continue');
+    // Pointing at Chrome is the only way to skip the check entirely.
+    expect(guide.note).toMatch(/Chrome/);
   });
 
   it('always resolves to a usable guide even for an unknown target', () => {

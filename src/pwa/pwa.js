@@ -30,13 +30,18 @@ import { create } from 'zustand';
 //                      right now (engagement-gated, so often not on a first
 //                      visit).
 //
-// The button then resolves to one of four guides (see resolveInstallTarget):
+// The button then resolves to one of five guides (see resolveInstallTarget):
 //
 //   - Prompt READY   → fires the native Edge/Chrome install dialog (one tap).
 //   - Chromium, no prompt yet → manual Edge/Chrome menu steps.
 //   - iOS/iPadOS (any browser — they are all WebKit) → Share → Add to Home
 //     Screen, because there is no install API to call.
 //   - Firefox → its own menu path, since it has no beforeinstallprompt either.
+//   - Samsung Internet → an explanation FIRST, then the user fires the prompt.
+//     See the SAMSUNG / PLAY PROTECT note further down: Samsung mints its own
+//     WebAPK, so Android shows a "Play Protect hasn't seen this app before"
+//     scan dialog that Chrome never shows. Users read that as "this is a virus"
+//     and abandon the install, so it must be explained before it appears.
 //
 // Gating on `installSupported` (not readiness) means the control always leads
 // somewhere instead of being a dead tap. This is what fixed the "Edge offers
@@ -126,6 +131,32 @@ function detectIos() {
     userAgent: navigator.userAgent || '',
     maxTouchPoints: navigator.maxTouchPoints || 0,
   });
+}
+
+// True for Samsung Internet on Android (UA contains "SamsungBrowser/24.0").
+//
+// WHY THIS MATTERS — this is not a cosmetic check. Both Chrome and Samsung
+// Internet install a PWA as a real Android app (a WebAPK), but only Chrome's
+// is minted and signed by Google's server (`org.chromium.webapk.*`), which is
+// why Play Protect recognises it and installs it silently. Samsung mints the
+// WebAPK on its own pipeline (`com.sec.android.app.sbrowser.webapk.*`), so
+// Play Protect has never seen that package and interrupts the install with
+// "Play Protect hasn't seen this app before. To protect your device and data,
+// send this app to Google for a security scan."
+//
+// That dialog is normal Android verification, not a malware verdict — but a
+// teacher installing an app for a class reads it as one and taps "Don't
+// install app". Nothing in our manifest can pre-register the package with
+// Play Protect, so the only fix available to us is to explain it BEFORE the
+// dialog appears (see the 'samsung' install target) and to point at Chrome,
+// which installs without it.
+export function isSamsungInternet({ userAgent = '' } = {}) {
+  return /SamsungBrowser\//.test(userAgent);
+}
+
+function detectSamsung() {
+  if (typeof window === 'undefined') return false;
+  return isSamsungInternet({ userAgent: navigator.userAgent || '' });
 }
 
 // Whether the app can be installed on this device by ANY route. Chromium (via
@@ -367,19 +398,26 @@ export function useInstallOffer() {
 }
 
 // Which install action the button should take, given what the browser offers.
-// Pure, so the four guides are unit-testable without a DOM.
+// Pure, so the five guides are unit-testable without a DOM.
 //
 //   'native'       → fire the captured Chromium prompt.
 //   'ios'          → Share → Add to Home Screen (iPad/iPhone, any browser).
 //   'firefox'      → Firefox menu → Install (Firefox never fires the event).
+//   'samsung'      → explain the Play Protect scan dialog FIRST, then install.
 //   'chromium'     → Chromium menu steps (supported but engagement-gated).
+//
+// 'samsung' deliberately WINS over a ready native prompt: firing that prompt
+// straight away is exactly what drops a teacher onto Google's "this app hasn't
+// been seen before" screen with no context. Opening the short explanation first
+// costs one extra tap and turns an abandoned install into a completed one.
 export function resolveInstallTarget({
   nativePromptReady = false,
   platform = 'other',
 } = {}) {
-  if (nativePromptReady) return 'native';
   if (platform === 'ios') return 'ios';
   if (platform === 'firefox') return 'firefox';
+  if (platform === 'samsung') return 'samsung';
+  if (nativePromptReady) return 'native';
   return 'chromium';
 }
 
@@ -422,7 +460,17 @@ export function initPwa() {
   const nativePromptSupported = detectNativePromptSupported();
   const firefox =
     !nativePromptSupported && /Firefox|FxiOS/.test(navigator.userAgent || '');
-  const platform = ios ? 'ios' : firefox ? 'firefox' : 'chromium';
+  // Samsung Internet is checked before the Chromium fallback because it DOES
+  // support beforeinstallprompt — it just installs through a pipeline Play
+  // Protect flags (see isSamsungInternet).
+  const samsung = !ios && !firefox && detectSamsung();
+  const platform = ios
+    ? 'ios'
+    : firefox
+      ? 'firefox'
+      : samsung
+        ? 'samsung'
+        : 'chromium';
   store.setPlatform(platform);
   store.setNativePromptSupported(nativePromptSupported);
   store.setInstallSupported(computeInstallSupported({ ios, nativePromptSupported }));
@@ -627,13 +675,17 @@ export async function promptInstall() {
   }
 }
 
-// Per-target manual install guides, shown when the native prompt is not the
-// action. Pure and browser-free so they can be unit-tested and kept in sync.
+// Per-target install guides. Pure and browser-free so they can be unit-tested
+// and kept in sync.
 //
 //   ios      — iPad/iPhone, ANY browser (all WebKit): Share → Add to Home
 //              Screen. This is the path iOS never automates.
 //   firefox  — Firefox has no beforeinstallprompt; install lives in the menu
 //              and the page must also have been visited enough to qualify.
+//   samsung  — Samsung Internet mints its own WebAPK, so Android interrupts the
+//              install with a Play Protect scan dialog. The guide explains that
+//              before it appears and offers a single "Continue" action (the
+//              popover fires the native prompt itself — see PwaBadges.jsx).
 //   chromium — Edge/Chrome when the prompt has not been emitted yet.
 const INSTALL_GUIDES = {
   ios: {
@@ -655,6 +707,20 @@ const INSTALL_GUIDES = {
     ],
     note: 'If you do not see Install, visit the site a little longer first.',
   },
+  // Samsung Internet only. Keep the wording calm and specific: the goal is that
+  // a teacher who reaches Android's scan dialog recognises it instead of
+  // pressing "Don't install app". "Continue" is rendered as a real button only
+  // when the browser has handed us a prompt to fire.
+  samsung: {
+    title: 'Install on Samsung Internet',
+    steps: [
+      'Tap “Continue”, then choose “Scan app” (or “Install without scanning”).',
+      'Android may say Play Protect “hasn’t seen this app before”. That is a routine check for an app it has not scanned yet — it is not a virus warning.',
+      'Once it finishes, the EZ Wonders icon appears on your home screen.',
+    ],
+    action: 'Continue',
+    note: 'To avoid the check entirely, install from Chrome instead (menu ⋮ → Add to Home screen).',
+  },
   chromium: {
     title: 'Install EZ Wonders',
     steps: [
@@ -662,7 +728,10 @@ const INSTALL_GUIDES = {
       'Choose “Apps” (Edge) or “Cast, save and share” (Chrome).',
       'Pick “Install this site as an app”.',
     ],
-    note: 'Then open it from your Start menu or home screen.',
+    // The same Play Protect dialog is now reported on Chrome under recent
+    // Android versions, so the reassurance belongs here too — see
+    // isSamsungInternet for why the dialog exists at all.
+    note: 'Then open it from your Start menu or home screen. On Android, Play Protect may ask to scan the app first — that is a routine check, not a virus warning.',
   },
 };
 

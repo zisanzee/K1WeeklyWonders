@@ -217,10 +217,15 @@ const INSTALL_ICON = (
 export const InstallButton = memo(function InstallButton() {
   const { pathname } = useLocation();
   const offer = useInstallOffer();
-  // 'native' | 'ios' | 'firefox' | 'chromium' — decides the label, whether the
-  // click fires the native dialog, and which guide the popover shows.
+  // 'native' | 'ios' | 'firefox' | 'samsung' | 'chromium' — decides the label,
+  // whether the click fires the native dialog, and which guide the popover
+  // shows.
   const target = useInstallTarget();
+  // Whether a Chromium prompt can be fired right now. For 'samsung' this is
+  // still true in practice, but the click must open the explanation FIRST
+  // (see resolveInstallTarget), so the prompt is fired from the popover instead.
   const promptReady = target === 'native';
+  const canFirePrompt = usePwaStore((s) => Boolean(s.installEvent));
   // Manual guide popover. Local state is safe to keep here because memo() keeps
   // this one instance mounted for the app's lifetime.
   const [showSteps, setShowSteps] = useState(false);
@@ -315,6 +320,23 @@ export const InstallButton = memo(function InstallButton() {
                   <li key={step}>{step}</li>
                 ))}
               </ol>
+              {/* Samsung Internet: the steps above explain Android's Play
+                  Protect scan dialog, and this button fires it. Rendered only
+                  when the browser actually gave us a prompt — otherwise the
+                  written steps (and the Chrome suggestion) are the whole guide
+                  and a dead button would be worse than none. */}
+              {guide.action && canFirePrompt && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowSteps(false);
+                    promptInstall();
+                  }}
+                  className="mt-2.5 w-full rounded-xl bg-white px-3 py-2 text-xs font-black text-violet-700 transition hover:-translate-y-0.5 active:translate-y-0"
+                >
+                  {guide.action}
+                </button>
+              )}
               {guide.note && (
                 <p className="mt-2 text-white/60">{guide.note}</p>
               )}

@@ -117,6 +117,20 @@ manifest:
 - **iOS Safari never fires `beforeinstallprompt`.** Detect
   `navigator.standalone === false` + iOS UA and show a "tap Share → Add to Home
   Screen" hint instead of a button.
+- **Android Play Protect shows an "App scan recommended" dialog on install.**
+  This is normal Android install-time verification, not a malware verdict, but
+  users read it as one and abandon the install. It appears because the WebAPK
+  package Play Protect receives is one it has not scanned before. With Chrome
+  the WebAPK is minted and signed by Google (`org.chromium.webapk.*`) so it is
+  normally installed silently; Samsung Internet mints its own
+  (`com.sec.android.app.sbrowser.webapk.*`) so it is always "unseen". Nothing in
+  `site.webmanifest` can pre-register the package — there is no PWA equivalent
+  of submitting an APK to Play Protect. So the app handles it in the install
+  guide instead (`pwa.js`: `isSamsungInternet`, the `samsung` install target and
+  its guide), explaining the dialog before it can appear and pointing at Chrome
+  as the path that avoids it entirely. Do not "fix" this by hiding the install
+  button on Samsung: the browser installs fine once the user taps **Scan app**
+  or **Install without scanning**.
 - Hide the button when already installed: match
   `window.matchMedia('(display-mode: standalone)')`.
 - Place it on `BetaHome.jsx` (and optionally `PublicLanding.jsx`) — one shared
